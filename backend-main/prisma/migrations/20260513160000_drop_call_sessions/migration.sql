@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS "CallSession";
+
+DROP TYPE IF EXISTS "CallEndReason";
+DROP TYPE IF EXISTS "CallStatus";

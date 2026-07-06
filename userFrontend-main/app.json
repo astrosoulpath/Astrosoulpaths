@@ -1,0 +1,83 @@
+{
+  "expo": {
+    "name": "Astro Soul Path",
+    "slug": "astro-soul-path",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/astro-logo-foreground.png",
+    "scheme": "astrosoulpath",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "buildNumber": "1",
+      "bundleIdentifier": "com.astrosoulpath.astrosoulpath",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Allow microphone access for audio calling",
+        "NSBluetoothAlwaysUsageDescription": "Allow Bluetooth audio devices for audio calling",
+        "NSLocationWhenInUseUsageDescription": "Allow location access"
+      }
+    },
+    "android": {
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#041d56",
+        "foregroundImage": "./assets/images/astro-logo-foreground.png",
+        "backgroundImage": "./assets/images/astro-background.png",
+        "monochromeImage": "./assets/images/astro-monchrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "BLUETOOTH",
+        "BLUETOOTH_CONNECT",
+        "WAKE_LOCK",
+        "POST_NOTIFICATIONS",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "package": "com.astrosoulpath.astrosoulpath"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/astrofavicon.ico"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-location",
+      "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      "expo-secure-store",
+      "@react-native-community/datetimepicker",
+      "expo-build-properties"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "zego": {
+        "appId": 746838843,
+        "appSign": "7cfbf8ce8573c6ed2b7a5abcc72da909ed27bd7d1c3859a76db2ab977d3fa68a"
+      },
+      "eas": {
+        "projectId": "0dd3c3d9-9eba-4b1b-8801-0c2ea5f8baaf"
+      }
+    },
+    "owner": "sakshamswarup"
+  }
+}

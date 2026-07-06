@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: astrosoulpath-backend
+    runtime: node
+    plan: starter
+    buildCommand: pnpm install --frozen-lockfile && pnpm prisma generate && pnpm run build
+    preDeployCommand: pnpm prisma migrate deploy
+    startCommand: pnpm run start:prod
+    healthCheckPath: /health
+    autoDeploy: true
