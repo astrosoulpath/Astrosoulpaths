@@ -29,10 +29,7 @@ export class AuthService {
   ) {}
 
   private getErrorMessage(error: unknown) {
-    if (error instanceof Error) {
-      return error.message;
-    }
-
+    if (error instanceof Error) return error.message;
     return String(error);
   }
 
@@ -88,10 +85,8 @@ export class AuthService {
     };
   }
 
-  // 📩 Send OTP
   async sendOtp(phone: string) {
     try {
-      // Basic validation
       if (!phone || phone.length < 10) {
         throw new BadRequestException({
           success: false,
@@ -100,16 +95,21 @@ export class AuthService {
         });
       }
 
+      if (process.env.LOCAL_OTP_ENABLED === 'true') {
+        return {
+          success: true,
+          message: 'Local dev OTP sent successfully',
+          devOtp: process.env.LOCAL_OTP_CODE || '123456',
+        };
+      }
+
       const supabase = this.supabaseService.getClient();
 
-      const { error } = await supabase.auth.signInWithOtp({
-        phone,
-      });
+      const { error } = await supabase.auth.signInWithOtp({ phone });
 
       if (error) {
         this.logger.warn(`OTP send failed for ${phone}: ${error.message}`);
 
-        // Supabase rate limit
         if (
           error.message.toLowerCase().includes('rate limit') ||
           error.message.toLowerCase().includes('too many')
@@ -159,10 +159,8 @@ export class AuthService {
     };
   }
 
-  // 🔐 Verify OTP
   async verifyOtp(phone: string, token: string) {
     try {
-      // Basic validation
       if (!phone || !token) {
         throw new BadRequestException({
           success: false,
@@ -171,15 +169,46 @@ export class AuthService {
         });
       }
 
+      if (process.env.LOCAL_OTP_ENABLED === 'true') {
+        if (token !== (process.env.LOCAL_OTP_CODE || '123456')) {
+          throw new UnauthorizedException({
+            success: false,
+            message: 'Invalid OTP',
+            code: 'INVALID_OTP',
+          });
+        }
+
+        return {
+          success: true,
+          message: 'Local dev login successful',
+          user: {
+            id: 'local-user',
+            supabaseId: 'local-supabase-user',
+            phone,
+            role: 'user',
+            isNewUser: true,
+            isProfileComplete: false,
+            subscriptionPlan: 'FREE',
+            subscriptionStatus: 'FREE',
+          },
+          session: {
+            accessToken: 'local-dev-token',
+            refreshToken: 'local-refresh-token',
+            expiresIn: 3600,
+            expiresAt: Math.floor(Date.now() / 1000) + 3600,
+            tokenType: 'bearer',
+          },
+          nextStep: 'COMPLETE_PROFILE',
+        };
+      }
+
       let data: Awaited<ReturnType<SupabaseService['verifyOtp']>>;
 
       try {
-        // Step 1: Verify OTP via Supabase
         data = await this.supabaseService.verifyOtp(phone, token);
       } catch (supabaseError: unknown) {
         const errorMessage = this.getErrorMessage(supabaseError).toLowerCase();
 
-        // Invalid OTP
         if (
           errorMessage.includes('invalid') ||
           errorMessage.includes('otp') ||
@@ -192,7 +221,6 @@ export class AuthService {
           });
         }
 
-        // Expired OTP
         if (errorMessage.includes('expired')) {
           throw new UnauthorizedException({
             success: false,
@@ -201,7 +229,6 @@ export class AuthService {
           });
         }
 
-        // Too many attempts
         if (
           errorMessage.includes('too many') ||
           errorMessage.includes('rate limit')
@@ -213,7 +240,6 @@ export class AuthService {
           });
         }
 
-        // User/phone missing
         if (
           errorMessage.includes('not found') ||
           errorMessage.includes('user not found')
@@ -225,7 +251,6 @@ export class AuthService {
           });
         }
 
-        // Fallback auth failure
         throw new UnauthorizedException({
           success: false,
           message:
@@ -237,7 +262,6 @@ export class AuthService {
       const authUser = data.user;
       const session = data.session;
 
-      // Safety validation
       if (!authUser || !session) {
         throw new UnauthorizedException({
           success: false,
@@ -246,17 +270,14 @@ export class AuthService {
         });
       }
 
-      // Step 2: Sync/Create user
       const { user, isNewUser } = await this.userService.syncUser({
         supabaseId: authUser.id,
         phone: authUser.phone,
       });
 
-      // Step 3: Success response
       return {
         success: true,
         message: 'Login successful',
-
         user: this.buildUserPayload(user, isNewUser),
         session: this.buildSessionPayload(session),
         nextStep: this.getUserNextStep(user),
@@ -264,7 +285,6 @@ export class AuthService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
 
-      // Expected handled auth failures
       if (
         err instanceof BadRequestException ||
         err instanceof UnauthorizedException ||
@@ -274,7 +294,6 @@ export class AuthService {
         throw err;
       }
 
-      // Unexpected system failures
       this.logger.error(`Verify OTP failed for ${phone}: ${message}`);
 
       throw new InternalServerErrorException({
