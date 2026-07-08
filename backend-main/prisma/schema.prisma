@@ -225,6 +225,11 @@ model Profile {
 
   fullname String?
 
+  // ASP production profile fields
+  maritalStatus String?
+  occupation     String?
+  avatarUrl      String?
+
   isDeleted Boolean @default(false)
 
   user User @relation("UserProfiles", fields: [userId], references: [id])
@@ -239,7 +244,7 @@ model Profile {
 }
 
 model Match {
-  id String @id @default(cuid())
+  id String @id @default(uuid())
 
   boyId  String
   girlId String
@@ -247,14 +252,19 @@ model Match {
   boy  Profile @relation("Boy", fields: [boyId], references: [id])
   girl Profile @relation("Girl", fields: [girlId], references: [id])
 
-  score  Int? // guna milan score
-  result Json? // full compatibility result
+  score     Float?
+  summary   String?
+  result    Json?
+  status    String  @default("PENDING")
+  isSaved   Boolean @default(false)
+  isDeleted Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  isSaved   Boolean  @default(false) // if user saved this match
 
-  @@unique([boyId, girlId]) // prevent duplicate matches
+  @@unique([boyId, girlId])
+  @@index([boyId])
+  @@index([girlId])
 }
 
 model KundliData {
@@ -276,6 +286,8 @@ model KundliData {
 
   @@unique([kundliId, lang])
 }
+
+
 
 model Kundli {
   id String @id @default(cuid())
