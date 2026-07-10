@@ -31,6 +31,14 @@ export class AdminService {
   async getAstrologers() {
     const astrologers = await this.prisma.astrologer.findMany({
       orderBy: { createdAt: 'desc' },
+      include: {
+        user: true,
+        expertise: {
+          include: {
+            expertise: true,
+          },
+        },
+      },
     });
 
     return {
@@ -45,6 +53,14 @@ export class AdminService {
       data: {
         isApproved: true,
         isVerified: true,
+      },
+      include: {
+        user: true,
+        expertise: {
+          include: {
+            expertise: true,
+          },
+        },
       },
     });
 
@@ -61,6 +77,14 @@ export class AdminService {
       data: {
         isApproved: false,
         isVerified: false,
+      },
+      include: {
+        user: true,
+        expertise: {
+          include: {
+            expertise: true,
+          },
+        },
       },
     });
 

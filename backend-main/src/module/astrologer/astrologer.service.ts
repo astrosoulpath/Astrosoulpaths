@@ -3,12 +3,48 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RegisterAstrologerDto } from './dto/register-astrologer.dto';
+
+type PublicAstrologerFilters = {
+  search?: string;
+  language?: string;
+  expertise?: string;
+  online?: boolean;
+};
 
 @Injectable()
 export class AstrologerService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async findAstrologerBySupabaseId(supabaseId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { supabaseId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User account not found');
+    }
+
+    const astrologer = await this.prisma.astrologer.findUnique({
+      where: { userId: user.id },
+      include: {
+        expertise: {
+          include: {
+            expertise: true,
+          },
+        },
+      },
+    });
+
+    if (!astrologer) {
+      throw new NotFoundException('Astrologer profile not found');
+    }
+
+    return astrologer;
+  }
 
   async register(supabaseId: string, dto: RegisterAstrologerDto) {
     const user = await this.prisma.user.findUnique({
@@ -48,6 +84,7 @@ export class AstrologerService {
         pricePerMin: dto.consultationPrice,
         isApproved: false,
         isVerified: false,
+        isOnline: false,
         expertise: {
           create: expertiseRecords.map((expertise) => ({
             expertiseId: expertise.id,
@@ -67,6 +104,194 @@ export class AstrologerService {
       success: true,
       message: 'Astrologer registration submitted for admin approval',
       data: astrologer,
+    };
+  }
+
+  /**
+   * Public marketplace listing.
+   * No authentication is required, but only approved and verified
+   * astrologers are returned.
+   */
+  async getPublicAstrologers(filters: PublicAstrologerFilters = {}) {
+    const search = filters.search?.trim();
+    const language = filters.language?.trim();
+    const expertise = filters.expertise?.trim();
+
+    const astrologers = await this.prisma.astrologer.findMany({
+      where: {
+        isApproved: true,
+        isVerified: true,
+
+        ...(typeof filters.online === 'boolean'
+          ? { isOnline: filters.online }
+          : {}),
+
+        ...(language
+          ? {
+              languages: {
+                has: language,
+              },
+            }
+          : {}),
+
+        ...(expertise
+          ? {
+              expertise: {
+                some: {
+                  expertise: {
+                    name: {
+                      contains: expertise,
+                      mode: 'insensitive',
+                    },
+                  },
+                },
+              },
+            }
+          : {}),
+
+        ...(search
+          ? {
+              OR: [
+                {
+                  bio: {
+                    contains: search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  expertise: {
+                    some: {
+                      expertise: {
+                        name: {
+                          contains: search,
+                          mode: 'insensitive',
+                        },
+                      },
+                    },
+                  },
+                },
+              ],
+            }
+          : {}),
+      },
+
+      include: {
+        expertise: {
+          include: {
+            expertise: true,
+          },
+        },
+      },
+
+      orderBy: [
+        {
+          isOnline: 'desc',
+        },
+        {
+          rating: 'desc',
+        },
+        {
+          createdAt: 'desc',
+        },
+      ],
+
+      take: 100,
+    });
+
+    return {
+      success: true,
+      data: astrologers.map((astrologer) => ({
+        id: astrologer.id,
+        bio: astrologer.bio,
+        gender: astrologer.Gender,
+        languages: astrologer.languages,
+        experience: astrologer.experience ?? 0,
+        pricePerMin: astrologer.pricePerMin ?? 0,
+        rating: astrologer.rating ?? 0,
+        isOnline: astrologer.isOnline,
+        expertise: astrologer.expertise.map(
+          (item) => item.expertise.name,
+        ),
+      })),
+      meta: {
+        total: astrologers.length,
+      },
+    };
+  }
+
+  async getDashboard(supabaseId: string) {
+    const astrologer =
+      await this.findAstrologerBySupabaseId(supabaseId);
+
+    const profileChecks = [
+      Boolean(astrologer.bio),
+      astrologer.languages.length > 0,
+      astrologer.expertise.length > 0,
+      astrologer.pricePerMin !== null,
+      Boolean(astrologer.documents),
+      astrologer.isApproved && astrologer.isVerified,
+    ];
+
+    const completed = profileChecks.filter(Boolean).length;
+
+    const profileCompletion = Math.round(
+      (completed / profileChecks.length) * 100,
+    );
+
+    return {
+      success: true,
+      data: {
+        astrologerId: astrologer.id,
+        earnings: 0,
+        todayCalls: 0,
+        todayChats: 0,
+        rating: astrologer.rating ?? 0,
+        isOnline: astrologer.isOnline,
+        isApproved: astrologer.isApproved,
+        isVerified: astrologer.isVerified,
+        profileCompletion,
+        pendingConsultations: 0,
+        todaySchedule: [],
+        languages: astrologer.languages,
+        expertise: astrologer.expertise.map(
+          (item) => item.expertise.name,
+        ),
+        pricePerMin: astrologer.pricePerMin ?? 0,
+        experience: astrologer.experience ?? 0,
+      },
+    };
+  }
+
+  async updateStatus(supabaseId: string, isOnline: boolean) {
+    if (typeof isOnline !== 'boolean') {
+      throw new BadRequestException(
+        'isOnline must be a boolean value',
+      );
+    }
+
+    const astrologer =
+      await this.findAstrologerBySupabaseId(supabaseId);
+
+    if (!astrologer.isApproved || !astrologer.isVerified) {
+      throw new BadRequestException(
+        'Only approved and verified astrologers can go online',
+      );
+    }
+
+    const updated = await this.prisma.astrologer.update({
+      where: { id: astrologer.id },
+      data: { isOnline },
+    });
+
+    return {
+      success: true,
+      message: isOnline
+        ? 'Astrologer is now online'
+        : 'Astrologer is now offline',
+      data: {
+        astrologerId: updated.id,
+        isOnline: updated.isOnline,
+      },
     };
   }
 }

@@ -1,8 +1,7 @@
-import { Gender, AstrologerExpertise } from '@prisma/client';
+import { Gender } from '@prisma/client';
 import {
   IsArray,
   IsEmail,
-  IsEnum,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -23,7 +22,7 @@ export class RegisterAstrologerDto {
   phoneNumber: string;
 
   @IsOptional()
-  @IsEnum(Gender)
+  @IsString()
   gender?: Gender;
 
   @IsArray()
@@ -31,8 +30,8 @@ export class RegisterAstrologerDto {
   languages: string[];
 
   @IsArray()
-  @IsEnum(AstrologerExpertise, { each: true })
-  expertise: AstrologerExpertise[];
+  @IsString({ each: true })
+  expertise: string[];
 
   @IsNumber()
   @Min(0)

@@ -56,7 +56,7 @@ async function main() {
         currency: 'INR',
         durationDays: 30,
         features: {
-          chatLimitPerDay: -1, // Unlimited
+          chatLimitPerDay: -1,
           personalizedPredictions: true,
           vipAstrologers: true,
           prioritySupport: true,
@@ -69,6 +69,69 @@ async function main() {
   });
 
   console.log('✅ Subscription plans seeded successfully');
+
+  // Seed test pending astrologer for Admin Approval flow
+  const userRole = await prisma.role.findUnique({
+    where: { name: 'user' },
+  });
+
+  if (!userRole) {
+    throw new Error('User role not found');
+  }
+
+  const testUser = await prisma.user.upsert({
+    where: { supabaseId: 'seed-astrologer-supabase-id' },
+    update: {
+      isAstrologer: true,
+    },
+    create: {
+      supabaseId: 'seed-astrologer-supabase-id',
+      phone: '+919999999999',
+      roleId: userRole.id,
+      isAstrologer: true,
+    },
+  });
+
+  const vedicExpertise = await prisma.expertise.upsert({
+    where: { name: 'Vedic Astrology' },
+    update: {},
+    create: { name: 'Vedic Astrology' },
+  });
+
+  const numerologyExpertise = await prisma.expertise.upsert({
+    where: { name: 'Numerology' },
+    update: {},
+    create: { name: 'Numerology' },
+  });
+
+  const astrologer = await prisma.astrologer.upsert({
+    where: { userId: testUser.id },
+    update: {
+      bio: 'Experienced astrologer specializing in Vedic astrology and numerology.',
+      languages: ['Hindi', 'English'],
+      experience: 7,
+      pricePerMin: 25,
+      isApproved: false,
+      isVerified: false,
+    },
+    create: {
+      userId: testUser.id,
+      bio: 'Experienced astrologer specializing in Vedic astrology and numerology.',
+      languages: ['Hindi', 'English'],
+      experience: 7,
+      pricePerMin: 25,
+      isApproved: false,
+      isVerified: false,
+      expertise: {
+        create: [
+          { expertiseId: vedicExpertise.id },
+          { expertiseId: numerologyExpertise.id },
+        ],
+      },
+    },
+  });
+
+  console.log('✅ Pending astrologer seeded successfully:', astrologer.id);
 }
 
 main()
