@@ -1,79 +1,134 @@
-const astrologers = [
-  {
-    name: "Acharya Raj",
-    speciality: "Vedic Astrology",
-    rating: "4.9",
-    experience: "12 Years",
-    languages: "Hindi, English",
-    price: "₹25/min",
-  },
-  {
-    name: "Astro Meera",
-    speciality: "Tarot & Numerology",
-    rating: "4.8",
-    experience: "9 Years",
-    languages: "Hindi",
-    price: "₹20/min",
-  },
-  {
-    name: "Pandit Aman",
-    speciality: "Kundli Expert",
-    rating: "4.9",
-    experience: "15 Years",
-    languages: "Hindi, Gujarati",
-    price: "₹30/min",
-  },
-];
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+import { AstrologerCard } from "@/features/astrologers/AstrologerCard";
+import {
+  getPublicAstrologers,
+  PublicAstrologer,
+} from "@/services/astrologerService";
 
 export function FeaturedAstrologersSection() {
+  const [astrologers, setAstrologers] = useState<PublicAstrologer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function loadFeaturedAstrologers() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await getPublicAstrologers();
+
+        setAstrologers(response.data.slice(0, 3));
+      } catch (err: unknown) {
+        setAstrologers([]);
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load featured astrologers."
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void loadFeaturedAstrologers();
+  }, []);
+
   return (
     <section className="bg-white py-20">
       <div className="mx-auto max-w-7xl px-6">
-        <div className="mb-12 flex items-center justify-between">
+        <div className="mb-12 flex flex-col justify-between gap-5 md:flex-row md:items-center">
           <div>
             <p className="font-semibold text-[#D4AF37]">
               Featured Astrologers
             </p>
 
             <h2 className="mt-2 text-4xl font-bold text-[#0B1026]">
-              Talk to India's Top Astrologers
+              Connect With Verified Astrologers
             </h2>
+
+            <p className="mt-3 max-w-2xl text-gray-600">
+              Browse approved astrologers by expertise,
+              language, experience, consultation fee and
+              availability.
+            </p>
           </div>
 
-          <button className="rounded-xl border border-[#0B1026] px-6 py-3 font-semibold">
+          <Link
+            href="/astrologers"
+            className="inline-flex rounded-xl border border-[#0B1026] px-6 py-3 font-semibold text-[#0B1026] transition hover:bg-[#0B1026] hover:text-white"
+          >
             View All
-          </button>
+          </Link>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-3">
-          {astrologers.map((astro) => (
-            <div
-              key={astro.name}
-              className="rounded-3xl border bg-white p-8 shadow-lg transition hover:-translate-y-2"
-            >
-              <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-[#D4AF37]/20 text-3xl font-bold text-[#0B1026]">
-                {astro.name.charAt(0)}
-              </div>
+        {loading && (
+          <div className="rounded-3xl bg-[#FAF7F0] p-10 text-center text-gray-600 shadow">
+            Loading verified astrologers...
+          </div>
+        )}
 
-              <h3 className="text-2xl font-bold">{astro.name}</h3>
+        {!loading && error && (
+          <div className="rounded-3xl bg-red-50 p-8 text-red-700 shadow">
+            <h3 className="text-lg font-bold">
+              Unable to load astrologers
+            </h3>
 
-              <p className="mt-2 text-gray-500">{astro.speciality}</p>
+            <p className="mt-2">{error}</p>
+          </div>
+        )}
 
-              <div className="mt-6 space-y-2 text-sm">
-                <p>⭐ {astro.rating}</p>
-                <p>🧿 {astro.experience}</p>
-                <p>🌐 {astro.languages}</p>
-                <p className="font-semibold text-[#D4AF37]">
-                  {astro.price}
-                </p>
-              </div>
+        {!loading &&
+          !error &&
+          astrologers.length === 0 && (
+            <div className="rounded-3xl border border-dashed bg-[#FAF7F0] p-10 text-center shadow">
+              <h3 className="text-xl font-bold text-[#0B1026]">
+                No verified astrologers available yet
+              </h3>
 
-              <button className="mt-8 w-full rounded-xl bg-[#D4AF37] py-3 font-semibold">
-                Chat Now
-              </button>
+              <p className="mt-3 text-gray-600">
+                Approved astrologer profiles will appear
+                here automatically.
+              </p>
             </div>
-          ))}
-        </div>
+          )}
+
+        {!loading &&
+          !error &&
+          astrologers.length > 0 && (
+            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+              {astrologers.map((astrologer) => (
+                <AstrologerCard
+                  key={astrologer.id}
+                  id={astrologer.id}
+                  name={
+                    astrologer.name?.trim() ||
+                    "Astro Soul Path Astrologer"
+                  }
+                  avatarUrl={astrologer.avatarUrl}
+                  isOnline={astrologer.isOnline}
+                  specialty={
+                    astrologer.expertise.length
+                      ? astrologer.expertise.join(", ")
+                      : "Vedic Astrology"
+                  }
+                  experience={`${astrologer.experience} Years`}
+                  languages={
+                    astrologer.languages.length
+                      ? astrologer.languages.join(", ")
+                      : "Not specified"
+                  }
+                  price={`₹${astrologer.pricePerMin}/min`}
+                  rating={astrologer.rating}
+                />
+              ))}
+            </div>
+          )}
       </div>
     </section>
   );

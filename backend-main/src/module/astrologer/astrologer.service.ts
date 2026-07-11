@@ -31,6 +31,15 @@ export class AstrologerService {
     const astrologer = await this.prisma.astrologer.findUnique({
       where: { userId: user.id },
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            avatarUrl: true,
+          },
+        },
         expertise: {
           include: {
             expertise: true,
@@ -61,7 +70,9 @@ export class AstrologerService {
     });
 
     if (existing) {
-      throw new BadRequestException('Astrologer profile already exists');
+      throw new BadRequestException(
+        'Astrologer profile already exists',
+      );
     }
 
     const expertiseRecords = await Promise.all(
@@ -92,6 +103,15 @@ export class AstrologerService {
         },
       },
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            avatarUrl: true,
+          },
+        },
         expertise: {
           include: {
             expertise: true,
@@ -102,17 +122,15 @@ export class AstrologerService {
 
     return {
       success: true,
-      message: 'Astrologer registration submitted for admin approval',
+      message:
+        'Astrologer registration submitted for admin approval',
       data: astrologer,
     };
   }
 
-  /**
-   * Public marketplace listing.
-   * No authentication is required, but only approved and verified
-   * astrologers are returned.
-   */
-  async getPublicAstrologers(filters: PublicAstrologerFilters = {}) {
+  async getPublicAstrologers(
+    filters: PublicAstrologerFilters = {},
+  ) {
     const search = filters.search?.trim();
     const language = filters.language?.trim();
     const expertise = filters.expertise?.trim();
@@ -153,6 +171,14 @@ export class AstrologerService {
           ? {
               OR: [
                 {
+                  user: {
+                    name: {
+                      contains: search,
+                      mode: 'insensitive',
+                    },
+                  },
+                },
+                {
                   bio: {
                     contains: search,
                     mode: 'insensitive',
@@ -176,6 +202,13 @@ export class AstrologerService {
       },
 
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+          },
+        },
         expertise: {
           include: {
             expertise: true,
@@ -202,6 +235,12 @@ export class AstrologerService {
       success: true,
       data: astrologers.map((astrologer) => ({
         id: astrologer.id,
+
+        name:
+          astrologer.user.name?.trim() ||
+          'Astro Soul Path Astrologer',
+
+        avatarUrl: astrologer.user.avatarUrl ?? null,
         bio: astrologer.bio,
         gender: astrologer.Gender,
         languages: astrologer.languages,
@@ -209,12 +248,79 @@ export class AstrologerService {
         pricePerMin: astrologer.pricePerMin ?? 0,
         rating: astrologer.rating ?? 0,
         isOnline: astrologer.isOnline,
+
         expertise: astrologer.expertise.map(
           (item) => item.expertise.name,
         ),
       })),
+
       meta: {
         total: astrologers.length,
+      },
+    };
+  }
+
+  async getPublicAstrologerById(id: string) {
+    const astrologer = await this.prisma.astrologer.findFirst({
+      where: {
+        id,
+        isApproved: true,
+        isVerified: true,
+      },
+
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+          },
+        },
+        expertise: {
+          include: {
+            expertise: true,
+          },
+        },
+      },
+    });
+
+    if (!astrologer) {
+      throw new NotFoundException(
+        'Approved astrologer profile not found',
+      );
+    }
+
+    return {
+      success: true,
+      data: {
+        id: astrologer.id,
+
+        name:
+          astrologer.user.name?.trim() ||
+          'Astro Soul Path Astrologer',
+
+        avatarUrl: astrologer.user.avatarUrl ?? null,
+        bio: astrologer.bio,
+        gender: astrologer.Gender,
+        languages: astrologer.languages,
+        experience: astrologer.experience ?? 0,
+        pricePerMin: astrologer.pricePerMin ?? 0,
+        rating: astrologer.rating ?? 0,
+        isOnline: astrologer.isOnline,
+
+        expertise: astrologer.expertise.map(
+          (item) => item.expertise.name,
+        ),
+
+        availability: astrologer.isOnline
+          ? 'Available for consultation'
+          : 'Currently offline',
+
+        consultationOptions: {
+          chat: true,
+          audioCall: true,
+          videoCall: false,
+        },
       },
     };
   }
@@ -242,6 +348,10 @@ export class AstrologerService {
       success: true,
       data: {
         astrologerId: astrologer.id,
+        name:
+          astrologer.user.name?.trim() ||
+          'Astro Soul Path Astrologer',
+        avatarUrl: astrologer.user.avatarUrl ?? null,
         earnings: 0,
         todayCalls: 0,
         todayChats: 0,
@@ -262,7 +372,10 @@ export class AstrologerService {
     };
   }
 
-  async updateStatus(supabaseId: string, isOnline: boolean) {
+  async updateStatus(
+    supabaseId: string,
+    isOnline: boolean,
+  ) {
     if (typeof isOnline !== 'boolean') {
       throw new BadRequestException(
         'isOnline must be a boolean value',

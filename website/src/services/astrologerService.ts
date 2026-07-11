@@ -14,6 +14,8 @@ export type AstrologerRegistrationPayload = {
 
 export type PublicAstrologer = {
   id: string;
+  name: string;
+  avatarUrl: string | null;
   bio: string | null;
   gender: string | null;
   languages: string[];
@@ -24,12 +26,26 @@ export type PublicAstrologer = {
   expertise: string[];
 };
 
+export type PublicAstrologerProfile = PublicAstrologer & {
+  availability: string;
+  consultationOptions: {
+    chat: boolean;
+    audioCall: boolean;
+    videoCall: boolean;
+  };
+};
+
 export type PublicAstrologersResponse = {
   success: boolean;
   data: PublicAstrologer[];
   meta: {
     total: number;
   };
+};
+
+export type PublicAstrologerProfileResponse = {
+  success: boolean;
+  data: PublicAstrologerProfile;
 };
 
 export type PublicAstrologerFilters = {
@@ -39,18 +55,27 @@ export type PublicAstrologerFilters = {
   online?: boolean;
 };
 
-function getApiBaseUrl() {
+function getApiBaseUrl(): string {
   if (!API_BASE_URL) {
-    throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured");
+    throw new Error(
+      "NEXT_PUBLIC_API_BASE_URL is not configured",
+    );
   }
 
-  return API_BASE_URL;
+  return API_BASE_URL.replace(/\/+$/, "");
+}
+
+async function readJsonResponse(response: Response) {
+  return response.json().catch(() => null);
 }
 
 export async function registerAstrologer(
   payload: AstrologerRegistrationPayload,
 ) {
-  const token = localStorage.getItem("asp_access_token");
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem("asp_access_token")
+      : null;
 
   const response = await fetch(
     `${getApiBaseUrl()}/astrologer/register`,
@@ -58,6 +83,7 @@ export async function registerAstrologer(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Accept: "application/json",
         ...(token
           ? {
               Authorization: `Bearer ${token}`,
@@ -68,11 +94,15 @@ export async function registerAstrologer(
     },
   );
 
-  const data = await response.json().catch(() => null);
+  const data = await readJsonResponse(response);
 
   if (!response.ok) {
+    const message = Array.isArray(data?.message)
+      ? data.message.join(", ")
+      : data?.message;
+
     throw new Error(
-      data?.message || "Failed to register astrologer",
+      message || "Failed to register astrologer",
     );
   }
 
@@ -115,22 +145,171 @@ export async function getPublicAstrologers(
     },
   );
 
-  const data = await response.json().catch(() => null);
+  const data = await readJsonResponse(response);
 
   if (!response.ok) {
+    const message = Array.isArray(data?.message)
+      ? data.message.join(", ")
+      : data?.message;
+
     throw new Error(
-      data?.message || "Failed to load astrologers",
+      message || "Failed to load astrologers",
     );
   }
 
   return {
     success: Boolean(data?.success),
-    data: Array.isArray(data?.data) ? data.data : [],
+
+    data: Array.isArray(data?.data)
+      ? data.data.map((astrologer: Partial<PublicAstrologer>) => ({
+          id: String(astrologer.id ?? ""),
+          name:
+            astrologer.name?.trim() ||
+            "Astro Soul Path Astrologer",
+          avatarUrl: astrologer.avatarUrl ?? null,
+          bio: astrologer.bio ?? null,
+          gender: astrologer.gender ?? null,
+          languages: Array.isArray(astrologer.languages)
+            ? astrologer.languages
+            : [],
+          experience:
+            typeof astrologer.experience === "number"
+              ? astrologer.experience
+              : 0,
+          pricePerMin:
+            typeof astrologer.pricePerMin === "number"
+              ? astrologer.pricePerMin
+              : 0,
+          rating:
+            typeof astrologer.rating === "number"
+              ? astrologer.rating
+              : 0,
+          isOnline: Boolean(astrologer.isOnline),
+          expertise: Array.isArray(astrologer.expertise)
+            ? astrologer.expertise
+            : [],
+        }))
+      : [],
+
     meta: {
       total:
         typeof data?.meta?.total === "number"
           ? data.meta.total
           : 0,
+    },
+  };
+}
+
+export async function getPublicAstrologerById(
+  id: string,
+): Promise<PublicAstrologerProfileResponse> {
+  const normalizedId = id.trim();
+
+  if (!normalizedId) {
+    throw new Error("Astrologer ID is required");
+  }
+
+  const response = await fetch(
+    `${getApiBaseUrl()}/astrologer/public/${encodeURIComponent(
+      normalizedId,
+    )}`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    },
+  );
+
+  const data = await readJsonResponse(response);
+
+  if (!response.ok) {
+    const message = Array.isArray(data?.message)
+      ? data.message.join(", ")
+      : data?.message;
+
+    throw new Error(
+      message || "Failed to load astrologer profile",
+    );
+  }
+
+  const astrologer = data?.data;
+
+  if (!astrologer?.id) {
+    throw new Error("Invalid astrologer profile response");
+  }
+
+  return {
+    success: Boolean(data?.success),
+
+    data: {
+      id: String(astrologer.id),
+
+      name:
+        typeof astrologer.name === "string" &&
+        astrologer.name.trim()
+          ? astrologer.name.trim()
+          : "Astro Soul Path Astrologer",
+
+      avatarUrl:
+        typeof astrologer.avatarUrl === "string"
+          ? astrologer.avatarUrl
+          : null,
+
+      bio:
+        typeof astrologer.bio === "string"
+          ? astrologer.bio
+          : null,
+
+      gender:
+        typeof astrologer.gender === "string"
+          ? astrologer.gender
+          : null,
+
+      languages: Array.isArray(astrologer.languages)
+        ? astrologer.languages
+        : [],
+
+      experience:
+        typeof astrologer.experience === "number"
+          ? astrologer.experience
+          : 0,
+
+      pricePerMin:
+        typeof astrologer.pricePerMin === "number"
+          ? astrologer.pricePerMin
+          : 0,
+
+      rating:
+        typeof astrologer.rating === "number"
+          ? astrologer.rating
+          : 0,
+
+      isOnline: Boolean(astrologer.isOnline),
+
+      expertise: Array.isArray(astrologer.expertise)
+        ? astrologer.expertise
+        : [],
+
+      availability:
+        typeof astrologer.availability === "string"
+          ? astrologer.availability
+          : astrologer.isOnline
+            ? "Available for consultation"
+            : "Currently offline",
+
+      consultationOptions: {
+        chat: Boolean(
+          astrologer.consultationOptions?.chat,
+        ),
+        audioCall: Boolean(
+          astrologer.consultationOptions?.audioCall,
+        ),
+        videoCall: Boolean(
+          astrologer.consultationOptions?.videoCall,
+        ),
+      },
     },
   };
 }

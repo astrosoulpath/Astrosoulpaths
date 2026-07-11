@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Patch,
   Post,
   Query,
@@ -21,16 +22,6 @@ export class AstrologerController {
     private readonly astrologerService: AstrologerService,
   ) {}
 
-  /**
-   * Public marketplace endpoint.
-   *
-   * Examples:
-   * GET /astrologer/public
-   * GET /astrologer/public?language=Hindi
-   * GET /astrologer/public?expertise=Marriage
-   * GET /astrologer/public?online=true
-   * GET /astrologer/public?search=career
-   */
   @Get('public')
   getPublicAstrologers(
     @Query('search') search?: string,
@@ -52,6 +43,11 @@ export class AstrologerController {
       expertise,
       online: onlineFilter,
     });
+  }
+
+  @Get('public/:id')
+  getPublicAstrologerById(@Param('id') id: string) {
+    return this.astrologerService.getPublicAstrologerById(id);
   }
 
   @Post('register')
