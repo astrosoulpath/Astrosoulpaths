@@ -1,74 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-type ConsultationMode = "chat" | "audio";
-type ConsultationStatus = "active" | "completed";
+import {
+  getConsultationHistory,
+  type ConsultationSession,
+} from "@/services/consultationService";
 
-type LocalBooking = {
-  id: string;
-  astrologerId: string;
-  astrologerName?: string;
-  mode: ConsultationMode;
-  pricePerMin: number;
-  status: ConsultationStatus;
-  createdAt: string;
-  endedAt?: string;
-  durationSeconds?: number;
-  billedMinutes?: number;
-  totalCharge?: number;
-};
+type FilterOption =
+  | "all"
+  | "active"
+  | "completed";
 
-type FilterOption = "all" | "active" | "completed";
-
-function readConsultationBookings(): LocalBooking[] {
-  const storedBookings = localStorage.getItem(
-    "asp_consultation_bookings",
-  );
-
-  if (!storedBookings) {
-    return [];
-  }
-
-  try {
-    const parsedBookings = JSON.parse(
-      storedBookings,
-    ) as LocalBooking[];
-
-    if (!Array.isArray(parsedBookings)) {
-      return [];
-    }
-
-    return parsedBookings
-      .filter(
-        (booking) =>
-          typeof booking.id === "string" &&
-          typeof booking.astrologerId === "string",
-      )
-      .sort((first, second) => {
-        return (
-          new Date(second.createdAt).getTime() -
-          new Date(first.createdAt).getTime()
-        );
-      });
-  } catch {
-    localStorage.removeItem("asp_consultation_bookings");
-    return [];
-  }
-}
-
-function formatDuration(totalSeconds = 0): string {
-  const safeSeconds = Math.max(0, totalSeconds);
-  const minutes = Math.floor(safeSeconds / 60);
-  const seconds = safeSeconds % 60;
-
-  return `${String(minutes).padStart(2, "0")}:${String(
-    seconds,
-  ).padStart(2, "0")}`;
-}
-
-function formatDate(value?: string): string {
+function formatDate(value?: string | null): string {
   if (!value) {
     return "Not available";
   }
@@ -85,61 +36,261 @@ function formatDate(value?: string): string {
   });
 }
 
-export default function ConsultationsPage() {
-  const [bookings, setBookings] = useState<LocalBooking[]>(
-    [],
+function getDurationSeconds(
+  consultation: ConsultationSession,
+): number {
+  const startTime = new Date(
+    consultation.startedAt,
+  ).getTime();
+
+  const endTime = consultation.endedAt
+    ? new Date(consultation.endedAt).getTime()
+    : Date.now();
+
+  if (
+    !Number.isFinite(startTime) ||
+    !Number.isFinite(endTime)
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor((endTime - startTime) / 1000),
   );
+}
+
+function formatDuration(
+  totalSeconds: number,
+): string {
+  const safeSeconds = Math.max(
+    0,
+    totalSeconds,
+  );
+
+  const hours = Math.floor(
+    safeSeconds / 3600,
+  );
+
+  const minutes = Math.floor(
+    (safeSeconds % 3600) / 60,
+  );
+
+  const seconds = safeSeconds % 60;
+
+  if (hours > 0) {
+    return `${String(hours).padStart(
+      2,
+      "0",
+    )}:${String(minutes).padStart(
+      2,
+      "0",
+    )}:${String(seconds).padStart(
+      2,
+      "0",
+    )}`;
+  }
+
+  return `${String(minutes).padStart(
+    2,
+    "0",
+  )}:${String(seconds).padStart(2, "0")}`;
+}
+
+function isActiveConsultation(
+  consultation: ConsultationSession,
+): boolean {
+  if (
+    consultation.status !== "ACTIVE" ||
+    consultation.endedAt
+  ) {
+    return false;
+  }
+
+  const expiryTime = new Date(
+    consultation.expiresAt,
+  ).getTime();
+
+  return (
+    Number.isFinite(expiryTime) &&
+    expiryTime > Date.now()
+  );
+}
+
+function getStatusLabel(
+  consultation: ConsultationSession,
+): string {
+  if (
+    isActiveConsultation(consultation)
+  ) {
+    return "Active";
+  }
+
+  if (
+    consultation.status === "EXPIRED"
+  ) {
+    return "Expired";
+  }
+
+  if (
+    consultation.status === "ENDED"
+  ) {
+    return "Completed";
+  }
+
+  return consultation.status || "Completed";
+}
+
+export default function ConsultationsPage() {
+  const router = useRouter();
+
+  const [consultations, setConsultations] =
+    useState<ConsultationSession[]>([]);
+
   const [filter, setFilter] =
     useState<FilterOption>("all");
-  const [loading, setLoading] = useState(true);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [refreshing, setRefreshing] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  const loadConsultations = useCallback(
+    async (refresh = false) => {
+      const token = localStorage.getItem(
+        "asp_access_token",
+      );
+
+      if (!token) {
+        router.replace(
+          `/login?redirect=${encodeURIComponent(
+            "/consultations",
+          )}`,
+        );
+
+        return;
+      }
+
+      try {
+        if (refresh) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+
+        setError("");
+
+        const response =
+          await getConsultationHistory();
+
+        const calls =
+          response.data?.calls ?? [];
+
+        setConsultations(
+          [...calls].sort(
+            (first, second) =>
+              new Date(
+                second.createdAt,
+              ).getTime() -
+              new Date(
+                first.createdAt,
+              ).getTime(),
+          ),
+        );
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Unable to load consultations.";
+
+        if (message === "LOGIN_REQUIRED") {
+          localStorage.removeItem(
+            "asp_access_token",
+          );
+
+          localStorage.removeItem(
+            "asp_refresh_token",
+          );
+
+          router.replace(
+            `/login?redirect=${encodeURIComponent(
+              "/consultations",
+            )}`,
+          );
+
+          return;
+        }
+
+        setError(message);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [router],
+  );
 
   useEffect(() => {
-    setBookings(readConsultationBookings());
-    setLoading(false);
-  }, []);
+    void loadConsultations();
+  }, [loadConsultations]);
 
-  const filteredBookings = useMemo(() => {
-    if (filter === "all") {
-      return bookings;
-    }
+  const filteredConsultations =
+    useMemo(() => {
+      if (filter === "all") {
+        return consultations;
+      }
 
-    return bookings.filter(
-      (booking) => booking.status === filter,
-    );
-  }, [bookings, filter]);
+      if (filter === "active") {
+        return consultations.filter(
+          isActiveConsultation,
+        );
+      }
+
+      return consultations.filter(
+        (consultation) =>
+          !isActiveConsultation(
+            consultation,
+          ),
+      );
+    }, [consultations, filter]);
 
   const activeCount = useMemo(
     () =>
-      bookings.filter(
-        (booking) => booking.status === "active",
+      consultations.filter(
+        isActiveConsultation,
       ).length,
-    [bookings],
+    [consultations],
   );
 
   const completedCount = useMemo(
     () =>
-      bookings.filter(
-        (booking) => booking.status === "completed",
+      consultations.filter(
+        (consultation) =>
+          !isActiveConsultation(
+            consultation,
+          ),
       ).length,
-    [bookings],
+    [consultations],
   );
 
   const totalSpent = useMemo(
     () =>
-      bookings.reduce(
-        (total, booking) =>
+      consultations.reduce(
+        (total, consultation) =>
           total +
-          (typeof booking.totalCharge === "number"
-            ? booking.totalCharge
+          (Number.isFinite(
+            consultation.amountCharged,
+          )
+            ? consultation.amountCharged
             : 0),
         0,
       ),
-    [bookings],
+    [consultations],
   );
-
-  function refreshBookings() {
-    setBookings(readConsultationBookings());
-  }
 
   return (
     <main className="min-h-screen bg-[#FAF7F0] px-6 py-20">
@@ -155,18 +306,26 @@ export default function ConsultationsPage() {
             </h1>
 
             <p className="mt-4 max-w-2xl leading-7 text-gray-600">
-              Review active and completed chat or audio-call
-              consultations with your astrologers.
+              Review active and completed
+              consultations stored securely in
+              your Astro Soul Path account.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              onClick={refreshBookings}
-              className="rounded-xl border border-[#0B1026] px-5 py-3 font-semibold text-[#0B1026] transition hover:bg-[#0B1026] hover:text-white"
+              disabled={
+                loading || refreshing
+              }
+              onClick={() =>
+                void loadConsultations(true)
+              }
+              className="rounded-xl border border-[#0B1026] px-5 py-3 font-semibold text-[#0B1026] transition hover:bg-[#0B1026] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Refresh
+              {refreshing
+                ? "Refreshing..."
+                : "Refresh"}
             </button>
 
             <Link
@@ -178,6 +337,28 @@ export default function ConsultationsPage() {
           </div>
         </div>
 
+        {error && (
+          <div className="mt-8 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
+            <h2 className="font-bold">
+              Unable to load consultations
+            </h2>
+
+            <p className="mt-1 text-sm">
+              {error}
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                void loadConsultations()
+              }
+              className="mt-4 rounded-xl border border-red-300 px-5 py-2 font-semibold"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
         <section className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-3xl bg-white p-6 shadow-lg">
             <p className="text-sm font-medium text-gray-500">
@@ -185,7 +366,7 @@ export default function ConsultationsPage() {
             </p>
 
             <p className="mt-2 text-3xl font-bold text-[#0B1026]">
-              {bookings.length}
+              {consultations.length}
             </p>
           </div>
 
@@ -228,8 +409,9 @@ export default function ConsultationsPage() {
               </h2>
 
               <p className="mt-1 text-gray-600">
-                Continue an active consultation or review completed
-                session details.
+                Continue an active chat or
+                review completed consultation
+                details.
               </p>
             </div>
 
@@ -238,13 +420,18 @@ export default function ConsultationsPage() {
                 [
                   ["all", "All"],
                   ["active", "Active"],
-                  ["completed", "Completed"],
+                  [
+                    "completed",
+                    "Completed",
+                  ],
                 ] as const
               ).map(([value, label]) => (
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setFilter(value)}
+                  onClick={() =>
+                    setFilter(value)
+                  }
                   className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition ${
                     filter === value
                       ? "bg-[#0B1026] text-white"
@@ -258,18 +445,44 @@ export default function ConsultationsPage() {
           </div>
 
           {loading ? (
-            <div className="mt-8 rounded-2xl bg-[#FAF7F0] p-10 text-center text-gray-600">
-              Loading consultations...
+            <div className="mt-8 space-y-5">
+              {Array.from({
+                length: 3,
+              }).map((_, index) => (
+                <div
+                  key={index}
+                  className="animate-pulse rounded-2xl border border-gray-200 p-6"
+                >
+                  <div className="h-6 w-48 rounded bg-gray-200" />
+                  <div className="mt-4 h-4 w-72 rounded bg-gray-200" />
+
+                  <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                    {Array.from({
+                      length: 3,
+                    }).map(
+                      (_, itemIndex) => (
+                        <div
+                          key={
+                            itemIndex
+                          }
+                          className="h-20 rounded-xl bg-gray-200"
+                        />
+                      ),
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          ) : filteredBookings.length === 0 ? (
+          ) : filteredConsultations.length ===
+            0 ? (
             <div className="mt-8 rounded-2xl border border-dashed border-gray-300 bg-[#FAF7F0] p-10 text-center">
               <h3 className="text-xl font-bold text-[#0B1026]">
                 No consultations found
               </h3>
 
               <p className="mt-2 text-gray-600">
-                Your active and completed consultations will appear
-                here.
+                Your active and completed
+                consultations will appear here.
               </p>
 
               <Link
@@ -281,131 +494,158 @@ export default function ConsultationsPage() {
             </div>
           ) : (
             <div className="mt-8 space-y-5">
-              {filteredBookings.map((booking) => {
-                const isActive =
-                  booking.status === "active";
+              {filteredConsultations.map(
+                (consultation) => {
+                  const active =
+                    isActiveConsultation(
+                      consultation,
+                    );
 
-                const modeLabel =
-                  booking.mode === "chat"
-                    ? "Chat Consultation"
-                    : "Audio Call";
+                  const duration =
+                    getDurationSeconds(
+                      consultation,
+                    );
 
-                return (
-                  <article
-                    key={booking.id}
-                    className="rounded-2xl border border-gray-200 p-6 transition hover:border-[#D4AF37] hover:shadow-md"
-                  >
-                    <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <h3 className="text-xl font-bold text-[#0B1026]">
-                            {booking.astrologerName ||
-                              "Astro Soul Path Astrologer"}
-                          </h3>
+                  const statusLabel =
+                    getStatusLabel(
+                      consultation,
+                    );
 
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-bold ${
-                              isActive
-                                ? "bg-green-100 text-green-700"
-                                : "bg-gray-100 text-gray-600"
-                            }`}
-                          >
-                            {isActive
-                              ? "Active"
-                              : "Completed"}
-                          </span>
+                  return (
+                    <article
+                      key={consultation.id}
+                      className="rounded-2xl border border-gray-200 p-6 transition hover:border-[#D4AF37] hover:shadow-md"
+                    >
+                      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <h3 className="text-xl font-bold text-[#0B1026]">
+                              {consultation.astrologerName ||
+                                "Astro Soul Path Astrologer"}
+                            </h3>
 
-                          <span className="rounded-full bg-[#D4AF37]/15 px-3 py-1 text-xs font-bold text-[#0B1026]">
-                            {modeLabel}
-                          </span>
-                        </div>
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                                active
+                                  ? "bg-green-100 text-green-700"
+                                  : consultation.status ===
+                                      "EXPIRED"
+                                    ? "bg-orange-100 text-orange-700"
+                                    : "bg-gray-100 text-gray-600"
+                              }`}
+                            >
+                              {
+                                statusLabel
+                              }
+                            </span>
 
-                        <p className="mt-2 text-sm text-gray-500">
-                          Started: {formatDate(booking.createdAt)}
-                        </p>
+                            <span className="rounded-full bg-[#D4AF37]/15 px-3 py-1 text-xs font-bold text-[#0B1026]">
+                              Chat Consultation
+                            </span>
+                          </div>
 
-                        {booking.endedAt && (
-                          <p className="mt-1 text-sm text-gray-500">
-                            Ended: {formatDate(booking.endedAt)}
+                          <p className="mt-2 text-sm text-gray-500">
+                            Started:{" "}
+                            {formatDate(
+                              consultation.startedAt,
+                            )}
                           </p>
-                        )}
 
-                        <div className="mt-5 grid gap-4 sm:grid-cols-3">
-                          <div className="rounded-xl bg-[#FAF7F0] p-4">
-                            <p className="text-xs font-medium text-gray-500">
-                              Price
+                          {consultation.endedAt && (
+                            <p className="mt-1 text-sm text-gray-500">
+                              Ended:{" "}
+                              {formatDate(
+                                consultation.endedAt,
+                              )}
                             </p>
+                          )}
 
-                            <p className="mt-1 font-bold text-[#0B1026]">
-                              ₹{booking.pricePerMin}/min
-                            </p>
+                          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="rounded-xl bg-[#FAF7F0] p-4">
+                              <p className="text-xs font-medium text-gray-500">
+                                Price
+                              </p>
+
+                              <p className="mt-1 font-bold text-[#0B1026]">
+                                ₹
+                                {consultation.ratePerMinute.toFixed(
+                                  2,
+                                )}
+                                /min
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl bg-[#FAF7F0] p-4">
+                              <p className="text-xs font-medium text-gray-500">
+                                Purchased
+                              </p>
+
+                              <p className="mt-1 font-bold text-[#0B1026]">
+                                {
+                                  consultation.totalMinutes
+                                }{" "}
+                                minutes
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl bg-[#FAF7F0] p-4">
+                              <p className="text-xs font-medium text-gray-500">
+                                Duration
+                              </p>
+
+                              <p className="mt-1 font-bold text-[#0B1026]">
+                                {active
+                                  ? "In progress"
+                                  : formatDuration(
+                                      duration,
+                                    )}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl bg-[#FAF7F0] p-4">
+                              <p className="text-xs font-medium text-gray-500">
+                                Charged
+                              </p>
+
+                              <p className="mt-1 font-bold text-[#D4AF37]">
+                                ₹
+                                {consultation.amountCharged.toFixed(
+                                  2,
+                                )}
+                              </p>
+                            </div>
                           </div>
+                        </div>
 
-                          <div className="rounded-xl bg-[#FAF7F0] p-4">
-                            <p className="text-xs font-medium text-gray-500">
-                              Duration
-                            </p>
-
-                            <p className="mt-1 font-bold text-[#0B1026]">
-                              {isActive
-                                ? "In progress"
-                                : formatDuration(
-                                    booking.durationSeconds,
-                                  )}
-                            </p>
-                          </div>
-
-                          <div className="rounded-xl bg-[#FAF7F0] p-4">
-                            <p className="text-xs font-medium text-gray-500">
-                              Charged
-                            </p>
-
-                            <p className="mt-1 font-bold text-[#D4AF37]">
-                              {isActive
-                                ? "Pending"
-                                : `₹${(
-                                    booking.totalCharge ?? 0
-                                  ).toFixed(2)}`}
-                            </p>
-                          </div>
+                        <div className="shrink-0">
+                          {active ? (
+                            <Link
+                              href={`/chat/${encodeURIComponent(
+                                consultation.id,
+                              )}`}
+                              className="inline-flex w-full justify-center rounded-xl bg-[#D4AF37] px-6 py-3 font-semibold text-[#0B1026] transition hover:bg-[#C9A52F]"
+                            >
+                              Continue Chat
+                            </Link>
+                          ) : (
+                            <Link
+                              href="/astrologers"
+                              className="inline-flex w-full justify-center rounded-xl border border-[#D4AF37] px-6 py-3 font-semibold text-[#0B1026] transition hover:bg-[#D4AF37]/10"
+                            >
+                              Book Again
+                            </Link>
+                          )}
                         </div>
                       </div>
 
-                      <div className="shrink-0">
-                        {isActive &&
-                        booking.mode === "chat" ? (
-                          <Link
-                            href={`/chat/${encodeURIComponent(
-                              booking.id,
-                            )}`}
-                            className="inline-flex w-full justify-center rounded-xl bg-[#D4AF37] px-6 py-3 font-semibold text-[#0B1026] transition hover:bg-[#C9A52F]"
-                          >
-                            Continue Chat
-                          </Link>
-                        ) : isActive &&
-                          booking.mode === "audio" ? (
-                          <button
-                            type="button"
-                            disabled
-                            className="w-full cursor-not-allowed rounded-xl bg-gray-200 px-6 py-3 font-semibold text-gray-500"
-                          >
-                            Audio Screen Pending
-                          </button>
-                        ) : (
-                          <Link
-                            href={`/astrologers/${encodeURIComponent(
-                              booking.astrologerId,
-                            )}`}
-                            className="inline-flex w-full justify-center rounded-xl border border-[#D4AF37] px-6 py-3 font-semibold text-[#0B1026] transition hover:bg-[#D4AF37]/10"
-                          >
-                            View Astrologer
-                          </Link>
-                        )}
+                      <div className="mt-5 border-t pt-4 text-xs text-gray-500">
+                        Consultation ID:{" "}
+                        {consultation.id}
                       </div>
-                    </div>
-                  </article>
-                );
-              })}
+                    </article>
+                  );
+                },
+              )}
             </div>
           )}
         </section>

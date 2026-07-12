@@ -29,6 +29,11 @@ import { DailyinsightModule } from './module/astro/modules/dailyinsight/dailyins
 import { PaymentsModule } from './module/payments/payments.module';
 import { CallModule } from './module/call/call.module';
 import { AdminModule } from './module/admin/admin.module';
+import { WalletModule } from './module/wallet/wallet.module';
+import { SubscriptionModule } from './module/subscription/subscription.module';
+
+// ✅ NEW
+import { ChatModule } from './module/chat/chat.module';
 
 @Module({
   imports: [
@@ -59,6 +64,11 @@ import { AdminModule } from './module/admin/admin.module';
     PaymentsModule,
     CallModule,
     AdminModule,
+    WalletModule,
+    SubscriptionModule,
+
+    // ✅ Chat Module
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService, CacheService],

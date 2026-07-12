@@ -1,9 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
-import type { ConsultationMode } from "@/services/bookingService";
+import {
+  startConsultation,
+  type ConsultationMode,
+} from "@/services/consultationService";
 
 type ConsultationActionsProps = {
   astrologerId: string;
@@ -13,28 +16,7 @@ type ConsultationActionsProps = {
   pricePerMin: number;
 };
 
-type LocalBooking = {
-  id: string;
-  astrologerId: string;
-  astrologerName?: string;
-  mode: ConsultationMode;
-  pricePerMin: number;
-  status: "active" | "completed";
-  createdAt: string;
-};
-
-function createBookingId(): string {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
-  }
-
-  return `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}`;
-}
+const durationOptions = [1, 5, 10, 15, 30];
 
 export function ConsultationActions({
   astrologerId,
@@ -45,45 +27,40 @@ export function ConsultationActions({
 }: ConsultationActionsProps) {
   const router = useRouter();
 
+  const [selectedMinutes, setSelectedMinutes] =
+    useState(5);
+
   const [loadingMode, setLoadingMode] =
     useState<ConsultationMode | null>(null);
 
   const [error, setError] = useState("");
 
-  function getRedirectPath(mode: ConsultationMode) {
+  const estimatedAmount = useMemo(() => {
+    const safePrice = Number.isFinite(pricePerMin)
+      ? Math.max(pricePerMin, 0)
+      : 0;
+
+    return safePrice * selectedMinutes;
+  }, [pricePerMin, selectedMinutes]);
+
+  function getReturnPath(mode: ConsultationMode) {
     return `/astrologers/${encodeURIComponent(
       astrologerId,
     )}?consultation=${mode}`;
   }
 
-  function getWalletBalance(): number {
-    const storedBalance = Number(
-      localStorage.getItem("asp_wallet_balance") ?? "0",
+  function savePendingConsultation(
+    mode: ConsultationMode,
+  ) {
+    localStorage.setItem(
+      "asp_pending_consultation",
+      JSON.stringify({
+        astrologerId,
+        mode,
+        minutes: selectedMinutes,
+        returnPath: getReturnPath(mode),
+      }),
     );
-
-    return Number.isFinite(storedBalance)
-      ? storedBalance
-      : 0;
-  }
-
-  function readBookings(): LocalBooking[] {
-    const storedBookings = localStorage.getItem(
-      "asp_consultation_bookings",
-    );
-
-    if (!storedBookings) {
-      return [];
-    }
-
-    try {
-      const parsed = JSON.parse(
-        storedBookings,
-      ) as LocalBooking[];
-
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
   }
 
   async function handleConsultation(
@@ -91,26 +68,35 @@ export function ConsultationActions({
   ) {
     setError("");
 
+    const returnPath = getReturnPath(mode);
+
     const token = localStorage.getItem(
       "asp_access_token",
     );
 
-    const returnPath = getRedirectPath(mode);
-
     if (!token) {
+      savePendingConsultation(mode);
+
       router.push(
-        `/login?redirect=${encodeURIComponent(returnPath)}`,
+        `/login?redirect=${encodeURIComponent(
+          returnPath,
+        )}`,
       );
+
       return;
     }
 
     if (!isOnline) {
-      setError("This astrologer is currently offline.");
+      setError(
+        "This astrologer is currently offline.",
+      );
       return;
     }
 
     const modeEnabled =
-      mode === "chat" ? chatEnabled : audioEnabled;
+      mode === "chat"
+        ? chatEnabled
+        : audioEnabled;
 
     if (!modeEnabled) {
       setError(
@@ -118,70 +104,113 @@ export function ConsultationActions({
           ? "Chat consultation is currently unavailable."
           : "Audio-call consultation is currently unavailable.",
       );
+
       return;
     }
 
-    const walletBalance = getWalletBalance();
-    const minimumRequiredBalance = Math.max(pricePerMin, 1);
-
-    if (walletBalance < minimumRequiredBalance) {
-      localStorage.setItem(
-        "asp_pending_consultation",
-        JSON.stringify({
-          astrologerId,
-          mode,
-          returnPath,
-        }),
+    if (
+      !Number.isInteger(selectedMinutes) ||
+      selectedMinutes < 1 ||
+      selectedMinutes > 120
+    ) {
+      setError(
+        "Please select a valid consultation duration.",
       );
 
-      router.push("/wallet/recharge");
+      return;
+    }
+
+    /*
+     * Backend CallSession currently does not store a
+     * consultation mode. Until audio provider integration is
+     * complete, only chat is started through the real backend.
+     */
+    if (mode === "audio") {
+      setError(
+        "Real audio calling is not connected yet. Please start a chat consultation.",
+      );
+
       return;
     }
 
     try {
       setLoadingMode(mode);
 
-      const bookingId = createBookingId();
-
-      const booking: LocalBooking = {
-        id: bookingId,
+      const response = await startConsultation({
         astrologerId,
-        mode,
-        pricePerMin,
-        status: "active",
-        createdAt: new Date().toISOString(),
-      };
+        minutes: selectedMinutes,
+      });
 
-      const existingBookings = readBookings();
+      const call = response?.data?.call;
 
-      localStorage.setItem(
-        "asp_consultation_bookings",
-        JSON.stringify([
-          booking,
-          ...existingBookings,
-        ]),
-      );
+      if (!call?.id) {
+        throw new Error(
+          "Consultation started, but the backend did not return a consultation ID.",
+        );
+      }
 
       localStorage.removeItem(
         "asp_pending_consultation",
       );
 
-      if (mode === "chat") {
-        router.push(
-          `/chat/${encodeURIComponent(bookingId)}`,
+      /*
+       * Temporary compatibility data for the current chat page.
+       * The next step will update the chat page to read the real
+       * consultation directly from GET /call/current.
+       */
+      localStorage.setItem(
+        "asp_active_call",
+        JSON.stringify(call),
+      );
+
+      router.push(
+        `/chat/${encodeURIComponent(call.id)}`,
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Unable to start consultation.";
+
+      if (message === "LOGIN_REQUIRED") {
+        savePendingConsultation(mode);
+
+        localStorage.removeItem(
+          "asp_access_token",
         );
+
+        router.push(
+          `/login?redirect=${encodeURIComponent(
+            returnPath,
+          )}`,
+        );
+
         return;
       }
 
-      setError(
-        "Audio-call screen will be connected in the next phase.",
-      );
-    } catch (err: unknown) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to start consultation.",
-      );
+      if (
+        message === "INSUFFICIENT_BALANCE"
+      ) {
+        savePendingConsultation(mode);
+
+        router.push("/wallet/recharge");
+
+        return;
+      }
+
+      if (
+        message
+          .toLowerCase()
+          .includes("active consultation")
+      ) {
+        setError(
+          "You already have an active consultation. Open My Consultations to continue it.",
+        );
+
+        return;
+      }
+
+      setError(message);
     } finally {
       setLoadingMode(null);
     }
@@ -190,10 +219,72 @@ export function ConsultationActions({
   return (
     <div>
       {error && (
-        <div className="mb-5 rounded-xl bg-red-50 p-4 text-sm text-red-700">
+        <div
+          role="alert"
+          className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+        >
           {error}
         </div>
       )}
+
+      <div className="mb-6 rounded-2xl bg-[#FAF7F0] p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <label
+              htmlFor="consultation-duration"
+              className="block text-sm font-semibold text-[#0B1026]"
+            >
+              Consultation duration
+            </label>
+
+            <select
+              id="consultation-duration"
+              value={selectedMinutes}
+              disabled={loadingMode !== null}
+              onChange={(event) => {
+                setSelectedMinutes(
+                  Number(event.target.value),
+                );
+                setError("");
+              }}
+              className="mt-2 min-w-48 rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-[#D4AF37] disabled:cursor-not-allowed disabled:bg-gray-100"
+            >
+              {durationOptions.map(
+                (minutes) => (
+                  <option
+                    key={minutes}
+                    value={minutes}
+                  >
+                    {minutes}{" "}
+                    {minutes === 1
+                      ? "minute"
+                      : "minutes"}
+                  </option>
+                ),
+              )}
+            </select>
+          </div>
+
+          <div className="rounded-xl bg-white px-5 py-3 text-right">
+            <p className="text-xs text-gray-500">
+              Payable upfront
+            </p>
+
+            <p className="mt-1 text-xl font-bold text-[#D4AF37]">
+              ₹{estimatedAmount.toFixed(2)}
+            </p>
+
+            <p className="mt-1 text-xs text-gray-500">
+              ₹{pricePerMin}/minute
+            </p>
+          </div>
+        </div>
+
+        <p className="mt-4 text-xs leading-5 text-gray-500">
+          The selected duration amount will be deducted securely
+          by the backend when the consultation starts.
+        </p>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <button
@@ -214,7 +305,7 @@ export function ConsultationActions({
               ? "Chat Unavailable — Offline"
               : !chatEnabled
                 ? "Chat Unavailable"
-                : "Start Chat Consultation"}
+                : `Start ${selectedMinutes}-Minute Chat`}
         </button>
 
         <button

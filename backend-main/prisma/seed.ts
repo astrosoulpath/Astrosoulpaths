@@ -7,7 +7,11 @@ async function main() {
 
   // Seed Roles
   await prisma.role.createMany({
-    data: [{ name: 'user' }, { name: 'admin' }, { name: 'astrologer' }],
+    data: [
+      { name: 'user' },
+      { name: 'admin' },
+      { name: 'astrologer' },
+    ],
     skipDuplicates: true,
   });
 
@@ -19,7 +23,8 @@ async function main() {
       {
         name: 'FREE',
         displayName: 'Free Plan',
-        description: 'Basic astrology tools with limited AI access',
+        description:
+          'Basic astrology tools with limited AI access',
         price: 0,
         currency: 'INR',
         durationDays: 3650,
@@ -35,7 +40,8 @@ async function main() {
       {
         name: 'GOLD',
         displayName: 'Gold Plan',
-        description: 'More personalized astrology with increased chat access',
+        description:
+          'More personalized astrology with increased chat access',
         price: 499,
         currency: 'INR',
         durationDays: 30,
@@ -51,7 +57,8 @@ async function main() {
       {
         name: 'PREMIUM',
         displayName: 'Premium Plan',
-        description: 'Unlimited astrology experience with VIP access',
+        description:
+          'Unlimited astrology experience with VIP access',
         price: 999,
         currency: 'INR',
         durationDays: 30,
@@ -60,6 +67,57 @@ async function main() {
           personalizedPredictions: true,
           vipAstrologers: true,
           prioritySupport: true,
+        },
+        isActive: true,
+        isFeatured: true,
+      },
+      {
+        name: 'DAILY_HOROSCOPE_MONTHLY',
+        displayName: 'Personalized Daily Horoscope',
+        description:
+          'Monthly personalized Vedic horoscope based on birth date, time and place.',
+        price: 1,
+        currency: 'USD',
+        durationDays: 30,
+        features: {
+          planAudience: 'CUSTOMER',
+          planCategory: 'DAILY_HOROSCOPE',
+          personalizedDailyReading: true,
+          dailyAdvice: true,
+          moodOfTheDay: true,
+          focusArea: true,
+          luckyColor: true,
+          luckyNumber: true,
+          favorableActivities: true,
+          cautionGuidance: true,
+          inAppDailyReading: true,
+          inAppNotifications: true,
+          autoRenewSupported: true,
+        },
+        isActive: true,
+        isFeatured: true,
+      },
+      {
+        name: 'ASTROLOGER_KUNDLI_YEARLY',
+        displayName: 'Professional Kundli Plan',
+        description:
+          'Annual professional Kundli subscription for approved astrologers.',
+        price: 3000,
+        currency: 'INR',
+        durationDays: 365,
+        features: {
+          planAudience: 'ASTROLOGER',
+          planCategory: 'PROFESSIONAL_KUNDLI',
+          unlimitedKundliGeneration: true,
+          saveCustomerCharts: true,
+          printReports: true,
+          downloadPdfReports: true,
+          d1Chart: true,
+          d9Chart: true,
+          basicDasha: true,
+          doshaAnalysis: true,
+          professionalReports: true,
+          autoRenewSupported: true,
         },
         isActive: true,
         isFeatured: true,
@@ -80,7 +138,9 @@ async function main() {
   }
 
   const testUser = await prisma.user.upsert({
-    where: { supabaseId: 'seed-astrologer-supabase-id' },
+    where: {
+      supabaseId: 'seed-astrologer-supabase-id',
+    },
     update: {
       isAstrologer: true,
     },
@@ -92,20 +152,32 @@ async function main() {
     },
   });
 
-  const vedicExpertise = await prisma.expertise.upsert({
-    where: { name: 'Vedic Astrology' },
-    update: {},
-    create: { name: 'Vedic Astrology' },
-  });
+  const vedicExpertise =
+    await prisma.expertise.upsert({
+      where: {
+        name: 'Vedic Astrology',
+      },
+      update: {},
+      create: {
+        name: 'Vedic Astrology',
+      },
+    });
 
-  const numerologyExpertise = await prisma.expertise.upsert({
-    where: { name: 'Numerology' },
-    update: {},
-    create: { name: 'Numerology' },
-  });
+  const numerologyExpertise =
+    await prisma.expertise.upsert({
+      where: {
+        name: 'Numerology',
+      },
+      update: {},
+      create: {
+        name: 'Numerology',
+      },
+    });
 
   const astrologer = await prisma.astrologer.upsert({
-    where: { userId: testUser.id },
+    where: {
+      userId: testUser.id,
+    },
     update: {
       bio: 'Experienced astrologer specializing in Vedic astrology and numerology.',
       languages: ['Hindi', 'English'],
@@ -124,19 +196,28 @@ async function main() {
       isVerified: false,
       expertise: {
         create: [
-          { expertiseId: vedicExpertise.id },
-          { expertiseId: numerologyExpertise.id },
+          {
+            expertiseId:
+              vedicExpertise.id,
+          },
+          {
+            expertiseId:
+              numerologyExpertise.id,
+          },
         ],
       },
     },
   });
 
-  console.log('✅ Pending astrologer seeded successfully:', astrologer.id);
+  console.log(
+    '✅ Pending astrologer seeded successfully:',
+    astrologer.id,
+  );
 }
 
 main()
-  .catch((e) => {
-    console.error('❌ Seeding failed:', e);
+  .catch((error) => {
+    console.error('❌ Seeding failed:', error);
     process.exit(1);
   })
   .finally(async () => {

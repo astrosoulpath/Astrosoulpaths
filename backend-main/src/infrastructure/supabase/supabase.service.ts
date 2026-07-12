@@ -1,13 +1,15 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   createClient,
+  Session,
   SupabaseClient,
   User,
-  Session,
 } from '@supabase/supabase-js';
 
-// ✅ Custom type (matches actual Supabase response)
 type VerifyOtpResult = {
   user: User | null;
   session: Session | null;
@@ -16,42 +18,134 @@ type VerifyOtpResult = {
 @Injectable()
 export class SupabaseService {
   private readonly client: SupabaseClient;
+  private readonly adminClient: SupabaseClient | null;
 
-  constructor(private readonly config: ConfigService) {
-    const url = this.config.getOrThrow<string>('supabase.url');
-    const key = this.config.getOrThrow<string>('supabase.key');
+  constructor(
+    private readonly config: ConfigService,
+  ) {
+    const url =
+      this.config.getOrThrow<string>(
+        'supabase.url',
+      );
 
-    this.client = createClient(url, key);
+    const publicKey =
+      this.config.getOrThrow<string>(
+        'supabase.key',
+      );
+
+    this.client = createClient(
+      url,
+      publicKey,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      },
+    );
+
+    const serviceRoleKey =
+      this.config.get<string>(
+        'supabase.serviceRoleKey',
+      );
+
+    this.adminClient = serviceRoleKey
+      ? createClient(
+          url,
+          serviceRoleKey,
+          {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+            },
+          },
+        )
+      : null;
   }
 
-  // 📱 Send OTP
-  async sendOtp(phone: string): Promise<void> {
-    const { error } = await this.client.auth.signInWithOtp({
-      phone,
-    });
+  async sendOtp(
+    phone: string,
+  ): Promise<void> {
+    const normalizedPhone =
+      phone?.trim();
+
+    if (!normalizedPhone) {
+      throw new BadRequestException(
+        'Phone number is required',
+      );
+    }
+
+    const { error } =
+      await this.client.auth.signInWithOtp({
+        phone: normalizedPhone,
+      });
 
     if (error) {
-      throw new BadRequestException(error.message);
+      throw new BadRequestException(
+        error.message,
+      );
     }
   }
 
-  // 🔐 Verify OTP
-  async verifyOtp(phone: string, token: string): Promise<VerifyOtpResult> {
-    const { data, error } = await this.client.auth.verifyOtp({
-      phone,
-      token,
-      type: 'sms', // 🔥 required
-    });
+  async verifyOtp(
+    phone: string,
+    token: string,
+  ): Promise<VerifyOtpResult> {
+    const normalizedPhone =
+      phone?.trim();
 
-    if (error) {
-      throw new BadRequestException(error.message);
+    const normalizedToken =
+      token?.trim();
+
+    if (!normalizedPhone) {
+      throw new BadRequestException(
+        'Phone number is required',
+      );
     }
 
-    return data; // ✅ correct type
+    if (!normalizedToken) {
+      throw new BadRequestException(
+        'OTP is required',
+      );
+    }
+
+    const { data, error } =
+      await this.client.auth.verifyOtp({
+        phone: normalizedPhone,
+        token: normalizedToken,
+        type: 'sms',
+      });
+
+    if (error) {
+      throw new BadRequestException(
+        error.message,
+      );
+    }
+
+    return data;
   }
 
-  // ⚠️ Optional (use carefully)
+  /**
+   * Public/Auth client.
+   *
+   * Existing authentication flows can continue using this.
+   */
   getClient(): SupabaseClient {
     return this.client;
+  }
+
+  /**
+   * Server-side client for Storage and privileged backend work.
+   *
+   * During local development, this falls back to the configured
+   * public client when a service-role key is not yet available.
+   * Production should always configure SUPABASE_SERVICE_ROLE_KEY.
+   */
+  getStorageClient(): SupabaseClient {
+    return this.adminClient ?? this.client;
+  }
+
+  hasAdminClient(): boolean {
+    return this.adminClient !== null;
   }
 }

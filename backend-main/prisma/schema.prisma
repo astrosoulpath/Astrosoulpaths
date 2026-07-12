@@ -28,7 +28,6 @@ model User {
   email     String? @unique
   name      String?
   avatarUrl String?
-  
 
   // Wallet & Payments
   wallet        Wallet?
@@ -67,14 +66,16 @@ model User {
   razorpayCustomerId String?
 
   // 🔗 Relations
-  astrologer    Astrologer?
-    userProfile   UserProfile?
-  profiles      Profile[]      @relation("UserProfiles")
-  reviews       Review[]
-  subscriptions Subscription[]
-  calls         CallSession[]  @relation("UserCalls")
-  astrologerCalls CallSession[] @relation("AstrologerCalls")
-  // payments       Payment[]
+  astrologer      Astrologer?
+  userProfile     UserProfile?
+  profiles        Profile[]      @relation("UserProfiles")
+  reviews         Review[]
+  subscriptions   Subscription[]
+  calls           CallSession[]  @relation("UserCalls")
+  astrologerCalls CallSession[]  @relation("AstrologerCalls")
+
+  // 💬 Chat Messages
+  sentChatMessages ChatMessage[] @relation("ChatMessageSender")
 
   @@index([phone])
   @@index([supabaseId])
@@ -227,8 +228,8 @@ model Profile {
 
   // ASP production profile fields
   maritalStatus String?
-  occupation     String?
-  avatarUrl      String?
+  occupation    String?
+  avatarUrl     String?
 
   isDeleted Boolean @default(false)
 
@@ -287,8 +288,6 @@ model KundliData {
   @@unique([kundliId, lang])
 }
 
-
-
 model Kundli {
   id String @id @default(cuid())
 
@@ -301,7 +300,7 @@ model Kundli {
 
   hash String @unique
 
-  data KundliData?
+  data   KundliData?
   orders KundliOrder[]
 
   createdAt DateTime @default(now())
@@ -557,57 +556,96 @@ model WalletLedger {
   @@map("wallet_ledger")
 }
 
-
-
 model CallSession {
-  id                String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  userId            String
-  astrologerId      String
+  userId       String
+  astrologerId String
 
-  channelName       String
+  channelName String
 
-  ratePerMinute     Float
+  ratePerMinute Float
 
-  purchasedMinutes  Int
-  extendedMinutes   Int      @default(0)
+  purchasedMinutes Int
+  extendedMinutes  Int @default(0)
 
-  amountCharged     Float
+  amountCharged Float
 
-  startedAt         DateTime
-  expiresAt         DateTime
-  endedAt           DateTime?
+  startedAt DateTime
+  expiresAt DateTime
+  endedAt   DateTime?
 
-  status            String
+  status String
 
-  createdAt         DateTime @default(now())
+  createdAt DateTime @default(now())
 
   user       User @relation("UserCalls", fields: [userId], references: [id])
   astrologer User @relation("AstrologerCalls", fields: [astrologerId], references: [id])
+
+  // Chat messages linked to this consultation
+  messages ChatMessage[]
+}
+
+enum ChatMessageType {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM
+}
+
+model ChatMessage {
+  id String @id @default(cuid())
+
+  callSessionId String
+  callSession   CallSession @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+
+  senderId String
+  sender   User   @relation("ChatMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  messageType ChatMessageType @default(TEXT)
+
+  content String?
+
+  attachmentUrl      String?
+  attachmentName     String?
+  attachmentMimeType String?
+  attachmentSize     Int?
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([callSessionId])
+  @@index([senderId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("chat_messages")
 }
 
 model UserProfile {
-  id          String   @id @default(cuid())
-  
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fullName    String
-  username    String?   @unique
-  email       String?   @unique
-  phoneNumber String?   @unique
-  dateOfBirth DateTime?
-  timeOfBirth String?
-  latitude    Float?
-  longitude   Float?
-  timezone    Float?
-  city        String?
-  state       String?
-  country     String?
-  countryCode String?
+  id String @id @default(cuid())
+
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName     String
+  username     String?   @unique
+  email        String?   @unique
+  phoneNumber  String?   @unique
+  dateOfBirth  DateTime?
+  timeOfBirth  String?
+  latitude     Float?
+  longitude    Float?
+  timezone     Float?
+  city         String?
+  state        String?
+  country      String?
+  countryCode  String?
   timezoneName String?
-  gender      Gender
-  location    String?
-  avatarUrl   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  gender       Gender
+  location     String?
+  avatarUrl    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
