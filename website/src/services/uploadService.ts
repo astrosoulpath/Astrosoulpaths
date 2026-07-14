@@ -14,6 +14,7 @@ export type ChatUploadResponse = {
     fileName: string;
     mimeType: string;
     size: number;
+    type?: "IMAGE" | "FILE";
     caption?: string | null;
   };
 };
@@ -28,29 +29,72 @@ type UploadOptions = {
   signal?: AbortSignal;
 };
 
+const MAX_IMAGE_SIZE =
+  10 * 1024 * 1024;
+
+const MAX_FILE_SIZE =
+  20 * 1024 * 1024;
+
+const ALLOWED_IMAGE_TYPES =
+  new Set([
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+  ]);
+
+const ALLOWED_FILE_TYPES =
+  new Set([
+    "application/pdf",
+    "application/zip",
+    "application/x-zip-compressed",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/ogg",
+    "audio/webm",
+  ]);
+
 function getApiBaseUrl(): string {
-  if (!API_BASE_URL) {
+  const baseUrl =
+    API_BASE_URL?.trim();
+
+  if (!baseUrl) {
     throw new Error(
       "NEXT_PUBLIC_API_BASE_URL is not configured.",
     );
   }
 
-  return API_BASE_URL.replace(/\/+$/, "");
+  return baseUrl.replace(/\/+$/, "");
 }
 
 function getAccessToken(): string {
-  if (typeof window === "undefined") {
+  if (
+    typeof window === "undefined"
+  ) {
     throw new Error(
       "Upload is only available in the browser.",
     );
   }
 
-  const token = localStorage.getItem(
-    "asp_access_token",
-  );
+  const token =
+    window.localStorage
+      .getItem(
+        "asp_access_token",
+      )
+      ?.trim();
 
   if (!token) {
-    throw new Error("LOGIN_REQUIRED");
+    throw new Error(
+      "LOGIN_REQUIRED",
+    );
   }
 
   return token;
@@ -60,11 +104,32 @@ function normalizeCallSessionId(
   callSessionId: string,
 ): string {
   const normalized =
-    callSessionId.trim();
+    callSessionId?.trim();
 
   if (!normalized) {
     throw new Error(
       "Call session ID is required.",
+    );
+  }
+
+  return normalized;
+}
+
+function normalizeCaption(
+  caption?: string,
+): string | null {
+  const normalized =
+    caption?.trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (
+    normalized.length > 500
+  ) {
+    throw new Error(
+      "Caption cannot exceed 500 characters.",
     );
   }
 
@@ -83,18 +148,39 @@ function getErrorMessage(
   }
 
   const record =
-    value as Record<string, unknown>;
+    value as Record<
+      string,
+      unknown
+    >;
 
-  const message = record.message;
+  const message =
+    record.message;
 
-  if (Array.isArray(message)) {
+  if (
+    Array.isArray(message)
+  ) {
     return message
       .map(String)
       .join(", ");
   }
 
-  if (typeof message === "string") {
-    return message;
+  if (
+    typeof message ===
+      "string" &&
+    message.trim()
+  ) {
+    return message.trim();
+  }
+
+  const error =
+    record.error;
+
+  if (
+    typeof error ===
+      "string" &&
+    error.trim()
+  ) {
+    return error.trim();
   }
 
   return fallback;
@@ -112,31 +198,61 @@ function validateFile(
     );
   }
 
-  const maxSize =
-    kind === "image"
-      ? 10 * 1024 * 1024
-      : 20 * 1024 * 1024;
-
-  if (file.size <= 0) {
+  if (
+    !Number.isFinite(file.size) ||
+    file.size <= 0
+  ) {
     throw new Error(
-      "Selected file is empty.",
+      "Selected file is empty or invalid.",
     );
   }
 
-  if (file.size > maxSize) {
+  const mimeType =
+    file.type
+      ?.trim()
+      .toLowerCase();
+
+  if (kind === "image") {
+    if (
+      file.size >
+      MAX_IMAGE_SIZE
+    ) {
+      throw new Error(
+        "Image cannot exceed 10 MB.",
+      );
+    }
+
+    if (
+      !mimeType ||
+      !ALLOWED_IMAGE_TYPES.has(
+        mimeType,
+      )
+    ) {
+      throw new Error(
+        "Unsupported image type. Use JPG, PNG, WEBP or GIF.",
+      );
+    }
+
+    return;
+  }
+
+  if (
+    file.size >
+    MAX_FILE_SIZE
+  ) {
     throw new Error(
-      kind === "image"
-        ? "Image cannot exceed 10 MB."
-        : "File cannot exceed 20 MB.",
+      "File cannot exceed 20 MB.",
     );
   }
 
   if (
-    kind === "image" &&
-    !file.type.startsWith("image/")
+    !mimeType ||
+    !ALLOWED_FILE_TYPES.has(
+      mimeType,
+    )
   ) {
     throw new Error(
-      "Please select a valid image.",
+      "Unsupported file type. Use PDF, ZIP, DOC, DOCX, XLS, XLSX, TXT or supported audio files.",
     );
   }
 }
@@ -149,20 +265,21 @@ async function parseResponse(
     .catch(() => null);
 }
 
-async function uploadWithFetch(
-  kind: ChatUploadKind,
+function buildFormData(
   options: UploadOptions,
-): Promise<ChatUploadResponse> {
-  const token = getAccessToken();
-
+): FormData {
   const callSessionId =
     normalizeCallSessionId(
       options.callSessionId,
     );
 
-  validateFile(options.file, kind);
+  const caption =
+    normalizeCaption(
+      options.caption,
+    );
 
-  const formData = new FormData();
+  const formData =
+    new FormData();
 
   formData.append(
     "callSessionId",
@@ -174,36 +291,124 @@ async function uploadWithFetch(
     options.file,
   );
 
-  if (options.caption?.trim()) {
+  if (caption) {
     formData.append(
       "caption",
-      options.caption.trim(),
+      caption,
     );
   }
 
+  return formData;
+}
+
+function normalizeUploadResponse(
+  data: unknown,
+  kind: ChatUploadKind,
+): ChatUploadResponse {
+  if (
+    !data ||
+    typeof data !== "object"
+  ) {
+    throw new Error(
+      kind === "image"
+        ? "Invalid image upload response."
+        : "Invalid file upload response.",
+    );
+  }
+
+  const response =
+    data as ChatUploadResponse;
+
+  if (
+    !response.success ||
+    !response.data?.url ||
+    !response.data?.fileName ||
+    !response.data?.mimeType ||
+    !Number.isFinite(
+      response.data?.size,
+    )
+  ) {
+    throw new Error(
+      kind === "image"
+        ? "Backend returned an invalid image upload response."
+        : "Backend returned an invalid file upload response.",
+    );
+  }
+
+  return {
+    ...response,
+
+    data: {
+      ...response.data,
+
+      type:
+        response.data.type ??
+        (kind === "image"
+          ? "IMAGE"
+          : "FILE"),
+    },
+  };
+}
+
+async function uploadWithFetch(
+  kind: ChatUploadKind,
+  options: UploadOptions,
+): Promise<ChatUploadResponse> {
+  const token =
+    getAccessToken();
+
+  validateFile(
+    options.file,
+    kind,
+  );
+
+  const formData =
+    buildFormData(options);
+
   options.onProgress?.(10);
 
-  const response = await fetch(
-    `${getApiBaseUrl()}/chat/upload/${kind}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
+  const response =
+    await fetch(
+      `${getApiBaseUrl()}/chat/upload/${kind}`,
+      {
+        method: "POST",
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+
+        body:
+          formData,
+
+        signal:
+          options.signal,
       },
-      body: formData,
-      signal: options.signal,
-    },
-  );
+    );
 
   options.onProgress?.(90);
 
   const data =
-    await parseResponse(response);
+    await parseResponse(
+      response,
+    );
 
   if (!response.ok) {
-    if (response.status === 401) {
+    if (
+      response.status === 401
+    ) {
       throw new Error(
         "LOGIN_REQUIRED",
+      );
+    }
+
+    if (
+      response.status === 413
+    ) {
+      throw new Error(
+        kind === "image"
+          ? "Image cannot exceed 10 MB."
+          : "File cannot exceed 20 MB.",
       );
     }
 
@@ -219,14 +424,12 @@ async function uploadWithFetch(
 
   options.onProgress?.(100);
 
-  return data as ChatUploadResponse;
+  return normalizeUploadResponse(
+    data,
+    kind,
+  );
 }
 
-/**
- * Fetch does not expose reliable upload-progress events.
- * This XMLHttpRequest version is used when the UI needs
- * actual byte-level upload progress.
- */
 function uploadWithProgress(
   kind: ChatUploadKind,
   options: UploadOptions,
@@ -234,49 +437,32 @@ function uploadWithProgress(
   return new Promise(
     (resolve, reject) => {
       let token: string;
-      let callSessionId: string;
+      let formData: FormData;
 
       try {
-        token = getAccessToken();
-
-        callSessionId =
-          normalizeCallSessionId(
-            options.callSessionId,
-          );
+        token =
+          getAccessToken();
 
         validateFile(
           options.file,
           kind,
         );
+
+        formData =
+          buildFormData(
+            options,
+          );
       } catch (error) {
         reject(error);
         return;
       }
 
-      const formData =
-        new FormData();
-
-      formData.append(
-        "callSessionId",
-        callSessionId,
-      );
-
-      formData.append(
-        "file",
-        options.file,
-      );
-
-      if (
-        options.caption?.trim()
-      ) {
-        formData.append(
-          "caption",
-          options.caption.trim(),
-        );
-      }
-
       const request =
         new XMLHttpRequest();
+
+      let abortHandler:
+        | (() => void)
+        | null = null;
 
       request.open(
         "POST",
@@ -288,21 +474,30 @@ function uploadWithProgress(
         `Bearer ${token}`,
       );
 
+      request.timeout =
+        120_000;
+
       request.upload.onprogress = (
         event,
       ) => {
-        if (!event.lengthComputable) {
+        if (
+          !event.lengthComputable
+        ) {
           return;
         }
 
-        const progress = Math.min(
-          100,
-          Math.round(
-            (event.loaded /
-              event.total) *
-              100,
-          ),
-        );
+        const progress =
+          Math.min(
+            100,
+            Math.max(
+              0,
+              Math.round(
+                (event.loaded /
+                  event.total) *
+                  100,
+              ),
+            ),
+          );
 
         options.onProgress?.(
           progress,
@@ -310,14 +505,19 @@ function uploadWithProgress(
       };
 
       request.onload = () => {
-        let data: unknown = null;
+        cleanupAbortListener();
+
+        let data:
+          | unknown
+          | null = null;
 
         try {
-          data = request.responseText
-            ? JSON.parse(
-                request.responseText,
-              )
-            : null;
+          data =
+            request.responseText
+              ? JSON.parse(
+                  request.responseText,
+                )
+              : null;
         } catch {
           data = null;
         }
@@ -326,13 +526,21 @@ function uploadWithProgress(
           request.status >= 200 &&
           request.status < 300
         ) {
-          options.onProgress?.(
-            100,
-          );
+          try {
+            const response =
+              normalizeUploadResponse(
+                data,
+                kind,
+              );
 
-          resolve(
-            data as ChatUploadResponse,
-          );
+            options.onProgress?.(
+              100,
+            );
+
+            resolve(response);
+          } catch (error) {
+            reject(error);
+          }
 
           return;
         }
@@ -343,6 +551,20 @@ function uploadWithProgress(
           reject(
             new Error(
               "LOGIN_REQUIRED",
+            ),
+          );
+
+          return;
+        }
+
+        if (
+          request.status === 413
+        ) {
+          reject(
+            new Error(
+              kind === "image"
+                ? "Image cannot exceed 10 MB."
+                : "File cannot exceed 20 MB.",
             ),
           );
 
@@ -362,6 +584,8 @@ function uploadWithProgress(
       };
 
       request.onerror = () => {
+        cleanupAbortListener();
+
         reject(
           new Error(
             "Network error while uploading.",
@@ -369,7 +593,19 @@ function uploadWithProgress(
         );
       };
 
+      request.ontimeout = () => {
+        cleanupAbortListener();
+
+        reject(
+          new Error(
+            "Upload timed out. Please try again.",
+          ),
+        );
+      };
+
       request.onabort = () => {
+        cleanupAbortListener();
+
         reject(
           new Error(
             "Upload was cancelled.",
@@ -377,7 +613,26 @@ function uploadWithProgress(
         );
       };
 
+      function cleanupAbortListener() {
+        if (
+          options.signal &&
+          abortHandler
+        ) {
+          options.signal
+            .removeEventListener(
+              "abort",
+              abortHandler,
+            );
+        }
+
+        abortHandler = null;
+      }
+
       if (options.signal) {
+        abortHandler = () => {
+          request.abort();
+        };
+
         if (
           options.signal.aborted
         ) {
@@ -385,18 +640,19 @@ function uploadWithProgress(
           return;
         }
 
-        options.signal.addEventListener(
-          "abort",
-          () => {
-            request.abort();
-          },
-          {
-            once: true,
-          },
-        );
+        options.signal
+          .addEventListener(
+            "abort",
+            abortHandler,
+            {
+              once: true,
+            },
+          );
       }
 
-      request.send(formData);
+      request.send(
+        formData,
+      );
     },
   );
 }

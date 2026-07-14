@@ -11,10 +11,12 @@ import type { JWTPayload } from 'jose';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
+
 import { ChatService } from './chat.service';
+
 import { JoinChatDto } from './dto/join-chat.dto';
-import { MarkMessageReadDto } from './dto/mark-message-read.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { MarkMessageReadDto } from './dto/mark-message-read.dto';
 
 @Controller('chat')
 @UseGuards(SupabaseAuthGuard)
@@ -23,8 +25,14 @@ export class ChatController {
     private readonly chatService: ChatService,
   ) {}
 
+  /*
+  ===========================================================
+  JOIN CHAT
+  ===========================================================
+  */
+
   @Post('join')
-  joinChat(
+  async joinChat(
     @CurrentUser() user: JWTPayload,
     @Body() dto: JoinChatDto,
   ) {
@@ -34,8 +42,14 @@ export class ChatController {
     );
   }
 
+  /*
+  ===========================================================
+  SEND MESSAGE
+  ===========================================================
+  */
+
   @Post('message')
-  sendMessage(
+  async sendMessage(
     @CurrentUser() user: JWTPayload,
     @Body() dto: SendMessageDto,
   ) {
@@ -45,9 +59,16 @@ export class ChatController {
     );
   }
 
+  /*
+  ===========================================================
+  CHAT HISTORY
+  ===========================================================
+  */
+
   @Get(':callSessionId/history')
-  getChatHistory(
+  async getChatHistory(
     @CurrentUser() user: JWTPayload,
+
     @Param('callSessionId')
     callSessionId: string,
   ) {
@@ -57,10 +78,18 @@ export class ChatController {
     );
   }
 
+  /*
+  ===========================================================
+  MARK SELECTED MESSAGES READ
+  ===========================================================
+  */
+
   @Patch('messages/read')
-  markMessagesAsRead(
+  async markMessagesAsRead(
     @CurrentUser() user: JWTPayload,
-    @Body() dto: MarkMessageReadDto,
+
+    @Body()
+    dto: MarkMessageReadDto,
   ) {
     return this.chatService.markMessagesAsRead(
       user.sub as string,
@@ -68,9 +97,16 @@ export class ChatController {
     );
   }
 
+  /*
+  ===========================================================
+  MARK ALL READ
+  ===========================================================
+  */
+
   @Patch(':callSessionId/read-all')
-  markAllMessagesAsRead(
+  async markAllMessagesAsRead(
     @CurrentUser() user: JWTPayload,
+
     @Param('callSessionId')
     callSessionId: string,
   ) {
@@ -80,13 +116,39 @@ export class ChatController {
     );
   }
 
+  /*
+  ===========================================================
+  UNREAD COUNT
+  ===========================================================
+  */
+
   @Get(':callSessionId/unread-count')
-  getUnreadCount(
+  async getUnreadCount(
     @CurrentUser() user: JWTPayload,
+
     @Param('callSessionId')
     callSessionId: string,
   ) {
     return this.chatService.getUnreadCount(
+      user.sub as string,
+      callSessionId,
+    );
+  }
+
+  /*
+  ===========================================================
+  VERIFY CHAT ACCESS
+  ===========================================================
+  */
+
+  @Get(':callSessionId/access')
+  async verifyChatAccess(
+    @CurrentUser() user: JWTPayload,
+
+    @Param('callSessionId')
+    callSessionId: string,
+  ) {
+    return this.chatService.verifyChatAccess(
       user.sub as string,
       callSessionId,
     );

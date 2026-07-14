@@ -3,25 +3,30 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
 import { SupabaseModule } from '../../infrastructure/supabase/supabase.module';
 
-import { CallController } from './call.controller';
-import { CallService } from './call.service';
 import { AgoraService } from './agora.service';
+import { CallController } from './call.controller';
+import { CallGateway } from './call.gateway';
+import { CallSocketService } from './call-socket.service';
+import { CallService } from './call.service';
 
 @Module({
   imports: [
     PrismaModule,
     SupabaseModule,
   ],
+  controllers: [
+    CallController,
+  ],
   providers: [
     CallService,
     AgoraService,
-  ],
-  controllers: [
-    CallController,
+    CallSocketService,
+    CallGateway,
   ],
   exports: [
     CallService,
     AgoraService,
+    CallSocketService,
   ],
 })
 export class CallModule {}

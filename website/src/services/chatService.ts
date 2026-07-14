@@ -41,11 +41,17 @@ export type ChatMessage = {
   readAt: string | null;
   createdAt: string;
   updatedAt: string;
+
+  /**
+   * Frontend optimistic message mapping ke liye.
+   */
+  clientMessageId?: string | null;
 };
 
 export type JoinChatResponse = {
   success: boolean;
   message?: string;
+
   data: {
     roomId: string;
     channelName: string;
@@ -68,6 +74,7 @@ export type JoinChatResponse = {
 
 export type ChatHistoryResponse = {
   success: boolean;
+
   data: {
     callSession: {
       id: string;
@@ -94,11 +101,13 @@ export type SendMessagePayload = {
   attachmentName?: string;
   attachmentMimeType?: string;
   attachmentSize?: number;
+  clientMessageId?: string;
 };
 
 export type SendMessageResponse = {
   success: boolean;
   message?: string;
+
   data: {
     message: ChatMessage;
   };
@@ -107,6 +116,7 @@ export type SendMessageResponse = {
 export type MarkMessagesReadResponse = {
   success: boolean;
   message?: string;
+
   data: {
     callSessionId: string;
     messageIds: string[];
@@ -118,6 +128,7 @@ export type MarkMessagesReadResponse = {
 export type MarkAllMessagesReadResponse = {
   success: boolean;
   message?: string;
+
   data: {
     callSessionId: string;
     updatedCount: number;
@@ -127,35 +138,55 @@ export type MarkAllMessagesReadResponse = {
 
 export type UnreadCountResponse = {
   success: boolean;
+
   data: {
     callSessionId: string;
     unreadCount: number;
   };
 };
 
+type ApiErrorPayload = {
+  message?: string | string[];
+  error?: string;
+};
+
 function getApiBaseUrl(): string {
-  if (!API_BASE_URL) {
+  const baseUrl =
+    API_BASE_URL?.trim() ||
+    process.env
+      .NEXT_PUBLIC_API_URL
+      ?.trim();
+
+  if (!baseUrl) {
     throw new Error(
       "NEXT_PUBLIC_API_BASE_URL is not configured.",
     );
   }
 
-  return API_BASE_URL.replace(/\/+$/, "");
+  return baseUrl.replace(/\/+$/, "");
 }
 
 function getAccessToken(): string {
-  if (typeof window === "undefined") {
+  if (
+    typeof window ===
+    "undefined"
+  ) {
     throw new Error(
       "Chat actions are only available in the browser.",
     );
   }
 
-  const token = localStorage.getItem(
-    "asp_access_token",
-  );
+  const token =
+    window.localStorage
+      .getItem(
+        "asp_access_token",
+      )
+      ?.trim();
 
   if (!token) {
-    throw new Error("LOGIN_REQUIRED");
+    throw new Error(
+      "LOGIN_REQUIRED",
+    );
   }
 
   return token;
@@ -164,7 +195,9 @@ function getAccessToken(): string {
 async function readJson(
   response: Response,
 ): Promise<unknown> {
-  return response.json().catch(() => null);
+  return response
+    .json()
+    .catch(() => null);
 }
 
 function getErrorMessage(
@@ -173,24 +206,39 @@ function getErrorMessage(
 ): string {
   if (
     !data ||
-    typeof data !== "object"
+    typeof data !==
+      "object"
   ) {
     return fallback;
   }
 
-  const record =
-    data as Record<string, unknown>;
+  const payload =
+    data as ApiErrorPayload;
 
-  const message = record.message;
-
-  if (Array.isArray(message)) {
-    return message
+  if (
+    Array.isArray(
+      payload.message,
+    )
+  ) {
+    return payload.message
       .map(String)
       .join(", ");
   }
 
-  if (typeof message === "string") {
-    return message;
+  if (
+    typeof payload.message ===
+      "string" &&
+    payload.message.trim()
+  ) {
+    return payload.message.trim();
+  }
+
+  if (
+    typeof payload.error ===
+      "string" &&
+    payload.error.trim()
+  ) {
+    return payload.error.trim();
   }
 
   return fallback;
@@ -200,27 +248,79 @@ async function authenticatedRequest<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token = getAccessToken();
+  const token =
+    getAccessToken();
 
-  const response = await fetch(
-    `${getApiBaseUrl()}${path}`,
-    {
-      ...options,
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        ...(options.headers ?? {}),
-      },
-      cache: "no-store",
-    },
+  const headers =
+    new Headers(
+      options.headers,
+    );
+
+  headers.set(
+    "Accept",
+    "application/json",
   );
 
-  const data = await readJson(response);
+  headers.set(
+    "Authorization",
+    `Bearer ${token}`,
+  );
+
+  if (
+    options.body &&
+    !(options.body instanceof FormData)
+  ) {
+    headers.set(
+      "Content-Type",
+      "application/json",
+    );
+  }
+
+  const response =
+    await fetch(
+      `${getApiBaseUrl()}${path}`,
+      {
+        ...options,
+        headers,
+        cache: "no-store",
+      },
+    );
+
+  const data =
+    await readJson(response);
 
   if (!response.ok) {
-    if (response.status === 401) {
-      throw new Error("LOGIN_REQUIRED");
+    if (
+      response.status ===
+      401
+    ) {
+      throw new Error(
+        "LOGIN_REQUIRED",
+      );
+    }
+
+    if (
+      response.status ===
+      403
+    ) {
+      throw new Error(
+        getErrorMessage(
+          data,
+          "You are not allowed to access this chat.",
+        ),
+      );
+    }
+
+    if (
+      response.status ===
+      404
+    ) {
+      throw new Error(
+        getErrorMessage(
+          data,
+          "Chat consultation was not found.",
+        ),
+      );
     }
 
     throw new Error(
@@ -238,7 +338,7 @@ function normalizeCallSessionId(
   callSessionId: string,
 ): string {
   const normalized =
-    callSessionId.trim();
+    callSessionId?.trim();
 
   if (!normalized) {
     throw new Error(
@@ -247,6 +347,20 @@ function normalizeCallSessionId(
   }
 
   return normalized;
+}
+
+function normalizeMessageIds(
+  messageIds: string[],
+): string[] {
+  return [
+    ...new Set(
+      messageIds
+        .map((id) =>
+          id.trim(),
+        )
+        .filter(Boolean),
+    ),
+  ];
 }
 
 export async function joinChat(
@@ -261,6 +375,7 @@ export async function joinChat(
     "/chat/join",
     {
       method: "POST",
+
       body: JSON.stringify({
         callSessionId:
           normalizedCallSessionId,
@@ -281,6 +396,9 @@ export async function getChatHistory(
     `/chat/${encodeURIComponent(
       normalizedCallSessionId,
     )}/history`,
+    {
+      method: "GET",
+    },
   );
 }
 
@@ -293,12 +411,20 @@ export async function sendChatMessage(
     );
 
   const messageType =
-    payload.messageType ?? "TEXT";
+    payload.messageType ??
+    "TEXT";
+
+  const content =
+    payload.content?.trim();
+
+  const attachmentUrl =
+    payload.attachmentUrl?.trim();
 
   if (
     (messageType === "TEXT" ||
-      messageType === "SYSTEM") &&
-    !payload.content?.trim()
+      messageType ===
+        "SYSTEM") &&
+    !content
   ) {
     throw new Error(
       "Message content is required.",
@@ -307,11 +433,26 @@ export async function sendChatMessage(
 
   if (
     (messageType === "IMAGE" ||
-      messageType === "FILE") &&
-    !payload.attachmentUrl?.trim()
+      messageType ===
+        "FILE") &&
+    !attachmentUrl
   ) {
     throw new Error(
       "Attachment URL is required.",
+    );
+  }
+
+  if (
+    payload.attachmentSize !==
+      undefined &&
+    (!Number.isFinite(
+      payload.attachmentSize,
+    ) ||
+      payload.attachmentSize <
+        0)
+  ) {
+    throw new Error(
+      "Attachment size is invalid.",
     );
   }
 
@@ -319,19 +460,20 @@ export async function sendChatMessage(
     "/chat/message",
     {
       method: "POST",
+
       body: JSON.stringify({
         callSessionId,
         messageType,
-        content:
-          payload.content?.trim(),
-        attachmentUrl:
-          payload.attachmentUrl?.trim(),
+        content,
+        attachmentUrl,
         attachmentName:
           payload.attachmentName?.trim(),
         attachmentMimeType:
           payload.attachmentMimeType?.trim(),
         attachmentSize:
           payload.attachmentSize,
+        clientMessageId:
+          payload.clientMessageId?.trim(),
       }),
     },
   );
@@ -346,16 +488,14 @@ export async function markChatMessagesAsRead(
       callSessionId,
     );
 
-  const normalizedMessageIds = [
-    ...new Set(
-      messageIds
-        .map((id) => id.trim())
-        .filter(Boolean),
-    ),
-  ];
+  const normalizedMessageIds =
+    normalizeMessageIds(
+      messageIds,
+    );
 
   if (
-    normalizedMessageIds.length === 0
+    normalizedMessageIds.length ===
+    0
   ) {
     throw new Error(
       "At least one message ID is required.",
@@ -366,9 +506,11 @@ export async function markChatMessagesAsRead(
     "/chat/messages/read",
     {
       method: "PATCH",
+
       body: JSON.stringify({
         callSessionId:
           normalizedCallSessionId,
+
         messageIds:
           normalizedMessageIds,
       }),
@@ -406,5 +548,8 @@ export async function getChatUnreadCount(
     `/chat/${encodeURIComponent(
       normalizedCallSessionId,
     )}/unread-count`,
+    {
+      method: "GET",
+    },
   );
 }

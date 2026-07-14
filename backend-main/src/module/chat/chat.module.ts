@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 
 import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
 import { SupabaseModule } from '../../infrastructure/supabase/supabase.module';
@@ -12,21 +13,24 @@ import { ChatUploadService } from './upload/chat-upload.service';
 
 @Module({
   imports: [
+    ConfigModule,
     PrismaModule,
     SupabaseModule,
   ],
+
   controllers: [
     ChatController,
     ChatUploadController,
   ],
+
   providers: [
     ChatService,
     ChatGateway,
     ChatUploadService,
   ],
+
   exports: [
     ChatService,
-    ChatGateway,
     ChatUploadService,
   ],
 })

@@ -5,35 +5,36 @@ import { BullModule } from '@nestjs/bullmq';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
-import { PrismaModule } from './infrastructure/prisma/prisma.module';
-import { SupabaseModule } from './infrastructure/supabase/supabase.module';
-import { RedisModule } from './infrastructure/redis/redis.module';
-
 import { envValidationSchema } from './config/env.validation';
 import supabaseConfig from './config/supabase.config';
-import { createBullMQRootConfig } from './infrastructure/bullmq/bullmq.config';
 
-import { AuthModule } from './module/auth/auth.module';
-import { UserModule } from './module/user/user.module';
-import { ProfileModule } from './module/profile/profile.module';
+import { createBullMQRootConfig } from './infrastructure/bullmq/bullmq.config';
+import { PrismaModule } from './infrastructure/prisma/prisma.module';
+import { RedisModule } from './infrastructure/redis/redis.module';
+import { SupabaseModule } from './infrastructure/supabase/supabase.module';
+
+import { AdminModule } from './module/admin/admin.module';
 import { AstrologerModule } from './module/astrologer/astrologer.module';
 import { AstroModule } from './module/astro/astro.module';
+import { DailyinsightModule } from './module/astro/modules/dailyinsight/dailyinsight.module';
 import { DashaModule } from './module/astro/modules/dasha/dasha.module';
-import { KundliModule } from './module/kundli/kundli.module';
-import { QueueModule } from './module/queue/queue.module';
+import { MatchModule } from './module/astro/modules/match/match.module';
+import { AuthModule } from './module/auth/auth.module';
 import { CacheModule } from './module/cache/cache.module';
 import { CacheService } from './module/cache/cache.service';
-import { HealthModule } from './module/health/health.module';
-import { MatchModule } from './module/astro/modules/match/match.module';
-import { DailyinsightModule } from './module/astro/modules/dailyinsight/dailyinsight.module';
-import { PaymentsModule } from './module/payments/payments.module';
 import { CallModule } from './module/call/call.module';
-import { AdminModule } from './module/admin/admin.module';
-import { WalletModule } from './module/wallet/wallet.module';
-import { SubscriptionModule } from './module/subscription/subscription.module';
-
-// ✅ NEW
 import { ChatModule } from './module/chat/chat.module';
+import { DashboardModule } from './module/dashboard/dashboard.module';
+import { ReviewModule } from './module/review/review.module';
+import { HealthModule } from './module/health/health.module';
+import { KundliModule } from './module/kundli/kundli.module';
+import { PaymentsModule } from './module/payments/payments.module';
+import { ProfileModule } from './module/profile/profile.module';
+import { QueueModule } from './module/queue/queue.module';
+import { SubscriptionModule } from './module/subscription/subscription.module';
+import { UserModule } from './module/user/user.module';
+import { WalletModule } from './module/wallet/wallet.module';
+import { AvailabilityModule } from './module/availability/availability.module';
 
 @Module({
   imports: [
@@ -43,7 +44,9 @@ import { ChatModule } from './module/chat/chat.module';
       load: [supabaseConfig],
     }),
 
-    BullModule.forRoot(createBullMQRootConfig()),
+    BullModule.forRoot(
+      createBullMQRootConfig(),
+    ),
 
     PrismaModule,
     SupabaseModule,
@@ -66,11 +69,19 @@ import { ChatModule } from './module/chat/chat.module';
     AdminModule,
     WalletModule,
     SubscriptionModule,
-
-    // ✅ Chat Module
     ChatModule,
+    DashboardModule,
+    ReviewModule,
+    AvailabilityModule,
   ],
-  controllers: [AppController],
-  providers: [AppService, CacheService],
+
+  controllers: [
+    AppController,
+  ],
+
+  providers: [
+    AppService,
+    CacheService,
+  ],
 })
 export class AppModule {}

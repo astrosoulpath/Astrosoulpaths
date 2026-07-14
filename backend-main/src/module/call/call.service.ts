@@ -1,4 +1,3 @@
-import { AgoraService } from './agora.service';
 import {
   BadRequestException,
   ConflictException,
@@ -11,9 +10,9 @@ import {
   Prisma,
 } from '@prisma/client';
 
-
-
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+
+import { AgoraService } from './agora.service';
 import { EndCallDto } from './dto/end-call.dto';
 import { StartCallDto } from './dto/start-call.dto';
 
@@ -21,34 +20,41 @@ const ACTIVE_CALL_STATUS = 'ACTIVE';
 const ENDED_CALL_STATUS = 'ENDED';
 const EXPIRED_CALL_STATUS = 'EXPIRED';
 
+const MAX_CALL_HISTORY_RESULTS = 100;
+
 @Injectable()
 export class CallService {
   constructor(
-  private readonly prisma: PrismaService,
-  private readonly agoraService: AgoraService,
-) {}
+    private readonly prisma: PrismaService,
+    private readonly agoraService: AgoraService,
+  ) {}
 
   private async getAuthenticatedUser(
     supabaseId: string,
   ) {
-    if (!supabaseId) {
+    const normalizedSupabaseId =
+      supabaseId?.trim();
+
+    if (!normalizedSupabaseId) {
       throw new BadRequestException(
         'Authenticated user ID is required',
       );
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: {
-        supabaseId,
-      },
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        isActive: true,
-        isBlocked: true,
-      },
-    });
+    const user =
+      await this.prisma.user.findUnique({
+        where: {
+          supabaseId:
+            normalizedSupabaseId,
+        },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          isActive: true,
+          isBlocked: true,
+        },
+      });
 
     if (!user) {
       throw new NotFoundException(
@@ -56,7 +62,10 @@ export class CallService {
       );
     }
 
-    if (!user.isActive || user.isBlocked) {
+    if (
+      !user.isActive ||
+      user.isBlocked
+    ) {
       throw new BadRequestException(
         'User account is not active',
       );
@@ -68,10 +77,19 @@ export class CallService {
   private async getAvailableAstrologer(
     astrologerId: string,
   ) {
+    const normalizedAstrologerId =
+      astrologerId?.trim();
+
+    if (!normalizedAstrologerId) {
+      throw new BadRequestException(
+        'Astrologer ID is required',
+      );
+    }
+
     const astrologer =
       await this.prisma.astrologer.findUnique({
         where: {
-          id: astrologerId,
+          id: normalizedAstrologerId,
         },
         select: {
           id: true,
@@ -144,16 +162,20 @@ export class CallService {
   private createChannelName(
     userId: string,
     astrologerUserId: string,
-  ) {
+  ): string {
     const timestamp = Date.now();
 
-    return `asp-${userId.slice(
-      0,
-      8,
-    )}-${astrologerUserId.slice(
-      0,
-      8,
-    )}-${timestamp}`;
+    const randomSuffix = Math.random()
+      .toString(36)
+      .slice(2, 8);
+
+    return [
+      'asp',
+      userId.slice(0, 8),
+      astrologerUserId.slice(0, 8),
+      timestamp,
+      randomSuffix,
+    ].join('-');
   }
 
   private serializeCallSession(
@@ -178,31 +200,113 @@ export class CallService {
       };
     },
   ) {
+    const totalMinutes =
+      session.purchasedMinutes +
+      session.extendedMinutes;
+
+    const now = Date.now();
+
+    const remainingSeconds =
+      session.status ===
+        ACTIVE_CALL_STATUS &&
+      !session.endedAt
+        ? Math.max(
+            0,
+            Math.ceil(
+              (session.expiresAt.getTime() -
+                now) /
+                1000,
+            ),
+          )
+        : 0;
+
     return {
       id: session.id,
       userId: session.userId,
-      astrologerId: session.astrologerId,
+      astrologerId:
+        session.astrologerId,
+
       astrologerName:
         session.astrologer?.name ??
         'Astro Soul Path Astrologer',
+
       astrologerAvatarUrl:
-        session.astrologer?.avatarUrl ?? null,
-      channelName: session.channelName,
-      ratePerMinute: session.ratePerMinute,
+        session.astrologer
+          ?.avatarUrl ?? null,
+
+      channelName:
+        session.channelName,
+
+      ratePerMinute:
+        Number(
+          session.ratePerMinute,
+        ),
+
       purchasedMinutes:
         session.purchasedMinutes,
+
       extendedMinutes:
         session.extendedMinutes,
-      totalMinutes:
-        session.purchasedMinutes +
-        session.extendedMinutes,
-      amountCharged: session.amountCharged,
-      startedAt: session.startedAt,
-      expiresAt: session.expiresAt,
-      endedAt: session.endedAt,
-      status: session.status,
-      createdAt: session.createdAt,
+
+      totalMinutes,
+
+      amountCharged:
+        Number(
+          session.amountCharged,
+        ),
+
+      remainingSeconds,
+
+      startedAt:
+        session.startedAt,
+
+      expiresAt:
+        session.expiresAt,
+
+      endedAt:
+        session.endedAt,
+
+      status:
+        session.status,
+
+      createdAt:
+        session.createdAt,
     };
+  }
+
+  private async expireCallIfRequired(
+    callId: string,
+  ) {
+    const call =
+      await this.prisma.callSession.findUnique({
+        where: {
+          id: callId,
+        },
+      });
+
+    if (!call) {
+      return null;
+    }
+
+    if (
+      call.status ===
+        ACTIVE_CALL_STATUS &&
+      !call.endedAt &&
+      call.expiresAt <= new Date()
+    ) {
+      return this.prisma.callSession.update({
+        where: {
+          id: call.id,
+        },
+        data: {
+          status:
+            EXPIRED_CALL_STATUS,
+          endedAt: new Date(),
+        },
+      });
+    }
+
+    return call;
   }
 
   async startCall(
@@ -214,22 +318,50 @@ export class CallService {
         supabaseId,
       );
 
+    if (
+      !Number.isInteger(dto.minutes) ||
+      dto.minutes <= 0
+    ) {
+      throw new BadRequestException(
+        'Consultation minutes must be a positive whole number',
+      );
+    }
+
     const astrologer =
       await this.getAvailableAstrologer(
         dto.astrologerId,
       );
 
-    if (user.id === astrologer.userId) {
+    if (
+      user.id ===
+      astrologer.userId
+    ) {
       throw new BadRequestException(
         'You cannot start a consultation with your own account',
       );
     }
 
-    const existingActiveCall =
+    const currentTime =
+      new Date();
+
+    /*
+     * Check whether the customer already has
+     * an active consultation.
+     */
+    const existingUserCall =
       await this.prisma.callSession.findFirst({
         where: {
-          userId: user.id,
-          status: ACTIVE_CALL_STATUS,
+          OR: [
+            {
+              userId: user.id,
+            },
+            {
+              astrologerId:
+                user.id,
+            },
+          ],
+          status:
+            ACTIVE_CALL_STATUS,
           endedAt: null,
         },
         orderBy: {
@@ -237,10 +369,10 @@ export class CallService {
         },
       });
 
-    if (existingActiveCall) {
+    if (existingUserCall) {
       if (
-        existingActiveCall.expiresAt >
-        new Date()
+        existingUserCall.expiresAt >
+        currentTime
       ) {
         throw new ConflictException(
           'You already have an active consultation',
@@ -249,20 +381,68 @@ export class CallService {
 
       await this.prisma.callSession.update({
         where: {
-          id: existingActiveCall.id,
+          id:
+            existingUserCall.id,
         },
         data: {
-          status: EXPIRED_CALL_STATUS,
-          endedAt: new Date(),
+          status:
+            EXPIRED_CALL_STATUS,
+          endedAt:
+            currentTime,
+        },
+      });
+    }
+
+    /*
+     * Check whether the selected astrologer
+     * is already busy in another active call.
+     */
+    const astrologerActiveCall =
+      await this.prisma.callSession.findFirst({
+        where: {
+          astrologerId:
+            astrologer.userId,
+          status:
+            ACTIVE_CALL_STATUS,
+          endedAt: null,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+    if (astrologerActiveCall) {
+      if (
+        astrologerActiveCall.expiresAt >
+        currentTime
+      ) {
+        throw new ConflictException(
+          'Astrologer is currently busy in another consultation',
+        );
+      }
+
+      await this.prisma.callSession.update({
+        where: {
+          id:
+            astrologerActiveCall.id,
+        },
+        data: {
+          status:
+            EXPIRED_CALL_STATUS,
+          endedAt:
+            currentTime,
         },
       });
     }
 
     const totalAmount =
-      astrologer.pricePerMin * dto.minutes;
+      astrologer.pricePerMin *
+      dto.minutes;
 
     if (
-      !Number.isFinite(totalAmount) ||
+      !Number.isFinite(
+        totalAmount,
+      ) ||
       totalAmount <= 0
     ) {
       throw new BadRequestException(
@@ -270,16 +450,21 @@ export class CallService {
       );
     }
 
-    const chargeAmount = new Prisma.Decimal(
-      totalAmount.toFixed(2),
-    );
+    const chargeAmount =
+      new Prisma.Decimal(
+        totalAmount.toFixed(2),
+      );
 
-    const startedAt = new Date();
+    const startedAt =
+      new Date();
 
-    const expiresAt = new Date(
-      startedAt.getTime() +
-        dto.minutes * 60 * 1000,
-    );
+    const expiresAt =
+      new Date(
+        startedAt.getTime() +
+          dto.minutes *
+            60 *
+            1000,
+      );
 
     const channelName =
       this.createChannelName(
@@ -287,148 +472,234 @@ export class CallService {
         astrologer.userId,
       );
 
-    const result = await this.prisma.$transaction(
-      async (transaction) => {
-        const wallet =
-          await transaction.wallet.upsert({
-            where: {
-              userId: user.id,
-            },
-            update: {},
-            create: {
-              userId: user.id,
-              currency: 'INR',
-            },
-          });
+    const result =
+      await this.prisma.$transaction(
+        async (transaction) => {
+          /*
+           * Recheck active calls inside the transaction
+           * to reduce duplicate call creation.
+           */
+          const duplicateCall =
+            await transaction.callSession.findFirst({
+              where: {
+                status:
+                  ACTIVE_CALL_STATUS,
+                endedAt: null,
+                OR: [
+                  {
+                    userId:
+                      user.id,
+                  },
+                  {
+                    astrologerId:
+                      user.id,
+                  },
+                  {
+                    astrologerId:
+                      astrologer.userId,
+                  },
+                ],
+                expiresAt: {
+                  gt: new Date(),
+                },
+              },
+            });
 
-        const availableBalance =
-          wallet.balance.minus(
-            wallet.lockedBalance,
-          );
+          if (duplicateCall) {
+            throw new ConflictException(
+              'User or astrologer already has an active consultation',
+            );
+          }
 
-        if (
-          availableBalance.lessThan(
-            chargeAmount,
-          )
-        ) {
-          throw new BadRequestException(
-            'INSUFFICIENT_BALANCE',
-          );
-        }
+          const wallet =
+            await transaction.wallet.upsert({
+              where: {
+                userId:
+                  user.id,
+              },
+              update: {},
+              create: {
+                userId:
+                  user.id,
+                currency:
+                  'INR',
+              },
+            });
 
-        const balanceBefore =
-          wallet.balance;
+          const availableBalance =
+            wallet.balance.minus(
+              wallet.lockedBalance,
+            );
 
-        const balanceAfter =
-          balanceBefore.minus(
-            chargeAmount,
-          );
+          if (
+            availableBalance.lessThan(
+              chargeAmount,
+            )
+          ) {
+            throw new BadRequestException(
+              'INSUFFICIENT_BALANCE',
+            );
+          }
 
-        const callSession =
-          await transaction.callSession.create({
-            data: {
-              userId: user.id,
+          const balanceBefore =
+            wallet.balance;
 
-              // CallSession relation User.id ko reference karti hai.
-              astrologerId:
-                astrologer.userId,
+          const balanceAfter =
+            balanceBefore.minus(
+              chargeAmount,
+            );
 
-              channelName,
-              ratePerMinute:
-                astrologer.pricePerMin,
-              purchasedMinutes:
-                dto.minutes,
-              extendedMinutes: 0,
-              amountCharged:
-                Number(
-                  chargeAmount.toString(),
-                ),
-              startedAt,
-              expiresAt,
-              status: ACTIVE_CALL_STATUS,
-            },
-          });
+          const callSession =
+            await transaction.callSession.create({
+              data: {
+                userId:
+                  user.id,
 
-        const updatedWallet =
-          await transaction.wallet.update({
-            where: {
-              id: wallet.id,
-            },
-            data: {
-              balance: balanceAfter,
-            },
-          });
+                /*
+                 * Current schema mein astrologerId
+                 * astrologer ke User.id ko reference
+                 * karta hai.
+                 */
+                astrologerId:
+                  astrologer.userId,
 
-        const ledgerEntry =
-          await transaction.walletLedger.create({
-            data: {
-              walletId: wallet.id,
-              userId: user.id,
-              type:
-                LedgerType.CALL_DEDUCTION,
-              amount: chargeAmount,
-              balanceBefore,
-              balanceAfter,
-              referenceType:
-                LedgerReferenceType.CALL_SESSION,
-              referenceId:
-                callSession.id,
-              description: `${dto.minutes}-minute consultation with ${
-                astrologer.user.name ??
-                'astrologer'
-              }`,
-            },
-          });
+                channelName,
 
-        return {
-          callSession,
-          updatedWallet,
-          ledgerEntry,
-        };
-      },
-      {
-        isolationLevel:
-          Prisma.TransactionIsolationLevel
-            .Serializable,
-      },
-    );
+                ratePerMinute:
+                  astrologer.pricePerMin,
+
+                purchasedMinutes:
+                  dto.minutes,
+
+                extendedMinutes:
+                  0,
+
+                amountCharged:
+                  Number(
+                    chargeAmount.toString(),
+                  ),
+
+                startedAt,
+                expiresAt,
+
+                status:
+                  ACTIVE_CALL_STATUS,
+              },
+            });
+
+          const updatedWallet =
+            await transaction.wallet.update({
+              where: {
+                id:
+                  wallet.id,
+              },
+              data: {
+                balance:
+                  balanceAfter,
+              },
+            });
+
+          const ledgerEntry =
+            await transaction.walletLedger.create({
+              data: {
+                walletId:
+                  wallet.id,
+
+                userId:
+                  user.id,
+
+                type:
+                  LedgerType.CALL_DEDUCTION,
+
+                amount:
+                  chargeAmount,
+
+                balanceBefore,
+                balanceAfter,
+
+                referenceType:
+                  LedgerReferenceType.CALL_SESSION,
+
+                referenceId:
+                  callSession.id,
+
+                description:
+                  `${dto.minutes}-minute consultation with ${
+                    astrologer.user
+                      .name ??
+                    'astrologer'
+                  }`,
+              },
+            });
+
+          return {
+            callSession,
+            updatedWallet,
+            ledgerEntry,
+          };
+        },
+        {
+          isolationLevel:
+            Prisma
+              .TransactionIsolationLevel
+              .Serializable,
+        },
+      );
 
     return {
       success: true,
+
       message:
         'Consultation started successfully',
+
       data: {
-        call: this.serializeCallSession({
-          ...result.callSession,
-          astrologer:
-            astrologer.user,
-        }),
+        call:
+          this.serializeCallSession({
+            ...result.callSession,
+
+            astrologer:
+              astrologer.user,
+          }),
 
         wallet: {
-          balance: Number(
-            result.updatedWallet.balance,
-          ),
-          lockedBalance: Number(
-            result.updatedWallet
-              .lockedBalance,
-          ),
+          balance:
+            Number(
+              result.updatedWallet
+                .balance,
+            ),
+
+          lockedBalance:
+            Number(
+              result.updatedWallet
+                .lockedBalance,
+            ),
+
           currency:
-            result.updatedWallet.currency,
+            result.updatedWallet
+              .currency,
         },
 
         transaction: {
-          id: result.ledgerEntry.id,
-          amount: Number(
-            result.ledgerEntry.amount,
-          ),
-          balanceBefore: Number(
-            result.ledgerEntry
-              .balanceBefore,
-          ),
-          balanceAfter: Number(
-            result.ledgerEntry
-              .balanceAfter,
-          ),
+          id:
+            result.ledgerEntry.id,
+
+          amount:
+            Number(
+              result.ledgerEntry
+                .amount,
+            ),
+
+          balanceBefore:
+            Number(
+              result.ledgerEntry
+                .balanceBefore,
+            ),
+
+          balanceAfter:
+            Number(
+              result.ledgerEntry
+                .balanceAfter,
+            ),
         },
       },
     };
@@ -439,6 +710,15 @@ export class CallService {
     callId: string,
     dto: EndCallDto,
   ) {
+    const normalizedCallId =
+      callId?.trim();
+
+    if (!normalizedCallId) {
+      throw new BadRequestException(
+        'Call ID is required',
+      );
+    }
+
     const user =
       await this.getAuthenticatedUser(
         supabaseId,
@@ -447,8 +727,19 @@ export class CallService {
     const call =
       await this.prisma.callSession.findFirst({
         where: {
-          id: callId,
-          userId: user.id,
+          id:
+            normalizedCallId,
+
+          OR: [
+            {
+              userId:
+                user.id,
+            },
+            {
+              astrologerId:
+                user.id,
+            },
+          ],
         },
         include: {
           astrologer: {
@@ -469,12 +760,17 @@ export class CallService {
 
     if (
       call.endedAt ||
-      call.status === ENDED_CALL_STATUS
+      call.status ===
+        ENDED_CALL_STATUS ||
+      call.status ===
+        EXPIRED_CALL_STATUS
     ) {
       return {
         success: true,
+
         message:
           'Consultation is already ended',
+
         data: {
           call:
             this.serializeCallSession(
@@ -484,16 +780,19 @@ export class CallService {
       };
     }
 
-    const endedAt = new Date();
+    const endedAt =
+      new Date();
 
     const updatedCall =
       await this.prisma.callSession.update({
         where: {
-          id: call.id,
+          id:
+            call.id,
         },
         data: {
           endedAt,
-          status: ENDED_CALL_STATUS,
+          status:
+            ENDED_CALL_STATUS,
         },
         include: {
           astrologer: {
@@ -508,9 +807,11 @@ export class CallService {
 
     return {
       success: true,
+
       message:
         dto.reason?.trim() ||
         'Consultation ended successfully',
+
       data: {
         call:
           this.serializeCallSession(
@@ -528,11 +829,27 @@ export class CallService {
         supabaseId,
       );
 
+    /*
+     * User aur astrologer dono current call
+     * retrieve kar sakte hain.
+     */
     const call =
       await this.prisma.callSession.findFirst({
         where: {
-          userId: user.id,
-          status: ACTIVE_CALL_STATUS,
+          OR: [
+            {
+              userId:
+                user.id,
+            },
+            {
+              astrologerId:
+                user.id,
+            },
+          ],
+
+          status:
+            ACTIVE_CALL_STATUS,
+
           endedAt: null,
         },
         orderBy: {
@@ -556,16 +873,22 @@ export class CallService {
       };
     }
 
-    if (call.expiresAt <= new Date()) {
+    if (
+      call.expiresAt <=
+      new Date()
+    ) {
       const expiredCall =
         await this.prisma.callSession.update({
           where: {
-            id: call.id,
+            id:
+              call.id,
           },
           data: {
             status:
               EXPIRED_CALL_STATUS,
-            endedAt: new Date(),
+
+            endedAt:
+              new Date(),
           },
           include: {
             astrologer: {
@@ -580,6 +903,7 @@ export class CallService {
 
       return {
         success: true,
+
         data: {
           call:
             this.serializeCallSession(
@@ -591,6 +915,7 @@ export class CallService {
 
     return {
       success: true,
+
       data: {
         call:
           this.serializeCallSession(
@@ -611,12 +936,25 @@ export class CallService {
     const calls =
       await this.prisma.callSession.findMany({
         where: {
-          userId: user.id,
+          OR: [
+            {
+              userId:
+                user.id,
+            },
+            {
+              astrologerId:
+                user.id,
+            },
+          ],
         },
+
         orderBy: {
           createdAt: 'desc',
         },
-        take: 100,
+
+        take:
+          MAX_CALL_HISTORY_RESULTS,
+
         include: {
           astrologer: {
             select: {
@@ -630,59 +968,112 @@ export class CallService {
 
     return {
       success: true,
+
       data: {
-        calls: calls.map((call) =>
-          this.serializeCallSession(
-            call,
+        calls:
+          calls.map(
+            (call) =>
+              this.serializeCallSession(
+                call,
+              ),
           ),
-        ),
-        total: calls.length,
+
+        total:
+          calls.length,
       },
     };
   }
+
   async generateAgoraToken(
-  supabaseId: string,
-  callId: string,
-) {
-  const user =
-    await this.getAuthenticatedUser(
-      supabaseId,
+    supabaseId: string,
+    callId: string,
+  ) {
+    const normalizedCallId =
+      callId?.trim();
+
+    if (!normalizedCallId) {
+      throw new BadRequestException(
+        'Call ID is required',
+      );
+    }
+
+    const user =
+      await this.getAuthenticatedUser(
+        supabaseId,
+      );
+
+    await this.expireCallIfRequired(
+      normalizedCallId,
     );
 
-  const call =
-    await this.prisma.callSession.findFirst({
-      where: {
-        id: callId,
-        OR: [
-          { userId: user.id },
-          { astrologerId: user.id },
-        ],
-        status: ACTIVE_CALL_STATUS,
+    const call =
+      await this.prisma.callSession.findFirst({
+        where: {
+          id:
+            normalizedCallId,
+
+          OR: [
+            {
+              userId:
+                user.id,
+            },
+            {
+              astrologerId:
+                user.id,
+            },
+          ],
+
+          status:
+            ACTIVE_CALL_STATUS,
+
+          endedAt:
+            null,
+
+          expiresAt: {
+            gt: new Date(),
+          },
+        },
+      });
+
+    if (!call) {
+      throw new NotFoundException(
+        'Active consultation not found or consultation has expired',
+      );
+    }
+
+    /*
+     * Agora numeric UID must remain inside
+     * a safe positive integer range.
+     */
+    const uid =
+      Math.floor(
+        Math.random() *
+          2_000_000_000,
+      ) + 1;
+
+    const agora =
+      this.agoraService.generateRtcToken(
+        call.channelName,
+        uid,
+      );
+
+    return {
+      success: true,
+
+      data: {
+        ...agora,
+
+        callId:
+          call.id,
+
+        channelName:
+          call.channelName,
+
+        uid,
+
+        expiresAt:
+          call.expiresAt,
       },
-    });
-
-  if (!call) {
-    throw new NotFoundException(
-      'Active consultation not found',
-    );
+    };
   }
-
-  const uid = Math.floor(
-    Math.random() * 1000000,
-  );
-
-  const agora =
-    this.agoraService.generateRtcToken(
-      call.channelName,
-      uid,
-    );
-
-  return {
-    success: true,
-    data: {
-      ...agora,
-      callId: call.id,
-    },
-  };
-}
 }

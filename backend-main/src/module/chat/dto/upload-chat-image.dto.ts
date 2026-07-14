@@ -1,16 +1,29 @@
+import { Transform } from 'class-transformer';
 import {
+  IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
-  MinLength,
 } from 'class-validator';
 
 export class UploadChatImageDto {
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? value.trim()
+      : value,
+  )
   @IsString()
-  @MinLength(1)
+  @IsNotEmpty()
+  @IsUUID()
   callSessionId!: string;
 
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? value.trim()
+      : value,
+  )
   @IsString()
   @MaxLength(500)
   caption?: string;

@@ -1,9 +1,13 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
 import {
-  FormEvent,
+  useParams,
+  useRouter,
+} from "next/navigation";
+import {
+  type FormEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -12,23 +16,7 @@ import {
 } from "react";
 
 import { ChatAttachmentButton } from "@/components/chat/ChatAttachmentButton";
-import AudioCall from "@/components/call/AudioCall";
-import { useCallToken } from "@/hooks/useCallToken";
-
-import {
-  endConsultation,
-  getCurrentConsultation,
-  type ConsultationSession,
-} from "@/services/consultationService";
-
-import {
-  getChatHistory,
-  joinChat,
-  markAllChatMessagesAsRead,
-  sendChatMessage,
-  type ChatMessage,
-  type JoinChatResponse,
-} from "@/services/chatService";
+import IncomingCallModal from "@/components/call/IncomingCallModal";
 
 import {
   connectChatSocket,
@@ -43,34 +31,62 @@ import {
   onPresence,
   onReadReceipt,
   onTyping,
-  removeAllChatListeners,
   sendRealtimeMessage,
   sendTypingStatus,
+  type ChatErrorPayload,
+  type ChatPresencePayload,
+  type ChatReadPayload,
+  type ChatTypingPayload,
 } from "@/lib/chatSocket";
 
-type ChatPresencePayload = {
-  callSessionId: string;
-  status: "online" | "offline";
-  socketId?: string;
-};
+import {
+  getCallToken,
+} from "@/services/callService";
 
-type ChatTypingPayload = {
-  callSessionId: string;
-  isTyping: boolean;
-  socketId?: string;
-};
+import {
+  acceptCall,
+  connectCallSocket,
+  initiateCall,
+  onCallAccepted,
+  onCallCancelled,
+  onCallMissed,
+  onCallRejected,
+  onCallRinging,
+  onCallUnavailable,
+  rejectCall,
+  type IncomingCallPayload,
+} from "@/services/callSocket";
 
-type ChatReadPayload = {
-  callSessionId: string;
-  messageIds?: string[];
-  readAt?: string;
-  updatedCount?: number;
-};
+import {
+  getChatHistory,
+  joinChat,
+  markAllChatMessagesAsRead,
+  sendChatMessage,
+  type ChatMessage,
+  type JoinChatResponse,
+} from "@/services/chatService";
 
-type ChatErrorPayload = {
-  success?: boolean;
-  message?: string;
-};
+import {
+  endConsultation,
+  getCurrentConsultation,
+  type ConsultationSession,
+} from "@/services/consultationService";
+
+const AudioCall = dynamic(
+  () =>
+    import(
+      "@/components/call/AudioCall"
+    ),
+  {
+    ssr: false,
+
+    loading: () => (
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-lg">
+        Preparing audio consultation...
+      </div>
+    ),
+  },
+);
 
 type UploadedChatAttachment = {
   url: string;
@@ -79,6 +95,66 @@ type UploadedChatAttachment = {
   size: number;
   type: "IMAGE" | "FILE";
 };
+
+type CallStatus =
+  | "IDLE"
+  | "RINGING"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "MISSED"
+  | "CANCELLED"
+  | "UNAVAILABLE";
+
+type CallTokenData = {
+  appId: string;
+  token: string;
+  channelName: string;
+  uid: number;
+};
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string,
+): string {
+  if (
+    error instanceof Error &&
+    error.message.trim()
+  ) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
+function normalizeMessageList(
+  messages: ChatMessage[],
+): ChatMessage[] {
+  const uniqueMessages =
+    new Map<string, ChatMessage>();
+
+  for (const message of messages) {
+    if (!message?.id) {
+      continue;
+    }
+
+    uniqueMessages.set(
+      message.id,
+      message,
+    );
+  }
+
+  return Array.from(
+    uniqueMessages.values(),
+  ).sort(
+    (first, second) =>
+      new Date(
+        first.createdAt,
+      ).getTime() -
+      new Date(
+        second.createdAt,
+      ).getTime(),
+  );
+}
 
 function formatClock(totalSeconds: number): string {
   const safeSeconds = Math.max(0, totalSeconds);
@@ -177,41 +253,85 @@ function appendUniqueMessage(
 }
 
 export default function ChatConsultationPage() {
-  const params = useParams<{
-    bookingId: string;
+     const params = useParams<{
+    bookingId?: string | string[];
   }>();
 
   const router = useRouter();
 
-  const bookingId = String(
-    params.bookingId ?? "",
-  ).trim();
+  const bookingId = useMemo(() => {
+    const rawBookingId =
+      params?.bookingId;
 
-  const [consultation, setConsultation] =
-    useState<ConsultationSession | null>(null);
+    if (
+      Array.isArray(rawBookingId)
+    ) {
+      return (
+        rawBookingId[0]?.trim() ??
+        ""
+      );
+    }
 
-  const [chatRoom, setChatRoom] =
-    useState<JoinChatResponse["data"] | null>(
+    return String(
+      rawBookingId ?? "",
+    ).trim();
+  }, [params?.bookingId]);
+
+  const [
+    consultation,
+    setConsultation,
+  ] =
+    useState<ConsultationSession | null>(
       null,
     );
 
-  const [messages, setMessages] =
-    useState<ChatMessage[]>([]);
+  const [
+    chatRoom,
+    setChatRoom,
+  ] =
+    useState<
+      JoinChatResponse["data"] | null
+    >(null);
 
-  const [message, setMessage] = useState("");
+  const [
+    messages,
+    setMessages,
+  ] = useState<ChatMessage[]>([]);
 
-  const [elapsedSeconds, setElapsedSeconds] =
-    useState(0);
+  const [
+    message,
+    setMessage,
+  ] = useState("");
 
-  const [remainingSeconds, setRemainingSeconds] =
-    useState(0);
+  const [
+    elapsedSeconds,
+    setElapsedSeconds,
+  ] = useState(0);
 
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [ending, setEnding] = useState(false);
+  const [
+    remainingSeconds,
+    setRemainingSeconds,
+  ] = useState(0);
 
-  const [socketConnected, setSocketConnected] =
-    useState(false);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    sending,
+    setSending,
+  ] = useState(false);
+
+  const [
+    ending,
+    setEnding,
+  ] = useState(false);
+
+  const [
+    socketConnected,
+    setSocketConnected,
+  ] = useState(false);
 
   const [
     otherParticipantOnline,
@@ -223,53 +343,175 @@ export default function ChatConsultationPage() {
     setOtherParticipantTyping,
   ] = useState(false);
 
-  const [error, setError] = useState("");
-  const {
-  tokenData,
-  loadToken,
-  loading: tokenLoading,
-} = useCallToken();
+  const [
+    error,
+    setError,
+  ] = useState("");
 
-const [showAudioCall, setShowAudioCall] =
-  useState(false);
+  const [
+    tokenLoading,
+    setTokenLoading,
+  ] = useState(false);
 
-  const endProcessedRef = useRef(false);
+  const [
+    showAudioCall,
+    setShowAudioCall,
+  ] = useState(false);
+
+  const [
+    callId,
+    setCallId,
+  ] = useState("");
+
+  const [
+    tokenData,
+    setTokenData,
+  ] =
+    useState<CallTokenData | null>(
+      null,
+    );
+
+  const [
+    incomingCall,
+    setIncomingCall,
+  ] =
+    useState<IncomingCallPayload | null>(
+      null,
+    );
+
+  const [
+    callStatus,
+    setCallStatus,
+  ] =
+    useState<CallStatus>(
+      "IDLE",
+    );
+
+  const endProcessedRef =
+    useRef(false);
+
+  const mountedRef =
+    useRef(true);
 
   const typingTimeoutRef =
-    useRef<number | null>(null);
+    useRef<number | null>(
+      null,
+    );
 
   const messagesContainerRef =
-    useRef<HTMLDivElement | null>(null);
+    useRef<HTMLDivElement | null>(
+      null,
+    );
 
   const currentUserId =
-    chatRoom?.currentUser.id ?? "";
+    chatRoom?.currentUser.id?.trim() ??
+    "";
+
+  const otherParticipantUserId =
+    useMemo(() => {
+      if (!chatRoom) {
+        return "";
+      }
+
+      const currentId =
+        chatRoom.currentUser.id;
+
+      if (
+        currentId ===
+        chatRoom.customer.id
+      ) {
+        return (
+          chatRoom.astrologer.id?.trim() ??
+          ""
+        );
+      }
+
+      return (
+        chatRoom.customer.id?.trim() ??
+        ""
+      );
+    }, [chatRoom]);
 
   const isActive =
-    consultation?.status === "ACTIVE" &&
-    !consultation.endedAt &&
-    remainingSeconds > 0;
+    Boolean(
+      consultation &&
+        consultation.status ===
+          "ACTIVE" &&
+        !consultation.endedAt &&
+        remainingSeconds > 0,
+    );
 
-  const otherParticipantName = useMemo(() => {
-    if (!chatRoom) {
+  const otherParticipantName =
+    useMemo(() => {
+      if (!chatRoom) {
+        return (
+          consultation?.astrologerName?.trim() ||
+          "Astro Soul Path Astrologer"
+        );
+      }
+
+      const currentId =
+        chatRoom.currentUser.id;
+
+      if (
+        currentId ===
+        chatRoom.customer.id
+      ) {
+        return (
+          chatRoom.astrologer.name?.trim() ||
+          consultation?.astrologerName?.trim() ||
+          "Astrologer"
+        );
+      }
+
       return (
-        consultation?.astrologerName ||
-        "Astro Soul Path Astrologer"
+        chatRoom.customer.name?.trim() ||
+        "Customer"
       );
-    }
+    }, [
+      chatRoom,
+      consultation,
+    ]);
 
-    if (
-      chatRoom.currentUser.id ===
-      chatRoom.customer.id
-    ) {
-      return (
-        chatRoom.astrologer.name ||
-        consultation?.astrologerName ||
-        "Astrologer"
-      );
-    }
+  const canStartAudioCall =
+    Boolean(
+      isActive &&
+        currentUserId &&
+        otherParticipantUserId &&
+        !tokenLoading,
+    );
 
-    return chatRoom.customer.name || "Customer";
-  }, [chatRoom, consultation]);
+  const callIsOpen =
+    callStatus === "RINGING" ||
+    callStatus === "ACCEPTED";
+
+  const clearAudioCallState =
+    useCallback(() => {
+      setIncomingCall(null);
+      setShowAudioCall(false);
+      setTokenData(null);
+      setCallId("");
+      setTokenLoading(false);
+    }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+
+      if (
+        typingTimeoutRef.current
+      ) {
+        window.clearTimeout(
+          typingTimeoutRef.current,
+        );
+
+        typingTimeoutRef.current =
+          null;
+      }
+    };
+  }, []);
 
   const markIncomingMessagesAsRead = useCallback(
     async (incomingMessages: ChatMessage[]) => {
@@ -400,8 +642,10 @@ const [showAudioCall, setShowAudioCall] =
       setChatRoom(joinResponse.data);
 
       setMessages(
-        historyResponse.data.messages ?? [],
-      );
+      normalizeMessageList(
+      historyResponse.data.messages ?? [],
+     ),
+    );
 
       const unreadIds =
         historyResponse.data.messages
@@ -479,17 +723,21 @@ const [showAudioCall, setShowAudioCall] =
     void loadChatData();
   }, [loadChatData]);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!bookingId || !chatRoom) {
       return;
     }
 
-    const socket = connectChatSocket();
+    const socket =
+      connectChatSocket();
 
     const handleConnect = () => {
       setSocketConnected(true);
       setError("");
-      joinChatRoom(bookingId);
+
+      joinChatRoom(
+        bookingId,
+      );
     };
 
     const handleDisconnect = () => {
@@ -498,161 +746,174 @@ const [showAudioCall, setShowAudioCall] =
       setOtherParticipantTyping(false);
     };
 
-    const handleConnectedEvent = () => {
-      setSocketConnected(true);
-      joinChatRoom(bookingId);
-    };
+    const cleanupConnected =
+      onChatConnected(() => {
+        setSocketConnected(true);
 
-    const handleJoinedEvent = () => {
-      setSocketConnected(true);
-    };
+        joinChatRoom(
+          bookingId,
+        );
+      });
 
-    const handleNewMessage = (
-      payload: unknown,
-    ) => {
-      const incomingMessage =
-        payload as ChatMessage;
-
-      if (
-        !incomingMessage?.id ||
-        incomingMessage.callSessionId !==
+    const cleanupJoined =
+      onChatJoined((payload) => {
+        if (
+          payload.callSessionId !==
           bookingId
-      ) {
-        return;
-      }
+        ) {
+          return;
+        }
 
-      setMessages((current) =>
-        appendUniqueMessage(
-          current,
-          incomingMessage,
-        ),
-      );
+        setSocketConnected(true);
+      });
 
-      if (
-        incomingMessage.senderId !==
-        chatRoom.currentUser.id
-      ) {
-        void markIncomingMessagesAsRead([
-          incomingMessage,
-        ]);
-      }
-    };
-
-    const handleTypingEvent = (
-      payload: unknown,
-    ) => {
-      const typingPayload =
-        payload as ChatTypingPayload;
-
-      if (
-        typingPayload.callSessionId !==
-        bookingId
-      ) {
-        return;
-      }
-
-      setOtherParticipantTyping(
-        Boolean(
-          typingPayload.isTyping,
-        ),
-      );
-    };
-
-    const handlePresenceEvent = (
-      payload: unknown,
-    ) => {
-      const presencePayload =
-        payload as ChatPresencePayload;
-
-      if (
-        presencePayload.callSessionId !==
-        bookingId
-      ) {
-        return;
-      }
-
-      setOtherParticipantOnline(
-        presencePayload.status ===
-          "online",
-      );
-    };
-
-    const handleReadEvent = (
-      payload: unknown,
-    ) => {
-      const readPayload =
-        payload as ChatReadPayload;
-
-      if (
-        readPayload.callSessionId !==
-        bookingId
-      ) {
-        return;
-      }
-
-      const readAt =
-        readPayload.readAt ||
-        new Date().toISOString();
-
-      setMessages((current) =>
-        current.map((chatMessage) => {
-          const explicitlyIncluded =
-            readPayload.messageIds?.includes(
-              chatMessage.id,
-            );
-
-          const markAllOutgoing =
-            !readPayload.messageIds &&
-            chatMessage.senderId ===
-              chatRoom.currentUser.id;
-
+    const cleanupMessage =
+      onNewMessage(
+        (incomingMessage) => {
           if (
-            explicitlyIncluded ||
-            markAllOutgoing
+            !incomingMessage?.id ||
+            incomingMessage.callSessionId !==
+              bookingId
           ) {
-            return {
-              ...chatMessage,
-              isRead: true,
-              readAt,
-            };
+            return;
           }
 
-          return chatMessage;
-        }),
+          setMessages(
+            (current) =>
+              appendUniqueMessage(
+                current,
+                incomingMessage,
+              ),
+          );
+
+          if (
+            incomingMessage.senderId !==
+            chatRoom.currentUser.id
+          ) {
+            void markIncomingMessagesAsRead([
+              incomingMessage,
+            ]);
+          }
+        },
       );
-    };
 
-    const handleSocketError = (
-      payload: unknown,
-    ) => {
-      const errorPayload =
-        payload as ChatErrorPayload;
+    const cleanupTyping =
+      onTyping(
+        (
+          payload: ChatTypingPayload,
+        ) => {
+          if (
+            payload.callSessionId !==
+              bookingId ||
+            payload.userId ===
+              chatRoom.currentUser.id
+          ) {
+            return;
+          }
 
-      setError(
-        errorPayload.message ||
-          "Realtime chat connection failed.",
+          setOtherParticipantTyping(
+            Boolean(
+              payload.isTyping,
+            ),
+          );
+        },
       );
-    };
 
-    socket.on("connect", handleConnect);
+    const cleanupPresence =
+      onPresence(
+        (
+          payload: ChatPresencePayload,
+        ) => {
+          if (
+            payload.callSessionId !==
+              bookingId ||
+            payload.userId ===
+              chatRoom.currentUser.id
+          ) {
+            return;
+          }
+
+          setOtherParticipantOnline(
+            Boolean(
+              payload.isOnline,
+            ),
+          );
+        },
+      );
+
+    const cleanupReadReceipt =
+      onReadReceipt(
+        (
+          payload:
+            | ChatReadPayload
+            | ChatReadAllPayload,
+        ) => {
+          if (
+            payload.callSessionId !==
+            bookingId
+          ) {
+            return;
+          }
+
+          const readAt =
+            payload.readAt ||
+            new Date().toISOString();
+
+          setMessages((current) =>
+            current.map(
+              (chatMessage) => {
+                if (
+                  chatMessage.senderId !==
+                  chatRoom.currentUser.id
+                ) {
+                  return chatMessage;
+                }
+
+                if (
+                  "messageIds" in
+                    payload &&
+                  Array.isArray(
+                    payload.messageIds,
+                  ) &&
+                  !payload.messageIds.includes(
+                    chatMessage.id,
+                  )
+                ) {
+                  return chatMessage;
+                }
+
+                return {
+                  ...chatMessage,
+                  isRead: true,
+                  readAt,
+                };
+              },
+            ),
+          );
+        },
+      );
+
+    const cleanupError =
+      onChatError(
+        (
+          payload: ChatErrorPayload,
+        ) => {
+          setError(
+            payload.message ||
+              "Realtime chat connection failed.",
+          );
+        },
+      );
+
+    socket.on(
+      "connect",
+      handleConnect,
+    );
+
     socket.on(
       "disconnect",
       handleDisconnect,
     );
-
-    onChatConnected(
-      handleConnectedEvent,
-    );
-
-    onChatJoined(
-      handleJoinedEvent,
-    );
-
-    onNewMessage(handleNewMessage);
-    onTyping(handleTypingEvent);
-    onPresence(handlePresenceEvent);
-    onReadReceipt(handleReadEvent);
-    onChatError(handleSocketError);
 
     if (socket.connected) {
       handleConnect();
@@ -665,6 +926,9 @@ const [showAudioCall, setShowAudioCall] =
         window.clearTimeout(
           typingTimeoutRef.current,
         );
+
+        typingTimeoutRef.current =
+          null;
       }
 
       sendTypingStatus(
@@ -672,7 +936,9 @@ const [showAudioCall, setShowAudioCall] =
         false,
       );
 
-      leaveChatRoom(bookingId);
+      leaveChatRoom(
+        bookingId,
+      );
 
       socket.off(
         "connect",
@@ -684,7 +950,14 @@ const [showAudioCall, setShowAudioCall] =
         handleDisconnect,
       );
 
-      removeAllChatListeners();
+      cleanupConnected();
+      cleanupJoined();
+      cleanupMessage();
+      cleanupTyping();
+      cleanupPresence();
+      cleanupReadReceipt();
+      cleanupError();
+
       disconnectChatSocket();
     };
   }, [
@@ -693,34 +966,273 @@ const [showAudioCall, setShowAudioCall] =
     markIncomingMessagesAsRead,
   ]);
 
-  useEffect(() => {
-    if (
-      !consultation ||
-      consultation.status !== "ACTIVE" ||
-      consultation.endedAt
-    ) {
+
+    useEffect(() => {
+    if (!currentUserId) {
       return;
     }
 
-    const timer =
-      window.setInterval(() => {
-        setElapsedSeconds(
-          getElapsedSeconds(
-            consultation.startedAt,
-          ),
-        );
+    const socket =
+      connectCallSocket(
+        currentUserId,
+      );
 
-        setRemainingSeconds(
-          getRemainingSeconds(
-            consultation.expiresAt,
-          ),
-        );
-      }, 1000);
+    const handleConnect = () => {
+      setError("");
+    };
+
+    const handleConnectError = (
+      connectError: Error,
+    ) => {
+      setError(
+        connectError.message ||
+          "Unable to connect to the call server.",
+      );
+    };
+
+    const cleanupAccepted =
+      onCallAccepted(
+        (payload) => {
+          if (
+            payload.callId !==
+            bookingId
+          ) {
+            return;
+          }
+
+          setIncomingCall(null);
+          setCallStatus(
+            "ACCEPTED",
+          );
+          setError("");
+
+          setCallId(
+            payload.callId,
+          );
+        },
+      );
+
+    const cleanupRejected =
+      onCallRejected(
+        (payload) => {
+          if (
+            payload.callId !==
+            bookingId
+          ) {
+            return;
+          }
+
+          clearAudioCallState();
+
+          setCallStatus(
+            "REJECTED",
+          );
+
+          setError(
+            payload.reason ||
+              "The audio call was rejected.",
+          );
+        },
+      );
+
+    const cleanupMissed =
+      onCallMissed(
+        (payload) => {
+          if (
+            payload.callId !==
+            bookingId
+          ) {
+            return;
+          }
+
+          clearAudioCallState();
+
+          setCallStatus(
+            "MISSED",
+          );
+
+          setError(
+            payload.reason ||
+              "The call was not answered.",
+          );
+        },
+      );
+
+    const cleanupCancelled =
+      onCallCancelled(
+        (payload) => {
+          if (
+            payload.callId !==
+            bookingId
+          ) {
+            return;
+          }
+
+          clearAudioCallState();
+
+          setCallStatus(
+            "CANCELLED",
+          );
+
+          setError(
+            payload.reason ||
+              "The audio call was cancelled.",
+          );
+        },
+      );
+
+    const cleanupUnavailable =
+      onCallUnavailable(
+        (payload) => {
+          if (
+            payload.callId !==
+            bookingId
+          ) {
+            return;
+          }
+
+          clearAudioCallState();
+
+          setCallStatus(
+            "UNAVAILABLE",
+          );
+
+          setError(
+            payload.reason ||
+              "The other participant is currently unavailable.",
+          );
+        },
+      );
+
+    const cleanupRinging =
+      onCallRinging(
+        (payload) => {
+          if (
+            payload.callId !==
+            bookingId
+          ) {
+            return;
+          }
+
+          setCallId(
+            payload.callId,
+          );
+
+          setCallStatus(
+            "RINGING",
+          );
+
+          setError("");
+        },
+      );
+
+    const handleIncomingCall = (
+      payload: IncomingCallPayload,
+    ) => {
+      if (
+        !payload?.callId ||
+        payload.callId !==
+          bookingId
+      ) {
+        return;
+      }
+
+      setIncomingCall(
+        payload,
+      );
+
+      setCallId(
+        payload.callId,
+      );
+
+      setCallStatus(
+        "RINGING",
+      );
+
+      setError("");
+    };
+
+    socket.on(
+      "connect",
+      handleConnect,
+    );
+
+    socket.on(
+      "connect_error",
+      handleConnectError,
+    );
+
+    socket.on(
+      "call:incoming",
+      handleIncomingCall,
+    );
+
+    if (!socket.connected) {
+      socket.connect();
+    }
 
     return () => {
-      window.clearInterval(timer);
+      socket.off(
+        "connect",
+        handleConnect,
+      );
+
+      socket.off(
+        "connect_error",
+        handleConnectError,
+      );
+
+      socket.off(
+        "call:incoming",
+        handleIncomingCall,
+      );
+
+      cleanupAccepted();
+      cleanupRejected();
+      cleanupMissed();
+      cleanupCancelled();
+      cleanupUnavailable();
+      cleanupRinging();
+
+      /*
+       * Root AppProviders bhi call socket use karta hai,
+       * isliye yahan disconnectCallSocket() nahi karna.
+       */
     };
-  }, [consultation]);
+  }, [
+    bookingId,
+    clearAudioCallState,
+    currentUserId,
+  ]);
+
+  useEffect(() => {
+  if (
+    !consultation ||
+    consultation.status !== "ACTIVE" ||
+    consultation.endedAt
+  ) {
+    return;
+  }
+
+  const timer = window.setInterval(() => {
+    setElapsedSeconds(
+      getElapsedSeconds(
+        consultation.startedAt,
+      ),
+    );
+
+    setRemainingSeconds(
+      getRemainingSeconds(
+        consultation.expiresAt,
+      ),
+    );
+  }, 1000);
+
+  return () => {
+    window.clearInterval(timer);
+  };
+}, [consultation]);
+
 
   useEffect(() => {
     if (
@@ -965,18 +1477,299 @@ const [showAudioCall, setShowAudioCall] =
     }
   }
 
-  async function handleStartAudioCall() {
-  try {
-    await loadToken(bookingId);
-    setShowAudioCall(true);
-  } catch (error) {
-    setError(
-      error instanceof Error
-        ? error.message
-        : "Unable to start audio call.",
+    async function handleAcceptIncomingCall():
+    Promise<void> {
+    if (
+      !incomingCall ||
+      !currentUserId ||
+      tokenLoading
+    ) {
+      return;
+    }
+
+    const incomingCallId =
+      incomingCall.callId.trim();
+
+    const callerUserId =
+      incomingCall.callerUserId?.trim() ||
+      incomingCall.callerId?.trim();
+
+    if (
+      !incomingCallId ||
+      !callerUserId
+    ) {
+      setError(
+        "Incoming call information is incomplete.",
+      );
+
+      return;
+    }
+
+    try {
+      setTokenLoading(true);
+      setError("");
+
+      const accepted =
+        acceptCall({
+          callId:
+            incomingCallId,
+
+          callerUserId,
+
+          receiverUserId:
+            currentUserId,
+        });
+
+      if (!accepted) {
+        throw new Error(
+          "Call server is disconnected. Please try again.",
+        );
+      }
+
+      const response =
+        await getCallToken(
+          incomingCallId,
+        );
+
+      if (
+        !response?.data?.appId ||
+        !response.data.token ||
+        !response.data.channelName ||
+        !Number.isInteger(
+          response.data.uid,
+        )
+      ) {
+        throw new Error(
+          "Backend returned incomplete audio-call credentials.",
+        );
+      }
+
+      if (!mountedRef.current) {
+        return;
+      }
+
+      setCallId(
+        incomingCallId,
+      );
+
+      setTokenData({
+        appId:
+          response.data.appId,
+
+        token:
+          response.data.token,
+
+        channelName:
+          response.data.channelName,
+
+        uid:
+          response.data.uid,
+      });
+
+      setIncomingCall(null);
+
+      setCallStatus(
+        "ACCEPTED",
+      );
+
+      setShowAudioCall(true);
+    } catch (error: unknown) {
+      if (!mountedRef.current) {
+        return;
+      }
+
+      setError(
+        getErrorMessage(
+          error,
+          "Unable to accept the audio call.",
+        ),
+      );
+    } finally {
+      if (mountedRef.current) {
+        setTokenLoading(false);
+      }
+    }
+  }
+
+  function handleRejectIncomingCall():
+    void {
+    if (
+      !incomingCall ||
+      !currentUserId ||
+      tokenLoading
+    ) {
+      return;
+    }
+
+    const incomingCallId =
+      incomingCall.callId.trim();
+
+    const callerUserId =
+     incomingCall.callerId?.trim();
+
+    if (
+      !incomingCallId ||
+      !callerUserId
+    ) {
+      setError(
+        "Incoming call information is incomplete.",
+      );
+
+      return;
+    }
+
+    const rejected =
+      rejectCall({
+        callId:
+          incomingCallId,
+
+        callerUserId,
+
+        receiverUserId:
+          currentUserId,
+
+        reason:
+          "Call rejected by recipient.",
+      });
+
+    if (!rejected) {
+      setError(
+        "Call server is disconnected. Unable to reject the call.",
+      );
+
+      return;
+    }
+
+    clearAudioCallState();
+
+    setCallStatus(
+      "REJECTED",
     );
   }
-}
+
+  async function handleStartAudioCall():
+    Promise<void> {
+    if (
+      !canStartAudioCall ||
+      callIsOpen
+    ) {
+      return;
+    }
+
+    if (
+      !bookingId ||
+      !currentUserId ||
+      !otherParticipantUserId
+    ) {
+      setError(
+        "Call participant information is missing.",
+      );
+
+      return;
+    }
+
+    try {
+      setTokenLoading(true);
+      setError("");
+
+      const emitted =
+        initiateCall({
+          callId:
+            bookingId,
+
+          recipientUserId:
+            otherParticipantUserId,
+
+          callerId:
+            currentUserId,
+
+          callerName:
+            chatRoom?.currentUser.name?.trim() ||
+            "Astro Soul Path User",
+
+          consultationType:
+            "AUDIO",
+        });
+
+      if (!emitted) {
+        throw new Error(
+          "Call server is disconnected. Please wait and try again.",
+        );
+      }
+
+      const response =
+        await getCallToken(
+          bookingId,
+        );
+
+      if (
+        !response?.data?.appId ||
+        !response.data.token ||
+        !response.data.channelName ||
+        !Number.isInteger(
+          response.data.uid,
+        )
+      ) {
+        throw new Error(
+          "Backend returned incomplete audio-call credentials.",
+        );
+      }
+
+      if (!mountedRef.current) {
+        return;
+      }
+
+      setCallId(
+        bookingId,
+      );
+
+      setTokenData({
+        appId:
+          response.data.appId,
+
+        token:
+          response.data.token,
+
+        channelName:
+          response.data.channelName,
+
+        uid:
+          response.data.uid,
+      });
+
+      setCallStatus(
+        "RINGING",
+      );
+
+      /*
+       * AudioCall component render hoga,
+       * lekin autoJoin tab hoga jab
+       * callStatus ACCEPTED ho jayega.
+       */
+      setShowAudioCall(true);
+    } catch (error: unknown) {
+      if (!mountedRef.current) {
+        return;
+      }
+
+      clearAudioCallState();
+
+      setCallStatus(
+        "IDLE",
+      );
+
+      setError(
+        getErrorMessage(
+          error,
+          "Unable to start the audio call.",
+        ),
+      );
+    } finally {
+      if (mountedRef.current) {
+        setTokenLoading(false);
+      }
+    }
+  }
 
   async function handleEndConsultation() {
     if (
@@ -1071,11 +1864,43 @@ const [showAudioCall, setShowAudioCall] =
     }
   }
 
-  if (loading) {
+    if (loading) {
     return (
-      <main className="min-h-screen bg-[#FAF7F0] px-6 py-20">
-        <div className="mx-auto max-w-5xl rounded-3xl bg-white p-10 text-center shadow-lg">
-          Loading realtime consultation...
+      <main className="min-h-screen bg-[#FAF7F0] px-4 py-12 sm:px-6 sm:py-20">
+        <div
+          className="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-white shadow-xl"
+          aria-busy="true"
+          aria-label="Loading realtime consultation"
+        >
+          <div className="animate-pulse bg-[#0B1026] p-6">
+            <div className="h-4 w-40 rounded bg-white/20" />
+            <div className="mt-4 h-8 w-64 rounded bg-white/20" />
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              {Array.from({
+                length: 4,
+              }).map((_, index) => (
+                <div
+                  key={index}
+                  className="h-14 w-28 rounded-xl bg-white/10"
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="h-[500px] animate-pulse bg-[#FAF7F0] p-6">
+            <div className="space-y-5">
+              <div className="h-16 w-2/3 rounded-2xl bg-gray-200" />
+
+              <div className="ml-auto h-20 w-3/5 rounded-2xl bg-[#D4AF37]/30" />
+
+              <div className="h-16 w-1/2 rounded-2xl bg-gray-200" />
+            </div>
+          </div>
+
+          <div className="animate-pulse border-t p-5">
+            <div className="h-12 rounded-xl bg-gray-200" />
+          </div>
         </div>
       </main>
     );
@@ -1083,38 +1908,45 @@ const [showAudioCall, setShowAudioCall] =
 
   if (!consultation || !chatRoom) {
     return (
-      <main className="min-h-screen bg-[#FAF7F0] px-6 py-20">
-        <div className="mx-auto max-w-4xl rounded-3xl border border-red-200 bg-red-50 p-8 text-red-700 shadow-lg">
-          <h1 className="text-2xl font-bold">
+      <main className="min-h-screen bg-[#FAF7F0] px-4 py-12 sm:px-6 sm:py-20">
+        <div
+          role="alert"
+          className="mx-auto max-w-4xl rounded-3xl border border-red-200 bg-white p-6 shadow-xl sm:p-8"
+        >
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-3xl text-red-700">
+            !
+          </div>
+
+          <h1 className="mt-6 text-2xl font-bold text-[#0B1026]">
             Unable to open consultation
           </h1>
 
-          <p className="mt-3">
+          <p className="mt-3 leading-7 text-red-700">
             {error ||
-              "Consultation was not found."}
+              "The requested consultation was not found or is no longer available."}
           </p>
 
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <button
               type="button"
               onClick={() =>
                 void loadChatData()
               }
-              className="rounded-xl border border-red-300 px-5 py-3 font-semibold"
+              className="rounded-xl border border-red-300 px-5 py-3 font-semibold text-red-700 transition hover:bg-red-50"
             >
               Try Again
             </button>
 
             <Link
               href="/consultations"
-              className="rounded-xl border border-red-300 px-5 py-3 font-semibold"
+              className="inline-flex items-center justify-center rounded-xl border border-[#0B1026] px-5 py-3 font-semibold text-[#0B1026] transition hover:bg-[#0B1026] hover:text-white"
             >
               My Consultations
             </Link>
 
             <Link
               href="/astrologers"
-              className="rounded-xl bg-[#D4AF37] px-5 py-3 font-semibold text-[#0B1026]"
+              className="inline-flex items-center justify-center rounded-xl bg-[#D4AF37] px-5 py-3 font-semibold text-[#0B1026] transition hover:bg-[#C9A52F]"
             >
               Browse Astrologers
             </Link>
@@ -1125,402 +1957,614 @@ const [showAudioCall, setShowAudioCall] =
   }
 
   return (
-    <main className="min-h-screen bg-[#FAF7F0] px-6 py-12">
-      <div className="mx-auto max-w-5xl">
-        {error && (
-          <div
-            role="alert"
-            className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
-          >
-            {error}
-          </div>
+    <>
+      <IncomingCallModal
+        open={Boolean(
+          incomingCall,
         )}
+        callerName={
+          incomingCall?.callerName ??
+          "Astro Soul Path User"
+        }
+        consultationType={
+          incomingCall?.consultationType ??
+          "AUDIO"
+        }
+        timeoutSeconds={
+          incomingCall?.timeoutSeconds ??
+          30
+        }
+        isProcessing={
+          tokenLoading
+        }
+        onAccept={() =>
+          void handleAcceptIncomingCall()
+        }
+        onReject={
+          handleRejectIncomingCall
+        }
+      />
 
-        <section className="overflow-hidden rounded-3xl bg-white shadow-xl">
-          <header className="flex flex-col gap-5 bg-[#0B1026] p-6 text-white lg:flex-row lg:items-center lg:justify-between">
+      <main className="min-h-screen bg-[#FAF7F0] px-4 py-8 sm:px-6 sm:py-12">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-semibold text-[#D4AF37]">
-                Live Chat Consultation
+              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#D4AF37]">
+                Active Consultation
               </p>
 
-              <h1 className="mt-1 text-2xl font-bold">
-                {otherParticipantName}
+              <h1 className="mt-1 text-2xl font-bold text-[#0B1026] sm:text-3xl">
+                Live Chat
               </h1>
-
-              <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-                <span
-                  className={`inline-flex items-center gap-2 ${
-                    otherParticipantOnline
-                      ? "text-green-300"
-                      : "text-gray-400"
-                  }`}
-                >
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full ${
-                      otherParticipantOnline
-                        ? "bg-green-400"
-                        : "bg-gray-500"
-                    }`}
-                  />
-
-                  {otherParticipantOnline
-                    ? "Online"
-                    : "Offline"}
-                </span>
-
-                <span
-                  className={`inline-flex items-center gap-2 ${
-                    socketConnected
-                      ? "text-green-300"
-                      : "text-orange-300"
-                  }`}
-                >
-                  {socketConnected
-                    ? "Realtime connected"
-                    : "Reconnecting..."}
-                </span>
-              </div>
-
-              <p className="mt-2 text-sm text-gray-300">
-                ₹
-                {consultation.ratePerMinute.toFixed(
-                  2,
-                )}
-                /minute
-              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center">
-              <div className="rounded-xl bg-white/10 px-4 py-2">
-                <p className="text-xs text-gray-300">
-                  Elapsed
+            <Link
+              href="/consultations"
+              className="inline-flex w-fit items-center rounded-xl border border-[#0B1026] px-5 py-2.5 text-sm font-semibold text-[#0B1026] transition hover:bg-[#0B1026] hover:text-white"
+            >
+              ← My Consultations
+            </Link>
+          </div>
+
+          {error && (
+            <div
+              role="alert"
+              className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <p className="leading-6">
+                  {error}
                 </p>
 
-                <p className="font-bold">
-                  {formatClock(
-                    elapsedSeconds,
-                  )}
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-white/10 px-4 py-2">
-                <p className="text-xs text-gray-300">
-                  Remaining
-                </p>
-
-                <p
-                  className={`font-bold ${
-                    remainingSeconds <= 60
-                      ? "text-red-300"
-                      : ""
-                  }`}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setError("")
+                  }
+                  className="shrink-0 rounded-lg px-2 text-xl leading-none transition hover:bg-red-100"
+                  aria-label="Close error"
                 >
-                  {formatClock(
-                    remainingSeconds,
-                  )}
-                </p>
+                  ×
+                </button>
               </div>
-
-              <div className="rounded-xl bg-white/10 px-4 py-2">
-                <p className="text-xs text-gray-300">
-                  Purchased
-                </p>
-
-                <p className="font-bold">
-                  {consultation.totalMinutes} min
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-white/10 px-4 py-2">
-                <p className="text-xs text-gray-300">
-                  Charged
-                </p>
-
-                <p className="font-bold text-[#D4AF37]">
-                  ₹
-                  {consultation.amountCharged.toFixed(
-                    2,
-                  )}
-                </p>
-              </div>
-
-              <button
-  type="button"
-  onClick={() =>
-    void handleStartAudioCall()
-  }
-  disabled={
-    tokenLoading || !isActive
-  }
-  className="rounded-xl bg-green-600 px-5 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
->
-  {tokenLoading
-    ? "Loading..."
-    : "Start Audio"}
-</button>
-
-<button
-  type="button"
-  onClick={() =>
-    void handleEndConsultation()
-  }
-  disabled={
-    ending || !isActive
-  }
-  className="rounded-xl bg-red-600 px-5 py-3 font-semibold transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
->
-  {ending
-    ? "Ending..."
-    : "End Chat"}
-</button>
-          {!isActive && (
-            <div className="border-b bg-green-50 p-4 text-center font-semibold text-green-700">
-              This consultation has ended.
             </div>
           )}
 
-          {remainingSeconds > 0 &&
-            remainingSeconds <= 60 &&
-            isActive && (
-              <div className="border-b bg-red-50 p-4 text-center font-semibold text-red-700">
-                Less than one minute remains in
-                this consultation.
-              </div>
-            )}
+          <section className="overflow-hidden rounded-3xl bg-white shadow-xl">
+            <header className="bg-[#0B1026] p-5 text-white sm:p-6">
+              <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#D4AF37]">
+                    Live Chat Consultation
+                  </p>
 
-          <div
-            ref={messagesContainerRef}
-            className="h-[500px] overflow-y-auto bg-[#FAF7F0] p-6"
-          >
-            {messages.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-center">
-                <div>
-                  <h2 className="text-xl font-bold text-[#0B1026]">
-                    Consultation started
+                  <h2 className="mt-2 truncate text-2xl font-bold">
+                    {otherParticipantName}
                   </h2>
 
-                  <p className="mt-2 text-gray-600">
-                    Send your first message.
-                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+                    <span
+                      className={`inline-flex items-center gap-2 ${
+                        otherParticipantOnline
+                          ? "text-green-300"
+                          : "text-gray-400"
+                      }`}
+                    >
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full ${
+                          otherParticipantOnline
+                            ? "animate-pulse bg-green-400"
+                            : "bg-gray-500"
+                        }`}
+                        aria-hidden="true"
+                      />
 
-                  <p className="mt-3 text-sm text-gray-500">
-                    Messages and attachments are
-                    stored in your consultation
-                    history.
-                  </p>
+                      {otherParticipantOnline
+                        ? "Participant online"
+                        : "Participant offline"}
+                    </span>
+
+                    <span
+                      className={`inline-flex items-center gap-2 ${
+                        socketConnected
+                          ? "text-green-300"
+                          : "text-amber-300"
+                      }`}
+                    >
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full ${
+                          socketConnected
+                            ? "bg-green-400"
+                            : "animate-pulse bg-amber-400"
+                        }`}
+                        aria-hidden="true"
+                      />
+
+                      {socketConnected
+                        ? "Realtime connected"
+                        : "Realtime reconnecting"}
+                    </span>
+
+                    <span className="text-gray-300">
+                      ₹
+                      {Number(
+                        consultation.ratePerMinute,
+                      ).toFixed(2)}
+                      /minute
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:flex xl:flex-wrap xl:items-center">
+                  <div className="rounded-xl bg-white/10 px-4 py-2">
+                    <p className="text-xs text-gray-300">
+                      Elapsed
+                    </p>
+
+                    <p className="mt-1 font-bold">
+                      {formatClock(
+                        elapsedSeconds,
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white/10 px-4 py-2">
+                    <p className="text-xs text-gray-300">
+                      Remaining
+                    </p>
+
+                    <p
+                      className={`mt-1 font-bold ${
+                        remainingSeconds <= 60 &&
+                        isActive
+                          ? "text-red-300"
+                          : ""
+                      }`}
+                    >
+                      {formatClock(
+                        remainingSeconds,
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white/10 px-4 py-2">
+                    <p className="text-xs text-gray-300">
+                      Purchased
+                    </p>
+
+                    <p className="mt-1 font-bold">
+                      {consultation.totalMinutes}{" "}
+                      min
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white/10 px-4 py-2">
+                    <p className="text-xs text-gray-300">
+                      Charged
+                    </p>
+
+                    <p className="mt-1 font-bold text-[#D4AF37]">
+                      ₹
+                      {Number(
+                        consultation.amountCharged,
+                      ).toFixed(2)}
+                    </p>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {messages.map(
-                  (chatMessage) => {
-                    const isOwnMessage =
-                      chatMessage.senderId ===
-                      currentUserId;
 
-                    const attachment =
-                      chatMessage.attachment;
+              <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row sm:flex-wrap">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleStartAudioCall()
+                  }
+                  disabled={
+                    !canStartAudioCall ||
+                    callIsOpen
+                  }
+                  className="inline-flex items-center justify-center rounded-xl bg-green-600 px-6 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-500 disabled:opacity-70"
+                >
+                  {tokenLoading
+                    ? "Preparing Audio..."
+                    : callStatus ===
+                        "RINGING"
+                      ? "Calling..."
+                      : callStatus ===
+                          "ACCEPTED"
+                        ? "Audio Connected"
+                        : "Start Audio Call"}
+                </button>
 
-                    const isImage =
-                      chatMessage.messageType ===
-                        "IMAGE" &&
-                      attachment;
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleEndConsultation()
+                  }
+                  disabled={
+                    ending ||
+                    !isActive
+                  }
+                  className="inline-flex items-center justify-center rounded-xl bg-red-600 px-6 py-3 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {ending
+                    ? "Ending Consultation..."
+                    : "End Consultation"}
+                </button>
+              </div>
+            </header>
 
-                    return (
-                      <div
-                        key={chatMessage.id}
-                        className={`flex ${
-                          isOwnMessage
-                            ? "justify-end"
-                            : "justify-start"
-                        }`}
-                      >
-                        <div
-                          className={`max-w-[82%] rounded-2xl px-5 py-3 ${
+            {!isActive && (
+              <div className="border-b border-gray-200 bg-gray-100 p-4 text-center font-semibold text-gray-700">
+                This consultation has ended.
+              </div>
+            )}
+
+            {remainingSeconds > 0 &&
+              remainingSeconds <= 60 &&
+              isActive && (
+                <div
+                  role="alert"
+                  className="border-b border-red-200 bg-red-50 p-4 text-center font-semibold text-red-700"
+                >
+                  Less than one minute remains in this
+                  consultation.
+                </div>
+              )}
+
+            {callStatus ===
+              "RINGING" && (
+              <div className="border-b border-blue-200 bg-blue-50 p-4 text-center text-sm font-semibold text-blue-700">
+                Audio call request sent. Waiting for{" "}
+                {otherParticipantName} to accept…
+              </div>
+            )}
+
+            {callStatus ===
+              "REJECTED" && (
+              <div className="border-b border-red-200 bg-red-50 p-4 text-center text-sm font-semibold text-red-700">
+                The audio call was rejected.
+              </div>
+            )}
+
+            {callStatus ===
+              "MISSED" && (
+              <div className="border-b border-amber-200 bg-amber-50 p-4 text-center text-sm font-semibold text-amber-700">
+                The audio call was not answered.
+              </div>
+            )}
+
+            {callStatus ===
+              "UNAVAILABLE" && (
+              <div className="border-b border-amber-200 bg-amber-50 p-4 text-center text-sm font-semibold text-amber-700">
+                The other participant is currently
+                unavailable.
+              </div>
+            )}
+
+            <div
+              ref={
+                messagesContainerRef
+              }
+              className="h-[55vh] min-h-[420px] max-h-[650px] overflow-y-auto bg-[#FAF7F0] p-4 sm:p-6"
+            >
+              {messages.length ===
+              0 ? (
+                <div className="flex h-full items-center justify-center text-center">
+                  <div className="max-w-md">
+                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#D4AF37]/15 text-4xl">
+                      💬
+                    </div>
+
+                    <h2 className="mt-6 text-xl font-bold text-[#0B1026]">
+                      Consultation started
+                    </h2>
+
+                    <p className="mt-2 leading-7 text-gray-600">
+                      Send your first message to begin the
+                      consultation.
+                    </p>
+
+                    <p className="mt-3 text-sm leading-6 text-gray-500">
+                      Messages and attachments are securely
+                      stored in your consultation history.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {messages.map(
+                    (chatMessage) => {
+                      const isOwnMessage =
+                        chatMessage.senderId ===
+                        currentUserId;
+
+                      const attachment =
+                        chatMessage.attachment;
+
+                      const isImage =
+                        chatMessage.messageType ===
+                          "IMAGE" &&
+                        Boolean(
+                          attachment,
+                        );
+
+                      return (
+                        <article
+                          key={
+                            chatMessage.id
+                          }
+                          className={`flex ${
                             isOwnMessage
-                              ? "bg-[#D4AF37] text-[#0B1026]"
-                              : "bg-white text-[#0B1026] shadow"
+                              ? "justify-end"
+                              : "justify-start"
                           }`}
                         >
-                          {!isOwnMessage && (
-                            <p className="mb-1 text-xs font-bold opacity-70">
-                              {
-                                chatMessage
-                                  .sender.name
-                              }
-                            </p>
-                          )}
-
-                          {chatMessage.content && (
-                            <p className="whitespace-pre-wrap break-words">
-                              {
-                                chatMessage.content
-                              }
-                            </p>
-                          )}
-
-                          {isImage && (
-                            <a
-                              href={attachment.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="mt-2 block"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={attachment.url}
-                                alt={
-                                  attachment.name ||
-                                  "Chat image"
-                                }
-                                className="max-h-72 w-auto max-w-full rounded-xl object-contain"
-                              />
-                            </a>
-                          )}
-
-                          {attachment &&
-                            !isImage && (
-                              <a
-                                href={
-                                  attachment.url
-                                }
-                                target="_blank"
-                                rel="noreferrer"
-                                className="mt-2 flex items-center gap-3 rounded-xl border border-current/20 p-3 no-underline"
-                              >
-                                <span className="text-2xl">
-                                  📎
-                                </span>
-
-                                <span className="min-w-0">
-                                  <span className="block truncate font-semibold underline">
-                                    {attachment.name ||
-                                      "Open attachment"}
-                                  </span>
-
-                                  <span className="block text-xs opacity-60">
-                                    {attachment.mimeType ||
-                                      "File"}
-
-                                    {attachment.size
-                                      ? ` · ${formatFileSize(
-                                          attachment.size,
-                                        )}`
-                                      : ""}
-                                  </span>
-                                </span>
-                              </a>
+                          <div
+                            className={`max-w-[88%] rounded-2xl px-4 py-3 sm:max-w-[75%] sm:px-5 ${
+                              isOwnMessage
+                                ? "rounded-br-md bg-[#D4AF37] text-[#0B1026]"
+                                : "rounded-bl-md bg-white text-[#0B1026] shadow-sm"
+                            }`}
+                          >
+                            {!isOwnMessage && (
+                              <p className="mb-1 text-xs font-bold opacity-70">
+                                {chatMessage
+                                  .sender
+                                  ?.name ||
+                                  otherParticipantName}
+                              </p>
                             )}
 
-                          <div className="mt-1 flex items-center justify-end gap-2 text-xs opacity-60">
-                            <span>
-                              {formatMessageTime(
-                                chatMessage.createdAt,
+                            {chatMessage.content && (
+                              <p className="whitespace-pre-wrap break-words leading-6">
+                                {
+                                  chatMessage.content
+                                }
+                              </p>
+                            )}
+
+                            {isImage &&
+                              attachment && (
+                                <a
+                                  href={
+                                    attachment.url
+                                  }
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-3 block"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={
+                                      attachment.url
+                                    }
+                                    alt={
+                                      attachment.name ||
+                                      "Chat attachment"
+                                    }
+                                    className="max-h-80 w-auto max-w-full rounded-xl object-contain"
+                                  />
+                                </a>
                               )}
-                            </span>
 
-                            {isOwnMessage && (
-                              <span>
-                                {chatMessage.isRead
-                                  ? "✓✓ Read"
-                                  : "✓ Sent"}
-                              </span>
-                            )}
+                            {attachment &&
+                              !isImage && (
+                                <a
+                                  href={
+                                    attachment.url
+                                  }
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-3 flex items-center gap-3 rounded-xl border border-current/20 p-3 no-underline transition hover:bg-black/5"
+                                >
+                                  <span
+                                    className="text-2xl"
+                                    aria-hidden="true"
+                                  >
+                                    📎
+                                  </span>
+
+                                  <span className="min-w-0">
+                                    <span className="block truncate font-semibold underline">
+                                      {attachment.name ||
+                                        "Open attachment"}
+                                    </span>
+
+                                    <span className="mt-1 block text-xs opacity-60">
+                                      {attachment.mimeType ||
+                                        "File"}
+
+                                      {attachment.size
+                                        ? ` · ${formatFileSize(
+                                            attachment.size,
+                                          )}`
+                                        : ""}
+                                    </span>
+                                  </span>
+                                </a>
+                              )}
+
+                            <div className="mt-2 flex items-center justify-end gap-2 text-[11px] opacity-60">
+                              <time
+                                dateTime={
+                                  chatMessage.createdAt
+                                }
+                              >
+                                {formatMessageTime(
+                                  chatMessage.createdAt,
+                                )}
+                              </time>
+
+                              {isOwnMessage && (
+                                <span>
+                                  {chatMessage.isRead
+                                    ? "✓✓ Read"
+                                    : "✓ Sent"}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
+                        </article>
+                      );
+                    },
+                  )}
+
+                  {otherParticipantTyping && (
+                    <div className="flex justify-start">
+                      <div className="rounded-2xl rounded-bl-md bg-white px-5 py-3 text-sm text-gray-500 shadow-sm">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="flex gap-1">
+                            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" />
+                            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:150ms]" />
+                            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:300ms]" />
+                          </span>
+
+                          {otherParticipantName} is typing
+                        </span>
                       </div>
-                    );
-                  },
-                )}
-
-                {otherParticipantTyping && (
-                  <div className="flex justify-start">
-                    <div className="rounded-2xl bg-white px-5 py-3 text-sm text-gray-500 shadow">
-                      {otherParticipantName} is
-                      typing...
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                  )}
+                </div>
+              )}
+            </div>
 
-          <div className="border-t p-5">
-            {isActive && (
-              <div className="mb-4">
-                <ChatAttachmentButton
-                  callSessionId={bookingId}
-                  onUploaded={(attachment) =>
-                    void handleAttachmentUploaded(
+            <div className="border-t border-gray-200 bg-white p-4 sm:p-5">
+              {isActive && (
+                <div className="mb-4">
+                  <ChatAttachmentButton
+                    callSessionId={
+                      bookingId
+                    }
+                    onUploaded={(
                       attachment,
+                    ) =>
+                      void handleAttachmentUploaded(
+                        attachment,
+                      )
+                    }
+                  />
+                </div>
+              )}
+
+              <form
+                onSubmit={
+                  handleSendMessage
+                }
+                className="flex flex-col gap-3 sm:flex-row"
+              >
+                <label
+                  htmlFor="chat-message"
+                  className="sr-only"
+                >
+                  Chat message
+                </label>
+
+                <input
+                  id="chat-message"
+                  type="text"
+                  value={message}
+                  disabled={
+                    !isActive ||
+                    sending
+                  }
+                  maxLength={2_000}
+                  autoComplete="off"
+                  onChange={(
+                    event,
+                  ) =>
+                    handleMessageInputChange(
+                      event.target
+                        .value,
                     )
                   }
+                  placeholder={
+                    isActive
+                      ? "Type your message..."
+                      : "Consultation has ended"
+                  }
+                  className="min-w-0 flex-1 rounded-xl border border-gray-300 px-4 py-3.5 outline-none transition focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/15 disabled:cursor-not-allowed disabled:bg-gray-100"
                 />
+
+                <button
+                  type="submit"
+                  disabled={
+                    !message.trim() ||
+                    !isActive ||
+                    sending
+                  }
+                  className="inline-flex min-w-28 items-center justify-center rounded-xl bg-[#D4AF37] px-7 py-3.5 font-semibold text-[#0B1026] transition hover:bg-[#C9A52F] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {sending
+                    ? "Sending..."
+                    : "Send"}
+                </button>
+              </form>
+
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+                <span>
+                  Maximum message length: 2,000 characters
+                </span>
+
+                <span>
+                  {message.length}/2,000
+                </span>
               </div>
-            )}
 
-            <form
-              onSubmit={handleSendMessage}
-              className="flex gap-3"
-            >
-              <input
-                type="text"
-                value={message}
-                disabled={
-                  !isActive || sending
-                }
-                onChange={(event) =>
-                  handleMessageInputChange(
-                    event.target.value,
-                  )
-                }
-                placeholder={
-                  isActive
-                    ? "Type your message..."
-                    : "Consultation has ended"
-                }
-                className="min-w-0 flex-1 rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-[#D4AF37] disabled:bg-gray-100"
-              />
+              {showAudioCall &&
+                tokenData &&
+                callId && (
+                  <div className="mt-6">
+                    <AudioCall
+                      callId={
+                        callId
+                      }
+                      appId={
+                        tokenData.appId
+                      }
+                      channelName={
+                        tokenData.channelName
+                      }
+                      token={
+                        tokenData.token
+                      }
+                      uid={
+                        tokenData.uid
+                      }
+                      autoJoin={
+                        callStatus ===
+                        "ACCEPTED"
+                      }
+                      forceEnd={
+                        remainingSeconds <=
+                        0
+                      }
+                      forceEndReason="Purchased consultation time completed."
+                      expiresAt={
+                        consultation.expiresAt
+                      }
+                      participantName={
+                        otherParticipantName
+                      }
+                      onEnd={() => {
+                        clearAudioCallState();
+                        setCallStatus(
+                          "IDLE",
+                        );
+                      }}
+                    />
+                  </div>
+                )}
+            </div>
+          </section>
 
-              <button
-                type="submit"
-                disabled={
-                  !message.trim() ||
-                  !isActive ||
-                  sending
-                }
-                className="rounded-xl bg-[#D4AF37] px-7 py-3 font-semibold text-[#0B1026] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {sending
-                  ? "Sending..."
-                  : "Send"}
-              </button>
-            </form>
-
-            {showAudioCall &&
-  tokenData && (
-    <div className="mt-6">
-      <AudioCall
-        appId={tokenData.appId}
-        channelName={tokenData.channelName}
-        token={tokenData.token}
-        uid={tokenData.uid}
-        onEnd={() =>
-          setShowAudioCall(false)
-        }
-      />
-    </div>
-   )}
-          </div>
-        </section>
-
-        <p className="mt-4 text-center text-xs text-gray-500">
-          Live messages, images, files, history,
-          typing status and read receipts are
-          connected to the Astro Soul Path
-          backend.
-        </p>
-      </div>
-    </main>
+          <p className="mt-4 text-center text-xs leading-5 text-gray-500">
+            Live messages, attachments, typing status,
+            presence and read receipts are connected to the
+            Astro Soul Path backend.
+          </p>
+        </div>
+      </main>
+    </>
   );
 }

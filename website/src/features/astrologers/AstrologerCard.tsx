@@ -11,6 +11,7 @@ type AstrologerCardProps = {
   rating: number;
   isOnline: boolean;
   avatarUrl?: string | null;
+  isVerified?: boolean;
 };
 
 export function AstrologerCard({
@@ -23,131 +24,232 @@ export function AstrologerCard({
   rating,
   isOnline,
   avatarUrl,
+  isVerified = true,
 }: AstrologerCardProps) {
   const safeId = id.trim();
-  const safeName = name.trim() || "Astro Soul Path Astrologer";
-  const safeSpecialty = specialty.trim() || "Vedic Astrology";
-  const safeExperience = experience.trim() || "Experience not specified";
-  const safeLanguages = languages.trim() || "Languages not specified";
-  const safePrice = price.trim() || "Price not available";
+
+  const safeName =
+    name.trim() ||
+    "Astro Soul Path Astrologer";
+
+  const safeSpecialty =
+    specialty.trim() ||
+    "Vedic Astrology";
+
+  const safeExperience =
+    experience.trim() ||
+    "Experience not specified";
+
+  const safeLanguages =
+    languages.trim() ||
+    "Languages not specified";
+
+  const safePrice =
+    price.trim() ||
+    "Price not available";
+
+  const safeRating =
+    Number.isFinite(rating)
+      ? Math.max(0, Math.min(5, rating))
+      : 0;
 
   const profileHref = safeId
-    ? `/astrologers/${encodeURIComponent(safeId)}`
+    ? `/astrologers/${encodeURIComponent(
+        safeId,
+      )}`
     : "/astrologers";
 
   const chatHref = safeId
-    ? `/astrologers/${encodeURIComponent(safeId)}?consultation=chat`
+    ? `/astrologers/${encodeURIComponent(
+        safeId,
+      )}?consultation=chat`
     : "/astrologers";
 
   const formattedRating =
-    Number.isFinite(rating) && rating > 0
-      ? rating.toFixed(1)
+    safeRating > 0
+      ? safeRating.toFixed(1)
       : "New";
 
-  return (
-    <article className="flex h-full flex-col rounded-3xl bg-white p-6 shadow-lg transition duration-300 hover:-translate-y-1 hover:shadow-xl">
-      <div className="flex items-start gap-4">
-        <div className="relative shrink-0">
-          {avatarUrl ? (
-            <Image
-              src={avatarUrl}
-              alt={safeName}
-              width={72}
-              height={72}
-              className="h-[72px] w-[72px] rounded-full object-cover"
-            />
-          ) : (
-            <div className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[#D4AF37]/20 text-2xl font-bold text-[#0B1026]">
-              {safeName.charAt(0).toUpperCase()}
-            </div>
-          )}
+  const avatarInitial =
+    safeName.charAt(0).toUpperCase();
 
-          <span
-            className={`absolute bottom-1 right-1 h-4 w-4 rounded-full border-2 border-white ${
-              isOnline ? "bg-green-500" : "bg-gray-400"
-            }`}
-            aria-label={isOnline ? "Online" : "Offline"}
-          />
+  return (
+    <article className="group flex h-full flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-lg transition duration-300 hover:-translate-y-1 hover:border-[#D4AF37]/40 hover:shadow-2xl">
+      <div className="h-2 bg-gradient-to-r from-[#0B1026] via-[#D4AF37] to-[#0B1026]" />
+
+      <div className="flex h-full flex-col p-6">
+        <div className="flex items-start gap-4">
+          <div className="relative shrink-0">
+            <Link
+              href={profileHref}
+              aria-label={`View ${safeName} profile`}
+              className="block rounded-full focus:outline-none focus:ring-4 focus:ring-[#D4AF37]/25"
+            >
+              {avatarUrl ? (
+                <Image
+                  src={avatarUrl}
+                  alt={`${safeName} profile`}
+                  width={80}
+                  height={80}
+                  className="h-20 w-20 rounded-full object-cover ring-4 ring-[#FAF7F0]"
+                />
+              ) : (
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#D4AF37]/20 text-2xl font-bold text-[#0B1026] ring-4 ring-[#FAF7F0]">
+                  {avatarInitial}
+                </div>
+              )}
+            </Link>
+
+            <span
+              className={`absolute bottom-1 right-1 h-4 w-4 rounded-full border-2 border-white ${
+                isOnline
+                  ? "bg-green-500"
+                  : "bg-gray-400"
+              }`}
+              aria-label={
+                isOnline
+                  ? "Online"
+                  : "Offline"
+              }
+            />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-start gap-2">
+              <Link
+                href={profileHref}
+                className="min-w-0 focus:outline-none"
+              >
+                <h3 className="line-clamp-2 text-xl font-bold text-[#0B1026] transition group-hover:text-[#B18D19]">
+                  {safeName}
+                </h3>
+              </Link>
+
+              {isVerified && (
+                <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
+                  ✓ Verified
+                </span>
+              )}
+            </div>
+
+            <p className="mt-1 line-clamp-2 text-sm leading-5 text-gray-600">
+              {safeSpecialty}
+            </p>
+
+            <div className="mt-3 flex items-center gap-2">
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${
+                  isOnline
+                    ? "animate-pulse bg-green-500"
+                    : "bg-gray-400"
+                }`}
+                aria-hidden="true"
+              />
+
+              <span
+                className={`text-xs font-semibold ${
+                  isOnline
+                    ? "text-green-700"
+                    : "text-gray-500"
+                }`}
+              >
+                {isOnline
+                  ? "Available Now"
+                  : "Currently Offline"}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div className="min-w-0 flex-1">
-          <h3 className="line-clamp-2 text-xl font-bold text-[#0B1026]">
-            {safeName}
-          </h3>
+        <div className="mt-6 grid flex-1 gap-3 text-sm">
+          <div className="flex items-center justify-between gap-4 rounded-xl bg-[#FAF7F0] px-4 py-3">
+            <div className="flex items-center gap-2 text-gray-600">
+              <span aria-hidden="true">
+                ⭐
+              </span>
 
-          <p className="mt-1 line-clamp-2 text-sm text-gray-600">
-            {safeSpecialty}
-          </p>
+              <span>Rating</span>
+            </div>
 
-          <div className="mt-2 flex items-center gap-2">
-            <span
-              className={`h-2.5 w-2.5 rounded-full ${
-                isOnline ? "bg-green-500" : "bg-gray-400"
-              }`}
-            />
+            <span className="font-bold text-[#0B1026]">
+              {formattedRating ===
+              "New"
+                ? "New astrologer"
+                : `${formattedRating} / 5`}
+            </span>
+          </div>
 
-            <span
-              className={`text-xs font-semibold ${
-                isOnline ? "text-green-700" : "text-gray-500"
-              }`}
-            >
-              {isOnline ? "Online" : "Offline"}
+          <div className="flex items-center justify-between gap-4 rounded-xl bg-[#FAF7F0] px-4 py-3">
+            <div className="flex items-center gap-2 text-gray-600">
+              <span aria-hidden="true">
+                🕒
+              </span>
+
+              <span>Experience</span>
+            </div>
+
+            <span className="text-right font-semibold text-[#0B1026]">
+              {safeExperience}
+            </span>
+          </div>
+
+          <div className="flex items-start justify-between gap-4 rounded-xl bg-[#FAF7F0] px-4 py-3">
+            <div className="flex shrink-0 items-center gap-2 text-gray-600">
+              <span aria-hidden="true">
+                🌐
+              </span>
+
+              <span>Languages</span>
+            </div>
+
+            <span className="line-clamp-2 text-right font-semibold text-[#0B1026]">
+              {safeLanguages}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-4 rounded-xl bg-[#0B1026] px-4 py-3 text-white">
+            <div className="flex items-center gap-2 text-white/70">
+              <span aria-hidden="true">
+                ₹
+              </span>
+
+              <span>Consultation</span>
+            </div>
+
+            <span className="font-bold text-[#D4AF37]">
+              {safePrice.replace(
+                /^₹/,
+                "₹",
+              )}
             </span>
           </div>
         </div>
-      </div>
 
-      <div className="mt-6 flex-1 space-y-3 text-sm text-gray-600">
-        <div className="flex items-center gap-2">
-          <span aria-hidden="true">⭐</span>
-
-          <span>
-            {formattedRating === "New"
-              ? "New astrologer"
-              : `${formattedRating} / 5`}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span aria-hidden="true">🕒</span>
-          <span>{safeExperience}</span>
-        </div>
-
-        <div className="flex items-start gap-2">
-          <span aria-hidden="true">🌐</span>
-          <span className="line-clamp-2">{safeLanguages}</span>
-        </div>
-
-        <div className="flex items-center gap-2 font-semibold text-[#D4AF37]">
-          <span aria-hidden="true">₹</span>
-          <span>{safePrice.replace(/^₹/, "")}</span>
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-3">
-        <Link
-          href={profileHref}
-          className="w-full rounded-xl border border-[#D4AF37] py-3 text-center font-semibold text-[#0B1026] transition hover:bg-[#D4AF37]/10 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
-        >
-          View Profile
-        </Link>
-
-        {isOnline && safeId ? (
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <Link
-            href={chatHref}
-            className="w-full rounded-xl bg-[#D4AF37] py-3 text-center font-semibold text-[#0B1026] transition hover:bg-[#C9A52F] focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
+            href={profileHref}
+            className="inline-flex w-full items-center justify-center rounded-xl border border-[#D4AF37] px-4 py-3 text-center font-semibold text-[#0B1026] transition hover:bg-[#D4AF37]/10 focus:outline-none focus:ring-4 focus:ring-[#D4AF37]/20"
           >
-            Chat Now
+            View Profile
           </Link>
-        ) : (
-          <button
-            type="button"
-            disabled
-            className="w-full cursor-not-allowed rounded-xl bg-gray-200 py-3 font-semibold text-gray-500"
-          >
-            Currently Offline
-          </button>
-        )}
+
+          {isOnline && safeId ? (
+            <Link
+              href={chatHref}
+              className="inline-flex w-full items-center justify-center rounded-xl bg-[#D4AF37] px-4 py-3 text-center font-semibold text-[#0B1026] transition hover:bg-[#C9A52F] focus:outline-none focus:ring-4 focus:ring-[#D4AF37]/20"
+            >
+              Chat Now
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="w-full cursor-not-allowed rounded-xl bg-gray-200 px-4 py-3 font-semibold text-gray-500"
+            >
+              Offline
+            </button>
+          )}
+        </div>
       </div>
     </article>
   );

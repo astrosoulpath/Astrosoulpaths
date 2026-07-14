@@ -1,25 +1,83 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import {
+  useMemo,
+  useState,
+} from "react";
 
+import { useAppContext } from "@/app/providers";
 import {
   startConsultation,
   type ConsultationMode,
 } from "@/services/consultationService";
+import {
+  initiateCall,
+  isCallSocketConnected,
+} from "@/services/callSocket";
 
 type ConsultationActionsProps = {
+  /**
+   * Astrologer table ka ID.
+   * Backend POST /call/start mein use hota hai.
+   */
   astrologerId: string;
+
+  /**
+   * Astrologer ke related User record ka ID.
+   * Socket incoming call isi user ko bhejega.
+   */
+  astrologerUserId?: string;
+
+  astrologerName?: string;
   isOnline: boolean;
   chatEnabled: boolean;
   audioEnabled: boolean;
   pricePerMin: number;
 };
 
-const durationOptions = [1, 5, 10, 15, 30];
+type ActiveConsultation = {
+  id: string;
+  userId: string;
+  astrologerId: string;
+  channelName: string;
+  ratePerMinute: number;
+  purchasedMinutes: number;
+  extendedMinutes: number;
+  totalMinutes: number;
+  amountCharged: number;
+  remainingSeconds?: number;
+  startedAt: string;
+  expiresAt: string;
+  endedAt: string | null;
+  status: string;
+};
+
+const durationOptions = [
+  1,
+  5,
+  10,
+  15,
+  30,
+];
+
+function getErrorMessage(
+  error: unknown,
+): string {
+  if (
+    error instanceof Error &&
+    error.message.trim()
+  ) {
+    return error.message;
+  }
+
+  return "Unable to start consultation.";
+}
 
 export function ConsultationActions({
   astrologerId,
+  astrologerUserId,
+  astrologerName = "Astrologer",
   isOnline,
   chatEnabled,
   audioEnabled,
@@ -27,23 +85,51 @@ export function ConsultationActions({
 }: ConsultationActionsProps) {
   const router = useRouter();
 
-  const [selectedMinutes, setSelectedMinutes] =
-    useState(5);
+  const {
+    userId,
+    socketConnected,
+  } = useAppContext();
 
-  const [loadingMode, setLoadingMode] =
-    useState<ConsultationMode | null>(null);
+  const [
+    selectedMinutes,
+    setSelectedMinutes,
+  ] = useState(5);
 
-  const [error, setError] = useState("");
+  const [
+    loadingMode,
+    setLoadingMode,
+  ] =
+    useState<ConsultationMode | null>(
+      null,
+    );
 
-  const estimatedAmount = useMemo(() => {
-    const safePrice = Number.isFinite(pricePerMin)
-      ? Math.max(pricePerMin, 0)
-      : 0;
+  const [error, setError] =
+    useState("");
 
-    return safePrice * selectedMinutes;
-  }, [pricePerMin, selectedMinutes]);
+  const estimatedAmount =
+    useMemo(() => {
+      const safePrice =
+        Number.isFinite(
+          pricePerMin,
+        )
+          ? Math.max(
+              pricePerMin,
+              0,
+            )
+          : 0;
 
-  function getReturnPath(mode: ConsultationMode) {
+      return (
+        safePrice *
+        selectedMinutes
+      );
+    }, [
+      pricePerMin,
+      selectedMinutes,
+    ]);
+
+  function getReturnPath(
+    mode: ConsultationMode,
+  ): string {
     return `/astrologers/${encodeURIComponent(
       astrologerId,
     )}?consultation=${mode}`;
@@ -51,38 +137,77 @@ export function ConsultationActions({
 
   function savePendingConsultation(
     mode: ConsultationMode,
-  ) {
+  ): void {
     localStorage.setItem(
       "asp_pending_consultation",
       JSON.stringify({
         astrologerId,
+        astrologerUserId:
+          astrologerUserId ??
+          null,
+        astrologerName,
         mode,
-        minutes: selectedMinutes,
-        returnPath: getReturnPath(mode),
+        minutes:
+          selectedMinutes,
+        returnPath:
+          getReturnPath(mode),
       }),
+    );
+  }
+
+  function saveActiveConsultation(
+    call: ActiveConsultation,
+    mode: ConsultationMode,
+  ): void {
+    localStorage.setItem(
+      "asp_active_call",
+      JSON.stringify({
+        ...call,
+        mode,
+        astrologerName,
+        recipientUserId:
+          astrologerUserId ??
+          call.astrologerId,
+      }),
+    );
+  }
+
+  function redirectToLogin(
+    mode: ConsultationMode,
+  ): void {
+    const returnPath =
+      getReturnPath(mode);
+
+    savePendingConsultation(
+      mode,
+    );
+
+    router.push(
+      `/login?redirect=${encodeURIComponent(
+        returnPath,
+      )}`,
     );
   }
 
   async function handleConsultation(
     mode: ConsultationMode,
-  ) {
+  ): Promise<void> {
+    if (loadingMode) {
+      return;
+    }
+
     setError("");
 
-    const returnPath = getReturnPath(mode);
+    const returnPath =
+      getReturnPath(mode);
 
-    const token = localStorage.getItem(
-      "asp_access_token",
-    );
-
-    if (!token) {
-      savePendingConsultation(mode);
-
-      router.push(
-        `/login?redirect=${encodeURIComponent(
-          returnPath,
-        )}`,
+    const token =
+      localStorage.getItem(
+        "asp_access_token",
       );
 
+    if (!token || !userId) {
+      redirectToLogin(mode);
       return;
     }
 
@@ -90,6 +215,7 @@ export function ConsultationActions({
       setError(
         "This astrologer is currently offline.",
       );
+
       return;
     }
 
@@ -109,7 +235,9 @@ export function ConsultationActions({
     }
 
     if (
-      !Number.isInteger(selectedMinutes) ||
+      !Number.isInteger(
+        selectedMinutes,
+      ) ||
       selectedMinutes < 1 ||
       selectedMinutes > 120
     ) {
@@ -121,13 +249,27 @@ export function ConsultationActions({
     }
 
     /*
-     * Backend CallSession currently does not store a
-     * consultation mode. Until audio provider integration is
-     * complete, only chat is started through the real backend.
+     * Audio socket ko Astrologer User.id chahiye.
+     * Astrologer table ID aur User ID alag ho sakte hain.
      */
-    if (mode === "audio") {
+    if (
+      mode === "audio" &&
+      !astrologerUserId?.trim()
+    ) {
       setError(
-        "Real audio calling is not connected yet. Please start a chat consultation.",
+        "Astrologer call account is not configured. Please refresh the profile or try again later.",
+      );
+
+      return;
+    }
+
+    if (
+      mode === "audio" &&
+      (!socketConnected ||
+        !isCallSocketConnected())
+    ) {
+      setError(
+        "Call server is connecting. Please wait a moment and try again.",
       );
 
       return;
@@ -136,47 +278,103 @@ export function ConsultationActions({
     try {
       setLoadingMode(mode);
 
-      const response = await startConsultation({
-        astrologerId,
-        minutes: selectedMinutes,
-      });
+      /*
+       * Backend:
+       * 1. User and astrologer validate karega
+       * 2. Wallet balance check karega
+       * 3. Amount deduct karega
+       * 4. CallSession create karega
+       */
+      const response =
+        await startConsultation({
+          astrologerId,
+          minutes:
+            selectedMinutes,
+        });
 
-      const call = response?.data?.call;
+      const call =
+        response?.data
+          ?.call as
+          | ActiveConsultation
+          | undefined;
 
-      if (!call?.id) {
+      if (
+        !call?.id ||
+        !call.channelName
+      ) {
         throw new Error(
-          "Consultation started, but the backend did not return a consultation ID.",
+          "Consultation started, but the backend did not return complete call details.",
         );
       }
+
+      saveActiveConsultation(
+        call,
+        mode,
+      );
 
       localStorage.removeItem(
         "asp_pending_consultation",
       );
 
-      /*
-       * Temporary compatibility data for the current chat page.
-       * The next step will update the chat page to read the real
-       * consultation directly from GET /call/current.
-       */
-      localStorage.setItem(
-        "asp_active_call",
-        JSON.stringify(call),
-      );
+      if (mode === "audio") {
+        const recipientUserId =
+          astrologerUserId!.trim();
+
+        /*
+         * Database session create hone ke baad
+         * astrologer ko real-time incoming call bhejte hain.
+         */
+        const emitted =
+          initiateCall({
+            callId:
+              call.id,
+
+            recipientUserId,
+
+            callerId:
+              userId,
+
+            callerName:
+              "Astro Soul Path User",
+
+            consultationType:
+              "AUDIO",
+          });
+
+        if (!emitted) {
+          throw new Error(
+            "Consultation was created, but the incoming call could not be sent. Open My Consultations to retry.",
+          );
+        }
+
+        router.push(
+          `/consultations?callId=${encodeURIComponent(
+            call.id,
+          )}&mode=audio`,
+        );
+
+        return;
+      }
 
       router.push(
-        `/chat/${encodeURIComponent(call.id)}`,
+        `/chat/${encodeURIComponent(
+          call.id,
+        )}`,
       );
-    } catch (err: unknown) {
+    } catch (error: unknown) {
       const message =
-        err instanceof Error
-          ? err.message
-          : "Unable to start consultation.";
+        getErrorMessage(error);
 
-      if (message === "LOGIN_REQUIRED") {
-        savePendingConsultation(mode);
-
+      if (
+        message ===
+        "LOGIN_REQUIRED"
+      ) {
         localStorage.removeItem(
           "asp_access_token",
+        );
+
+        savePendingConsultation(
+          mode,
         );
 
         router.push(
@@ -189,22 +387,54 @@ export function ConsultationActions({
       }
 
       if (
-        message === "INSUFFICIENT_BALANCE"
+        message ===
+        "INSUFFICIENT_BALANCE"
       ) {
-        savePendingConsultation(mode);
+        savePendingConsultation(
+          mode,
+        );
 
-        router.push("/wallet/recharge");
+        router.push(
+          "/wallet/recharge",
+        );
+
+        return;
+      }
+
+      const normalizedMessage =
+        message.toLowerCase();
+
+      if (
+        normalizedMessage.includes(
+          "active consultation",
+        )
+      ) {
+        setError(
+          "You already have an active consultation. Open My Consultations to continue it.",
+        );
 
         return;
       }
 
       if (
-        message
-          .toLowerCase()
-          .includes("active consultation")
+        normalizedMessage.includes(
+          "astrologer is currently busy",
+        )
       ) {
         setError(
-          "You already have an active consultation. Open My Consultations to continue it.",
+          "This astrologer is currently busy with another consultation.",
+        );
+
+        return;
+      }
+
+      if (
+        normalizedMessage.includes(
+          "offline",
+        )
+      ) {
+        setError(
+          "This astrologer is currently offline.",
         );
 
         return;
@@ -216,6 +446,9 @@ export function ConsultationActions({
     }
   }
 
+  const actionsDisabled =
+    loadingMode !== null;
+
   return (
     <div>
       {error && (
@@ -223,7 +456,20 @@ export function ConsultationActions({
           role="alert"
           className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
         >
-          {error}
+          <div className="flex items-start justify-between gap-4">
+            <p>{error}</p>
+
+            <button
+              type="button"
+              onClick={() =>
+                setError("")
+              }
+              className="shrink-0 font-semibold text-red-700 hover:text-red-900"
+              aria-label="Close error"
+            >
+              ×
+            </button>
+          </div>
         </div>
       )}
 
@@ -239,12 +485,22 @@ export function ConsultationActions({
 
             <select
               id="consultation-duration"
-              value={selectedMinutes}
-              disabled={loadingMode !== null}
-              onChange={(event) => {
+              value={
+                selectedMinutes
+              }
+              disabled={
+                actionsDisabled
+              }
+              onChange={(
+                event,
+              ) => {
                 setSelectedMinutes(
-                  Number(event.target.value),
+                  Number(
+                    event.target
+                      .value,
+                  ),
                 );
+
                 setError("");
               }}
               className="mt-2 min-w-48 rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-[#D4AF37] disabled:cursor-not-allowed disabled:bg-gray-100"
@@ -252,8 +508,12 @@ export function ConsultationActions({
               {durationOptions.map(
                 (minutes) => (
                   <option
-                    key={minutes}
-                    value={minutes}
+                    key={
+                      minutes
+                    }
+                    value={
+                      minutes
+                    }
                   >
                     {minutes}{" "}
                     {minutes === 1
@@ -271,18 +531,28 @@ export function ConsultationActions({
             </p>
 
             <p className="mt-1 text-xl font-bold text-[#D4AF37]">
-              ₹{estimatedAmount.toFixed(2)}
+              ₹
+              {estimatedAmount.toFixed(
+                2,
+              )}
             </p>
 
             <p className="mt-1 text-xs text-gray-500">
-              ₹{pricePerMin}/minute
+              ₹
+              {Math.max(
+                pricePerMin,
+                0,
+              ).toFixed(2)}
+              /minute
             </p>
           </div>
         </div>
 
         <p className="mt-4 text-xs leading-5 text-gray-500">
-          The selected duration amount will be deducted securely
-          by the backend when the consultation starts.
+          The selected amount
+          will be deducted
+          securely when the
+          consultation starts.
         </p>
       </div>
 
@@ -290,16 +560,19 @@ export function ConsultationActions({
         <button
           type="button"
           disabled={
-            loadingMode !== null ||
+            actionsDisabled ||
             !isOnline ||
             !chatEnabled
           }
           onClick={() =>
-            void handleConsultation("chat")
+            void handleConsultation(
+              "chat",
+            )
           }
           className="rounded-xl bg-[#D4AF37] px-6 py-4 font-semibold text-[#0B1026] transition hover:bg-[#C9A52F] disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
         >
-          {loadingMode === "chat"
+          {loadingMode ===
+          "chat"
             ? "Starting Chat..."
             : !isOnline
               ? "Chat Unavailable — Offline"
@@ -311,23 +584,60 @@ export function ConsultationActions({
         <button
           type="button"
           disabled={
-            loadingMode !== null ||
+            actionsDisabled ||
             !isOnline ||
             !audioEnabled
           }
           onClick={() =>
-            void handleConsultation("audio")
+            void handleConsultation(
+              "audio",
+            )
           }
           className="rounded-xl bg-[#0B1026] px-6 py-4 font-semibold text-white transition hover:bg-[#171D3D] disabled:cursor-not-allowed disabled:bg-gray-300"
         >
-          {loadingMode === "audio"
+          {loadingMode ===
+          "audio"
             ? "Starting Audio Call..."
             : !isOnline
               ? "Audio Call Unavailable — Offline"
               : !audioEnabled
                 ? "Audio Call Unavailable"
-                : "Start Audio Call"}
+                : `Start ${selectedMinutes}-Minute Audio Call`}
         </button>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+        <span>
+          Astrologer status:{" "}
+          <strong
+            className={
+              isOnline
+                ? "text-green-700"
+                : "text-red-600"
+            }
+          >
+            {isOnline
+              ? "Online"
+              : "Offline"}
+          </strong>
+        </span>
+
+        {userId && (
+          <span>
+            Call server:{" "}
+            <strong
+              className={
+                socketConnected
+                  ? "text-green-700"
+                  : "text-amber-600"
+              }
+            >
+              {socketConnected
+                ? "Connected"
+                : "Connecting"}
+            </strong>
+          </span>
+        )}
       </div>
     </div>
   );
