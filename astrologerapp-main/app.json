@@ -1,20 +1,24 @@
 {
   "expo": {
-    "name": "Frontend",
-    "slug": "Frontend",
+    "name": "Astro Soul Path Astrologer",
+    "slug": "astro-soul-path-astrologer",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "astrosoulpathastrologer",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "com.astrosoulpath.astrologer",
+      "buildNumber": "1",
+      "supportsTablet": true,
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Astroologers uses your microphone so you can talk during audio calls."
-      },
-      "supportsTablet": true
+        "NSMicrophoneUsageDescription": "Astro Soul Path Astrologer uses your microphone during audio consultations.",
+        "NSBluetoothAlwaysUsageDescription": "Astro Soul Path Astrologer uses Bluetooth audio devices during consultations."
+      }
     },
     "android": {
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -29,10 +33,13 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.RECORD_AUDIO",
-        "android.permission.WAKE_LOCK"
+        "android.permission.WAKE_LOCK",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "predictiveBackGestureEnabled": false,
-      "package": "com.sakshamswarup.Frontend"
+      "package": "com.astrosoulpath.astrologer"
     },
     "web": {
       "output": "static",
@@ -60,7 +67,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "zego": {

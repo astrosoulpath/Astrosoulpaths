@@ -1,18 +1,19 @@
-'use client';
-
-import { io, type Socket } from 'socket.io-client';
+import {
+  io,
+  type Socket,
+} from "socket.io-client";
 
 export type ConsultationType =
-  | 'AUDIO'
-  | 'VIDEO';
+  | "AUDIO"
+  | "VIDEO";
 
 export type CallStatus =
-  | 'RINGING'
-  | 'ACCEPTED'
-  | 'REJECTED'
-  | 'CANCELLED'
-  | 'MISSED'
-  | 'UNAVAILABLE';
+  | "RINGING"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "CANCELLED"
+  | "MISSED"
+  | "UNAVAILABLE";
 
 export type CallConnectedPayload = {
   success: boolean;
@@ -35,7 +36,7 @@ export type IncomingCallPayload = {
   callerName: string;
   recipientUserId: string;
   consultationType: ConsultationType;
-  status: 'RINGING';
+  status: "RINGING";
   initiatedAt: string;
   timeoutSeconds: number;
 };
@@ -46,7 +47,7 @@ export type CallRingingPayload = {
   callerUserId: string;
   recipientUserId: string;
   consultationType: ConsultationType;
-  status: 'RINGING';
+  status: "RINGING";
   initiatedAt: string;
   timeoutSeconds: number;
 };
@@ -58,7 +59,7 @@ export type CallAcceptedPayload = {
   receiverUserId: string;
   recipientUserId: string;
   consultationType: ConsultationType;
-  status: 'ACCEPTED';
+  status: "ACCEPTED";
   acceptedAt: string;
 };
 
@@ -69,7 +70,7 @@ export type CallRejectedPayload = {
   receiverUserId: string;
   recipientUserId: string;
   consultationType: ConsultationType;
-  status: 'REJECTED';
+  status: "REJECTED";
   reason: string;
   rejectedAt: string;
 };
@@ -80,7 +81,7 @@ export type CallCancelledPayload = {
   callerUserId: string;
   recipientUserId: string;
   consultationType: ConsultationType;
-  status: 'CANCELLED';
+  status: "CANCELLED";
   reason: string;
   cancelledAt: string;
 };
@@ -91,7 +92,7 @@ export type CallMissedPayload = {
   callerUserId: string;
   recipientUserId: string;
   consultationType: ConsultationType;
-  status: 'MISSED';
+  status: "MISSED";
   reason: string;
   missedAt: string;
 };
@@ -102,7 +103,7 @@ export type CallUnavailablePayload = {
   callerUserId: string;
   recipientUserId: string;
   consultationType: ConsultationType;
-  status: 'UNAVAILABLE';
+  status: "UNAVAILABLE";
   reason: string;
   failedAt: string;
 };
@@ -110,16 +111,16 @@ export type CallUnavailablePayload = {
 export type CallErrorPayload = {
   success: false;
   code:
-    | 'INVALID_PAYLOAD'
-    | 'NOT_REGISTERED'
-    | 'IDENTITY_MISMATCH'
-    | 'SELF_CALL_NOT_ALLOWED'
-    | 'CALL_ALREADY_RINGING'
-    | 'USER_ALREADY_BUSY'
-    | 'RECIPIENT_UNAVAILABLE'
-    | 'CALL_NOT_FOUND'
-    | 'PARTICIPANT_MISMATCH'
-    | 'UNAUTHORIZED_ACTION';
+    | "INVALID_PAYLOAD"
+    | "NOT_REGISTERED"
+    | "IDENTITY_MISMATCH"
+    | "SELF_CALL_NOT_ALLOWED"
+    | "CALL_ALREADY_RINGING"
+    | "USER_ALREADY_BUSY"
+    | "RECIPIENT_UNAVAILABLE"
+    | "CALL_NOT_FOUND"
+    | "PARTICIPANT_MISMATCH"
+    | "UNAUTHORIZED_ACTION";
   message: string;
   occurredAt: string;
 };
@@ -156,62 +157,79 @@ export type CancelCallPayload = {
   reason?: string;
 };
 
+type InitiateCallResponse =
+  | CallRingingPayload
+  | CallUnavailablePayload
+  | CallErrorPayload;
+
+type AcceptCallResponse =
+  | CallAcceptedPayload
+  | CallErrorPayload;
+
+type RejectCallResponse =
+  | CallRejectedPayload
+  | CallErrorPayload;
+
+type CancelCallResponse =
+  | CallCancelledPayload
+  | CallErrorPayload;
+
 type ServerToClientEvents = {
-  'call:connected': (
+  "call:connected": (
     payload: CallConnectedPayload,
   ) => void;
 
-  'call:registered': (
+  "call:registered": (
     payload: CallRegisteredPayload,
   ) => void;
 
-  'call:incoming': (
+  "call:incoming": (
     payload: IncomingCallPayload,
   ) => void;
 
-  'call:ringing': (
+  "call:ringing": (
     payload: CallRingingPayload,
   ) => void;
 
-  'call:accepted': (
+  "call:accepted": (
     payload: CallAcceptedPayload,
   ) => void;
 
-  'call:accept-confirmed': (
+  "call:accept-confirmed": (
     payload: CallAcceptedPayload,
   ) => void;
 
-  'call:rejected': (
+  "call:rejected": (
     payload: CallRejectedPayload,
   ) => void;
 
-  'call:reject-confirmed': (
+  "call:reject-confirmed": (
     payload: CallRejectedPayload,
   ) => void;
 
-  'call:cancelled': (
+  "call:cancelled": (
     payload: CallCancelledPayload,
   ) => void;
 
-  'call:cancel-confirmed': (
+  "call:cancel-confirmed": (
     payload: CallCancelledPayload,
   ) => void;
 
-  'call:missed': (
+  "call:missed": (
     payload: CallMissedPayload,
   ) => void;
 
-  'call:unavailable': (
+  "call:unavailable": (
     payload: CallUnavailablePayload,
   ) => void;
 
-  'call:error': (
+  "call:error": (
     payload: CallErrorPayload,
   ) => void;
 };
 
 type ClientToServerEvents = {
-  'call:register': (
+  "call:register": (
     payload: RegisterCallPayload,
     callback?: (
       response:
@@ -220,40 +238,31 @@ type ClientToServerEvents = {
     ) => void,
   ) => void;
 
-  'call:initiate': (
+  "call:initiate": (
     payload: InitiateCallPayload,
     callback?: (
-      response:
-        | CallRingingPayload
-        | CallUnavailablePayload
-        | CallErrorPayload,
+      response: InitiateCallResponse,
     ) => void,
   ) => void;
 
-  'call:accept': (
+  "call:accept": (
     payload: AcceptCallPayload,
     callback?: (
-      response:
-        | CallAcceptedPayload
-        | CallErrorPayload,
+      response: AcceptCallResponse,
     ) => void,
   ) => void;
 
-  'call:reject': (
+  "call:reject": (
     payload: RejectCallPayload,
     callback?: (
-      response:
-        | CallRejectedPayload
-        | CallErrorPayload,
+      response: RejectCallResponse,
     ) => void,
   ) => void;
 
-  'call:cancel': (
+  "call:cancel": (
     payload: CancelCallPayload,
     callback?: (
-      response:
-        | CallCancelledPayload
-        | CallErrorPayload,
+      response: CancelCallResponse,
     ) => void,
   ) => void;
 };
@@ -263,15 +272,26 @@ export type CallSocket = Socket<
   ClientToServerEvents
 >;
 
-let callSocket: CallSocket | null = null;
+let callSocket: CallSocket | null =
+  null;
+
+const SOCKET_RESPONSE_TIMEOUT =
+  10_000;
 
 function getBackendUrl(): string {
   const backendUrl =
-    process.env.NEXT_PUBLIC_API_URL?.trim() ||
-    process.env.NEXT_PUBLIC_BACKEND_URL?.trim() ||
-    'http://localhost:3000';
+    process.env
+      .EXPO_PUBLIC_API_BASE_URL
+      ?.trim() ||
+    process.env
+      .EXPO_PUBLIC_BACKEND_URL
+      ?.trim() ||
+    "http://localhost:4000";
 
-  return backendUrl.replace(/\/+$/, '');
+  return backendUrl.replace(
+    /\/+$/,
+    "",
+  );
 }
 
 export function getCallSocket(): CallSocket {
@@ -283,15 +303,18 @@ export function getCallSocket(): CallSocket {
     `${getBackendUrl()}/call`,
     {
       transports: [
-        'websocket',
-        'polling',
+        "websocket",
+        "polling",
       ],
+
       withCredentials: true,
       autoConnect: false,
+
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1_000,
       reconnectionDelayMax: 5_000,
+
       timeout: 10_000,
     },
   );
@@ -307,25 +330,38 @@ export function connectCallSocket(
 
   if (!normalizedUserId) {
     throw new Error(
-      'User ID is required to connect the call socket.',
+      "User ID is required to connect the call socket.",
     );
   }
 
-  const socket = getCallSocket();
+  const socket =
+    getCallSocket();
 
   const registerUser = () => {
-    socket.emit('call:register', {
-      userId: normalizedUserId,
-    });
+    socket.emit(
+      "call:register",
+      {
+        userId:
+          normalizedUserId,
+      },
+      (response) => {
+        if (!response.success) {
+          console.warn(
+            "Call socket registration failed.",
+            response,
+          );
+        }
+      },
+    );
   };
 
   socket.off(
-    'connect',
+    "connect",
     registerUser,
   );
 
   socket.on(
-    'connect',
+    "connect",
     registerUser,
   );
 
@@ -350,99 +386,158 @@ export function disconnectCallSocket(): void {
 
 export function initiateCall(
   payload: InitiateCallPayload,
-): Promise<
-  | CallRingingPayload
-  | CallUnavailablePayload
-  | CallErrorPayload
-> {
-  return emitWithResponse(
-    'call:initiate',
-    payload,
+): Promise<InitiateCallResponse> {
+  const socket =
+    getCallSocket();
+
+  return createSocketRequest(
+    "call:initiate",
+    (resolve) => {
+      socket.emit(
+        "call:initiate",
+        payload,
+        resolve,
+      );
+    },
   );
 }
 
 export function acceptCall(
   payload: AcceptCallPayload,
-): Promise<
-  | CallAcceptedPayload
-  | CallErrorPayload
-> {
-  return emitWithResponse(
-    'call:accept',
-    payload,
+): Promise<AcceptCallResponse> {
+  const socket =
+    getCallSocket();
+
+  return createSocketRequest(
+    "call:accept",
+    (resolve) => {
+      socket.emit(
+        "call:accept",
+        payload,
+        resolve,
+      );
+    },
   );
 }
 
 export function rejectCall(
   payload: RejectCallPayload,
-): Promise<
-  | CallRejectedPayload
-  | CallErrorPayload
-> {
-  return emitWithResponse(
-    'call:reject',
-    payload,
+): Promise<RejectCallResponse> {
+  const socket =
+    getCallSocket();
+
+  return createSocketRequest(
+    "call:reject",
+    (resolve) => {
+      socket.emit(
+        "call:reject",
+        payload,
+        resolve,
+      );
+    },
   );
 }
 
 export function cancelCall(
   payload: CancelCallPayload,
-): Promise<
-  | CallCancelledPayload
-  | CallErrorPayload
-> {
-  return emitWithResponse(
-    'call:cancel',
-    payload,
+): Promise<CancelCallResponse> {
+  const socket =
+    getCallSocket();
+
+  return createSocketRequest(
+    "call:cancel",
+    (resolve) => {
+      socket.emit(
+        "call:cancel",
+        payload,
+        resolve,
+      );
+    },
   );
 }
 
-function emitWithResponse<
-  EventName extends keyof ClientToServerEvents,
-  Payload,
-  Response,
->(
-  eventName: EventName,
-  payload: Payload,
+function createSocketRequest<Response>(
+  eventName: string,
+  emitRequest: (
+    resolve: (
+      response: Response,
+    ) => void,
+  ) => void,
 ): Promise<Response> {
-  const socket = getCallSocket();
+  const socket =
+    getCallSocket();
 
   return new Promise<Response>(
     (resolve, reject) => {
       if (!socket.connected) {
         reject(
           new Error(
-            'Call socket is not connected.',
+            "Call socket is not connected.",
           ),
         );
 
         return;
       }
 
-      const timeout = window.setTimeout(
-        () => {
-          reject(
-            new Error(
-              `Socket event "${String(
-                eventName,
-              )}" timed out.`,
-            ),
-          );
-        },
-        10_000,
-      );
+      let completed = false;
 
-      socket.emit(
-        eventName,
-        payload as never,
-        (response: Response) => {
-          window.clearTimeout(
-            timeout,
-          );
+      const timeoutId =
+        globalThis.setTimeout(
+          () => {
+            if (completed) {
+              return;
+            }
 
-          resolve(response);
-        },
-      );
+            completed = true;
+
+            reject(
+              new Error(
+                `Socket event "${eventName}" timed out.`,
+              ),
+            );
+          },
+          SOCKET_RESPONSE_TIMEOUT,
+        );
+
+      const handleResponse = (
+        response: Response,
+      ) => {
+        if (completed) {
+          return;
+        }
+
+        completed = true;
+
+        globalThis.clearTimeout(
+          timeoutId,
+        );
+
+        resolve(response);
+      };
+
+      try {
+        emitRequest(
+          handleResponse,
+        );
+      } catch (error) {
+        if (completed) {
+          return;
+        }
+
+        completed = true;
+
+        globalThis.clearTimeout(
+          timeoutId,
+        );
+
+        reject(
+          error instanceof Error
+            ? error
+            : new Error(
+                "Unable to send the call socket event.",
+              ),
+        );
+      }
     },
   );
 }

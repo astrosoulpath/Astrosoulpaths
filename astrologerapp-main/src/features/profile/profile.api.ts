@@ -1,9 +1,21 @@
-import { AstrologerProfileFormValues } from "@/src/features/profile/profile.schema";
+import type {
+  AstrologerProfileFormValues,
+} from "@/src/features/profile/profile.schema";
 
+/**
+ * Temporary development profile.
+ *
+
+ * authenticated backend profile API connect karenge.
+ */
 const mockAstrologerProfile: AstrologerProfileFormValues = {
-  bio: "Vedic astrologer with 6+ years of experience. I help people find clarity and guidance through the wisdom of the stars.",
-  dateOfBirth: "15 March 1990",
-  email: "sakshamastro@gmail.com",
+  bio:
+    "Vedic astrologer helping people find clarity and guidance through the wisdom of astrology.",
+
+  dateOfBirth: "",
+
+  email: "astrosoulpath@gmail.com",
+
   expertise: [
     "Vedic Astrology",
     "KP Astrology",
@@ -12,25 +24,46 @@ const mockAstrologerProfile: AstrologerProfileFormValues = {
     "Relationship",
     "Marriage Matching",
   ],
-  fullName: "Saksham Sharma",
+
+  fullName: "Harsh Raj",
+
   gender: "Male",
-  location: "New Delhi, India",
-  phoneNumber: "+91 98765 43210",
-  username: "@sakshamastro",
+
+  location: "India",
+
+  phoneNumber: "+91 8651540070",
+
+  username: "@astrosoulpath",
 };
 
-export async function fetchAstrologerProfile() {
-  // Replace this with your API client, for example:
-  // return api.get<AstrologerProfileFormValues>("/astrologer/profile");
-  await new Promise((resolve) => setTimeout(resolve, 250));
-  return mockAstrologerProfile;
+function delay(
+  milliseconds: number,
+): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
+export async function fetchAstrologerProfile(): Promise<AstrologerProfileFormValues> {
+  await delay(250);
+
+  return {
+    ...mockAstrologerProfile,
+    expertise: [
+      ...mockAstrologerProfile.expertise,
+    ],
+  };
 }
 
 export async function updateAstrologerProfile(
   values: AstrologerProfileFormValues,
-) {
-  // Replace this with your API client, for example:
-  // return api.put<AstrologerProfileFormValues>("/astrologer/profile", values);
-  await new Promise((resolve) => setTimeout(resolve, 450));
-  return values;
+): Promise<AstrologerProfileFormValues> {
+  await delay(450);
+
+  return {
+    ...values,
+    expertise: [
+      ...values.expertise,
+    ],
+  };
 }

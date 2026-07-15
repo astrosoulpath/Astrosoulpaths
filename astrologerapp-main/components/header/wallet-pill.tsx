@@ -1,7 +1,10 @@
 import { WalletCards } from "lucide-react-native";
-import { MotiView } from "moti";
-import { memo, useCallback, useMemo, useState } from "react";
-import { StyleProp, StyleSheet, ViewStyle } from "react-native";
+import { memo, useMemo } from "react";
+import {
+  StyleProp,
+  StyleSheet,
+  ViewStyle,
+} from "react-native";
 
 import { GlassCard } from "@/components/common/glass-card";
 import { HStack } from "@/components/ui/hstack";
@@ -19,7 +22,9 @@ type WalletPillProps = {
 
 function formatIndianCurrency(amount: number | string) {
   if (typeof amount === "string") {
-    return amount.startsWith("₹") ? amount : `₹ ${amount}`;
+    return amount.startsWith("₹")
+      ? amount
+      : `₹ ${amount}`;
   }
 
   return `₹ ${amount.toLocaleString("en-IN", {
@@ -29,49 +34,54 @@ function formatIndianCurrency(amount: number | string) {
 }
 
 function WalletPillComponent({
-  amount = 32,
+  amount = 0,
   onPress,
   size = "regular",
   style,
 }: WalletPillProps) {
-  const [pressed, setPressed] = useState(false);
-  const balance = useMemo(() => formatIndianCurrency(amount), [amount]);
+  const balance = useMemo(
+    () => formatIndianCurrency(amount),
+    [amount],
+  );
+
   const compact = size === "compact";
 
-  const handlePressIn = useCallback(() => setPressed(true), []);
-  const handlePressOut = useCallback(() => setPressed(false), []);
-
   return (
-    <MotiView
-      animate={{ scale: pressed ? 0.975 : 1 }}
-      transition={{ type: "timing", duration: 120 }}
+    <Pressable
+      accessibilityLabel={`Wallet balance ${balance}`}
+      accessibilityRole="button"
+      onPress={onPress}
       style={style}
     >
-      <Pressable
-        accessibilityLabel={`Wallet balance ${balance}`}
-        accessibilityRole="button"
-        onPress={onPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
+      <GlassCard
+        borderRadius={compact ? 26 : 27}
+        contentStyle={[
+          styles.glass,
+          compact && styles.glassCompact,
+        ]}
+        style={[
+          styles.pill,
+          compact && styles.pillCompact,
+        ]}
       >
-        <GlassCard
-          borderRadius={compact ? 26 : 27}
-          contentStyle={[styles.glass, compact && styles.glassCompact]}
-          style={[styles.pill, compact && styles.pillCompact]}
-        >
-          <HStack style={styles.content}>
-            <WalletCards
-              color="#F3C873"
-              size={compact ? 27 : 29}
-              strokeWidth={2.25}
-            />
-            <Text style={[styles.balance, compact && styles.balanceCompact]}>
-              {balance}
-            </Text>
-          </HStack>
-        </GlassCard>
-      </Pressable>
-    </MotiView>
+        <HStack style={styles.content}>
+          <WalletCards
+            color="#F3C873"
+            size={compact ? 27 : 29}
+            strokeWidth={2.25}
+          />
+
+          <Text
+            style={[
+              styles.balance,
+              compact && styles.balanceCompact,
+            ]}
+          >
+            {balance}
+          </Text>
+        </HStack>
+      </GlassCard>
+    </Pressable>
   );
 }
 
@@ -95,8 +105,8 @@ const styles = StyleSheet.create({
   },
   content: {
     alignItems: "center",
-    justifyContent: "center",
     gap: 10,
+    justifyContent: "center",
   },
   balance: {
     color: "#FFFFFF",

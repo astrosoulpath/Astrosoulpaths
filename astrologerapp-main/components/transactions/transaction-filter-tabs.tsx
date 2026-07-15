@@ -1,5 +1,3 @@
-import { MotiView } from "moti";
-
 import { Box } from "@/components/ui/box";
 import { HStack } from "@/components/ui/hstack";
 import { Pressable } from "@/components/ui/pressable";
@@ -33,6 +31,8 @@ export function TransactionFilterTabs({
           return (
             <Pressable
               key={filter.value}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isActive }}
               className="flex-1 items-center justify-center rounded-2xl px-2 py-2.5"
               onPress={() => onChange(filter.value)}
             >
@@ -49,18 +49,19 @@ export function TransactionFilterTabs({
                 >
                   {filter.label}
                 </Text>
-                <MotiView
-                  animate={{
+
+                <Box
+                  className="mt-3 h-[2px] w-16 rounded-full"
+                  style={{
+                    backgroundColor: tabTextColors[filter.value],
                     opacity: isActive ? 1 : 0,
-                    scaleX: isActive ? 1 : 0.4,
+                    transform: [
+                      {
+                        scaleX: isActive ? 1 : 0.4,
+                      },
+                    ],
                   }}
-                  transition={{ duration: 180, type: "timing" }}
-                >
-                  <Box
-                    className="mt-3 h-[2px] w-16 rounded-full"
-                    style={{ backgroundColor: tabTextColors[filter.value] }}
-                  />
-                </MotiView>
+                />
               </Box>
             </Pressable>
           );

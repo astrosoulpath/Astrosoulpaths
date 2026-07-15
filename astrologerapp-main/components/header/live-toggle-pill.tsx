@@ -1,6 +1,10 @@
 import { memo, useCallback } from "react";
-import { StyleProp, StyleSheet, View, ViewStyle } from "react-native";
-import { MotiView } from "moti";
+import {
+  StyleProp,
+  StyleSheet,
+  View,
+  ViewStyle,
+} from "react-native";
 
 import { GlassCard } from "@/components/common/glass-card";
 import { HStack } from "@/components/ui/hstack";
@@ -44,14 +48,31 @@ function LiveTogglePillComponent({
           <Text style={[styles.label, compact && styles.labelCompact]}>
             {label}
           </Text>
-          <View style={[styles.track, compact && styles.trackCompact]}>
-            <MotiView
-              animate={{
-                translateX: isOnline ? (compact ? 19 : 22) : 0,
-                backgroundColor: isOnline ? "#F3C873" : "#FFFFFF",
-              }}
-              transition={{ type: "timing", duration: 180 }}
-              style={[styles.thumb, compact && styles.thumbCompact]}
+
+          <View
+            style={[
+              styles.track,
+              compact && styles.trackCompact,
+              isOnline && styles.trackOnline,
+            ]}
+          >
+            <View
+              style={[
+                styles.thumb,
+                compact && styles.thumbCompact,
+                isOnline && styles.thumbOnline,
+                {
+                  transform: [
+                    {
+                      translateX: isOnline
+                        ? compact
+                          ? 16
+                          : 20
+                        : 0,
+                    },
+                  ],
+                },
+              ]}
             />
           </View>
         </HStack>
@@ -82,8 +103,8 @@ const styles = StyleSheet.create({
   },
   content: {
     alignItems: "center",
-    justifyContent: "space-between",
     gap: 10,
+    justifyContent: "space-between",
   },
   label: {
     color: "#FFFFFF",
@@ -96,31 +117,41 @@ const styles = StyleSheet.create({
     lineHeight: 23,
   },
   track: {
-    width: 54,
-    height: 34,
+    backgroundColor: "rgba(255,255,255,0.25)",
     borderRadius: 17,
+    height: 34,
     justifyContent: "center",
     padding: 3,
-    backgroundColor: "rgba(255,255,255,0.25)",
+    width: 54,
   },
   trackCompact: {
-    width: 48,
-    height: 32,
     borderRadius: 16,
+    height: 32,
+    width: 48,
+  },
+  trackOnline: {
+    backgroundColor: "rgba(243,200,115,0.28)",
   },
   thumb: {
-    width: 28,
-    height: 28,
+    backgroundColor: "#FFFFFF",
     borderRadius: 14,
+    elevation: 4,
+    height: 28,
     shadowColor: "#FFFFFF",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.35,
     shadowRadius: 6,
-    elevation: 4,
+    width: 28,
   },
   thumbCompact: {
-    width: 26,
-    height: 26,
     borderRadius: 13,
+    height: 26,
+    width: 26,
+  },
+  thumbOnline: {
+    backgroundColor: "#F3C873",
   },
 });

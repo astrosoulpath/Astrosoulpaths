@@ -3,16 +3,22 @@ import {
   createClient,
   type Session as SupabaseSession,
 } from "@supabase/supabase-js";
+import { Platform } from "react-native";
+
 import { debugSessionSnapshot } from "../api/auth-debug";
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
+const supabaseUrl =
+  process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
+
 const supabaseAnonKey = (
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
   process.env.EXPO_PUBLIC_SUPABASE_KEY
 )?.trim();
 
 if (!supabaseUrl) {
-  throw new Error("Missing EXPO_PUBLIC_SUPABASE_URL environment variable");
+  throw new Error(
+    "Missing EXPO_PUBLIC_SUPABASE_URL environment variable",
+  );
 }
 
 if (!supabaseAnonKey) {
@@ -21,24 +27,139 @@ if (!supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: AsyncStorage,
-    storageKey: "astro-auth-session",
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-    flowType: "pkce",
+type SupabaseStorage = {
+  getItem: (
+    key: string,
+  ) => Promise<string | null>;
+
+  setItem: (
+    key: string,
+    value: string,
+  ) => Promise<void>;
+
+  removeItem: (
+    key: string,
+  ) => Promise<void>;
+};
+
+const serverMemoryStorage =
+  new Map<string, string>();
+
+const nativeStorage: SupabaseStorage = {
+  async getItem(
+    key: string,
+  ): Promise<string | null> {
+    return AsyncStorage.getItem(key);
   },
-  db: {
-    schema: "public",
+
+  async setItem(
+    key: string,
+    value: string,
+  ): Promise<void> {
+    await AsyncStorage.setItem(
+      key,
+      value,
+    );
   },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
+
+  async removeItem(
+    key: string,
+  ): Promise<void> {
+    await AsyncStorage.removeItem(
+      key,
+    );
+  },
+};
+
+const webStorage: SupabaseStorage = {
+  async getItem(
+    key: string,
+  ): Promise<string | null> {
+    if (
+      typeof window === "undefined"
+    ) {
+      return (
+        serverMemoryStorage.get(
+          key,
+        ) ?? null
+      );
+    }
+
+    return window.localStorage.getItem(
+      key,
+    );
+  },
+
+  async setItem(
+    key: string,
+    value: string,
+  ): Promise<void> {
+    if (
+      typeof window === "undefined"
+    ) {
+      serverMemoryStorage.set(
+        key,
+        value,
+      );
+
+      return;
+    }
+
+    window.localStorage.setItem(
+      key,
+      value,
+    );
+  },
+
+  async removeItem(
+    key: string,
+  ): Promise<void> {
+    if (
+      typeof window === "undefined"
+    ) {
+      serverMemoryStorage.delete(
+        key,
+      );
+
+      return;
+    }
+
+    window.localStorage.removeItem(
+      key,
+    );
+  },
+};
+
+const authStorage: SupabaseStorage =
+  Platform.OS === "web"
+    ? webStorage
+    : nativeStorage;
+
+export const supabase = createClient(
+  supabaseUrl,
+  supabaseAnonKey,
+  {
+    auth: {
+      storage: authStorage,
+      storageKey:
+        "astro-auth-session",
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+      flowType: "pkce",
+    },
+
+    db: {
+      schema: "public",
+    },
+
+    realtime: {
+      params: {
+        eventsPerSecond: 10,
+      },
     },
   },
-});
+);
 
 export type BackendSessionPayload = {
   accessToken: string;
@@ -48,62 +169,110 @@ export type BackendSessionPayload = {
   tokenType: string;
 };
 
-function normalizeExpiresAt(expiresAt?: number | null) {
+function normalizeExpiresAt(
+  expiresAt?: number | null,
+): number | null {
   if (!expiresAt) {
     return null;
   }
 
-  return expiresAt > 1_000_000_000_000
-    ? Math.floor(expiresAt / 1000)
+  return expiresAt >
+    1_000_000_000_000
+    ? Math.floor(
+        expiresAt / 1000,
+      )
     : expiresAt;
 }
 
 export function isSupabaseSessionExpired(
-  session: SupabaseSession | null | undefined,
-) {
-  const expiresAt = normalizeExpiresAt(session?.expires_at);
+  session:
+    | SupabaseSession
+    | null
+    | undefined,
+): boolean {
+  const expiresAt =
+    normalizeExpiresAt(
+      session?.expires_at,
+    );
+
   if (!expiresAt) {
     return true;
   }
 
-  const nowSeconds = Math.floor(Date.now() / 1000);
+  const nowSeconds =
+    Math.floor(
+      Date.now() / 1000,
+    );
+
   return expiresAt <= nowSeconds;
 }
 
 export function mapSupabaseSessionToAuthSession(
-  session: SupabaseSession | null | undefined,
+  session:
+    | SupabaseSession
+    | null
+    | undefined,
 ) {
-  if (!session?.access_token || !session?.refresh_token) {
+  if (
+    !session?.access_token ||
+    !session.refresh_token
+  ) {
     return null;
   }
 
   return {
-    accessToken: session.access_token,
-    refreshToken: session.refresh_token,
-    expiresIn: session.expires_in || 0,
-    expiresAt: normalizeExpiresAt(session.expires_at) || 0,
-    tokenType: session.token_type || "bearer",
+    accessToken:
+      session.access_token,
+
+    refreshToken:
+      session.refresh_token,
+
+    expiresIn:
+      session.expires_in || 0,
+
+    expiresAt:
+      normalizeExpiresAt(
+        session.expires_at,
+      ) || 0,
+
+    tokenType:
+      session.token_type ||
+      "bearer",
   };
 }
 
-export async function getValidSupabaseAccessToken(options?: {
-  refreshIfExpired?: boolean;
-  reason?: string;
-}) {
-  const refreshIfExpired = options?.refreshIfExpired ?? true;
-  const reason = options?.reason || "unknown";
+export async function getValidSupabaseAccessToken(
+  options?: {
+    refreshIfExpired?: boolean;
+    reason?: string;
+  },
+) {
+  const refreshIfExpired =
+    options?.refreshIfExpired ??
+    true;
+
+  const reason =
+    options?.reason ??
+    "unknown";
 
   const {
-    data: { session },
+    data: {
+      session,
+    },
     error,
-  } = await supabase.auth.getSession();
+  } =
+    await supabase.auth.getSession();
 
   if (error) {
     if (__DEV__) {
-      console.warn("[Supabase] getSession failed while resolving socket auth", {
-        reason,
-        message: error.message,
-      });
+      console.warn(
+        "[Supabase] getSession failed while resolving socket auth",
+        {
+          reason,
+          message:
+            error.message,
+        },
+      );
     }
 
     return {
@@ -113,24 +282,37 @@ export async function getValidSupabaseAccessToken(options?: {
     };
   }
 
-  let resolvedSession = session;
+  let resolvedSession =
+    session;
 
-  debugSessionSnapshot("[Supabase] getSession for token resolution", session, {
-    reason,
-  });
+  debugSessionSnapshot(
+    "[Supabase] getSession for token resolution",
+    session,
+    {
+      reason,
+    },
+  );
 
   if (
     resolvedSession &&
-    isSupabaseSessionExpired(resolvedSession) &&
+    isSupabaseSessionExpired(
+      resolvedSession,
+    ) &&
     refreshIfExpired
   ) {
     if (__DEV__) {
-      console.log("[Supabase] refreshing expired session before socket auth", {
-        reason,
-      });
+      console.log(
+        "[Supabase] refreshing expired session before socket auth",
+        {
+          reason,
+        },
+      );
     }
 
-    const { data: refreshedData, error: refreshError } =
+    const {
+      data: refreshedData,
+      error: refreshError,
+    } =
       await supabase.auth.refreshSession();
 
     if (refreshError) {
@@ -139,12 +321,15 @@ export async function getValidSupabaseAccessToken(options?: {
           "[Supabase] refreshSession failed while resolving socket auth",
           {
             reason,
-            message: refreshError.message,
+            message:
+              refreshError.message,
           },
         );
       }
     } else {
-      resolvedSession = refreshedData.session;
+      resolvedSession =
+        refreshedData.session;
+
       debugSessionSnapshot(
         "[Supabase] refreshSession result",
         resolvedSession,
@@ -155,12 +340,22 @@ export async function getValidSupabaseAccessToken(options?: {
     }
   }
 
-  const expired = isSupabaseSessionExpired(resolvedSession);
-  const token = expired ? null : resolvedSession?.access_token?.trim() || null;
+  const expired =
+    isSupabaseSessionExpired(
+      resolvedSession,
+    );
+
+  const token =
+    expired
+      ? null
+      : resolvedSession
+          ?.access_token
+          ?.trim() || null;
 
   return {
     token,
-    session: resolvedSession,
+    session:
+      resolvedSession,
     expired,
   };
 }
@@ -168,33 +363,56 @@ export async function getValidSupabaseAccessToken(options?: {
 export async function setSupabaseSessionFromBackend(
   session: BackendSessionPayload,
 ) {
-  debugSessionSnapshot("[Supabase] setSession input", session);
+  debugSessionSnapshot(
+    "[Supabase] setSession input",
+    session,
+  );
 
-  if (!session?.accessToken || !session?.refreshToken) {
+  if (
+    !session?.accessToken ||
+    !session?.refreshToken
+  ) {
     throw new Error(
       "Invalid session payload: accessToken/refreshToken required",
     );
   }
 
-  const { data, error } = await supabase.auth.setSession({
-    access_token: session.accessToken,
-    refresh_token: session.refreshToken,
-  });
+  const {
+    data,
+    error,
+  } =
+    await supabase.auth.setSession({
+      access_token:
+        session.accessToken,
+
+      refresh_token:
+        session.refreshToken,
+    });
 
   if (error) {
     throw error;
   }
 
-  debugSessionSnapshot("[Supabase] setSession result", data.session);
+  debugSessionSnapshot(
+    "[Supabase] setSession result",
+    data.session,
+  );
 
-  const { data: restoredSession, error: getSessionError } =
+  const {
+    data: restoredSession,
+    error: getSessionError,
+  } =
     await supabase.auth.getSession();
 
   if (getSessionError) {
     if (__DEV__) {
-      console.warn("[Supabase] getSession after setSession failed", {
-        message: getSessionError.message,
-      });
+      console.warn(
+        "[Supabase] getSession after setSession failed",
+        {
+          message:
+            getSessionError.message,
+        },
+      );
     }
   } else {
     debugSessionSnapshot(

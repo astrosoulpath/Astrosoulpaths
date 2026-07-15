@@ -1,21 +1,22 @@
 import Constants from "expo-constants";
-import { ZegoScenario } from "zego-express-engine-reactnative";
 
 type ZegoExpoConfig = {
   zego?: {
     appId?: number | string;
     appSign?: string;
-    scenario?: keyof typeof ZegoScenario;
+    server?: string;
+    scenario?: string | number;
   };
 };
 
 export type AppZegoConfig = {
   appID: number;
   appSign: string;
-  scenario: ZegoScenario;
+  server: string;
+  scenario: number;
 };
 
-const fallbackScenario = ZegoScenario.StandardVoiceCall;
+const DEFAULT_SCENARIO = 3;
 
 export function getZegoConfig(): AppZegoConfig {
   const extra = (Constants.expoConfig?.extra ?? {}) as ZegoExpoConfig;
@@ -24,28 +25,27 @@ export function getZegoConfig(): AppZegoConfig {
     typeof extra.zego?.appId === "number"
       ? extra.zego.appId
       : Number(extra.zego?.appId ?? 0);
+
   const appSign = extra.zego?.appSign?.trim() ?? "";
-  const scenarioName = extra.zego?.scenario;
+  const server = extra.zego?.server?.trim() ?? "";
+
+  const rawScenario = extra.zego?.scenario;
+
   const scenario =
-    scenarioName && scenarioName in ZegoScenario
-      ? ZegoScenario[scenarioName]
-      : fallbackScenario;
+    typeof rawScenario === "number" && Number.isFinite(rawScenario)
+      ? rawScenario
+      : DEFAULT_SCENARIO;
 
   if (!Number.isFinite(appID) || appID <= 0) {
     throw new Error(
-      "ZEGO appId is missing. Update expo.extra.zego.appId in app.json before joining a call.",
-    );
-  }
-
-  if (!appSign || appSign === "PASTE_YOUR_ZEGO_APP_SIGN") {
-    throw new Error(
-      "ZEGO appSign is missing. Update expo.extra.zego.appSign in app.json before joining a call.",
+      "ZEGO appId is missing. Update expo.extra.zego.appId in app.json.",
     );
   }
 
   return {
     appID,
     appSign,
+    server,
     scenario,
   };
 }

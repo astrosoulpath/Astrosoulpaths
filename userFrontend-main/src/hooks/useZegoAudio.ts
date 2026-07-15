@@ -1,7 +1,7 @@
 import React from "react";
 import { useShallow } from "zustand/react/shallow";
 
-import { audioCallController } from "@/src/services/audioCallController";
+import { audioCallController } from "../services/audioCallController";
 import { useAudioCallStore } from "@/src/store/audioCallStore";
 
 export function useAstrologerAudioCall() {

@@ -1,4 +1,4 @@
-'use client';
+
 
 import {
   createContext,
@@ -27,7 +27,7 @@ import {
   type CallUnavailablePayload,
   type ConsultationType,
   type IncomingCallPayload,
-} from '@/lib/socket';
+} from '../../lib/socket';
 
 type ActiveCall = {
   callId: string;
@@ -82,14 +82,45 @@ const CallContext =
     null,
   );
 
-function getErrorMessage(
+  function getErrorMessage(
   error: unknown,
 ): string {
   if (error instanceof Error) {
     return error.message;
   }
 
-  return 'Something went wrong while processing the call.';
+  return "Something went wrong while processing the call.";
+}
+
+function getResponseErrorMessage(
+  response: unknown,
+  fallback: string,
+): string {
+  if (
+    typeof response !== "object" ||
+    response === null
+  ) {
+    return fallback;
+  }
+
+  const record =
+    response as Record<string, unknown>;
+
+  if (
+    typeof record.message === "string" &&
+    record.message.trim()
+  ) {
+    return record.message.trim();
+  }
+
+  if (
+    typeof record.reason === "string" &&
+    record.reason.trim()
+  ) {
+    return record.reason.trim();
+  }
+
+  return fallback;
 }
 
 export function CallProvider({
@@ -480,10 +511,11 @@ export function CallProvider({
 
           if (!response.success) {
             setCallError(
-              response.message ??
-                response.reason ??
-                'Unable to start the call.',
-            );
+            getResponseErrorMessage(
+               response,
+            "Unable to start the call.",
+           ),
+          );
 
             return;
           }
@@ -539,7 +571,10 @@ export function CallProvider({
 
         if (!response.success) {
           setCallError(
-            response.message,
+            getResponseErrorMessage(
+            response,
+            "Unable to process the call request.",
+           ),
           );
 
           return;
@@ -597,8 +632,11 @@ export function CallProvider({
 
           if (!response.success) {
             setCallError(
-              response.message,
-            );
+            getResponseErrorMessage(
+            response,
+            "Unable to process the call request.",
+           ),
+          );
 
             return;
           }
@@ -657,8 +695,11 @@ export function CallProvider({
 
           if (!response.success) {
             setCallError(
-              response.message,
-            );
+            getResponseErrorMessage(
+            response,
+            "Unable to process the call request.",
+           ),
+          );
 
             return;
           }

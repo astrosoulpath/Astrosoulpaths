@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -8,6 +8,7 @@ import {
   StyleProp,
   StyleSheet,
   TextInput,
+  TextStyle,
   View,
   ViewStyle,
 } from "react-native";
@@ -24,7 +25,7 @@ type CountryCodeSelectorProps = {
   onChange: (option: CountryCodeOption) => void;
   containerStyle?: StyleProp<ViewStyle>;
   pressedStyle?: StyleProp<ViewStyle>;
-  textStyle?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
 };
 
 export function CountryCodeSelector({
@@ -38,23 +39,38 @@ export function CountryCodeSelector({
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    if (!isVisible && query) {
+    if (!isVisible && query.length > 0) {
       setQuery("");
     }
   }, [isVisible, query]);
 
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredOptions = normalizedQuery
-    ? countryCodeOptions.filter((option) => {
-        const searchableCode = option.code.replace("+", "");
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
 
-        return (
-          option.name.toLowerCase().includes(normalizedQuery) ||
-          option.code.includes(normalizedQuery) ||
-          searchableCode.includes(normalizedQuery)
-        );
-      })
-    : countryCodeOptions;
+    if (!normalizedQuery) {
+      return countryCodeOptions;
+    }
+
+    return countryCodeOptions.filter((option) => {
+      const searchableCode = option.code.replace("+", "");
+
+      return (
+        option.name.toLowerCase().includes(normalizedQuery) ||
+        option.code.includes(normalizedQuery) ||
+        searchableCode.includes(normalizedQuery) ||
+        option.isoCode.toLowerCase().includes(normalizedQuery)
+      );
+    });
+  }, [query]);
+
+  const closeModal = () => {
+    setIsVisible(false);
+  };
+
+  const handleSelect = (option: CountryCodeOption) => {
+    onChange(option);
+    closeModal();
+  };
 
   return (
     <>
@@ -67,7 +83,8 @@ export function CountryCodeSelector({
         style={({ pressed }) => [
           styles.trigger,
           containerStyle,
-          pressed ? [styles.triggerPressed, pressedStyle] : null,
+          pressed ? styles.triggerPressed : null,
+          pressed ? pressedStyle : null,
         ]}
       >
         <Text style={textStyle}>{value.code}</Text>
@@ -75,13 +92,15 @@ export function CountryCodeSelector({
 
       <Modal
         animationType="slide"
-        onRequestClose={() => setIsVisible(false)}
+        onRequestClose={closeModal}
         transparent
         visible={isVisible}
       >
         <View style={styles.overlay}>
           <Pressable
-            onPress={() => setIsVisible(false)}
+            accessibilityLabel="Close country code selector"
+            accessibilityRole="button"
+            onPress={closeModal}
             style={StyleSheet.absoluteFill}
           />
 
@@ -94,9 +113,11 @@ export function CountryCodeSelector({
             <View style={styles.sheet}>
               <View style={styles.sheetHeader}>
                 <Text style={styles.sheetTitle}>Select country code</Text>
+
                 <Pressable
+                  accessibilityLabel="Close country code selector"
                   accessibilityRole="button"
-                  onPress={() => setIsVisible(false)}
+                  onPress={closeModal}
                   style={({ pressed }) => [
                     styles.closeButton,
                     pressed ? styles.closeButtonPressed : null,
@@ -120,20 +141,20 @@ export function CountryCodeSelector({
               </View>
 
               <FlatList
+                contentContainerStyle={styles.listContent}
                 data={filteredOptions}
                 keyExtractor={(item) => `${item.isoCode}-${item.code}`}
                 keyboardShouldPersistTaps="handled"
-                contentContainerStyle={styles.listContent}
                 renderItem={({ item }) => {
-                  const isSelected = item.code === value.code;
+                  const isSelected =
+                    item.isoCode === value.isoCode &&
+                    item.code === value.code;
 
                   return (
                     <Pressable
+                      accessibilityLabel={`${item.name} ${item.code}`}
                       accessibilityRole="button"
-                      onPress={() => {
-                        onChange(item);
-                        setIsVisible(false);
-                      }}
+                      onPress={() => handleSelect(item)}
                       style={({ pressed }) => [
                         styles.option,
                         isSelected ? styles.optionSelected : null,
@@ -145,14 +166,17 @@ export function CountryCodeSelector({
                       </View>
 
                       <View style={styles.optionTextWrap}>
-                        <Text style={styles.optionName} numberOfLines={1}>
+                        <Text numberOfLines={1} style={styles.optionName}>
                           {item.name}
                         </Text>
+
                         <Text style={styles.optionCode}>{item.code}</Text>
                       </View>
 
                       {isSelected ? (
-                        <Text style={styles.optionSelectedLabel}>Selected</Text>
+                        <Text style={styles.optionSelectedLabel}>
+                          Selected
+                        </Text>
                       ) : null}
                     </Pressable>
                   );
@@ -194,14 +218,14 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: "rgba(9, 16, 43, 0.98)",
+    borderColor: "rgba(255,255,255,0.08)",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
     maxHeight: "82%",
+    paddingBottom: 22,
     paddingHorizontal: 18,
     paddingTop: 18,
-    paddingBottom: 22,
   },
   sheetHeader: {
     alignItems: "center",
@@ -268,16 +292,8 @@ const styles = StyleSheet.create({
     opacity: 0.84,
   },
   optionSelected: {
-    borderColor: "rgba(212,167,87,0.52)",
     backgroundColor: "rgba(212,167,87,0.08)",
-  },
-  optionTextWrap: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    columnGap: 12,
-    minWidth: 0,
+    borderColor: "rgba(212,167,87,0.52)",
   },
   flagWrap: {
     alignItems: "center",
@@ -289,12 +305,20 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 24,
   },
+  optionTextWrap: {
+    alignItems: "center",
+    columnGap: 12,
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    minWidth: 0,
+  },
   optionName: {
     color: astroColors.white,
+    flex: 1,
     fontFamily: "Inter_500Medium",
     fontSize: 15,
     lineHeight: 20,
-    flex: 1,
   },
   optionCode: {
     color: "rgba(255,255,255,0.62)",

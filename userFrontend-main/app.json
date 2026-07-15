@@ -7,6 +7,7 @@
     "icon": "./assets/images/astro-logo-foreground.png",
     "scheme": "astrosoulpath",
     "userInterfaceStyle": "automatic",
+
     "ios": {
       "buildNumber": "1",
       "bundleIdentifier": "com.astrosoulpath.astrosoulpath",
@@ -17,6 +18,7 @@
         "NSLocationWhenInUseUsageDescription": "Allow location access"
       }
     },
+
     "android": {
       "versionCode": 1,
       "adaptiveIcon": {
@@ -40,10 +42,12 @@
       ],
       "package": "com.astrosoulpath.astrosoulpath"
     },
+
     "web": {
       "output": "static",
-      "favicon": "./assets/images/astrofavicon.ico"
+      "favicon": "./assets/images/favicon.png"
     },
+
     "plugins": [
       "expo-router",
       "expo-location",
@@ -64,10 +68,12 @@
       "@react-native-community/datetimepicker",
       "expo-build-properties"
     ],
+
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
+
     "extra": {
       "router": {},
       "zego": {
@@ -78,6 +84,7 @@
         "projectId": "0dd3c3d9-9eba-4b1b-8801-0c2ea5f8baaf"
       }
     },
-    "owner": "sakshamswarup"
+
+    "owner": "Harsh raj"
   }
 }

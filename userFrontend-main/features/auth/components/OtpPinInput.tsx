@@ -90,7 +90,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     textAlignVertical: "center",
     includeFontPadding: false,
-    selectionColor: "#E8C17E",
   },
   inputDisabled: {
     opacity: 0.72,

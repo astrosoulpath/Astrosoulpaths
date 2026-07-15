@@ -1,6 +1,10 @@
-import { Star } from "lucide-react-native";
-import { ImageSourcePropType, StyleSheet, View } from "react-native";
 import { memo } from "react";
+import { Star } from "lucide-react-native";
+import {
+  ImageSourcePropType,
+  StyleSheet,
+  View,
+} from "react-native";
 
 import { AppAvatar } from "@/components/common/app-avatar";
 import { HStack } from "@/components/ui/hstack";
@@ -16,22 +20,41 @@ type AppDrawerHeaderProps = {
 
 function AppDrawerHeaderComponent({
   avatarSource,
-  name = "Saksham",
+  name = "Harsh Raj",
   rating = 4.8,
   reviews = 128,
 }: AppDrawerHeaderProps) {
   return (
     <HStack style={styles.root}>
       <AppAvatar source={avatarSource} />
+
       <VStack style={styles.copy}>
-        <Text numberOfLines={1} adjustsFontSizeToFit style={styles.greeting}>
+        <Text
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          style={styles.greeting}
+        >
           Hi {name},
         </Text>
+
         <HStack style={styles.ratingPill}>
-          <Star color="#F0B35D" fill="#F0B35D" size={20} strokeWidth={2} />
-          <Text style={styles.rating}>{rating.toFixed(1)}</Text>
+          <Star
+            color="#F0B35D"
+            fill="#F0B35D"
+            size={20}
+            strokeWidth={2}
+          />
+
+          <Text style={styles.rating}>
+            {rating.toFixed(1)}
+          </Text>
+
           <View style={styles.ratingDivider} />
-          <Text numberOfLines={1} style={styles.reviews}>
+
+          <Text
+            numberOfLines={1}
+            style={styles.reviews}
+          >
             {reviews} Reviews
           </Text>
         </HStack>
@@ -40,7 +63,9 @@ function AppDrawerHeaderComponent({
   );
 }
 
-export const AppDrawerHeader = memo(AppDrawerHeaderComponent);
+export const AppDrawerHeader = memo(
+  AppDrawerHeaderComponent,
+);
 
 const styles = StyleSheet.create({
   root: {
