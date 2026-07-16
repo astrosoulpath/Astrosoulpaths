@@ -46,8 +46,12 @@ export class AstrologerController {
   }
 
   @Get('public/:id')
-  getPublicAstrologerById(@Param('id') id: string) {
-    return this.astrologerService.getPublicAstrologerById(id);
+  getPublicAstrologerById(
+    @Param('id') id: string,
+  ) {
+    return this.astrologerService.getPublicAstrologerById(
+      id,
+    );
   }
 
   @Post('register')
@@ -64,8 +68,30 @@ export class AstrologerController {
 
   @Get('dashboard')
   @UseGuards(SupabaseAuthGuard)
-  getDashboard(@CurrentUser() user: JWTPayload) {
+  getDashboard(
+    @CurrentUser() user: JWTPayload,
+  ) {
     return this.astrologerService.getDashboard(
+      user.sub as string,
+    );
+  }
+
+  @Get('earnings/summary')
+  @UseGuards(SupabaseAuthGuard)
+  getEarningsSummary(
+    @CurrentUser() user: JWTPayload,
+  ) {
+    return this.astrologerService.getEarningsSummary(
+      user.sub as string,
+    );
+  }
+
+  @Get('earnings/transactions')
+  @UseGuards(SupabaseAuthGuard)
+  getEarningsTransactions(
+    @CurrentUser() user: JWTPayload,
+  ) {
+    return this.astrologerService.getEarningsTransactions(
       user.sub as string,
     );
   }

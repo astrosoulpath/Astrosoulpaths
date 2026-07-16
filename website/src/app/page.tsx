@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
 
 import { FeaturedAstrologersSection } from "@/features/home/FeaturedAstrologersSection";
+import { FeaturesSection } from "@/features/home/FeaturesSection";
 import { HeroSection } from "@/features/home/HeroSection";
 import { HoroscopeSubscriptionSection } from "@/features/home/HoroscopeSubscriptionSection";
 import { KundliPromoSection } from "@/features/home/KundliPromoSection";
 import { ServicesSection } from "@/features/home/ServicesSection";
 import { StatsSection } from "@/features/home/StatsSection";
-import { WhyChooseSection } from "@/features/home/WhyChooseSection";
 
 export const metadata: Metadata = {
   title:
     "Astro Soul Path | Best Online Astrology Consultation",
 
   description:
-    "Connect with verified Vedic astrologers for Kundli, Horoscope, Tarot, Numerology, Match Making, Dosha Analysis and Live Chat or Audio Consultation.",
+    "Connect with verified Vedic astrologers for Kundli, Horoscope, Tarot, Numerology, Match Making, Dosha Analysis and live chat or audio consultation.",
 
   keywords: [
     "Astrology",
@@ -47,8 +47,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
 
-    title:
-      "Astro Soul Path",
+    title: "Astro Soul Path",
 
     description:
       "Professional astrology consultation platform.",
@@ -67,21 +66,11 @@ export default function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify({
-            "@context":
-              "https://schema.org",
-
-            "@type":
-              "Organization",
-
-            name:
-              "Astro Soul Path",
-
-            url:
-              "https://astrosoulpath.com",
-
-            logo:
-              "https://astrosoulpath.com/logo.png",
-
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            name: "Astro Soul Path",
+            url: "https://astrosoulpath.com",
+            logo: "https://astrosoulpath.com/logo.png",
             sameAs: [],
           }),
         }}
@@ -91,7 +80,7 @@ export default function HomePage() {
 
       <StatsSection />
 
-      <WhyChooseSection />
+      <FeaturesSection />
 
       <FeaturedAstrologersSection />
 

@@ -1,5 +1,4 @@
 import {
-  CanActivate,
   ExecutionContext,
   INestApplication,
 } from '@nestjs/common';
@@ -124,7 +123,9 @@ describe('Payments reconciliation (e2e)', () => {
         },
         {
           provide: SupabaseAuthGuard,
-          useValue: new SupabaseAuthGuard(),
+          useValue: {
+            canActivate: jest.fn().mockReturnValue(true),
+          },
         },
       ],
     }).compile();
@@ -401,8 +402,11 @@ function createPrismaMock(initialState: TestState) {
         }: {
           where: {
             id: string;
-            status?: PaymentStatus;
-            status?: { not: PaymentStatus } | PaymentStatus;
+            status?:
+              | PaymentStatus
+              | {
+                  not: PaymentStatus;
+                };
           };
           data: Partial<TestPaymentOrder>;
         }) => {
@@ -567,7 +571,7 @@ function buildLedger(input: {
   balanceBefore: string;
   balanceAfter: string;
   referenceType?: LedgerReferenceType | null;
-  referenceId: string;
+  referenceId: string | null;
   description?: string | null;
 }): TestWalletLedger {
   return {

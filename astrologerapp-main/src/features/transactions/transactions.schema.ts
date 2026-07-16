@@ -1,7 +1,16 @@
 import { z } from "zod";
 
-export const transactionFilterSchema = z.enum(["all", "earnings", "payouts"]);
-export const transactionTypeSchema = z.enum(["earning", "payout"]);
+export const transactionFilterSchema = z.enum([
+  "all",
+  "earnings",
+  "payouts",
+]);
+
+export const transactionTypeSchema = z.enum([
+  "earning",
+  "payout",
+]);
+
 export const transactionStatusSchema = z.enum([
   "completed",
   "successful",
@@ -20,30 +29,45 @@ export const transactionRecordSchema = z.object({
 
 export const transactionSnapshotSchema = z.object({
   availableBalance: z.number().nonnegative(),
+  pendingBalance: z.number().nonnegative(),
+  paidAmount: z.number().nonnegative(),
+
+  todayEarnings: z.number().nonnegative(),
+  weekEarnings: z.number().nonnegative(),
+  monthEarnings: z.number().nonnegative(),
+  lifetimeEarnings: z.number().nonnegative(),
+
+  totalTransactions: z.number().int().nonnegative(),
+
   transactions: z.array(transactionRecordSchema),
 });
 
-export const supabaseTransactionRowSchema = z.object({
-  amount: z.coerce.number().nonnegative(),
-  id: z.union([z.string(), z.number()]).transform(String),
-  occurred_at: z.string().min(1),
-  status: transactionStatusSchema,
-  title: z.string().min(1),
-  type: transactionTypeSchema,
-});
+export type TransactionFilter = z.infer<
+  typeof transactionFilterSchema
+>;
 
-export type TransactionFilter = z.infer<typeof transactionFilterSchema>;
-export type TransactionRecord = z.infer<typeof transactionRecordSchema>;
-export type TransactionSnapshot = z.infer<typeof transactionSnapshotSchema>;
-export type SupabaseTransactionRow = z.infer<
-  typeof supabaseTransactionRowSchema
+export type TransactionRecord = z.infer<
+  typeof transactionRecordSchema
+>;
+
+export type TransactionSnapshot = z.infer<
+  typeof transactionSnapshotSchema
 >;
 
 export const transactionFilters: {
   label: string;
   value: TransactionFilter;
 }[] = [
-  { label: "All", value: "all" },
-  { label: "Earnings", value: "earnings" },
-  { label: "Payouts", value: "payouts" },
+  {
+    label: "All",
+    value: "all",
+  },
+  {
+    label: "Earnings",
+    value: "earnings",
+  },
+  {
+    label: "Payouts",
+    value: "payouts",
+  },
 ];

@@ -1,178 +1,183 @@
 import {
-  supabaseTransactionRowSchema,
+  apiClient,
+  getApiErrorMessage,
+} from "@/src/lib/api-client";
+
+import {
   TransactionFilter,
   TransactionSnapshot,
   transactionSnapshotSchema,
-  type SupabaseTransactionRow,
 } from "@/src/features/transactions/transactions.schema";
-import { getSupabaseClient } from "@/src/lib/supabase/client";
 
-const mockTransactionSnapshot: TransactionSnapshot = {
-  availableBalance: 12450,
-  transactions: [
-    {
-      amount: 1250,
-      id: "txn-2024-05-20-1030",
-      occurredAt: "2024-05-20T10:30:00.000Z",
-      status: "completed",
-      title: "Consultation Earnings",
-      type: "earning",
-    },
-    {
-      amount: 5000,
-      id: "txn-2024-05-18-1615",
-      occurredAt: "2024-05-18T16:15:00.000Z",
-      status: "successful",
-      title: "Payout to Bank",
-      type: "payout",
-    },
-    {
-      amount: 750,
-      id: "txn-2024-05-17-0945",
-      occurredAt: "2024-05-17T09:45:00.000Z",
-      status: "completed",
-      title: "Consultation Earnings",
-      type: "earning",
-    },
-    {
-      amount: 2300,
-      id: "txn-2024-05-15-1120",
-      occurredAt: "2024-05-15T11:20:00.000Z",
-      status: "completed",
-      title: "Consultation Earnings",
-      type: "earning",
-    },
-    {
-      amount: 3000,
-      id: "txn-2024-05-10-1410",
-      occurredAt: "2024-05-10T14:10:00.000Z",
-      status: "successful",
-      title: "Payout to Bank",
-      type: "payout",
-    },
-    {
-      amount: 1100,
-      id: "txn-2024-05-08-1840",
-      occurredAt: "2024-05-08T18:40:00.000Z",
-      status: "completed",
-      title: "Consultation Earnings",
-      type: "earning",
-    },
-    {
-      amount: 500,
-      id: "txn-2024-05-05-1200",
-      occurredAt: "2024-05-05T12:00:00.000Z",
-      status: "completed",
-      title: "Bonus Received",
-      type: "earning",
-    },
-    {
-      amount: 2500,
-      id: "txn-2024-04-28-1525",
-      occurredAt: "2024-04-28T15:25:00.000Z",
-      status: "successful",
-      title: "Payout to Bank",
-      type: "payout",
-    },
-    {
-      amount: 1800,
-      id: "txn-2024-04-25-1015",
-      occurredAt: "2024-04-25T10:15:00.000Z",
-      status: "completed",
-      title: "Consultation Earnings",
-      type: "earning",
-    },
-    {
-      amount: 950,
-      id: "txn-2024-04-20-2030",
-      occurredAt: "2024-04-20T20:30:00.000Z",
-      status: "completed",
-      title: "Consultation Earnings",
-      type: "earning",
-    },
-    {
-      amount: 4000,
-      id: "txn-2024-04-15-1340",
-      occurredAt: "2024-04-15T13:40:00.000Z",
-      status: "successful",
-      title: "Payout to Bank",
-      type: "payout",
-    },
-  ],
+type EarningsSummaryResponse = {
+  success: boolean;
+  data: {
+    astrologerId: string;
+    currency: string;
+    availableBalance: number;
+    pendingBalance: number;
+    paidAmount: number;
+    todayEarnings: number;
+    weekEarnings: number;
+    monthEarnings: number;
+    lifetimeEarnings: number;
+    totalTransactions: number;
+  };
 };
 
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+type BackendEarningStatus =
+  | "PENDING"
+  | "AVAILABLE"
+  | "PAID"
+  | "REVERSED";
+
+type EarningsTransaction = {
+  id: string;
+  callSessionId: string;
+  type: "earning";
+  title: string;
+  grossAmount: number;
+  platformFee: number;
+  netAmount: number;
+  currency: string;
+  status: BackendEarningStatus;
+  availableAt: string | null;
+  paidAt: string | null;
+  reversedAt: string | null;
+  createdAt: string;
+  consultation: {
+    id: string;
+    customerId: string;
+    customerName: string;
+    customerAvatarUrl: string | null;
+    channelName: string;
+    ratePerMinute: number;
+    purchasedMinutes: number;
+    extendedMinutes: number;
+    amountCharged: number;
+    startedAt: string;
+    endedAt: string | null;
+    status: string;
+  };
+};
+
+type EarningsTransactionsResponse = {
+  success: boolean;
+  data: {
+    transactions: EarningsTransaction[];
+    total: number;
+  };
+};
+
+function mapBackendStatus(
+  status: BackendEarningStatus,
+): "completed" | "successful" | "pending" | "failed" {
+  switch (status) {
+    case "AVAILABLE":
+      return "completed";
+
+    case "PAID":
+      return "successful";
+
+    case "PENDING":
+      return "pending";
+
+    case "REVERSED":
+      return "failed";
+
+    default:
+      return "pending";
+  }
 }
 
-async function fetchAvailableBalanceFromSupabase() {
-  const client = getSupabaseClient();
-
-  if (!client) {
-    return undefined;
-  }
-
-  const summaryTable =
-    process.env.EXPO_PUBLIC_SUPABASE_WALLET_SUMMARY_TABLE ?? "wallet_summary";
-
-  const { data, error } = await client
-    .from(summaryTable)
-    .select("available_balance")
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !data?.available_balance) {
-    return undefined;
-  }
-
-  return Number(data.available_balance);
-}
-
-export async function fetchTransactionSnapshot() {
-  const client = getSupabaseClient();
-
-  if (!client) {
-    await wait(180);
-    return mockTransactionSnapshot;
-  }
-
+export async function fetchTransactionSnapshot(): Promise<TransactionSnapshot> {
   try {
-    const transactionsTable =
-      process.env.EXPO_PUBLIC_SUPABASE_TRANSACTIONS_TABLE ??
-      "wallet_transactions";
+    const [
+      summaryResponse,
+      transactionsResponse,
+    ] = await Promise.all([
+      apiClient.get<EarningsSummaryResponse>(
+        "/astrologer/earnings/summary",
+      ),
 
-    const [{ data, error }, availableBalance] = await Promise.all([
-      client
-        .from(transactionsTable)
-        .select("id, title, type, amount, occurred_at, status")
-        .order("occurred_at", { ascending: false }),
-      fetchAvailableBalanceFromSupabase(),
+      apiClient.get<EarningsTransactionsResponse>(
+        "/astrologer/earnings/transactions",
+      ),
     ]);
 
-    if (error) {
-      throw error;
-    }
+    const summary =
+      summaryResponse.data.data;
 
-    const parsedRows = (data ?? []).map((row: unknown) =>
-      supabaseTransactionRowSchema.parse(row),
-    );
+    const earnings =
+      transactionsResponse.data.data.transactions;
 
     return transactionSnapshotSchema.parse({
-      availableBalance:
-        availableBalance ?? mockTransactionSnapshot.availableBalance,
-      transactions: parsedRows.map((row: SupabaseTransactionRow) => ({
-        amount: row.amount,
-        id: row.id,
-        occurredAt: row.occurred_at,
-        status: row.status,
-        title: row.title,
-        type: row.type,
-      })),
+      availableBalance: Number(
+  summary.availableBalance ?? 0,
+),
+
+   pendingBalance: Number(
+  summary.pendingBalance ?? 0,
+),
+
+   paidAmount: Number(
+   summary.paidAmount ?? 0,
+),
+
+  todayEarnings: Number(
+  summary.todayEarnings ?? 0,
+),
+
+weekEarnings: Number(
+  summary.weekEarnings ?? 0,
+),
+
+  monthEarnings: Number(
+  summary.monthEarnings ?? 0,
+),
+
+  lifetimeEarnings: Number(
+  summary.lifetimeEarnings ?? 0,
+),
+
+  totalTransactions: Number(
+  summary.totalTransactions ?? 0,
+),
+
+  transactions:
+        earnings.map(
+          (earning) => ({
+            id:
+              earning.id,
+
+            title:
+              earning.title ||
+              "Consultation Earnings",
+
+            type:
+              "earning" as const,
+
+            amount:
+              Number(
+                earning.netAmount ??
+                  0,
+              ),
+
+            status:
+              mapBackendStatus(
+                earning.status,
+              ),
+
+            occurredAt:
+              earning.availableAt ||
+              earning.createdAt,
+          }),
+        ),
     });
   } catch (error) {
-    console.warn("Falling back to mock transaction data", error);
-    await wait(180);
-    return mockTransactionSnapshot;
+    throw new Error(
+      getApiErrorMessage(error),
+    );
   }
 }
 
@@ -184,9 +189,14 @@ export function filterTransactions(
     return snapshot.transactions;
   }
 
-  const targetType = filter === "earnings" ? "earning" : "payout";
+  const targetType =
+    filter === "earnings"
+      ? "earning"
+      : "payout";
 
   return snapshot.transactions.filter(
-    (transaction) => transaction.type === targetType,
+    (transaction) =>
+      transaction.type ===
+      targetType,
   );
 }

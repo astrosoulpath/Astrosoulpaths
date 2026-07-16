@@ -526,10 +526,9 @@ export function AstrologerProfile({
             </h2>
 
             <p className="mt-2 max-w-3xl leading-7 text-gray-600">
-              Select chat or audio call. Login, astrologer
-              availability, wallet balance and call-server
-              connection will be checked before the consultation
-              begins.
+            Select the consultation mode and duration. You will
+            review the booking details before the wallet amount is
+            deducted and the consultation begins.
             </p>
           </div>
 
@@ -547,44 +546,40 @@ export function AstrologerProfile({
         </div>
 
         {!astrologerUserId &&
-          consultationOptions.audioCall && (
-            <div
-              role="alert"
-              className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700"
-            >
-              Audio calling is temporarily unavailable because this
-              astrologer&apos;s call account has not been linked by
-              the backend.
-            </div>
-          )}
+          (consultationOptions.chat ||
+           consultationOptions.audioCall) ? (
+          <div
+            role="alert"
+            className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700"
+           >
+          Consultation booking is temporarily unavailable because
+          this astrologer&apos;s user account has not been linked by
+          the backend.
+         </div>
+          ) : null}
 
         <div className="mt-6">
-          <ConsultationActions
-            astrologerId={
-              astrologer.id
-            }
-            astrologerUserId={
-              astrologerUserId ||
-              undefined
-            }
-            astrologerName={
-              safeName
-            }
-            isOnline={
-              isOnline
-            }
-            chatEnabled={Boolean(
-              consultationOptions.chat,
-            )}
-            audioEnabled={Boolean(
-              consultationOptions.audioCall &&
-                astrologerUserId,
-            )}
-            pricePerMin={
-              pricePerMin
-            }
-          />
-        </div>
+        <ConsultationActions
+        astrologerId={astrologer.id}
+        astrologerUserId={
+        astrologerUserId || undefined
+       }
+        astrologerName={safeName}
+        astrologerAvatarUrl={
+        astrologer.avatarUrl ?? null
+       }
+      isOnline={isOnline}
+      chatEnabled={Boolean(
+      consultationOptions.chat &&
+        astrologerUserId,
+      )}
+      audioEnabled={Boolean(
+      consultationOptions.audioCall &&
+        astrologerUserId,
+      )}
+      pricePerMin={pricePerMin}
+     />
+    </div>
 
         <Link
           href="/astrologers"

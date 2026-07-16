@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AstrologerEarningStatus,
   LedgerReferenceType,
   LedgerType,
   Prisma,
@@ -19,6 +20,8 @@ import { StartCallDto } from './dto/start-call.dto';
 const ACTIVE_CALL_STATUS = 'ACTIVE';
 const ENDED_CALL_STATUS = 'ENDED';
 const EXPIRED_CALL_STATUS = 'EXPIRED';
+
+const DEFAULT_PLATFORM_FEE_PERCENT = 30;
 
 const MAX_CALL_HISTORY_RESULTS = 100;
 
@@ -158,6 +161,23 @@ export class CallService {
       pricePerMin,
     };
   }
+
+  private getPlatformFeePercent(): number {
+  const configuredPercent = Number(
+    process.env.ASTROLOGER_PLATFORM_FEE_PERCENT ??
+      DEFAULT_PLATFORM_FEE_PERCENT,
+  );
+
+  if (
+    !Number.isFinite(configuredPercent) ||
+    configuredPercent < 0 ||
+    configuredPercent > 100
+  ) {
+    return DEFAULT_PLATFORM_FEE_PERCENT;
+  }
+
+  return configuredPercent;
+}
 
   private createChannelName(
     userId: string,
@@ -705,7 +725,7 @@ export class CallService {
     };
   }
 
-  async endCall(
+    async endCall(
     supabaseId: string,
     callId: string,
     dto: EndCallDto,
@@ -741,6 +761,7 @@ export class CallService {
             },
           ],
         },
+
         include: {
           astrologer: {
             select: {
@@ -758,13 +779,118 @@ export class CallService {
       );
     }
 
+    /*
+     * CallSession.astrologerId stores
+     * the astrologer's User.id.
+     *
+     * AstrologerEarning.astrologerId requires
+     * the Astrologer profile id.
+     */
+    const astrologerProfile =
+      await this.prisma.astrologer.findUnique({
+        where: {
+          userId:
+            call.astrologerId,
+        },
+
+        select: {
+          id: true,
+        },
+      });
+
+    if (!astrologerProfile) {
+      throw new NotFoundException(
+        'Astrologer profile was not found for this consultation',
+      );
+    }
+
+    /*
+     * Expired calls do not create an earning here.
+     * Refund/reversal handling will remain a
+     * separate settlement flow.
+     */
+    if (
+      call.status ===
+      EXPIRED_CALL_STATUS
+    ) {
+      return {
+        success: true,
+
+        message:
+          'Consultation is already expired',
+
+        data: {
+          call:
+            this.serializeCallSession(
+              call,
+            ),
+        },
+      };
+    }
+
+    const platformFeePercent =
+      this.getPlatformFeePercent();
+
+    const grossAmount =
+      new Prisma.Decimal(
+        Number(
+          call.amountCharged,
+        ).toFixed(2),
+      );
+
+    const platformFee =
+      grossAmount
+        .mul(platformFeePercent)
+        .div(100)
+        .toDecimalPlaces(2);
+
+    const netAmount =
+      grossAmount
+        .minus(platformFee)
+        .toDecimalPlaces(2);
+
+    /*
+     * Idempotent handling:
+     * if the call was already ended, ensure the
+     * earning exists without creating a duplicate.
+     */
     if (
       call.endedAt ||
       call.status ===
-        ENDED_CALL_STATUS ||
-      call.status ===
-        EXPIRED_CALL_STATUS
+        ENDED_CALL_STATUS
     ) {
+      const earning =
+        await this.prisma.astrologerEarning.upsert({
+          where: {
+            callSessionId:
+              call.id,
+          },
+
+          update: {},
+
+          create: {
+            astrologerId:
+              astrologerProfile.id,
+
+            callSessionId:
+              call.id,
+
+            grossAmount,
+            platformFee,
+            netAmount,
+
+            currency:
+              'INR',
+
+            status:
+              AstrologerEarningStatus.AVAILABLE,
+
+            availableAt:
+              call.endedAt ??
+              new Date(),
+          },
+        });
+
       return {
         success: true,
 
@@ -776,6 +902,43 @@ export class CallService {
             this.serializeCallSession(
               call,
             ),
+
+          earning: {
+            id:
+              earning.id,
+
+            grossAmount:
+              Number(
+                earning
+                  .grossAmount
+                  .toString(),
+              ),
+
+            platformFee:
+              Number(
+                earning
+                  .platformFee
+                  .toString(),
+              ),
+
+            platformFeePercent,
+
+            netAmount:
+              Number(
+                earning
+                  .netAmount
+                  .toString(),
+              ),
+
+            currency:
+              earning.currency,
+
+            status:
+              earning.status,
+
+            availableAt:
+              earning.availableAt,
+          },
         },
       };
     }
@@ -783,27 +946,97 @@ export class CallService {
     const endedAt =
       new Date();
 
-    const updatedCall =
-      await this.prisma.callSession.update({
-        where: {
-          id:
-            call.id,
+    const result =
+      await this.prisma.$transaction(
+        async (transaction) => {
+          const updatedCall =
+            await transaction.callSession.update({
+              where: {
+                id:
+                  call.id,
+              },
+
+              data: {
+                endedAt,
+
+                status:
+                  ENDED_CALL_STATUS,
+              },
+
+              include: {
+                astrologer: {
+                  select: {
+                    id: true,
+                    name: true,
+                    avatarUrl: true,
+                  },
+                },
+              },
+            });
+
+          const earning =
+            await transaction.astrologerEarning.upsert({
+              where: {
+                callSessionId:
+                  call.id,
+              },
+
+              update: {
+                astrologerId:
+                  astrologerProfile.id,
+
+                grossAmount,
+                platformFee,
+                netAmount,
+
+                currency:
+                  'INR',
+
+                status:
+                  AstrologerEarningStatus.AVAILABLE,
+
+                availableAt:
+                  endedAt,
+
+                reversedAt:
+                  null,
+              },
+
+              create: {
+                astrologerId:
+                  astrologerProfile.id,
+
+                callSessionId:
+                  call.id,
+
+                grossAmount,
+                platformFee,
+                netAmount,
+
+                currency:
+                  'INR',
+
+                status:
+                  AstrologerEarningStatus.AVAILABLE,
+
+                availableAt:
+                  endedAt,
+              },
+            });
+
+          return {
+            updatedCall,
+            earning,
+          };
         },
-        data: {
-          endedAt,
-          status:
-            ENDED_CALL_STATUS,
+
+        {
+          isolationLevel:
+            Prisma
+              .TransactionIsolationLevel
+              .Serializable,
         },
-        include: {
-          astrologer: {
-            select: {
-              id: true,
-              name: true,
-              avatarUrl: true,
-            },
-          },
-        },
-      });
+      );
 
     return {
       success: true,
@@ -815,12 +1048,52 @@ export class CallService {
       data: {
         call:
           this.serializeCallSession(
-            updatedCall,
+            result.updatedCall,
           ),
+
+        earning: {
+          id:
+            result.earning.id,
+
+          grossAmount:
+            Number(
+              result.earning
+                .grossAmount
+                .toString(),
+            ),
+
+          platformFee:
+            Number(
+              result.earning
+                .platformFee
+                .toString(),
+            ),
+
+          platformFeePercent,
+
+          netAmount:
+            Number(
+              result.earning
+                .netAmount
+                .toString(),
+            ),
+
+          currency:
+            result.earning
+              .currency,
+
+          status:
+            result.earning
+              .status,
+
+          availableAt:
+            result.earning
+              .availableAt,
+        },
       },
     };
   }
-
+  
   async getCurrentCall(
     supabaseId: string,
   ) {

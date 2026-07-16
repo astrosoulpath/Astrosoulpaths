@@ -1,27 +1,72 @@
-import React from 'react';
-import type { VariantProps } from '@gluestack-ui/utils/nativewind-utils';
+import React from "react";
+import {
+  StyleSheet,
+  type ViewStyle,
+} from "react-native";
 
-import { vstackStyle } from './styles';
+import type { VariantProps } from "@gluestack-ui/utils/nativewind-utils";
 
-type IVStackProps = React.ComponentProps<'div'> &
-  VariantProps<typeof vstackStyle>;
+import { vstackStyle } from "./styles";
 
-const VStack = React.forwardRef<React.ComponentRef<'div'>, IVStackProps>(
-  function VStack({ className, space, reversed, ...props }, ref) {
-    return (
-      <div
-        className={vstackStyle({
-          space,
-          reversed: reversed as boolean,
-          class: className,
-        })}
-        {...props}
-        ref={ref}
-      />
-    );
+type WebStyle =
+  | React.CSSProperties
+  | ViewStyle
+  | WebStyle[]
+  | null
+  | false
+  | undefined;
+
+type IVStackProps = Omit<
+  React.ComponentPropsWithoutRef<"div">,
+  "style"
+> &
+  VariantProps<typeof vstackStyle> & {
+    style?: WebStyle;
+  };
+
+function flattenWebStyle(
+  style: WebStyle,
+): React.CSSProperties | undefined {
+  if (!style) {
+    return undefined;
   }
-);
 
-VStack.displayName = 'VStack';
+  const flattened = StyleSheet.flatten(
+    style as never,
+  );
+
+  return flattened
+    ? (flattened as React.CSSProperties)
+    : undefined;
+}
+
+const VStack = React.forwardRef<
+  HTMLDivElement,
+  IVStackProps
+>(function VStack(
+  {
+    className,
+    space,
+    reversed,
+    style,
+    ...props
+  },
+  ref,
+) {
+  return (
+    <div
+      {...props}
+      ref={ref}
+      className={vstackStyle({
+        space,
+        reversed: reversed as boolean,
+        class: className,
+      })}
+      style={flattenWebStyle(style)}
+    />
+  );
+});
+
+VStack.displayName = "VStack";
 
 export { VStack };

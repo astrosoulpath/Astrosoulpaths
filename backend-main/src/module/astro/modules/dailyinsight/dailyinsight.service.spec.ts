@@ -1,15 +1,33 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DailyinsightService } from './dailyinsight.service';
 
-describe('DailyinsightService', () => {
-  let service: DailyinsightService;
+import { AstrologyProvider } from '../provider/astrologyapi.provider';
+import { NakshatraDailyInsightService } from './dailyinsight.service';
+
+describe('NakshatraDailyInsightService', () => {
+  let service: NakshatraDailyInsightService;
+
+  const astrologyProviderMock = {
+    getPersonalDailyHoroscope: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [DailyinsightService],
+      providers: [
+        NakshatraDailyInsightService,
+        {
+          provide: AstrologyProvider,
+          useValue: astrologyProviderMock,
+        },
+      ],
     }).compile();
 
-    service = module.get<DailyinsightService>(DailyinsightService);
+    service = module.get<NakshatraDailyInsightService>(
+      NakshatraDailyInsightService,
+    );
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
