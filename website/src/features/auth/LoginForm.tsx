@@ -11,7 +11,7 @@ type LoginFormProps = {
 };
 
 export function LoginForm({
-  redirectTo = "/",
+  redirectTo = "/dashboard",
 }: LoginFormProps) {
   const router = useRouter();
 

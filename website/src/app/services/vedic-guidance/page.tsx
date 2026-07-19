@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import ServiceDetailPage from "@/features/home/ServiceDetailPage";
+
+export const metadata: Metadata = {
+  title: "Personalized Vedic Guidance | Astro Soul Path",
+  description:
+    "Receive personalized Vedic astrology guidance based on your birth details, planetary positions and life goals.",
+};
 
 export default function VedicGuidancePage() {
   return (

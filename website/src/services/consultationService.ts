@@ -512,13 +512,6 @@ export async function completeConsultation(
     },
   );
 }
-
-/*
- * ============================================================
- * RATING
- * ============================================================
- */
-
 export async function rateConsultation(
   consultationId: string,
   payload: {

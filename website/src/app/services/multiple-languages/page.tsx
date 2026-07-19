@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import ServiceDetailPage from "@/features/home/ServiceDetailPage";
+
+export const metadata: Metadata = {
+  title: "Multiple Language Astrology Consultations | Astro Soul Path",
+  description:
+    "Connect with verified astrologers in Hindi, English and multiple regional languages for a comfortable and personalized consultation experience.",
+};
 
 export default function MultipleLanguagesPage() {
   return (

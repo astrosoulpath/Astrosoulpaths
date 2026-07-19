@@ -67,7 +67,7 @@ import {
 } from "@/services/chatService";
 
 import {
-  endConsultation,
+  completeConsultation,
   getCurrentConsultation,
   type ConsultationSession,
 } from "@/services/consultationService";
@@ -445,7 +445,7 @@ export default function ChatConsultationPage() {
     useMemo(() => {
       if (!chatRoom) {
         return (
-          consultation?.astrologerName?.trim() ||
+          consultation?.astrologer?.userProfile?.fullName?.trim() ||
           "Astro Soul Path Astrologer"
         );
       }
@@ -459,7 +459,7 @@ export default function ChatConsultationPage() {
       ) {
         return (
           chatRoom.astrologer.name?.trim() ||
-          consultation?.astrologerName?.trim() ||
+          consultation?.astrologer?.userProfile?.fullName?.trim() ||
           "Astrologer"
         );
       }
@@ -596,7 +596,7 @@ export default function ChatConsultationPage() {
         await getCurrentConsultation();
 
       const currentConsultation =
-        consultationResponse.data?.call ?? null;
+        consultationResponse.data ?? null;
 
       if (!currentConsultation) {
         setError(
@@ -841,23 +841,18 @@ export default function ChatConsultationPage() {
         },
       );
 
-    const cleanupReadReceipt =
-      onReadReceipt(
-        (
-          payload:
-            | ChatReadPayload
-            | ChatReadAllPayload,
-        ) => {
-          if (
-            payload.callSessionId !==
-            bookingId
-          ) {
-            return;
-          }
+    const cleanupReadReceipt = onReadReceipt(
+  (payload) => {
+      if (
+        payload.callSessionId !==
+        bookingId
+      ) {
+        return;
+      }
 
-          const readAt =
-            payload.readAt ||
-            new Date().toISOString();
+      const readAt =
+        payload.readAt ||
+        new Date().toISOString();
 
           setMessages((current) =>
             current.map(
@@ -1247,25 +1242,24 @@ export default function ChatConsultationPage() {
 
     endProcessedRef.current = true;
 
-    void endConsultation(
+    void completeConsultation(
+    consultation.id,
+   )
+  .then((response) => {
+    setConsultation(
+      response.data,
+    );
+
+    leaveChatRoom(
       consultation.id,
-      "Purchased consultation time completed",
-    )
-      .then((response) => {
-        setConsultation(
-          response.data.call,
-        );
+    );
 
-        leaveChatRoom(
-          consultation.id,
-        );
-
-        window.setTimeout(() => {
-          router.replace(
-            "/consultations",
-          );
-        }, 1500);
-      })
+    window.setTimeout(() => {
+      router.replace(
+        "/consultations",
+      );
+    }, 1500);
+   })
       .catch((err: unknown) => {
         endProcessedRef.current = false;
 
@@ -1788,7 +1782,10 @@ export default function ChatConsultationPage() {
         `Elapsed time: ${formatClock(
           elapsedSeconds,
         )}`,
-        `Purchased time: ${consultation.totalMinutes} minute(s)`,
+        `Purchased time: ${
+            consultation.purchasedMinutes +
+            consultation.extendedMinutes
+        } minute(s)`,
         `Amount already charged: ₹${consultation.amountCharged.toFixed(
           2,
         )}`,
@@ -1814,14 +1811,13 @@ export default function ChatConsultationPage() {
       );
 
       const response =
-        await endConsultation(
-          consultation.id,
-          "Ended by user",
-        );
+      await completeConsultation(
+      consultation.id,
+     );
 
-      setConsultation(
-        response.data.call,
-      );
+    setConsultation(
+     response.data,
+    );
 
       localStorage.removeItem(
         "asp_active_call",
@@ -2133,8 +2129,9 @@ export default function ChatConsultationPage() {
                     </p>
 
                     <p className="mt-1 font-bold">
-                      {consultation.totalMinutes}{" "}
-                      min
+                      {consultation.purchasedMinutes +
+                       consultation.extendedMinutes}{" "}
+                       min
                     </p>
                   </div>
 
@@ -2334,7 +2331,7 @@ export default function ChatConsultationPage() {
                                   rel="noreferrer"
                                   className="mt-3 block"
                                 >
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  { }
                                   <img
                                     src={
                                       attachment.url
@@ -2535,15 +2532,10 @@ export default function ChatConsultationPage() {
                         callStatus ===
                         "ACCEPTED"
                       }
-                      forceEnd={
-                        remainingSeconds <=
-                        0
-                      }
-                      forceEndReason="Purchased consultation time completed."
-                      expiresAt={
+                        expiresAt={
                         consultation.expiresAt
                       }
-                      participantName={
+                        participantName={
                         otherParticipantName
                       }
                       onEnd={() => {

@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import ServiceDetailPage from "@/features/home/ServiceDetailPage";
+
+export const metadata: Metadata = {
+  title: "Accurate Kundli Reports | Astro Soul Path",
+  description:
+    "Generate detailed Janam Kundli reports with planetary positions, dosha analysis, dasha reports and personalized Vedic astrology predictions.",
+};
 
 export default function KundliReportsPage() {
   return (

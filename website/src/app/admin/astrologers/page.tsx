@@ -200,14 +200,13 @@ export default function AdminAstrologersPage() {
           )) as AdminAstrologersResponse | null;
 
         if (!response.ok) {
-          const message = Array.isArray(
-            (data as { message?: unknown })?.message,
-          )
-            ? (
-                (data as { message: string[] }).message
-              ).join(", ")
-            : data?.message;
+          const rawMessage = (data as { message?: unknown })?.message;
 
+          const message = Array.isArray(rawMessage)
+             ? rawMessage.join(", ")
+             : typeof rawMessage === "string"
+             ? rawMessage
+             : undefined;
           throw new Error(
             message ||
               `Unable to load astrologers (${response.status}).`,

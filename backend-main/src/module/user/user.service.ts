@@ -98,11 +98,17 @@ export class UserService {
   }
 
   // 🔄 Sync user from Supabase (Create or Update)
-  async syncUser(data: { supabaseId: string; phone?: string | null }) {
+  async syncUser(data: {
+    supabaseId: string;
+    phone?: string | null;
+    email?: string | null;
+    fullName?: string | null;
+  }) {
     try {
-      const phone = data.phone ?? null;
+      const phone = data.phone?.trim() || null;
+      const email = data.email?.trim().toLowerCase() || null;
+      const fullName = data.fullName?.trim() || null;
 
-      // Default role
       const role = await this.prisma.role.findUnique({
         where: { name: 'user' },
       });
@@ -111,7 +117,6 @@ export class UserService {
         throw new InternalServerErrorException('Default role not found');
       }
 
-      // Default FREE plan
       const freePlan = await this.prisma.subscriptionPlan.findUnique({
         where: { name: 'FREE' },
       });
@@ -122,15 +127,17 @@ export class UserService {
         );
       }
 
-      // Check if user exists
       const existingUser = await this.prisma.user.findUnique({
-        where: { supabaseId: data.supabaseId },
+        where: {
+          supabaseId: data.supabaseId,
+        },
         include: authUserInclude,
       });
 
       let user: Prisma.UserGetPayload<{
         include: typeof authUserInclude;
       }>;
+
       let isNewUser = false;
 
       if (existingUser) {
@@ -138,29 +145,29 @@ export class UserService {
           existingUser.userProfile,
         );
 
-        // Update existing user
         user = await this.prisma.user.update({
-          where: { supabaseId: data.supabaseId },
+          where: {
+            supabaseId: data.supabaseId,
+          },
           data: {
-            phone,
+            ...(phone ? { phone } : {}),
+            ...(email ? { email } : {}),
+            ...(fullName ? { name: fullName } : {}),
             isProfileComplete,
           },
           include: authUserInclude,
         });
       } else {
-        // Create new user
         isNewUser = true;
 
         user = await this.prisma.user.create({
           data: {
             supabaseId: data.supabaseId,
             phone,
+            email,
+            name: fullName,
             roleId: role.id,
-
-            // Default onboarding state
             isProfileComplete: false,
-
-            // Default subscription
             subscriptionPlanId: freePlan.id,
             subscriptionStatus: 'FREE',
           },
@@ -173,7 +180,32 @@ export class UserService {
         isNewUser,
       };
     } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const target = Array.isArray(error.meta?.target)
+          ? error.meta.target.join(', ')
+          : String(error.meta?.target ?? 'email or phone');
+
+        this.logger.warn(
+          `User sync conflict for Supabase ID ${data.supabaseId}. Target: ${target}`,
+        );
+
+        throw new ConflictException(
+          'An account already exists with this email address or phone number',
+        );
+      }
+
+      if (
+        error instanceof ConflictException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+
       const message = error instanceof Error ? error.message : String(error);
+
       this.logger.error(
         `User sync failed for Supabase ID ${data.supabaseId}: ${message}`,
       );

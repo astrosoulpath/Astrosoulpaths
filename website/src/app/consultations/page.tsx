@@ -6,6 +6,7 @@ import {
   useSearchParams,
 } from "next/navigation";
 import {
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -13,7 +14,23 @@ import {
   useState,
 } from "react";
 
-import AudioCall from "@/components/call/AudioCall";
+import dynamic from "next/dynamic";
+
+const AudioCall = dynamic(
+  () => import("@/components/call/AudioCall"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-3xl bg-white p-10 text-center shadow-xl">
+        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-[#D4AF37]" />
+
+        <p className="mt-5 font-semibold text-[#0B1026]">
+          Loading audio call...
+        </p>
+      </div>
+    ),
+  },
+);
 import {
   getConsultationHistory,
   type ConsultationSession,
@@ -368,31 +385,32 @@ async function requestAgoraToken(
 
   const data = payload?.data;
 
-  if (
-    !data?.appId ||
-    !data.token ||
-    !data.channelName ||
-    !Number.isInteger(data.uid) ||
-    !data.callId
-  ) {
-    throw new Error(
-      "Backend returned incomplete Agora call credentials.",
-    );
-  }
+  const uid = data?.uid;
 
-  return {
-    appId: data.appId,
-    token: data.token,
-    channelName:
-      data.channelName,
-    uid: data.uid,
-    callId: data.callId,
-    expiresAt:
-      data.expiresAt,
-  };
+if (
+  !data?.appId ||
+  !data.token ||
+  !data.channelName ||
+  typeof uid !== "number" ||
+  !Number.isInteger(uid) ||
+  !data.callId
+) {
+  throw new Error(
+    "Backend returned incomplete Agora call credentials.",
+  );
 }
 
-export default function ConsultationsPage() {
+return {
+  appId: data.appId,
+  token: data.token,
+  channelName: data.channelName,
+  uid,
+  callId: data.callId,
+  expiresAt: data.expiresAt,
+};
+}
+
+function ConsultationsContent() {
   const router =
     useRouter();
 
@@ -528,12 +546,12 @@ export default function ConsultationsPage() {
 
           setError("");
 
-          const response =
-            await getConsultationHistory();
+         const response =
+          await getConsultationHistory();
 
-          const calls =
-            response.data
-              ?.calls ?? [];
+         const calls = Array.isArray(response.data)
+          ? response.data
+          : [];
 
           setConsultations(
             [...calls].sort(
@@ -1198,9 +1216,11 @@ export default function ConsultationsPage() {
                     </p>
 
                     <h2 className="mt-2 text-3xl font-bold">
-                      {activeStoredCall?.astrologerName ||
-                        currentAudioCall?.astrologerName ||
-                        "Astrologer"}
+                      {
+                        activeStoredCall?.astrologerName ||
+                        currentAudioCall?.astrologer?.userProfile?.fullName ||
+                        "Astrologer"
+                       }
                     </h2>
 
                     <p className="mt-2 text-white/70">
@@ -1276,10 +1296,10 @@ export default function ConsultationsPage() {
                       null
                     }
                     participantName={
-                      activeStoredCall?.astrologerName ||
-                      currentAudioCall?.astrologerName ||
-                      "Astrologer"
-                    }
+                       activeStoredCall?.astrologerName ||
+                       currentAudioCall?.astrologer?.userProfile?.fullName ||
+                       "Astrologer"
+                     }
                     onEnd={
                       handleAudioCallEnd
                     }
@@ -1565,8 +1585,8 @@ export default function ConsultationsPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-3">
                             <h3 className="text-xl font-bold text-[#0B1026]">
-                              {consultation.astrologerName ||
-                                "Astro Soul Path Astrologer"}
+                              {consultation.astrologer?.userProfile?.fullName ||
+                                 "Astro Soul Path Astrologer"}
                             </h3>
 
                             <span
@@ -1617,11 +1637,10 @@ export default function ConsultationsPage() {
                               <p className="mt-1 font-bold text-[#0B1026]">
                                 ₹
                                 {getSafeNumber(
-                                  consultation.ratePerMinute,
-                                ).toFixed(
-                                  2,
-                                )}
-                                /min
+                                  consultation.purchasedMinutes +
+                                  consultation.extendedMinutes,
+                                )}{" "}
+                                minutes
                               </p>
                             </div>
 
@@ -1632,7 +1651,8 @@ export default function ConsultationsPage() {
 
                               <p className="mt-1 font-bold text-[#0B1026]">
                                 {getSafeNumber(
-                                  consultation.totalMinutes,
+                                  consultation.purchasedMinutes +
+                                  consultation.extendedMinutes
                                 )}{" "}
                                 minutes
                               </p>
@@ -1713,5 +1733,26 @@ export default function ConsultationsPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function ConsultationsFallback() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#FAF7F0] px-4">
+      <div className="rounded-3xl bg-white px-10 py-8 text-center shadow-lg">
+        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-[#D4AF37]" />
+        <p className="mt-5 font-semibold text-[#0B1026]">
+          Loading consultations...
+        </p>
+      </div>
+    </main>
+  );
+}
+
+export default function ConsultationsPage() {
+  return (
+    <Suspense fallback={<ConsultationsFallback />}>
+      <ConsultationsContent />
+    </Suspense>
   );
 }

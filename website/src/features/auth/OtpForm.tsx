@@ -191,6 +191,10 @@ export function OtpForm() {
         otpContext.phone,
         code,
       );
+      console.log("VERIFY OTP RESPONSE:", response);
+      console.log("SESSION:", response.session);
+      console.log("ACCESS TOKEN:", response.session?.accessToken);
+      console.log("REFRESH TOKEN:", response.session?.refreshToken);
 
       if (response.session?.accessToken) {
         localStorage.setItem(
@@ -223,10 +227,12 @@ export function OtpForm() {
 
       const redirectTo =
         otpContext.redirectTo?.startsWith("/")
-          ? otpContext.redirectTo
-          : "/";
+        ? otpContext.redirectTo
+        : "/dashboard";
 
-      router.replace(redirectTo);
+        router.replace(redirectTo);
+        router.refresh();
+
     } catch (err: unknown) {
       setError(
         err instanceof Error

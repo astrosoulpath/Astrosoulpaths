@@ -295,7 +295,7 @@ export function BookingConfirmation({
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-amber-100 text-2xl font-extrabold text-[#0B1026]">
             {astrologerAvatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
+               
               <img
                 src={astrologerAvatarUrl}
                 alt={astrologerName}

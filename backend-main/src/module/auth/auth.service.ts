@@ -10,6 +10,8 @@ import { Prisma } from '@prisma/client';
 import { Session } from '@supabase/supabase-js';
 import { SupabaseService } from '../../infrastructure/supabase/supabase.service';
 import { UserService } from '../user/user.service';
+import { EmailSignupDto } from './dto/email-signup.dto';
+import { EmailLoginDto } from './dto/email-login.dto';
 
 type AuthUserRecord = Prisma.UserGetPayload<{
   include: {

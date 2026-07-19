@@ -652,7 +652,7 @@ export default function AdminCustomersPage() {
                             <div className="flex items-center gap-3">
                               <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-amber-100 text-lg font-extrabold text-[#0B1026]">
                                 {profile?.avatarUrl ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
+                                   
                                   <img
                                     src={
                                       profile.avatarUrl

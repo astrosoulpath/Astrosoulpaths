@@ -1,6 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { AstrologerCard } from "./AstrologerCard";
 import {
@@ -15,15 +21,32 @@ type SortOption =
   | "price-low"
   | "price-high";
 
+type AstrologerFilters = {
+  search: string;
+  language: string;
+  expertise: string;
+  onlineOnly: boolean;
+};
+
 const ITEMS_PER_PAGE = 6;
 
+const DEFAULT_FILTERS: AstrologerFilters = {
+  search: "",
+  language: "",
+  expertise: "",
+  onlineOnly: false,
+};
+
 export function AstrologersGrid() {
-  const [astrologers, setAstrologers] = useState<PublicAstrologer[]>([]);
+  const [astrologers, setAstrologers] = useState<
+    PublicAstrologer[]
+  >([]);
 
   const [search, setSearch] = useState("");
   const [language, setLanguage] = useState("");
   const [expertise, setExpertise] = useState("");
   const [onlineOnly, setOnlineOnly] = useState(false);
+
   const [sortBy, setSortBy] =
     useState<SortOption>("recommended");
 
@@ -31,54 +54,39 @@ export function AstrologersGrid() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function loadAstrologers(
-    overrides?: Partial<{
-      search: string;
-      language: string;
-      expertise: string;
-      onlineOnly: boolean;
-    }>,
-  ) {
-    const nextSearch = overrides?.search ?? search;
-    const nextLanguage = overrides?.language ?? language;
-    const nextExpertise = overrides?.expertise ?? expertise;
-    const nextOnlineOnly =
-      overrides?.onlineOnly ?? onlineOnly;
+  const loadAstrologers = useCallback(
+    async (filters: AstrologerFilters) => {
+      try {
+        setLoading(true);
+        setError("");
 
-    try {
-      setLoading(true);
-      setError("");
+        const response = await getPublicAstrologers({
+          search: filters.search,
+          language: filters.language,
+          expertise: filters.expertise,
+          online: filters.onlineOnly ? true : undefined,
+        });
 
-      const response = await getPublicAstrologers({
-        search: nextSearch,
-        language: nextLanguage,
-        expertise: nextExpertise,
-        online: nextOnlineOnly ? true : undefined,
-      });
+        setAstrologers(response.data);
+        setCurrentPage(1);
+      } catch (err: unknown) {
+        setAstrologers([]);
 
-      setAstrologers(response.data);
-      setCurrentPage(1);
-    } catch (err: unknown) {
-      setAstrologers([]);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to load astrologers.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load astrologers.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
-    void loadAstrologers({
-      search: "",
-      language: "",
-      expertise: "",
-      onlineOnly: false,
-    });
-  }, []);
+    void loadAstrologers(DEFAULT_FILTERS);
+  }, [loadAstrologers]);
 
   const availableLanguages = useMemo(() => {
     return Array.from(
@@ -105,7 +113,9 @@ export function AstrologersGrid() {
 
     switch (sortBy) {
       case "rating-high":
-        return result.sort((a, b) => b.rating - a.rating);
+        return result.sort(
+          (a, b) => b.rating - a.rating,
+        );
 
       case "experience-high":
         return result.sort(
@@ -125,7 +135,9 @@ export function AstrologersGrid() {
       default:
         return result.sort((a, b) => {
           if (a.isOnline !== b.isOnline) {
-            return Number(b.isOnline) - Number(a.isOnline);
+            return (
+              Number(b.isOnline) - Number(a.isOnline)
+            );
           }
 
           return b.rating - a.rating;
@@ -135,7 +147,9 @@ export function AstrologersGrid() {
 
   const totalPages = Math.max(
     1,
-    Math.ceil(sortedAstrologers.length / ITEMS_PER_PAGE),
+    Math.ceil(
+      sortedAstrologers.length / ITEMS_PER_PAGE,
+    ),
   );
 
   const paginatedAstrologers = useMemo(() => {
@@ -148,11 +162,21 @@ export function AstrologersGrid() {
     );
   }, [sortedAstrologers, currentPage]);
 
+  function getCurrentFilters(): AstrologerFilters {
+    return {
+      search,
+      language,
+      expertise,
+      onlineOnly,
+    };
+  }
+
   function handleSearchSubmit(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
-    void loadAstrologers();
+
+    void loadAstrologers(getCurrentFilters());
   }
 
   function handleReset() {
@@ -163,12 +187,11 @@ export function AstrologersGrid() {
     setSortBy("recommended");
     setCurrentPage(1);
 
-    void loadAstrologers({
-      search: "",
-      language: "",
-      expertise: "",
-      onlineOnly: false,
-    });
+    void loadAstrologers(DEFAULT_FILTERS);
+  }
+
+  function handleRefresh() {
+    void loadAstrologers(getCurrentFilters());
   }
 
   function handlePageChange(page: number) {
@@ -232,7 +255,9 @@ export function AstrologersGrid() {
           <select
             value={sortBy}
             onChange={(event) => {
-              setSortBy(event.target.value as SortOption);
+              setSortBy(
+                event.target.value as SortOption,
+              );
               setCurrentPage(1);
             }}
             className="rounded-xl border border-gray-300 p-4 outline-none transition focus:border-[#D4AF37]"
@@ -240,15 +265,19 @@ export function AstrologersGrid() {
             <option value="recommended">
               Recommended
             </option>
+
             <option value="rating-high">
               Highest Rating
             </option>
+
             <option value="experience-high">
               Most Experienced
             </option>
+
             <option value="price-low">
               Price: Low to High
             </option>
+
             <option value="price-high">
               Price: High to Low
             </option>
@@ -274,7 +303,9 @@ export function AstrologersGrid() {
             disabled={loading}
             className="rounded-xl bg-[#D4AF37] px-6 py-3 font-semibold text-[#0B1026] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading ? "Searching..." : "Apply Filters"}
+            {loading
+              ? "Searching..."
+              : "Apply Filters"}
           </button>
 
           <button
@@ -288,7 +319,7 @@ export function AstrologersGrid() {
 
           <button
             type="button"
-            onClick={() => void loadAstrologers()}
+            onClick={handleRefresh}
             disabled={loading}
             className="rounded-xl border border-[#0B1026] px-6 py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -297,18 +328,20 @@ export function AstrologersGrid() {
         </div>
       </form>
 
-      {!loading && !error && astrologers.length > 0 && (
-        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-gray-600">
-            Showing {paginatedAstrologers.length} of{" "}
-            {sortedAstrologers.length} astrologers
-          </p>
+      {!loading &&
+        !error &&
+        astrologers.length > 0 && (
+          <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-600">
+              Showing {paginatedAstrologers.length} of{" "}
+              {sortedAstrologers.length} astrologers
+            </p>
 
-          <p className="text-sm text-gray-500">
-            Page {currentPage} of {totalPages}
-          </p>
-        </div>
-      )}
+            <p className="text-sm text-gray-500">
+              Page {currentPage} of {totalPages}
+            </p>
+          </div>
+        )}
 
       {error && (
         <div className="mb-6 rounded-xl bg-red-50 p-5 text-red-700">
@@ -322,31 +355,33 @@ export function AstrologersGrid() {
 
       {loading && (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div
-              key={index}
-              className="animate-pulse rounded-3xl bg-white p-6 shadow-lg"
-            >
-              <div className="flex items-center gap-4">
-                <div className="h-16 w-16 rounded-full bg-gray-200" />
+          {Array.from({ length: 3 }).map(
+            (_, index) => (
+              <div
+                key={index}
+                className="animate-pulse rounded-3xl bg-white p-6 shadow-lg"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-16 rounded-full bg-gray-200" />
 
-                <div className="flex-1">
-                  <div className="h-5 w-3/4 rounded bg-gray-200" />
-                  <div className="mt-3 h-4 w-1/2 rounded bg-gray-200" />
-                  <div className="mt-3 h-3 w-1/3 rounded bg-gray-200" />
+                  <div className="flex-1">
+                    <div className="h-5 w-3/4 rounded bg-gray-200" />
+                    <div className="mt-3 h-4 w-1/2 rounded bg-gray-200" />
+                    <div className="mt-3 h-3 w-1/3 rounded bg-gray-200" />
+                  </div>
                 </div>
-              </div>
 
-              <div className="mt-6 space-y-3">
-                <div className="h-4 rounded bg-gray-200" />
-                <div className="h-4 rounded bg-gray-200" />
-                <div className="h-4 rounded bg-gray-200" />
-              </div>
+                <div className="mt-6 space-y-3">
+                  <div className="h-4 rounded bg-gray-200" />
+                  <div className="h-4 rounded bg-gray-200" />
+                  <div className="h-4 rounded bg-gray-200" />
+                </div>
 
-              <div className="mt-6 h-12 rounded-xl bg-gray-200" />
-              <div className="mt-3 h-12 rounded-xl bg-gray-200" />
-            </div>
-          ))}
+                <div className="mt-6 h-12 rounded-xl bg-gray-200" />
+                <div className="mt-3 h-12 rounded-xl bg-gray-200" />
+              </div>
+            ),
+          )}
         </div>
       )}
 
@@ -377,31 +412,37 @@ export function AstrologersGrid() {
         paginatedAstrologers.length > 0 && (
           <>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {paginatedAstrologers.map((astrologer) => (
-                <AstrologerCard
-                  key={astrologer.id}
-                  id={astrologer.id}
-                  name={
-                    astrologer.name?.trim() ||
-                    "Astro Soul Path Astrologer"
-                  }
-                  avatarUrl={astrologer.avatarUrl}
-                  isOnline={astrologer.isOnline}
-                  specialty={
-                    astrologer.expertise.length
-                      ? astrologer.expertise.join(", ")
-                      : "Vedic Astrology"
-                  }
-                  experience={`${astrologer.experience} Years`}
-                  languages={
-                    astrologer.languages.length
-                      ? astrologer.languages.join(", ")
-                      : "Not specified"
-                  }
-                  price={`₹${astrologer.pricePerMin}/min`}
-                  rating={astrologer.rating}
-                />
-              ))}
+              {paginatedAstrologers.map(
+                (astrologer) => (
+                  <AstrologerCard
+                    key={astrologer.id}
+                    id={astrologer.id}
+                    name={
+                      astrologer.name?.trim() ||
+                      "Astro Soul Path Astrologer"
+                    }
+                    avatarUrl={astrologer.avatarUrl}
+                    isOnline={astrologer.isOnline}
+                    specialty={
+                      astrologer.expertise.length
+                        ? astrologer.expertise.join(
+                            ", ",
+                          )
+                        : "Vedic Astrology"
+                    }
+                    experience={`${astrologer.experience} Years`}
+                    languages={
+                      astrologer.languages.length
+                        ? astrologer.languages.join(
+                            ", ",
+                          )
+                        : "Not specified"
+                    }
+                    price={`₹${astrologer.pricePerMin}/min`}
+                    rating={astrologer.rating}
+                  />
+                ),
+              )}
             </div>
 
             {totalPages > 1 && (
@@ -410,7 +451,9 @@ export function AstrologersGrid() {
                   type="button"
                   disabled={currentPage === 1}
                   onClick={() =>
-                    handlePageChange(currentPage - 1)
+                    handlePageChange(
+                      currentPage - 1,
+                    )
                   }
                   className="rounded-lg border px-4 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -424,7 +467,9 @@ export function AstrologersGrid() {
                   <button
                     key={page}
                     type="button"
-                    onClick={() => handlePageChange(page)}
+                    onClick={() =>
+                      handlePageChange(page)
+                    }
                     className={`h-10 w-10 rounded-lg font-semibold ${
                       currentPage === page
                         ? "bg-[#D4AF37] text-[#0B1026]"
@@ -437,9 +482,13 @@ export function AstrologersGrid() {
 
                 <button
                   type="button"
-                  disabled={currentPage === totalPages}
+                  disabled={
+                    currentPage === totalPages
+                  }
                   onClick={() =>
-                    handlePageChange(currentPage + 1)
+                    handlePageChange(
+                      currentPage + 1,
+                    )
                   }
                   className="rounded-lg border px-4 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-40"
                 >

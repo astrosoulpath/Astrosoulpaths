@@ -2,27 +2,38 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useMemo } from "react";
+import {
+  Suspense,
+  useMemo,
+} from "react";
 
 import { BookingConfirmation } from "@/features/booking/BookingConfirmation";
 import type { ConsultationMode } from "@/services/consultationService";
 
-function parsePositiveNumber(value: string | null) {
+function parsePositiveNumber(
+  value: string | null,
+) {
   if (!value) {
     return null;
   }
 
   const parsedValue = Number(value);
 
-  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+  if (
+    !Number.isFinite(parsedValue) ||
+    parsedValue <= 0
+  ) {
     return null;
   }
 
   return parsedValue;
 }
 
-function parsePositiveInteger(value: string | null) {
-  const parsedValue = parsePositiveNumber(value);
+function parsePositiveInteger(
+  value: string | null,
+) {
+  const parsedValue =
+    parsePositiveNumber(value);
 
   if (
     parsedValue === null ||
@@ -34,47 +45,65 @@ function parsePositiveInteger(value: string | null) {
   return parsedValue;
 }
 
-function parseMode(value: string | null): ConsultationMode | null {
-  if (value === "chat" || value === "audio") {
+function parseMode(
+  value: string | null,
+): ConsultationMode | null {
+  if (
+    value === "chat" ||
+    value === "audio"
+  ) {
     return value;
   }
 
   return null;
 }
 
-export default function ConsultationConfirmationPage() {
+function ConsultationConfirmationContent() {
   const searchParams = useSearchParams();
 
   const bookingDetails = useMemo(() => {
     const astrologerId =
-      searchParams.get("astrologerId")?.trim() ?? "";
+      searchParams
+        .get("astrologerId")
+        ?.trim() ?? "";
 
     const astrologerUserId =
-      searchParams.get("astrologerUserId")?.trim() ?? "";
+      searchParams
+        .get("astrologerUserId")
+        ?.trim() ?? "";
 
     const astrologerName =
-      searchParams.get("astrologerName")?.trim() ||
-      "Astrologer";
+      searchParams
+        .get("astrologerName")
+        ?.trim() || "Astrologer";
 
     const astrologerAvatarUrl =
-      searchParams.get("astrologerAvatarUrl")?.trim() || null;
+      searchParams
+        .get("astrologerAvatarUrl")
+        ?.trim() || null;
 
     const mode = parseMode(
       searchParams.get("mode"),
     );
 
-    const minutes = parsePositiveInteger(
-      searchParams.get("minutes"),
-    );
+    const minutes =
+      parsePositiveInteger(
+        searchParams.get("minutes"),
+      );
 
-    const pricePerMin = parsePositiveNumber(
-      searchParams.get("pricePerMin"),
-    );
+    const pricePerMin =
+      parsePositiveNumber(
+        searchParams.get("pricePerMin"),
+      );
 
     const returnPath =
-      searchParams.get("returnPath")?.trim() ||
+      searchParams
+        .get("returnPath")
+        ?.trim() ||
       (astrologerId
-        ? `/astrologers/${encodeURIComponent(astrologerId)}`
+        ? `/astrologers/${encodeURIComponent(
+            astrologerId,
+          )}`
         : "/astrologers");
 
     return {
@@ -90,13 +119,18 @@ export default function ConsultationConfirmationPage() {
   }, [searchParams]);
 
   const hasValidDetails =
-    Boolean(bookingDetails.astrologerId) &&
-    Boolean(bookingDetails.astrologerUserId) &&
+    Boolean(
+      bookingDetails.astrologerId,
+    ) &&
+    Boolean(
+      bookingDetails.astrologerUserId,
+    ) &&
     Boolean(bookingDetails.mode) &&
     bookingDetails.minutes !== null &&
     bookingDetails.minutes >= 1 &&
     bookingDetails.minutes <= 180 &&
-    bookingDetails.pricePerMin !== null &&
+    bookingDetails.pricePerMin !==
+      null &&
     bookingDetails.pricePerMin > 0;
 
   if (!hasValidDetails) {
@@ -116,8 +150,9 @@ export default function ConsultationConfirmationPage() {
           </h1>
 
           <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-gray-600">
-            The consultation information is missing or invalid.
-            Please return to the astrologer profile and select the
+            The consultation information is
+            missing or invalid. Please return to
+            the astrologer profile and select the
             consultation again.
           </p>
 
@@ -161,26 +196,60 @@ export default function ConsultationConfirmationPage() {
           </h1>
 
           <p className="mt-3 max-w-3xl text-base leading-7 text-gray-600">
-            Verify the astrologer, consultation mode, duration and
-            payable amount before starting the session.
+            Verify the astrologer,
+            consultation mode, duration and
+            payable amount before starting the
+            session.
           </p>
         </div>
 
         <BookingConfirmation
-          astrologerId={bookingDetails.astrologerId}
+          astrologerId={
+            bookingDetails.astrologerId
+          }
           astrologerUserId={
             bookingDetails.astrologerUserId
           }
-          astrologerName={bookingDetails.astrologerName}
+          astrologerName={
+            bookingDetails.astrologerName
+          }
           astrologerAvatarUrl={
             bookingDetails.astrologerAvatarUrl
           }
           mode={bookingDetails.mode!}
           minutes={bookingDetails.minutes!}
-          pricePerMin={bookingDetails.pricePerMin!}
-          returnPath={bookingDetails.returnPath}
+          pricePerMin={
+            bookingDetails.pricePerMin!
+          }
+          returnPath={
+            bookingDetails.returnPath
+          }
         />
       </div>
     </main>
+  );
+}
+
+function ConsultationConfirmationFallback() {
+  return (
+    <main className="flex min-h-[70vh] items-center justify-center bg-[#F8F8F8] px-4">
+      <div className="rounded-2xl border border-gray-200 bg-white px-8 py-6 text-center shadow-sm">
+        <p className="font-bold text-[#0B1026]">
+          Loading consultation details...
+        </p>
+      </div>
+    </main>
+  );
+}
+
+export default function ConsultationConfirmationPage() {
+  return (
+    <Suspense
+      fallback={
+        <ConsultationConfirmationFallback />
+      }
+    >
+      <ConsultationConfirmationContent />
+    </Suspense>
   );
 }

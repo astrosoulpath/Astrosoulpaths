@@ -14,7 +14,9 @@ export default async function LoginPage({
   return (
     <LoginForm
       redirectTo={
-        redirect?.startsWith("/") ? redirect : "/"
+        redirect?.startsWith("/")
+          ? redirect
+          : "/dashboard"
       }
     />
   );

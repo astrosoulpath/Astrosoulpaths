@@ -196,10 +196,11 @@ export default function AdminSubscriptionsPage() {
   const loadSubscriptions = useCallback(
     async (refresh = false) => {
       try {
-        refresh
-          ? setIsRefreshing(true)
-          : setIsLoading(true);
-
+        if (refresh) {
+          setIsRefreshing(true);
+      } else {
+          setIsLoading(true);
+      }
         setErrorMessage(null);
 
         const token = getAccessToken();

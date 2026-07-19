@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import ServiceDetailPage from "@/features/home/ServiceDetailPage";
+
+export const metadata: Metadata = {
+  title: "100% Secure Payments | Astro Soul Path",
+  description:
+    "Recharge your wallet and pay for astrology consultations securely using trusted payment gateways with complete transaction transparency.",
+};
 
 export default function SecurePaymentsPage() {
   return (
