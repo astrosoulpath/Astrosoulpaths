@@ -3,8 +3,92 @@ services:
     name: astrosoulpath-backend
     runtime: node
     plan: starter
+
     buildCommand: pnpm install --frozen-lockfile && pnpm prisma generate && pnpm run build
     preDeployCommand: pnpm prisma migrate deploy
     startCommand: pnpm run start:prod
+
     healthCheckPath: /health
     autoDeploy: true
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      - key: LOCAL_OTP_ENABLED
+        value: "false"
+
+      - key: FRONTEND_URL
+        sync: false
+
+      - key: DATABASE_URL
+        sync: false
+
+      - key: DIRECT_URL
+        sync: false
+
+      - key: JWT_SECRET
+        sync: false
+
+      - key: SUPABASE_URL
+        sync: false
+
+      - key: SUPABASE_ANON_KEY
+        sync: false
+
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+
+      - key: SUPABASE_JWT_AUDIENCE
+        sync: false
+
+      - key: REDIS_HOST
+        sync: false
+
+      - key: REDIS_PORT
+        sync: false
+
+      - key: REDIS_PASSWORD
+        sync: false
+
+      - key: REDIS_TLS
+        sync: false
+
+      - key: ENABLE_BULL_BOARD
+        value: "false"
+
+      - key: BULL_BOARD_USERNAME
+        sync: false
+
+      - key: BULL_BOARD_PASSWORD
+        sync: false
+
+      - key: RAZORPAY_KEY_ID
+        sync: false
+
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+
+      - key: ASTRO_API_KEY
+        sync: false
+
+      - key: ASTRO_BASE_URL
+        sync: false
+
+      - key: VEDIC_API_KEY
+        sync: false
+
+      - key: VEDIC_BASE_URL
+        sync: false
+
+      - key: ASTROLOGY_API_KEY
+        sync: false
+
+      - key: ASTROLOGY_BASE_URL
+        sync: false
+
+      - key: ASTROLOGER_PLATFORM_FEE_PERCENT
+        sync: false
