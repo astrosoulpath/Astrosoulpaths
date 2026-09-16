@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -78,7 +78,7 @@ function getAccessToken() {
   }
 
   return (
-    window.localStorage.getItem("asp_access_token") ??
+    window.localStorage.getItem("asp_admin_access_token") ??
     window.localStorage.getItem("access_token")
   );
 }
@@ -132,7 +132,7 @@ function getStatusClasses(status: string) {
       return "border-amber-200 bg-amber-100 text-amber-700";
 
     case "EXPIRED":
-      return "border-gray-200 bg-gray-200 text-gray-700";
+      return "border-gray-200 bg-gray-200 text-[#263A55]";
 
     case "CANCELLED":
       return "border-red-200 bg-red-100 text-red-700";
@@ -141,7 +141,7 @@ function getStatusClasses(status: string) {
       return "border-blue-200 bg-blue-100 text-blue-700";
 
     default:
-      return "border-gray-200 bg-gray-100 text-gray-700";
+      return "border-gray-200 bg-gray-100 text-[#263A55]";
   }
 }
 
@@ -338,19 +338,19 @@ export default function AdminSubscriptionsPage() {
   }, [subscriptions]);
 
   return (
-    <main className="min-h-screen bg-[#F8F8F8] px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="asp-admin-page px-4 py-10 sm:px-6 lg:px-8">
+      <div className="asp-admin-shell">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-amber-600">
+            <p className="asp-admin-eyebrow">
               Admin Panel
             </p>
 
-            <h1 className="mt-2 text-3xl font-extrabold text-[#0B1026] sm:text-4xl">
+            <h1 className="asp-admin-title mt-2 text-3xl sm:text-4xl">
               Subscription Management
             </h1>
 
-            <p className="mt-3 text-gray-600">
+            <p className="asp-admin-subtitle mt-3">
               Review active plans, subscription periods,
               renewals and customer activity.
             </p>
@@ -359,7 +359,7 @@ export default function AdminSubscriptionsPage() {
           <div className="flex gap-3">
             <Link
               href="/admin"
-              className="rounded-xl border border-gray-300 bg-white px-5 py-3 font-bold text-[#0B1026]"
+              className="asp-admin-back-btn"
             >
               Back to Dashboard
             </Link>
@@ -370,7 +370,7 @@ export default function AdminSubscriptionsPage() {
                 void loadSubscriptions(true)
               }
               disabled={isRefreshing}
-              className="rounded-xl bg-[#0B1026] px-5 py-3 font-bold text-white disabled:opacity-50"
+              className="asp-admin-primary-btn"
             >
               {isRefreshing
                 ? "Refreshing..."
@@ -404,9 +404,9 @@ export default function AdminSubscriptionsPage() {
           ].map(([label, value]) => (
             <article
               key={String(label)}
-              className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+              className="asp-admin-stat-card"
             >
-              <p className="text-sm font-semibold text-gray-500">
+              <p className="asp-admin-stat-label">
                 {label}
               </p>
               <p className="mt-3 text-2xl font-extrabold text-[#0B1026]">
@@ -416,7 +416,7 @@ export default function AdminSubscriptionsPage() {
           ))}
         </section>
 
-        <section className="mt-8 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+        <section className="asp-admin-panel mt-8 p-6">
           <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
             <input
               type="search"
@@ -425,7 +425,7 @@ export default function AdminSubscriptionsPage() {
                 setSearch(event.target.value)
               }
               placeholder="Search by customer, plan or subscription ID"
-              className="rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-[#D4AF37]"
+              className="asp-admin-input px-4 py-3"
             />
 
             <select
@@ -435,7 +435,7 @@ export default function AdminSubscriptionsPage() {
                   event.target.value as StatusFilter,
                 )
               }
-              className="rounded-xl border border-gray-300 bg-white px-4 py-3 font-semibold"
+              className="asp-admin-input px-4 py-3 font-semibold"
             >
               <option value="ALL">
                 All statuses
@@ -456,7 +456,7 @@ export default function AdminSubscriptionsPage() {
           </div>
 
           {isLoading ? (
-            <div className="py-16 text-center font-semibold text-gray-600">
+            <div className="py-16 text-center font-semibold text-[#4B5C73]">
               Loading subscriptions...
             </div>
           ) : filteredSubscriptions.length === 0 ? (
@@ -468,8 +468,8 @@ export default function AdminSubscriptionsPage() {
           ) : (
             <div className="mt-6 overflow-x-auto">
               <table className="min-w-full">
-                <thead>
-                  <tr className="border-b text-left">
+                <thead className="asp-admin-table-head">
+                  <tr className="asp-admin-table-head border-b text-left">
                     <th className="px-4 py-3">
                       Customer
                     </th>
@@ -502,7 +502,7 @@ export default function AdminSubscriptionsPage() {
                           <p className="font-bold text-[#0B1026]">
                             {getUserName(subscription)}
                           </p>
-                          <p className="mt-1 text-xs text-gray-500">
+                          <p className="mt-1 text-xs text-[#66758A]">
                             {subscription.userId}
                           </p>
                         </td>
@@ -512,7 +512,7 @@ export default function AdminSubscriptionsPage() {
                             {subscription.plan?.name ||
                               "Subscription Plan"}
                           </p>
-                          <p className="mt-1 text-xs text-gray-500">
+                          <p className="mt-1 text-xs text-[#66758A]">
                             {subscription.plan
                               ?.durationDays ?? 0}{" "}
                             days
@@ -534,7 +534,7 @@ export default function AdminSubscriptionsPage() {
                               subscription.startDate,
                             )}
                           </p>
-                          <p className="mt-1 text-gray-500">
+                          <p className="mt-1 text-[#66758A]">
                             to{" "}
                             {formatDate(
                               subscription.endDate,
@@ -571,3 +571,4 @@ export default function AdminSubscriptionsPage() {
     </main>
   );
 }
+

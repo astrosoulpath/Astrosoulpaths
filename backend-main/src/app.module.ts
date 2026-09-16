@@ -1,6 +1,8 @@
+import { AiReceptionistModule } from './module/ai-receptionist/ai-receptionist.module';
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -14,7 +16,9 @@ import { RedisModule } from './infrastructure/redis/redis.module';
 import { SupabaseModule } from './infrastructure/supabase/supabase.module';
 
 import { AdminModule } from './module/admin/admin.module';
+import { MarketplaceModule } from './module/marketplace/marketplace.module';
 import { AstrologerModule } from './module/astrologer/astrologer.module';
+import { AstrologyQuestionsModule } from './module/astrology-questions/astrology-questions.module';
 import { AstroModule } from './module/astro/astro.module';
 import { DailyinsightModule } from './module/astro/modules/dailyinsight/dailyinsight.module';
 import { DashaModule } from './module/astro/modules/dasha/dasha.module';
@@ -29,17 +33,30 @@ import { ConsultationModule } from './module/consultation/consultation.module';
 import { DashboardModule } from './module/dashboard/dashboard.module';
 import { HealthModule } from './module/health/health.module';
 import { KundliModule } from './module/kundli/kundli.module';
+import { LiveModule } from './module/live/live.module';
+import { LanguageModule } from './module/language/language.module';
+import { NotificationsModule } from './module/notifications/notifications.module';
 import { PaymentsModule } from './module/payments/payments.module';
 import { ProfileModule } from './module/profile/profile.module';
 import { QueueModule } from './module/queue/queue.module';
 import { ReviewModule } from './module/review/review.module';
+import { FeedbackModule } from './module/feedback/feedback.module';
 import { SubscriptionModule } from './module/subscription/subscription.module';
 import { UserModule } from './module/user/user.module';
 import { WalletModule } from './module/wallet/wallet.module';
+import { SupportModule } from './module/support/support.module';
+import { AiAstroModule } from './module/ai-astro/ai-astro.module';
 
+import { AppConfigModule } from './module/app-config/app-config.module';
 @Module({
   imports: [
+    AppConfigModule,
+    AiAstroModule,
+    AiReceptionistModule,
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
+      envFilePath: '.env',
+      ignoreEnvFile: process.env.NODE_ENV === 'production',
       isGlobal: true,
       validationSchema: envValidationSchema,
       load: [supabaseConfig],
@@ -55,9 +72,13 @@ import { WalletModule } from './module/wallet/wallet.module';
     UserModule,
     ProfileModule,
     AstrologerModule,
+    AstrologyQuestionsModule,
     AstroModule,
     DashaModule,
     KundliModule,
+    LiveModule,
+    LanguageModule,
+    NotificationsModule,
     QueueModule,
     CacheModule,
     HealthModule,
@@ -67,12 +88,15 @@ import { WalletModule } from './module/wallet/wallet.module';
     CallModule,
     ConsultationModule,
     AdminModule,
+    MarketplaceModule,
     WalletModule,
     SubscriptionModule,
     ChatModule,
     DashboardModule,
     ReviewModule,
+    FeedbackModule,
     AvailabilityModule,
+    SupportModule,
   ],
 
   controllers: [AppController],

@@ -1,10 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import type { JWTPayload } from 'jose';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -15,26 +9,20 @@ import { WalletService } from './wallet.service';
 @Controller('wallet')
 @UseGuards(SupabaseAuthGuard)
 export class WalletController {
-  constructor(
-    private readonly walletService: WalletService,
-  ) {}
+  constructor(private readonly walletService: WalletService) {}
 
   @Get()
-  getWallet(
-    @CurrentUser() user: JWTPayload,
-  ) {
-    return this.walletService.getWallet(
-      user.sub as string,
-    );
+  getWallet(@CurrentUser() user: JWTPayload) {
+    return this.walletService.getWallet(user.sub as string);
   }
 
+  @Get('recharge-packs')
+  getRechargePacks() {
+    return this.walletService.getRechargePacks();
+  }
   @Get('history')
-  getWalletHistory(
-    @CurrentUser() user: JWTPayload,
-  ) {
-    return this.walletService.getWalletHistory(
-      user.sub as string,
-    );
+  getWalletHistory(@CurrentUser() user: JWTPayload) {
+    return this.walletService.getWalletHistory(user.sub as string);
   }
 
   /**
@@ -46,9 +34,6 @@ export class WalletController {
     @CurrentUser() user: JWTPayload,
     @Body() dto: RechargeWalletDto,
   ) {
-    return this.walletService.rechargeWallet(
-      user.sub as string,
-      dto,
-    );
+    return this.walletService.rechargeWallet(user.sub as string, dto);
   }
 }

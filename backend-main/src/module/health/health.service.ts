@@ -1,4 +1,4 @@
-import {
+﻿import {
   Injectable,
   InternalServerErrorException,
   ServiceUnavailableException,
@@ -44,12 +44,29 @@ export class HealthService {
   }
 
   private async checkRedis() {
-    const isReady = await this.redis.ping();
+    const timeoutMs = 3000;
 
-    if (!isReady) {
+    try {
+      const isReady = await Promise.race([
+        this.redis.ping(),
+        new Promise<boolean>((resolve) => {
+          setTimeout(() => resolve(false), timeoutMs);
+        }),
+      ]);
+
+      if (!isReady) {
+        throw new ServiceUnavailableException(
+          `Redis health check failed or timed out after ${timeoutMs}ms`,
+        );
+      }
+
+      return 'up';
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) {
+        throw error;
+      }
+
       throw new ServiceUnavailableException('Redis health check failed');
     }
-
-    return 'up';
   }
 }

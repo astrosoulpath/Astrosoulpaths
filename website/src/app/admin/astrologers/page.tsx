@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -66,7 +66,7 @@ function getAccessToken() {
   }
 
   return (
-    window.localStorage.getItem("asp_access_token") ??
+    window.localStorage.getItem("asp_admin_access_token") ??
     window.localStorage.getItem("access_token")
   );
 }
@@ -311,7 +311,7 @@ export default function AdminAstrologersPage() {
 
   async function updateAstrologer(
     astrologerId: string,
-    action: "approve" | "suspend",
+    action: "approve" | "reject" | "suspend",
   ) {
     try {
       setUpdatingId(astrologerId);
@@ -365,6 +365,10 @@ export default function AdminAstrologersPage() {
             ...item,
             isApproved: action === "approve",
             isVerified: action === "approve",
+            isOnline:
+              action === "approve"
+                ? item.isOnline
+                : false,
           };
         }),
       );
@@ -372,7 +376,9 @@ export default function AdminAstrologersPage() {
       setSuccessMessage(
         action === "approve"
           ? "Astrologer approved successfully."
-          : "Astrologer suspended successfully.",
+          : action === "reject"
+            ? "Astrologer rejected successfully."
+            : "Astrologer suspended successfully.",
       );
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -382,19 +388,19 @@ export default function AdminAstrologersPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F8F8F8] px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="asp-admin-page px-4 py-10 sm:px-6 lg:px-8">
+      <div className="asp-admin-shell">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-amber-600">
+            <p className="asp-admin-eyebrow">
               Admin Panel
             </p>
 
-            <h1 className="mt-2 text-3xl font-extrabold text-[#0B1026] sm:text-4xl">
+            <h1 className="asp-admin-title mt-2 text-3xl sm:text-4xl">
               Astrologer Management
             </h1>
 
-            <p className="mt-3 max-w-3xl text-base leading-7 text-gray-600">
+            <p className="asp-admin-subtitle mt-3 max-w-3xl text-base">
               Review astrologer accounts, approval status,
               availability and consultation pricing.
             </p>
@@ -403,7 +409,7 @@ export default function AdminAstrologersPage() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link
               href="/admin"
-              className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-center font-bold text-[#0B1026] transition hover:bg-gray-50"
+              className="asp-admin-back-btn"
             >
               Back to Dashboard
             </Link>
@@ -414,7 +420,7 @@ export default function AdminAstrologersPage() {
                 void loadAstrologers(true)
               }
               disabled={isRefreshing}
-              className="rounded-xl bg-[#0B1026] px-5 py-3 font-bold text-white transition hover:bg-[#171D3D] disabled:cursor-not-allowed disabled:opacity-60"
+              className="asp-admin-primary-btn"
             >
               {isRefreshing
                 ? "Refreshing..."
@@ -443,8 +449,8 @@ export default function AdminAstrologersPage() {
         ) : null}
 
         <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Total Astrologers
             </p>
             <p className="mt-3 text-3xl font-extrabold text-[#0B1026]">
@@ -452,8 +458,8 @@ export default function AdminAstrologersPage() {
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Pending Approval
             </p>
             <p className="mt-3 text-3xl font-extrabold text-amber-700">
@@ -461,8 +467,8 @@ export default function AdminAstrologersPage() {
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Approved
             </p>
             <p className="mt-3 text-3xl font-extrabold text-green-700">
@@ -470,8 +476,8 @@ export default function AdminAstrologersPage() {
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Online
             </p>
             <p className="mt-3 text-3xl font-extrabold text-blue-700">
@@ -480,7 +486,7 @@ export default function AdminAstrologersPage() {
           </article>
         </section>
 
-        <section className="mt-8 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section className="asp-admin-panel mt-8 p-5 sm:p-6">
           <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
             <input
               type="search"
@@ -489,7 +495,7 @@ export default function AdminAstrologersPage() {
                 setSearch(event.target.value)
               }
               placeholder="Search by name, language, expertise or ID"
-              className="rounded-xl border border-gray-300 px-4 py-3 text-[#0B1026] outline-none transition focus:border-[#D4AF37]"
+              className="asp-admin-input px-4 py-3"
             />
 
             <select
@@ -499,7 +505,7 @@ export default function AdminAstrologersPage() {
                   event.target.value as StatusFilter,
                 )
               }
-              className="rounded-xl border border-gray-300 bg-white px-4 py-3 font-semibold text-[#0B1026] outline-none focus:border-[#D4AF37]"
+              className="asp-admin-input px-4 py-3 font-semibold"
             >
               <option value="ALL">
                 All statuses
@@ -521,7 +527,7 @@ export default function AdminAstrologersPage() {
 
           {isLoading ? (
             <div className="py-16 text-center">
-              <p className="font-semibold text-gray-600">
+              <p className="font-semibold text-[#4B5C73]">
                 Loading astrologers...
               </p>
             </div>
@@ -531,31 +537,31 @@ export default function AdminAstrologersPage() {
                 No astrologers found
               </h2>
 
-              <p className="mt-2 text-gray-600">
+              <p className="mt-2 text-[#4B5C73]">
                 No astrologer records match the selected filters.
               </p>
             </div>
           ) : (
             <div className="mt-6 overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-0">
-                <thead>
+                <thead className="asp-admin-table-head">
                   <tr className="text-left">
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Astrologer
                     </th>
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Expertise
                     </th>
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Price
                     </th>
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Status
                     </th>
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Availability
                     </th>
-                    <th className="border-b border-gray-200 px-4 py-3 text-right text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-right text-xs font-extrabold text-[#243650]">
                       Actions
                     </th>
                   </tr>
@@ -575,18 +581,18 @@ export default function AdminAstrologersPage() {
                             )}
                           </p>
 
-                          <p className="mt-1 text-xs text-gray-500">
+                          <p className="mt-1 text-xs text-[#66758A]">
                             ID: {astrologer.id}
                           </p>
 
-                          <p className="mt-1 text-sm text-gray-600">
+                          <p className="mt-1 text-sm text-[#4B5C73]">
                             {(astrologer.languages ?? [])
                               .join(", ") ||
                               "Languages not specified"}
                           </p>
                         </td>
 
-                        <td className="border-b border-gray-100 px-4 py-5 text-sm text-gray-700">
+                        <td className="border-b border-gray-100 px-4 py-5 text-sm text-[#263A55]">
                           {getExpertise(astrologer)}
                         </td>
 
@@ -600,7 +606,7 @@ export default function AdminAstrologersPage() {
                             /min
                           </p>
 
-                          <p className="mt-1 text-xs text-gray-500">
+                          <p className="mt-1 text-xs text-[#66758A]">
                             {astrologer.experience ?? 0}{" "}
                             years experience
                           </p>
@@ -623,7 +629,7 @@ export default function AdminAstrologersPage() {
                             className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${
                               astrologer.isOnline
                                 ? "bg-green-100 text-green-700"
-                                : "bg-gray-200 text-gray-600"
+                                : "bg-gray-200 text-[#4B5C73]"
                             }`}
                           >
                             {astrologer.isOnline
@@ -635,13 +641,13 @@ export default function AdminAstrologersPage() {
                         <td className="border-b border-gray-100 px-4 py-5">
                           <div className="flex flex-wrap justify-end gap-2">
                             <Link
-                              href={`/astrologers/${encodeURIComponent(
-                                astrologer.id,
+                              href={`/admin/astrologers/${encodeURIComponent(
+                              astrologer.id,
                               )}`}
-                              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-[#0B1026] transition hover:bg-gray-50"
-                            >
-                              View Profile
-                            </Link>
+                                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-[#0B1026] transition hover:bg-gray-50"
+                               >
+                             View Profile
+                             </Link>
 
                             {!astrologer.isApproved ||
                             !astrologer.isVerified ? (
@@ -663,6 +669,29 @@ export default function AdminAstrologersPage() {
                                 astrologer.id
                                   ? "Updating..."
                                   : "Approve"}
+                              </button>
+                            ) : null}
+
+                            {!astrologer.isApproved ||
+                            !astrologer.isVerified ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void updateAstrologer(
+                                    astrologer.id,
+                                    "reject",
+                                  )
+                                }
+                                disabled={
+                                  updatingId ===
+                                  astrologer.id
+                                }
+                                className="rounded-lg bg-gray-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-gray-800 disabled:opacity-50"
+                              >
+                                {updatingId ===
+                                astrologer.id
+                                  ? "Updating..."
+                                  : "Reject"}
                               </button>
                             ) : null}
 
@@ -702,3 +731,4 @@ export default function AdminAstrologersPage() {
     </main>
   );
 }
+

@@ -10,23 +10,9 @@ import { CallSocketService } from './call-socket.service';
 import { CallService } from './call.service';
 
 @Module({
-  imports: [
-    PrismaModule,
-    SupabaseModule,
-  ],
-  controllers: [
-    CallController,
-  ],
-  providers: [
-    CallService,
-    AgoraService,
-    CallSocketService,
-    CallGateway,
-  ],
-  exports: [
-    CallService,
-    AgoraService,
-    CallSocketService,
-  ],
+  imports: [PrismaModule, SupabaseModule],
+  controllers: [CallController],
+  providers: [CallService, AgoraService, CallSocketService, CallGateway],
+  exports: [CallService, AgoraService, CallSocketService],
 })
 export class CallModule {}

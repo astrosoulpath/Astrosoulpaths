@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -27,7 +27,7 @@ type AnalyticsData = {
 
 function getToken() {
   return (
-    window.localStorage.getItem("asp_access_token") ??
+    window.localStorage.getItem("asp_admin_access_token") ??
     window.localStorage.getItem("access_token")
   );
 }
@@ -113,13 +113,13 @@ export default function AdminAnalyticsPage() {
     ],
     [
       "Total Revenue",
-      `₹${Number(
+      `Ã¢â€šÂ¹${Number(
         data.totalRevenue ?? 0,
       ).toFixed(2)}`,
     ],
     [
       "Wallet Balance",
-      `₹${Number(
+      `Ã¢â€šÂ¹${Number(
         data.totalWalletBalance ?? 0,
       ).toFixed(2)}`,
     ],
@@ -132,11 +132,11 @@ export default function AdminAnalyticsPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#F8F8F8] px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="asp-admin-page px-4 py-10 sm:px-6 lg:px-8">
+      <div className="asp-admin-shell">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-amber-600">
+            <p className="asp-admin-eyebrow">
               Admin Panel
             </p>
 
@@ -144,7 +144,7 @@ export default function AdminAnalyticsPage() {
               Platform Analytics
             </h1>
 
-            <p className="mt-3 text-gray-600">
+            <p className="asp-admin-subtitle mt-3">
               Review platform growth, consultation,
               payment and subscription performance.
             </p>
@@ -153,7 +153,7 @@ export default function AdminAnalyticsPage() {
           <div className="flex gap-3">
             <Link
               href="/admin"
-              className="rounded-xl border border-gray-300 bg-white px-5 py-3 font-bold"
+              className="asp-admin-back-btn"
             >
               Back to Dashboard
             </Link>
@@ -161,7 +161,7 @@ export default function AdminAnalyticsPage() {
             <button
               type="button"
               onClick={() => void loadAnalytics()}
-              className="rounded-xl bg-[#0B1026] px-5 py-3 font-bold text-white"
+              className="asp-admin-primary-btn"
             >
               Refresh
             </button>
@@ -175,7 +175,7 @@ export default function AdminAnalyticsPage() {
         ) : null}
 
         {loading ? (
-          <div className="py-24 text-center font-semibold text-gray-600">
+          <div className="py-24 text-center font-semibold text-[#4B5C73]">
             Loading analytics...
           </div>
         ) : (
@@ -183,9 +183,9 @@ export default function AdminAnalyticsPage() {
             {cards.map(([label, value]) => (
               <article
                 key={String(label)}
-                className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+                className="asp-admin-stat-card"
               >
-                <p className="text-sm font-semibold text-gray-500">
+                <p className="asp-admin-stat-label">
                   {label}
                 </p>
 
@@ -197,12 +197,12 @@ export default function AdminAnalyticsPage() {
           </section>
         )}
 
-        <section className="mt-8 rounded-3xl border border-gray-200 bg-white p-8 shadow-sm">
+        <section className="asp-admin-panel mt-8 p-8">
           <h2 className="text-2xl font-extrabold text-[#0B1026]">
             Analytics Overview
           </h2>
 
-          <p className="mt-3 leading-7 text-gray-600">
+          <p className="mt-3 leading-7 text-[#4B5C73]">
             Detailed charts, date filters and downloadable
             analytics can be connected when the backend
             analytics endpoint returns grouped daily or
@@ -213,3 +213,4 @@ export default function AdminAnalyticsPage() {
     </main>
   );
 }
+

@@ -1,0 +1,224 @@
+﻿{
+    "success":  true,
+    "message":  "Customer Kundli generated successfully",
+    "data":  {
+                 "userId":  "f03ed02d-5de0-42f1-8315-387fbfbf971d",
+                 "profile":  {
+                                 "name":  "Hari",
+                                 "gender":  "MALE",
+                                 "birthPlace":  "Delhi, National Capital Territory of Delhi, India",
+                                 "dob":  "1999-09-08",
+                                 "tob":  "12:00:00",
+                                 "lat":  28.65195,
+                                 "lon":  77.23149,
+                                 "timezone":  5.5
+                             },
+                 "kundli":  {
+                                "id":  "cmswxa5rc0000v17kycc3rm1p",
+                                "latitude":  28.65195,
+                                "longitude":  77.23149,
+                                "createdAt":  "2026-08-17T07:38:54.504Z",
+                                "timezone":  5.5,
+                                "hash":  "c7cd90f9ca49e5abc499e8815c03ba5e9b438056d8cc05393be30d13524740a2",
+                                "dob":  "1999-09-08",
+                                "tob":  "12:00:00",
+                                "data":  null
+                            },
+                 "report":  {
+                                "provider":  "vedicastro",
+                                "language":  "en",
+                                "status":  "PARTIAL",
+                                "generatedAt":  "2026-08-17T07:38:55.374Z",
+                                "completeness":  {
+                                                     "corePercent":  25,
+                                                     "availableCoreSections":  1,
+                                                     "totalCoreSections":  4
+                                                 },
+                                "input":  {
+                                              "dob":  "1999-09-08",
+                                              "tob":  "12:00:00",
+                                              "latitude":  28.65195,
+                                              "longitude":  77.23149,
+                                              "timezone":  5.5,
+                                              "language":  "en"
+                                          },
+                                "charts":  {
+                                               "birthChart":  null,
+                                               "navamsaChart":  null
+                                           },
+                                "birthChart":  null,
+                                "navamsaChart":  null,
+                                "planetaryPositions":  [
+
+                                                       ],
+                                "dasha":  {
+                                              "timeline":  [
+
+                                                           ],
+                                              "mahaDasha":  null,
+                                              "mahaDashaPrediction":  null,
+                                              "current":  {
+
+                                                          }
+                                          },
+                                "panchang":  {
+                                                 "day":  {
+                                                             "name":  "Wednesday"
+                                                         },
+                                                 "tithi":  {
+                                                               "name":  "Chaturdasi",
+                                                               "number":  29,
+                                                               "next_tithi":  "Amavasya",
+                                                               "type":  "Krishna",
+                                                               "diety":  "Shiva",
+                                                               "start":  "Wed Sep 08 1999 4:58:02 AM",
+                                                               "end":  "Thu Sep 09 1999 3:50:55 AM",
+                                                               "meaning":  "Fourteenth day after Purnima (full moon).",
+                                                               "special":  "Good for work related to spiritual practices and seeking blessings."
+                                                           },
+                                                 "nakshatra":  {
+                                                                   "pada":  1,
+                                                                   "name":  "Magha",
+                                                                   "number":  10,
+                                                                   "lord":  "Ketu",
+                                                                   "diety":  "Pitrs",
+                                                                   "start":  "Wed Sep 08 1999 10:08:45 AM",
+                                                                   "next_nakshatra":  "PurvaPhalguni",
+                                                                   "end":  "Thu Sep 09 1999 9:50:00 AM",
+                                                                   "auspicious_disha":  [
+                                                                                            "South",
+                                                                                            "East",
+                                                                                            "North"
+                                                                                        ],
+                                                                   "meaning":  "Great one. Associated with royalty, power, and authority.",
+                                                                   "special":  "Adhomukh Nakshatra",
+                                                                   "summary":  "This nakshatra is of a mixed quality. Good for immediate actions, competition, work with metals. It is suitable to perform the routine activities, day-to-day duties, but it is not recommended to start new important deeds. Consult an astrologer for more information"
+                                                               },
+                                                 "karana":  {
+                                                                "name":  "Vishti",
+                                                                "number":  7,
+                                                                "type":  "Malefic",
+                                                                "lord":  "Saturn",
+                                                                "diety":  "Yama",
+                                                                "start":  "Wed Sep 08 1999 4:58:02 AM",
+                                                                "end":  "Wed Sep 08 1999 4:21:47 PM",
+                                                                "special":  "Time for war, igniting fire, poisoning, taking effort to overcome difficulties and enemies",
+                                                                "next_karana":  "Sakuna"
+                                                            },
+                                                 "yoga":  {
+                                                              "name":  "Siva",
+                                                              "number":  20,
+                                                              "start":  "Tue Sep 07 1999 9:06:55 PM",
+                                                              "end":  "Wed Sep 08 1999 7:02:05 PM",
+                                                              "next_yoga":  "Siddha",
+                                                              "meaning":  "Auspiciousness. Associated with auspiciousness, purity, and goodness.",
+                                                              "special":  "Good for any auspicious activity."
+                                                          },
+                                                 "ayanamsa":  {
+                                                                  "name":  "23 51\u00270\"",
+                                                                  "number":  23.849929904123325
+                                                              },
+                                                 "rasi":  {
+                                                              "name":  "Leo"
+                                                          },
+                                                 "sun_position":  {
+                                                                      "zodiac":  "Leo",
+                                                                      "nakshatra":  "PurvaPhalguni",
+                                                                      "rasi_no":  5,
+                                                                      "nakshatra_no":  10,
+                                                                      "sun_degree_at_rise":  141.36321485576434
+                                                                  },
+                                                 "moon_position":  {
+                                                                       "moon_degree":  121.33430376955026
+                                                                   },
+                                                 "advanced_details":  {
+                                                                          "sun_rise":  "6:03:48 AM",
+                                                                          "sun_set":  "6:37:02 PM",
+                                                                          "moon_rise":  "5:19:10 AM",
+                                                                          "moon_set":  "5:49:52 PM",
+                                                                          "next_full_moon":  "Sat Sep 25 1999",
+                                                                          "next_new_moon":  "Thu Sep 09 1999",
+                                                                          "masa":  {
+                                                                                       "amanta_number":  5,
+                                                                                       "amanta_date":  29,
+                                                                                       "amanta_name":  "Sravana",
+                                                                                       "alternate_amanta_name":  "Avani",
+                                                                                       "amanta_start":  "Wed Aug 11 1999",
+                                                                                       "amanta_end":  "Thu Sep 09 1999",
+                                                                                       "adhik_maasa":  false,
+                                                                                       "ayana":  "Dakshinayana",
+                                                                                       "real_ayana":  "Dakshinayana",
+                                                                                       "tamil_month_num":  5,
+                                                                                       "tamil_month":  "avani",
+                                                                                       "tamil_day":  22,
+                                                                                       "purnimanta_date":  14,
+                                                                                       "purnimanta_number":  6,
+                                                                                       "purnimanta_name":  "Bhadrapada",
+                                                                                       "alternate_purnimanta_name":  "Purattasi",
+                                                                                       "purnimanta_start":  "Thu Aug 26 1999",
+                                                                                       "purnimanta_end":  "Sat Sep 25 1999",
+                                                                                       "moon_phase":  "336/360",
+                                                                                       "paksha":  "Krishna Paksha",
+                                                                                       "ritu":  "Varsha",
+                                                                                       "ritu_tamil":  "Kutir"
+                                                                                   },
+                                                                          "moon_yogini_nivas":  "West",
+                                                                          "ahargana":  1862964.25264,
+                                                                          "years":  {
+                                                                                        "kali":  5100,
+                                                                                        "saka":  1921,
+                                                                                        "vikram_samvaat":  2056,
+                                                                                        "kali_samvaat_number":  14,
+                                                                                        "kali_samvaat_name":  "Vikrama",
+                                                                                        "vikram_samvaat_number":  26,
+                                                                                        "vikram_samvaat_name":  "Nandana",
+                                                                                        "saka_samvaat_number":  13,
+                                                                                        "saka_samvaat_name":  "Pramathi"
+                                                                                    },
+                                                                          "vaara":  "Budh vaara",
+                                                                          "disha_shool":  "South",
+                                                                          "abhijit_muhurta":  {
+                                                                                                  "start":  "11:56:25 AM",
+                                                                                                  "end":  "12:44:25 PM"
+                                                                                              }
+                                                                      },
+                                                 "rahukaal":  "12:20 PM to 01:54 PM",
+                                                 "gulika":  "10:46 AM to 12:20 PM",
+                                                 "yamakanta":  "07:37 AM to 09:12 AM",
+                                                 "date":  "Wed Sep 08 1999"
+                                             },
+                                "dosha":  {
+                                              "mangal":  null,
+                                              "manglik":  null,
+                                              "kaalSarp":  null,
+                                              "pitra":  null,
+                                              "papaSamaya":  null
+                                          },
+                                "extended":  {
+                                                 "gemSuggestion":  null,
+                                                 "sadeSati":  null,
+                                                 "friendship":  null
+                                             },
+                                "kp":  {
+                                           "houses":  null,
+                                           "planets":  null
+                                       },
+                                "analysis":  {
+                                                 "character":  "The available interpretation is limited to the Panchang because the birth chart, Navamsa, planetary positions, dosha findings, and dasha timeline have not been supplied. Magha Nakshatra, ruled by Ketu and associated with the Pitrs, traditionally indicates dignity, independence, respect for ancestry, and an attraction to responsibility, status, or established traditions. The Leo rasi emphasis can reinforce confidence, generosity, visibility, and a desire to lead. Wednesday birth adds a communicative, observant, and adaptable tone. Krishna Chaturdashi may give emotional intensity and a reflective nature, while Siva Yoga supports constructive intentions and an ability to seek renewal after difficulties. Pride, attachment to recognition, or rigidity about authority may occasionally require conscious moderation.",
+                                                 "career":  "Magha’s association with authority and legacy can suit work involving leadership, administration, government, institutions, heritage, management, or responsibility for others. Wednesday’s influence also supports communication, analysis, commerce, writing, coordination, and skill-based work. Vishti Karana suggests persistence when handling competition, obstacles, emergencies, or difficult assignments, though tact is important to prevent avoidable conflict. A precise career direction, timing of advancement, or assessment of professional yogas cannot be made without the D1 chart, house placements, planetary strengths, and dasha periods.",
+                                                 "finance":  "The available factors favor disciplined effort, practical problem-solving, and building financial stability through competence rather than impulsive risk. A preference for prestige or maintaining a respected image may sometimes encourage unnecessary expenditure, so clear budgets and long-term priorities may be helpful. No reliable conclusion can be made about wealth yogas, inheritance, property, gains, losses, or favorable financial periods because planetary positions, relevant houses, and dashas are unavailable. This is general astrological guidance, not financial advice.",
+                                                 "marriage":  "Magha may bring loyalty, strong family values, and a wish for mutual respect within partnership. It can also create sensitivity around pride, status, family expectations, or who holds authority in a relationship. Open communication and shared decision-making are therefore especially constructive. The Navamsa, seventh house, seventh lord, Venus, Jupiter, and dasha data are absent, so compatibility, marriage timing, marital circumstances, and Manglik status cannot be responsibly assessed. The null dosha entries should be treated as unavailable results rather than confirmation that doshas are absent.",
+                                                 "health":  "The supplied Panchang does not support specific health predictions. The intense and inward quality of Krishna Chaturdashi suggests that balanced rest, emotional decompression, and steady daily routines may be beneficial. General care with sleep, hydration, movement, and stress management is advisable. Astrology cannot diagnose illness; persistent or concerning symptoms should be discussed with a qualified medical professional.",
+                                                 "remedies":  [
+                                                                  "Offer a brief prayer or quiet remembrance for ancestors, expressing gratitude and resolving to preserve positive family values.",
+                                                                  "On Mondays or Chaturdashi, meditate calmly on Lord Shiva or repeat “Om Namah Shivaya” for a comfortable number of repetitions.",
+                                                                  "Practice humility in leadership by sharing credit, listening before deciding, and helping someone without seeking recognition.",
+                                                                  "Use Wednesday for reflective writing, study, clear communication, or organizing unfinished responsibilities.",
+                                                                  "Before major decisions, pause and review motives, practical risks, and long-term consequences rather than acting from pride or urgency.",
+                                                                  "Perform simple charity—such as offering food or practical assistance to elders or people in need—without expecting a result in return."
+                                                              ]
+                                             }
+                            },
+                 "source":  "provider"
+             }
+}

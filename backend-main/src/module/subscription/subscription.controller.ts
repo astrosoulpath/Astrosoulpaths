@@ -1,10 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import type { JWTPayload } from 'jose';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -15,9 +9,7 @@ import { SubscriptionService } from './subscription.service';
 
 @Controller('subscription')
 export class SubscriptionController {
-  constructor(
-    private readonly subscriptionService: SubscriptionService,
-  ) {}
+  constructor(private readonly subscriptionService: SubscriptionService) {}
 
   @Get('plans')
   getPlans() {
@@ -26,12 +18,8 @@ export class SubscriptionController {
 
   @Get('current')
   @UseGuards(SupabaseAuthGuard)
-  getCurrentSubscription(
-    @CurrentUser() user: JWTPayload,
-  ) {
-    return this.subscriptionService.getCurrentSubscription(
-      user.sub as string,
-    );
+  getCurrentSubscription(@CurrentUser() user: JWTPayload) {
+    return this.subscriptionService.getCurrentSubscription(user.sub as string);
   }
 
   @Post('checkout')
@@ -40,10 +28,7 @@ export class SubscriptionController {
     @CurrentUser() user: JWTPayload,
     @Body() dto: CreateSubscriptionDto,
   ) {
-    return this.subscriptionService.createSubscription(
-      user.sub as string,
-      dto,
-    );
+    return this.subscriptionService.createSubscription(user.sub as string, dto);
   }
 
   @Post('cancel')
@@ -52,9 +37,6 @@ export class SubscriptionController {
     @CurrentUser() user: JWTPayload,
     @Body() dto: CancelSubscriptionDto,
   ) {
-    return this.subscriptionService.cancelSubscription(
-      user.sub as string,
-      dto,
-    );
+    return this.subscriptionService.cancelSubscription(user.sub as string, dto);
   }
 }

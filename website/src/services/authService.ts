@@ -210,6 +210,145 @@ export async function verifyOtp(
   );
 }
 
+export async function sendAstrologerOtp(
+  phone: string,
+): Promise<AuthResponse> {
+
+  const normalizedPhone =
+    normalizePhone(phone);
+
+
+  if (
+    !/^\+[1-9]\d{9,14}$/.test(normalizedPhone)
+  ) {
+    throw new Error(
+      "Please enter a valid phone number with country code.",
+    );
+  }
+
+
+  return postAuthRequest<AuthResponse>(
+    "/auth/astrologer/send-otp",
+    {
+      phone: normalizedPhone,
+    },
+    "Failed to send astrologer OTP.",
+  );
+}
+
+
+
+export async function verifyAstrologerOtp(
+  phone: string,
+  token: string,
+): Promise<AuthResponse> {
+
+  const normalizedPhone =
+    normalizePhone(phone);
+
+
+  const normalizedToken =
+    token.replace(/\D/g, "").trim();
+
+
+  if (
+    !/^\+[1-9]\d{9,14}$/.test(normalizedPhone)
+  ) {
+    throw new Error(
+      "Please enter a valid phone number with country code.",
+    );
+  }
+
+
+  if (
+    !/^\d{6}$/.test(normalizedToken)
+  ) {
+    throw new Error(
+      "Please enter a valid 6-digit OTP.",
+    );
+  }
+
+
+  return postAuthRequest<AuthResponse>(
+    "/auth/astrologer/verify-otp",
+    {
+      phone: normalizedPhone,
+      token: normalizedToken,
+    },
+    "Failed to verify astrologer OTP.",
+  );
+}
+
+export async function sendAdminOtp(
+  phone: string,
+): Promise<AuthResponse> {
+
+  const normalizedPhone =
+    normalizePhone(phone);
+
+
+  if (
+    !/^\+[1-9]\d{9,14}$/.test(normalizedPhone)
+  ) {
+    throw new Error(
+      "Please enter a valid phone number with country code.",
+    );
+  }
+
+
+  return postAuthRequest<AuthResponse>(
+    "/auth/admin/send-otp",
+    {
+      phone: normalizedPhone,
+    },
+    "Failed to send admin OTP.",
+  );
+}
+
+
+
+export async function verifyAdminOtp(
+  phone: string,
+  token: string,
+): Promise<AuthResponse> {
+
+  const normalizedPhone =
+    normalizePhone(phone);
+
+
+  const normalizedToken =
+    token.replace(/\D/g, "").trim();
+
+
+  if (
+    !/^\+[1-9]\d{9,14}$/.test(normalizedPhone)
+  ) {
+    throw new Error(
+      "Please enter a valid phone number with country code.",
+    );
+  }
+
+
+  if (
+    !/^\d{6}$/.test(normalizedToken)
+  ) {
+    throw new Error(
+      "Please enter a valid 6-digit OTP.",
+    );
+  }
+
+
+  return postAuthRequest<AuthResponse>(
+    "/auth/admin/verify-otp",
+    {
+      phone: normalizedPhone,
+      token: normalizedToken,
+    },
+    "Failed to verify admin OTP.",
+  );
+}
+
+
 export function saveAuthSession(
   response: AuthResponse,
 ): void {

@@ -137,8 +137,15 @@ function getAccessToken(): string {
   }
 
   const token =
-    window.localStorage.getItem("asp_access_token") ??
-    window.localStorage.getItem("access_token");
+    window.localStorage.getItem(
+      "asp_astrologer_access_token",
+    ) ??
+    window.localStorage.getItem(
+      "asp_access_token",
+    ) ??
+    window.localStorage.getItem(
+      "access_token",
+    );
 
   if (!token) {
     throw new Error("LOGIN_REQUIRED");
@@ -333,6 +340,56 @@ export async function getCurrentAstrologerConsultation(): Promise<
   >("/consultations/astrologer/current");
 }
 
+
+/*
+ * ============================================================
+ * ACCEPT CONSULTATION
+ * ============================================================
+ */
+
+export async function acceptConsultation(
+  consultationId: string,
+): Promise<ConsultationApiResponse<ConsultationSession>> {
+  const normalizedId = consultationId.trim();
+
+  if (!normalizedId) {
+    throw new Error("Consultation ID is required.");
+  }
+
+  return consultationRequest<
+    ConsultationApiResponse<ConsultationSession>
+  >(
+    `/consultations/${encodeURIComponent(normalizedId)}/accept`,
+    {
+      method: "PATCH",
+    },
+  );
+}
+
+/*
+ * ============================================================
+ * REJECT CONSULTATION
+ * ============================================================
+ */
+
+export async function rejectConsultation(
+  consultationId: string,
+): Promise<ConsultationApiResponse<ConsultationSession>> {
+  const normalizedId = consultationId.trim();
+
+  if (!normalizedId) {
+    throw new Error("Consultation ID is required.");
+  }
+
+  return consultationRequest<
+    ConsultationApiResponse<ConsultationSession>
+  >(
+    `/consultations/${encodeURIComponent(normalizedId)}/reject`,
+    {
+      method: "PATCH",
+    },
+  );
+}
 /*
  * ============================================================
  * CONSULTATION HISTORY

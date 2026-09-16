@@ -1,9 +1,7 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export type SubscriptionPlanName =
-  | "DAILY_HOROSCOPE_MONTHLY"
-  | "ASTROLOGER_KUNDLI_YEARLY";
+  "DAILY_HOROSCOPE_MONTHLY" | "ASTROLOGER_KUNDLI_YEARLY";
 
 export type SubscriptionStatus =
   | "PENDING"
@@ -91,9 +89,7 @@ export type ReconcilePaymentResponse = {
 
 function getApiBaseUrl(): string {
   if (!API_BASE_URL) {
-    throw new Error(
-      "NEXT_PUBLIC_API_BASE_URL is not configured.",
-    );
+    throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured.");
   }
 
   return API_BASE_URL.replace(/\/+$/, "");
@@ -101,48 +97,59 @@ function getApiBaseUrl(): string {
 
 function getAccessToken(): string {
   if (typeof window === "undefined") {
-    throw new Error(
-      "Subscription actions are only available in the browser.",
-    );
+    throw new Error("Subscription actions are only available in the browser.");
   }
 
-  const token = localStorage.getItem(
-    "asp_access_token",
-  );
+  let portal: string | undefined;
 
-  if (!token) {
+  try {
+    const storedUserValue = localStorage.getItem("asp_user");
+
+    if (storedUserValue) {
+      const storedUser = JSON.parse(storedUserValue) as {
+        portal?: string;
+      };
+
+      portal = storedUser.portal;
+    }
+  } catch {
+    portal = undefined;
+  }
+
+  const portalToken =
+    portal === "astrologer"
+      ? localStorage.getItem("asp_astrologer_access_token")
+      : (localStorage.getItem("asp_customer_access_token") ??
+        localStorage.getItem("asp_access_token"));
+
+  const fallbackToken =
+    portalToken ??
+    localStorage.getItem("asp_astrologer_access_token") ??
+    localStorage.getItem("asp_customer_access_token") ??
+    localStorage.getItem("asp_access_token");
+
+  if (!fallbackToken) {
     throw new Error("LOGIN_REQUIRED");
   }
 
-  return token;
+  return fallbackToken;
 }
 
-async function readJson(
-  response: Response,
-): Promise<unknown> {
+async function readJson(response: Response): Promise<unknown> {
   return response.json().catch(() => null);
 }
 
-function getErrorMessage(
-  data: unknown,
-  fallback: string,
-): string {
-  if (
-    !data ||
-    typeof data !== "object"
-  ) {
+function getErrorMessage(data: unknown, fallback: string): string {
+  if (!data || typeof data !== "object") {
     return fallback;
   }
 
-  const record =
-    data as Record<string, unknown>;
+  const record = data as Record<string, unknown>;
 
   const message = record.message;
 
   if (Array.isArray(message)) {
-    return message
-      .map(String)
-      .join(", ");
+    return message.map(String).join(", ");
   }
 
   if (typeof message === "string") {
@@ -152,28 +159,20 @@ function getErrorMessage(
   return fallback;
 }
 
-async function publicRequest<T>(
-  path: string,
-): Promise<T> {
-  const response = await fetch(
-    `${getApiBaseUrl()}${path}`,
-    {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-      cache: "no-store",
+async function publicRequest<T>(path: string): Promise<T> {
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
     },
-  );
+    cache: "no-store",
+  });
 
   const data = await readJson(response);
 
   if (!response.ok) {
     throw new Error(
-      getErrorMessage(
-        data,
-        "Unable to load subscription plans.",
-      ),
+      getErrorMessage(data, "Unable to load subscription plans."),
     );
   }
 
@@ -186,19 +185,16 @@ async function authenticatedRequest<T>(
 ): Promise<T> {
   const token = getAccessToken();
 
-  const response = await fetch(
-    `${getApiBaseUrl()}${path}`,
-    {
-      ...options,
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        ...(options.headers ?? {}),
-      },
-      cache: "no-store",
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    ...options,
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options.headers ?? {}),
     },
-  );
+    cache: "no-store",
+  });
 
   const data = await readJson(response);
 
@@ -207,21 +203,14 @@ async function authenticatedRequest<T>(
       throw new Error("LOGIN_REQUIRED");
     }
 
-    throw new Error(
-      getErrorMessage(
-        data,
-        "Subscription request failed.",
-      ),
-    );
+    throw new Error(getErrorMessage(data, "Subscription request failed."));
   }
 
   return data as T;
 }
 
 export async function getSubscriptionPlans(): Promise<PlansResponse> {
-  return publicRequest<PlansResponse>(
-    "/subscription/plans",
-  );
+  return publicRequest<PlansResponse>("/subscription/plans");
 }
 
 export async function getCurrentSubscription(): Promise<CurrentSubscriptionResponse> {
@@ -231,10 +220,8 @@ export async function getCurrentSubscription(): Promise<CurrentSubscriptionRespo
 }
 
 /**
- * Legacy development-only checkout.
- *
- * Ye endpoint sirf PENDING subscription record create karta hai.
- * Real payment ke liye createSubscriptionPaymentOrder use karo.
+ * Development-only legacy checkout.
+ * This creates only a PENDING subscription.
  */
 export async function checkoutSubscription(
   planName: SubscriptionPlanName,
@@ -254,9 +241,6 @@ export async function checkoutSubscription(
 
 /**
  * Creates a real Razorpay payment order.
- *
- * Backend:
- * POST /payments/create-subscription-order
  */
 export async function createSubscriptionPaymentOrder(
   planName: SubscriptionPlanName,
@@ -273,28 +257,19 @@ export async function createSubscriptionPaymentOrder(
 }
 
 /**
- * Re-checks Razorpay when:
- * - webhook is late,
- * - browser closes after payment,
- * - network response is lost,
- * - payment popup succeeds but frontend misses callback.
+ * Re-checks payment status directly from Razorpay.
  */
 export async function reconcileSubscriptionPayment(
   razorpayOrderId: string,
 ): Promise<ReconcilePaymentResponse> {
-  const normalizedOrderId =
-    razorpayOrderId.trim();
+  const normalizedOrderId = razorpayOrderId.trim();
 
   if (!normalizedOrderId) {
-    throw new Error(
-      "Razorpay order ID is required.",
-    );
+    throw new Error("Razorpay order ID is required.");
   }
 
   return authenticatedRequest<ReconcilePaymentResponse>(
-    `/payments/reconcile/${encodeURIComponent(
-      normalizedOrderId,
-    )}`,
+    `/payments/reconcile/${encodeURIComponent(normalizedOrderId)}`,
     {
       method: "POST",
     },
@@ -313,18 +288,15 @@ export async function cancelSubscription(
     success: boolean;
     message?: string;
     data: SubscriptionRecord;
-  }>(
-    "/subscription/cancel",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        cancelAtPeriodEnd,
-        ...(reason?.trim()
-          ? {
-              reason: reason.trim(),
-            }
-          : {}),
-      }),
-    },
-  );
+  }>("/subscription/cancel", {
+    method: "POST",
+    body: JSON.stringify({
+      cancelAtPeriodEnd,
+      ...(reason?.trim()
+        ? {
+            reason: reason.trim(),
+          }
+        : {}),
+    }),
+  });
 }

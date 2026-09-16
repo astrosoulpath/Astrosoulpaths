@@ -1,6 +1,7 @@
-import { Gender } from '@prisma/client';
+﻿import { Gender } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEmail,
   IsEnum,
@@ -41,6 +42,10 @@ export class CreateUserProfileDto {
     message: 'timeOfBirth must be in HH:mm or HH:mm:ss format',
   })
   timeOfBirth?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  birthTimeKnown?: boolean;
 
   @IsOptional()
   @Transform(({ value }) => Number(value))
@@ -93,4 +98,10 @@ export class CreateUserProfileDto {
   @IsOptional()
   @IsString()
   avatarUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  lang?: string;
 }
+
+

@@ -40,14 +40,14 @@ export function LoginForm({
       await sendOtp(normalizedPhone);
 
       localStorage.setItem(
-        "asp_otp_context",
-        JSON.stringify({
-          phone: normalizedPhone,
-          flow: "login",
-          redirectTo:
-            redirectTo.startsWith("/") ? redirectTo : "/",
-        }),
-      );
+  "asp_otp_context",
+  JSON.stringify({
+    phone: normalizedPhone,
+    flow: "login",
+    portal: "customer",
+    redirectTo: "/dashboard",
+  }),
+);
 
       router.push("/verify-otp");
     } catch (err: unknown) {

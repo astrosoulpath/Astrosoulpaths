@@ -1,28 +1,32 @@
 import type { Metadata } from "next";
+
 import ServiceDetailPage from "@/features/home/ServiceDetailPage";
 
 export const metadata: Metadata = {
-  title: "Accurate Kundli Reports | Astro Soul Path",
+  title: "Professional Kundli Reports | Astro Soul Path",
   description:
-    "Generate detailed Janam Kundli reports with planetary positions, dosha analysis, dasha reports and personalized Vedic astrology predictions.",
+    "Explore professional Vedic Kundli reports with birth charts, planetary positions and Dasha analysis through verified astrologers.",
+  alternates: {
+    canonical: "/services/kundli-reports",
+  },
 };
 
 export default function KundliReportsPage() {
   return (
     <ServiceDetailPage
-      badge="Accurate Kundli Reports"
-      title="Generate Detailed Janam Kundli Reports"
-      description="Generate accurate Janam Kundli reports using your birth details. Analyze planetary positions, houses, yogas, doshas and receive personalized recommendations with future predictions."
+      badge="Professional Kundli Reports"
+      title="Understand Your Vedic Birth Chart"
+      description="Connect with verified astrologers for professional Vedic Kundli interpretation based on accurate birth date, time and location."
       features={[
-        "Janam Kundli generation",
+        "Birth Chart (D1)",
+        "Navamsa Chart (D9)",
         "Planetary position analysis",
-        "Dasha & Mahadasha reports",
-        "Manglik & Dosha detection",
-        "Career and marriage predictions",
-        "Downloadable Kundli report",
+        "Houses and Nakshatra details",
+        "Basic Dasha analysis",
+        "Professional astrologer guidance",
       ]}
-      primaryButtonText="Generate Kundli"
-      primaryButtonHref="/kundli"
+      primaryButtonText="Talk to an Astrologer"
+      primaryButtonHref="/astrologers"
     />
   );
 }

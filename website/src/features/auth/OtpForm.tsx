@@ -2,21 +2,20 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ClipboardEvent,
-  KeyboardEvent,
-  useEffect,
-  useState,
-} from "react";
+
+import { ClipboardEvent, KeyboardEvent, useEffect, useState } from "react";
 
 import {
   sendOtp,
   verifyOtp,
+  verifyAstrologerOtp,
+  verifyAdminOtp,
 } from "@/services/authService";
 
 type OtpContext = {
   phone: string;
   flow: "login" | "signup";
+  portal?: "customer" | "astrologer" | "admin";
   redirectTo?: string;
 };
 
@@ -25,34 +24,21 @@ const RESEND_SECONDS = 30;
 export function OtpForm() {
   const router = useRouter();
 
-  const [otp, setOtp] = useState([
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-  ]);
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
 
-  const [otpContext, setOtpContext] =
-    useState<OtpContext | null>(null);
+  const [otpContext, setOtpContext] = useState<OtpContext | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
-  const [secondsLeft, setSecondsLeft] =
-    useState(RESEND_SECONDS);
+  const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const storedContext = localStorage.getItem(
-      "asp_otp_context",
-    );
+    const storedContext = localStorage.getItem("asp_otp_context");
 
     if (storedContext) {
       try {
-        const parsed = JSON.parse(
-          storedContext,
-        ) as OtpContext;
+        const parsed = JSON.parse(storedContext) as OtpContext;
 
         if (parsed.phone) {
           setOtpContext(parsed);
@@ -63,9 +49,7 @@ export function OtpForm() {
       }
     }
 
-    const signupData = localStorage.getItem(
-      "asp_signup_data",
-    );
+    const signupData = localStorage.getItem("asp_signup_data");
 
     if (signupData) {
       try {
@@ -82,10 +66,7 @@ export function OtpForm() {
 
           setOtpContext(context);
 
-          localStorage.setItem(
-            "asp_otp_context",
-            JSON.stringify(context),
-          );
+          localStorage.setItem("asp_otp_context", JSON.stringify(context));
 
           return;
         }
@@ -94,9 +75,7 @@ export function OtpForm() {
       }
     }
 
-    setError(
-      "OTP session not found. Please request a new OTP.",
-    );
+    setError("OTP session not found. Please request a new OTP.");
   }, []);
 
   useEffect(() => {
@@ -105,9 +84,7 @@ export function OtpForm() {
     }
 
     const timer = window.setInterval(() => {
-      setSecondsLeft((current) =>
-        Math.max(0, current - 1),
-      );
+      setSecondsLeft((current) => Math.max(0, current - 1));
     }, 1000);
 
     return () => window.clearInterval(timer);
@@ -134,18 +111,12 @@ export function OtpForm() {
     index: number,
     event: KeyboardEvent<HTMLInputElement>,
   ) {
-    if (
-      event.key === "Backspace" &&
-      !otp[index] &&
-      index > 0
-    ) {
+    if (event.key === "Backspace" && !otp[index] && index > 0) {
       focusInput(index - 1);
     }
   }
 
-  function handlePaste(
-    event: ClipboardEvent<HTMLInputElement>,
-  ) {
+  function handlePaste(event: ClipboardEvent<HTMLInputElement>) {
     event.preventDefault();
 
     const digits = event.clipboardData
@@ -178,46 +149,174 @@ export function OtpForm() {
     }
 
     if (!otpContext?.phone) {
-      setError(
-        "OTP session not found. Please request a new OTP.",
-      );
+      setError("OTP session not found. Please request a new OTP.");
       return;
     }
 
     try {
       setLoading(true);
 
-      const response = await verifyOtp(
-        otpContext.phone,
-        code,
-      );
-      console.log("VERIFY OTP RESPONSE:", response);
-      console.log("SESSION:", response.session);
-      console.log("ACCESS TOKEN:", response.session?.accessToken);
-      console.log("REFRESH TOKEN:", response.session?.refreshToken);
+      let response: any;
 
-      if (response.session?.accessToken) {
-        localStorage.setItem(
-          "asp_access_token",
-          response.session.accessToken,
-        );
+      if (otpContext.portal === "astrologer") {
+        response = await verifyAstrologerOtp(otpContext.phone, code);
+      } else if (otpContext.portal === "admin") {
+        response = await verifyAdminOtp(otpContext.phone, code);
+      } else {
+        response = await verifyOtp(otpContext.phone, code);
       }
 
-      if (response.session?.refreshToken) {
-        localStorage.setItem(
-          "asp_refresh_token",
-          response.session.refreshToken,
-        );
+      const accessToken =
+        response.session?.accessToken ||
+        (response as { accessToken?: string }).accessToken;
+
+      const refreshToken =
+        response.session?.refreshToken ||
+        (response as { refreshToken?: string }).refreshToken;
+
+      const portal = otpContext.portal ?? "customer";
+
+      /*
+       * Keep only the active portal session. Otherwise, a stale astrologer
+       * token can be selected while a customer opens consultation/chat.
+       */
+      const portalSessionKeys = [
+        "asp_access_token",
+        "asp_refresh_token",
+        "asp_customer_access_token",
+        "asp_customer_refresh_token",
+        "asp_astrologer_access_token",
+        "asp_astrologer_refresh_token",
+        "asp_admin_access_token",
+        "asp_admin_refresh_token",
+        "access_token",
+        "refresh_token",
+      ];
+
+      portalSessionKeys.forEach((key) => {
+        localStorage.removeItem(key);
+      });
+
+      const accessTokenKey =
+        portal === "astrologer"
+          ? "asp_astrologer_access_token"
+          : portal === "admin"
+            ? "asp_admin_access_token"
+            : "asp_customer_access_token";
+
+      const refreshTokenKey =
+        portal === "astrologer"
+          ? "asp_astrologer_refresh_token"
+          : portal === "admin"
+            ? "asp_admin_refresh_token"
+            : "asp_customer_refresh_token";
+
+      if (accessToken) {
+        localStorage.setItem(accessTokenKey, accessToken);
       }
 
-      if (response.user) {
-        localStorage.setItem(
-          "asp_user",
-          JSON.stringify(response.user),
+      if (refreshToken) {
+        localStorage.setItem(refreshTokenKey, refreshToken);
+      }
+
+      // Compatibility for existing customer dashboard and services.
+      // Astrologer and admin tokens are not saved in these customer keys.
+      if (portal === "customer" && accessToken) {
+        localStorage.setItem("asp_access_token", accessToken);
+      }
+
+      if (portal === "customer" && refreshToken) {
+        localStorage.setItem("asp_refresh_token", refreshToken);
+      }
+
+      let savedUser: any =
+        portal === "customer"
+          ? {
+              ...response.user,
+              role: "CUSTOMER",
+              accountRole: "USER",
+              portal: "customer",
+              isAstrologer: false,
+            }
+          : response.user;
+
+      if (portal === "astrologer") {
+        savedUser = {
+          id: response.astrologerId,
+          phone: otpContext.phone,
+          role: "ASTROLOGER",
+          portal: "astrologer",
+          astrologer: response.astrologer,
+          nextStep: response.nextStep,
+        };
+      }
+
+      if (savedUser) {
+        const userData = JSON.stringify(savedUser);
+
+        localStorage.setItem("asp_user", userData);
+
+        document.cookie = `asp_user=${encodeURIComponent(
+          userData,
+        )}; path=/; max-age=86400; SameSite=Lax`;
+      }
+
+      const isCustomerLogin = portal === "customer";
+
+      if (isCustomerLogin && response.user?.freeChat?.showPopup === true) {
+        sessionStorage.setItem(
+          "asp_free_chat_popup_pending",
+          JSON.stringify(response.user.freeChat),
         );
+
+        window.dispatchEvent(new Event("asp-free-chat-popup"));
+      }
+
+      if (portal === "astrologer") {
+        localStorage.removeItem("asp_otp_context");
+
+        if (response.nextStep === "COMPLETE_ASTROLOGER_ONBOARDING") {
+          router.replace("/astrologer/onboarding");
+          return;
+        }
+
+        if (response.nextStep === "WAIT_FOR_ADMIN_APPROVAL") {
+          router.replace("/astrologer/pending");
+          return;
+        }
+
+        if (response.nextStep === "OPEN_ASTROLOGER_DASHBOARD") {
+          router.replace("/astrologer/dashboard");
+          return;
+        }
+
+        router.replace("/astrologer/onboarding");
+        return;
+      }
+
+      if (portal === "admin") {
+        localStorage.removeItem("asp_otp_context");
+
+        if (response.nextStep === "OPEN_ADMIN_DASHBOARD") {
+          router.replace("/admin");
+          return;
+        }
+
+        router.replace("/admin");
+        return;
       }
 
       localStorage.removeItem("asp_otp_context");
+
+      const postLoginRedirect = localStorage.getItem("asp_post_login_redirect");
+
+      if (postLoginRedirect === "/astrologer/register") {
+        localStorage.removeItem("asp_post_login_redirect");
+        localStorage.removeItem("asp_signup_data");
+
+        router.replace("/astrologer/register");
+        return;
+      }
 
       if (otpContext.flow === "signup") {
         localStorage.removeItem("asp_signup_data");
@@ -225,14 +324,9 @@ export function OtpForm() {
         return;
       }
 
-      const redirectTo =
-        otpContext.redirectTo?.startsWith("/")
-        ? otpContext.redirectTo
-        : "/dashboard";
-
-        router.replace(redirectTo);
-        router.refresh();
-
+      router.replace("/dashboard");
+      router.refresh();
+      return;
     } catch (err: unknown) {
       setError(
         err instanceof Error
@@ -245,11 +339,7 @@ export function OtpForm() {
   }
 
   async function handleResend() {
-    if (
-      secondsLeft > 0 ||
-      !otpContext?.phone ||
-      resending
-    ) {
+    if (secondsLeft > 0 || !otpContext?.phone || resending) {
       return;
     }
 
@@ -263,11 +353,7 @@ export function OtpForm() {
       setSecondsLeft(RESEND_SECONDS);
       focusInput(0);
     } catch (err: unknown) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to resend OTP.",
-      );
+      setError(err instanceof Error ? err.message : "Unable to resend OTP.");
     } finally {
       setResending(false);
     }
@@ -301,18 +387,12 @@ export function OtpForm() {
               id={`otp-${index}`}
               type="text"
               inputMode="numeric"
-              autoComplete={
-                index === 0 ? "one-time-code" : "off"
-              }
+              autoComplete={index === 0 ? "one-time-code" : "off"}
               maxLength={1}
               value={digit}
               disabled={loading}
-              onChange={(event) =>
-                handleChange(index, event.target.value)
-              }
-              onKeyDown={(event) =>
-                handleKeyDown(index, event)
-              }
+              onChange={(event) => handleChange(index, event.target.value)}
+              onKeyDown={(event) => handleKeyDown(index, event)}
               onPaste={handlePaste}
               aria-label={`OTP digit ${index + 1}`}
               className="h-14 min-w-0 rounded-xl border border-gray-300 text-center text-xl font-bold outline-none transition focus:border-[#D4AF37] disabled:bg-gray-100"
@@ -333,11 +413,7 @@ export function OtpForm() {
           <button
             type="button"
             onClick={() => void handleResend()}
-            disabled={
-              secondsLeft > 0 ||
-              resending ||
-              !otpContext
-            }
+            disabled={secondsLeft > 0 || resending || !otpContext}
             className="font-semibold text-[#D4AF37] disabled:cursor-not-allowed disabled:text-gray-400"
           >
             {resending
@@ -347,10 +423,7 @@ export function OtpForm() {
                 : "Resend OTP"}
           </button>
 
-          <Link
-            href="/login"
-            className="font-medium text-[#0B1026]"
-          >
+          <Link href="/login" className="font-medium text-[#0B1026]">
             Change number
           </Link>
         </div>

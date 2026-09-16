@@ -1,0 +1,152 @@
+
+# =========================================================
+# ASTRO SOUL PATH - PRODUCTION GIT SAFETY
+# =========================================================
+
+# Secrets / environment files
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local backups / temporary files
+*.bak
+*.backup
+*.tmp
+*.temp
+*.hprof
+*.log
+
+**/*backup*/
+**/*backups*/
+**/_safe-*/
+**/_safe_*/
+**/*-backup-*/
+**/*_backup_*/
+
+# Node / Next
+**/node_modules/
+**/.next/
+**/dist/
+**/coverage/
+
+# Flutter / Dart generated
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/build/
+
+# Android generated/local
+**/android/.gradle/
+**/android/local.properties
+**/android/**/build/
+**/android/java_pid*.hprof
+
+# iOS generated/local
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+
+# IDE / OS
+**/.idea/
+**/.vscode/
+.DS_Store
+Thumbs.db
+
+# Large local tooling/downloads
+gradle-download/
+
+# Local audit/output files
+*_AUDIT.txt
+*_TRACE.txt
+
+
+# =========================================================
+# RETIRED PROJECTS - DO NOT DEPLOY
+# =========================================================
+userFrontend-main/
+userFrontend-src-app-backup/
+
+# Flutter local repair / backup artifacts
+**/*.bak
+**/*.bak_*
+**/*.backup
+**/*.backup-*
+**/*.backup_*
+**/*-backup
+**/*-backup-*
+**/*_backup
+**/*_backup_*
+**/*.corrupt*
+**/*.corrupted*
+**/*.broken*
+**/*.hprof
+
+
+# Local repair/audit artifacts
+**/*.ps1
+**/*audit*.txt
+**/*warning*.txt
+**/*inspection*.txt
+**/*extract*.txt
+**/*target*.txt
+**/*check*.txt
+
+# Temporary hidden repair files/folders
+astro-soul-path-app/.support-*
+backend-main/.support-*
+
+# Flutter local runtime configs
+astro-soul-path-app/dart_defines.local*
+astro-soul-path-app/dart_defines.phone.json
+astro-soul-path-app/--dart-define-from-file=*
+
+# Old Firebase configuration backups
+astro-soul-path-app/android/app/google-services.before-*.json
+
+# Flutter generated/local icon work
+astro-soul-path-app/_app_icon_work/
+astro-soul-path-app/_final_app_icon/
+
+# Local backend verification scripts
+backend-main/.verify-*
+backend-main/check-*
+backend-main/check_*
+backend-main/audit_*
+
+
+# Flutter local backup / repair folders
+astro-soul-path-app/backup_*/
+astro-soul-path-app/backup-*/
+astro-soul-path-app/*backup*/
+astro-soul-path-app/warning-fix-backup-*/
+
+# Flutter generated output
+astro-soul-path-app/build/
+astro-soul-path-app/.dart_tool/
+astro-soul-path-app/.flutter-plugins
+astro-soul-path-app/.flutter-plugins-dependencies
+
+
+# Historical repair/snapshot files
+**/*.before-*
+**/*.before_*
+**/*.phase*-before-*
+**/*.bak-before-*
+**/*-before-*
+**/*_before_*
+
+# Local inspection/debug text
+astro-soul-path-app/*.txt
+backend-main/*.txt
+
+# Retired projects
+userFrontend-main/
+userFrontend-src-app-backup/
+astrologerapp-main/
+

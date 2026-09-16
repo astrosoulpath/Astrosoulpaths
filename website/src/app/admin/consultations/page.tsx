@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -91,7 +91,7 @@ function getAccessToken() {
   }
 
   return (
-    window.localStorage.getItem("asp_access_token") ??
+    window.localStorage.getItem("asp_admin_access_token") ??
     window.localStorage.getItem("access_token")
   );
 }
@@ -179,7 +179,7 @@ function getStatusClasses(status: string) {
 
     case "ENDED":
     case "EXPIRED":
-      return "border-gray-200 bg-gray-200 text-gray-700";
+      return "border-gray-200 bg-gray-200 text-[#263A55]";
 
     default:
       return "border-amber-200 bg-amber-100 text-amber-700";
@@ -497,19 +497,19 @@ export default function AdminConsultationsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F8F8F8] px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="asp-admin-page px-4 py-10 sm:px-6 lg:px-8">
+      <div className="asp-admin-shell">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-amber-600">
+            <p className="asp-admin-eyebrow">
               Admin Panel
             </p>
 
-            <h1 className="mt-2 text-3xl font-extrabold text-[#0B1026] sm:text-4xl">
+            <h1 className="asp-admin-title mt-2 text-3xl sm:text-4xl">
               Consultation Management
             </h1>
 
-            <p className="mt-3 max-w-3xl text-base leading-7 text-gray-600">
+            <p className="asp-admin-subtitle mt-3 max-w-3xl text-base">
               Monitor active consultations, completed
               sessions, customer charges and astrologer
               earnings.
@@ -519,7 +519,7 @@ export default function AdminConsultationsPage() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link
               href="/admin"
-              className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-center font-bold text-[#0B1026] transition hover:bg-gray-50"
+              className="asp-admin-back-btn"
             >
               Back to Dashboard
             </Link>
@@ -530,7 +530,7 @@ export default function AdminConsultationsPage() {
                 void loadConsultations(true)
               }
               disabled={isRefreshing}
-              className="rounded-xl bg-[#0B1026] px-5 py-3 font-bold text-white transition hover:bg-[#171D3D] disabled:cursor-not-allowed disabled:opacity-60"
+              className="asp-admin-primary-btn"
             >
               {isRefreshing
                 ? "Refreshing..."
@@ -560,8 +560,8 @@ export default function AdminConsultationsPage() {
         ) : null}
 
         <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Total Sessions
             </p>
 
@@ -570,8 +570,8 @@ export default function AdminConsultationsPage() {
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Active
             </p>
 
@@ -580,8 +580,8 @@ export default function AdminConsultationsPage() {
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Completed
             </p>
 
@@ -590,8 +590,8 @@ export default function AdminConsultationsPage() {
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Cancelled
             </p>
 
@@ -600,8 +600,8 @@ export default function AdminConsultationsPage() {
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Completed Revenue
             </p>
 
@@ -611,7 +611,7 @@ export default function AdminConsultationsPage() {
           </article>
         </section>
 
-        <section className="mt-8 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section className="asp-admin-panel mt-8 p-5 sm:p-6">
           <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
             <input
               type="search"
@@ -620,7 +620,7 @@ export default function AdminConsultationsPage() {
                 setSearch(event.target.value)
               }
               placeholder="Search by session, customer, astrologer or channel"
-              className="rounded-xl border border-gray-300 px-4 py-3 text-[#0B1026] outline-none transition focus:border-[#D4AF37]"
+              className="asp-admin-input px-4 py-3"
             />
 
             <select
@@ -630,7 +630,7 @@ export default function AdminConsultationsPage() {
                   event.target.value as StatusFilter,
                 )
               }
-              className="rounded-xl border border-gray-300 bg-white px-4 py-3 font-semibold text-[#0B1026] outline-none focus:border-[#D4AF37]"
+              className="asp-admin-input px-4 py-3 font-semibold"
             >
               <option value="ALL">
                 All statuses
@@ -656,7 +656,7 @@ export default function AdminConsultationsPage() {
 
           {isLoading ? (
             <div className="py-16 text-center">
-              <p className="font-semibold text-gray-600">
+              <p className="font-semibold text-[#4B5C73]">
                 Loading consultations...
               </p>
             </div>
@@ -666,7 +666,7 @@ export default function AdminConsultationsPage() {
                 No consultations found
               </h2>
 
-              <p className="mt-2 text-gray-600">
+              <p className="mt-2 text-[#4B5C73]">
                 No consultation records match the selected
                 filters.
               </p>
@@ -674,33 +674,33 @@ export default function AdminConsultationsPage() {
           ) : (
             <div className="mt-6 overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-0">
-                <thead>
+                <thead className="asp-admin-table-head">
                   <tr className="text-left">
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Session
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Customer
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Astrologer
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Duration
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Amount
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Status
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-right text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-right text-xs font-extrabold text-[#243650]">
                       Actions
                     </th>
                   </tr>
@@ -731,12 +731,12 @@ export default function AdminConsultationsPage() {
                               {consultation.id}
                             </p>
 
-                            <p className="mt-1 break-all text-xs text-gray-500">
+                            <p className="mt-1 break-all text-xs text-[#66758A]">
                               Channel:{" "}
                               {consultation.channelName}
                             </p>
 
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="mt-1 text-xs text-[#66758A]">
                               Started:{" "}
                               {formatDateTime(
                                 consultation.startedAt,
@@ -752,7 +752,7 @@ export default function AdminConsultationsPage() {
                               )}
                             </p>
 
-                            <p className="mt-1 break-all text-xs text-gray-500">
+                            <p className="mt-1 break-all text-xs text-[#66758A]">
                               {consultation.userId}
                             </p>
                           </td>
@@ -765,7 +765,7 @@ export default function AdminConsultationsPage() {
                               )}
                             </p>
 
-                            <p className="mt-1 break-all text-xs text-gray-500">
+                            <p className="mt-1 break-all text-xs text-[#66758A]">
                               {consultation.astrologerId}
                             </p>
                           </td>
@@ -775,12 +775,12 @@ export default function AdminConsultationsPage() {
                               {totalMinutes} minutes
                             </p>
 
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="mt-1 text-xs text-[#66758A]">
                               Purchased:{" "}
                               {consultation.purchasedMinutes}
                             </p>
 
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="mt-1 text-xs text-[#66758A]">
                               Extended:{" "}
                               {consultation.extendedMinutes}
                             </p>
@@ -793,7 +793,7 @@ export default function AdminConsultationsPage() {
                               )}
                             </p>
 
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="mt-1 text-xs text-[#66758A]">
                               {formatCurrency(
                                 consultation.ratePerMinute,
                               )}
@@ -882,3 +882,4 @@ export default function AdminConsultationsPage() {
     </main>
   );
 }
+

@@ -8,14 +8,9 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { ConfigService } from '@nestjs/config';
-import {
-  jwtVerify,
-  type JWTPayload,
-} from 'jose';
-import type {
-  Server,
-  Socket,
-} from 'socket.io';
+import type { JWTPayload } from 'jose';
+import type { Server, Socket } from 'socket.io';
+import { SupabaseJwtService } from '../../infrastructure/supabase/supabase-jwt.service';
 
 import { ChatService } from './chat.service';
 import { JoinChatDto } from './dto/join-chat.dto';
@@ -66,30 +61,21 @@ type TypingPayload = {
     credentials: true,
   },
 
-  transports: [
-    'websocket',
-    'polling',
-  ],
+  transports: ['websocket', 'polling'],
 })
-export class ChatGateway
-  implements
-    OnGatewayConnection,
-    OnGatewayDisconnect
-{
+export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;
 
   constructor(
     private readonly chatService: ChatService,
     private readonly configService: ConfigService,
+    private readonly supabaseJwtService: SupabaseJwtService,
   ) {}
 
-  async handleConnection(
-    client: AuthenticatedSocket,
-  ): Promise<void> {
+  async handleConnection(client: AuthenticatedSocket): Promise<void> {
     try {
-      const token =
-        this.extractToken(client);
+      const token = this.extractToken(client);
 
       if (!token) {
         throw this.createSocketError(
@@ -98,16 +84,10 @@ export class ChatGateway
         );
       }
 
-      const jwtPayload =
-        await this.verifyAccessToken(
-          token,
-        );
+      const jwtPayload = await this.verifyAccessToken(token);
 
       const supabaseId =
-        typeof jwtPayload.sub ===
-          'string'
-          ? jwtPayload.sub.trim()
-          : '';
+        typeof jwtPayload.sub === 'string' ? jwtPayload.sub.trim() : '';
 
       if (!supabaseId) {
         throw this.createSocketError(
@@ -116,77 +96,53 @@ export class ChatGateway
         );
       }
 
-      client.data.supabaseId =
-        supabaseId;
+      client.data.supabaseId = supabaseId;
 
-      client.data.joinedRooms =
-        new Set<string>();
+      client.data.joinedRooms = new Set<string>();
 
-      client.emit(
-        'chat:connected',
-        {
-          success: true,
-          socketId: client.id,
-          connectedAt:
-            new Date().toISOString(),
-        },
-      );
+      client.emit('chat:connected', {
+        success: true,
+        socketId: client.id,
+        connectedAt: new Date().toISOString(),
+      });
     } catch (error: unknown) {
-      this.emitError(
-        client,
-        error,
-      );
+      this.emitError(client, error);
 
       client.disconnect(true);
     }
   }
 
-  handleDisconnect(
-    client: AuthenticatedSocket,
-  ): void {
-    const joinedRooms =
-      client.data.joinedRooms;
+  async handleDisconnect(client: AuthenticatedSocket): Promise<void> {
+    const joinedRooms = client.data.joinedRooms;
 
-    if (
-      !joinedRooms ||
-      joinedRooms.size === 0
-    ) {
+    const userId = client.data.userId;
+
+    if (!joinedRooms || joinedRooms.size === 0 || !userId) {
       return;
     }
 
-    const userId =
-      client.data.userId;
-
     for (const roomId of joinedRooms) {
-      client
-        .to(roomId)
-        .emit(
-          'chat:presence',
-          {
-            callSessionId:
-              roomId,
+      const sockets = await this.server.in(roomId).fetchSockets();
 
-            userId:
-              userId ?? '',
+      const stillOnline = sockets.some(
+        (socket) => socket.id !== client.id && socket.data?.userId === userId,
+      );
 
-            isOnline:
-              false,
-
-            socketId:
-              client.id,
-
-            lastSeenAt:
-              new Date().toISOString(),
-          },
-        );
+      if (!stillOnline) {
+        this.server.to(roomId).emit('chat:presence', {
+          callSessionId: roomId,
+          userId,
+          isOnline: false,
+          socketId: client.id,
+          lastSeenAt: new Date().toISOString(),
+        });
+      }
     }
 
     joinedRooms.clear();
   }
 
-  @SubscribeMessage(
-    'chat:join',
-  )
+  @SubscribeMessage('chat:join')
   async handleJoin(
     @ConnectedSocket()
     client: AuthenticatedSocket,
@@ -195,92 +151,84 @@ export class ChatGateway
     dto: JoinChatDto,
   ) {
     try {
-      const supabaseId =
-        this.getSupabaseId(
-          client,
-        );
+      const supabaseId = this.getSupabaseId(client);
 
-      const callSessionId =
-        this.normalizeCallSessionId(
-          dto.callSessionId,
-        );
+      const callSessionId = this.normalizeCallSessionId(dto.callSessionId);
 
-      const result =
-        await this.chatService.joinChat(
-          supabaseId,
-          {
-            ...dto,
-            callSessionId,
-          },
-        );
+      const result = await this.chatService.joinChat(supabaseId, {
+        ...dto,
+        callSessionId,
+      });
 
-      const roomId =
-        this.normalizeCallSessionId(
-          result.data.roomId,
-        );
+      const roomId = this.normalizeCallSessionId(result.data.roomId);
 
-      await client.join(
-        roomId,
-      );
+      await client.join(roomId);
 
-      client.data.joinedRooms?.add(
-        roomId,
-      );
+      client.data.joinedRooms?.add(roomId);
 
-      client.data.userId =
-        result.data.currentUser.id;
+      client.data.userId = result.data.currentUser.id;
 
-      client.data.userName =
-        result.data.currentUser.name;
+      client.data.userName = result.data.currentUser.name;
 
-      client
-        .to(roomId)
-        .emit(
-          'chat:presence',
-          {
-            callSessionId:
-              roomId,
+      // Send an authoritative presence snapshot to the newly joined client.
+      // This prevents Online users from remaining stuck as Offline.
+      const roomSockets = await this.server.in(roomId).fetchSockets();
+      const announcedUsers = new Set<string>();
 
-            userId:
-              result.data.currentUser.id,
+      for (const roomSocket of roomSockets) {
+        const existingUserId =
+          typeof roomSocket.data?.userId === 'string'
+            ? roomSocket.data.userId.trim()
+            : '';
 
-            isOnline:
-              true,
+        if (
+          !existingUserId ||
+          existingUserId === result.data.currentUser.id ||
+          announcedUsers.has(existingUserId)
+        ) {
+          continue;
+        }
 
-            socketId:
-              client.id,
+        announcedUsers.add(existingUserId);
 
-            lastSeenAt:
-              null,
-          },
-        );
+        client.emit('chat:presence', {
+          callSessionId: roomId,
+          userId: existingUserId,
+          isOnline: true,
+          socketId: roomSocket.id,
+          lastSeenAt: null,
+        });
+      }
+
+      client.to(roomId).emit('chat:presence', {
+        callSessionId: roomId,
+
+        userId: result.data.currentUser.id,
+
+        isOnline: true,
+
+        socketId: client.id,
+
+        lastSeenAt: null,
+      });
 
       const payload = {
         success: true,
-        callSessionId:
-          roomId,
+        callSessionId: roomId,
         roomId,
-        joinedAt:
-          new Date().toISOString(),
+        onlineUserIds: Array.from(announcedUsers),
+        joinedAt: new Date().toISOString(),
       };
 
-      client.emit(
-        'chat:joined',
-        payload,
-      );
+      client.emit('chat:joined', payload);
 
       return payload;
     } catch (error: unknown) {
-      return this.emitError(
-        client,
-        error,
-      );
+      return this.emitError(client, error);
     }
   }
 
-  @SubscribeMessage(
-    'chat:leave',
-  )
+  @SubscribeMessage('chat:leave')
   async handleLeave(
     @ConnectedSocket()
     client: AuthenticatedSocket,
@@ -289,75 +237,63 @@ export class ChatGateway
     payload: LeaveChatPayload,
   ) {
     try {
-      const callSessionId =
-        this.normalizeCallSessionId(
-          payload?.callSessionId,
+      const callSessionId = this.normalizeCallSessionId(payload?.callSessionId);
+
+      this.ensureRoomJoined(client, callSessionId);
+
+      await client.leave(callSessionId);
+
+      client.data.joinedRooms?.delete(callSessionId);
+
+      const userId = client.data.userId ?? '';
+
+      /*
+       * Presence is USER based, not SOCKET based.
+       *
+       * Reconnect, app resume and multiple devices may leave more than
+       * one active socket for the same user in the consultation room.
+       *
+       * Announce Offline only after the user's final socket leaves.
+       */
+      if (userId) {
+        const remainingSockets = await this.server
+          .in(callSessionId)
+          .fetchSockets();
+
+        const stillOnline = remainingSockets.some(
+          (socket) => socket.data?.userId === userId,
         );
 
-      this.ensureRoomJoined(
-        client,
-        callSessionId,
-      );
-
-      await client.leave(
-        callSessionId,
-      );
-
-      client.data.joinedRooms?.delete(
-        callSessionId,
-      );
-
-      client
-        .to(callSessionId)
-        .emit(
-          'chat:presence',
-          {
+        if (!stillOnline) {
+          this.server.to(callSessionId).emit('chat:presence', {
             callSessionId,
-
-            userId:
-              client.data.userId ??
-              '',
-
-            isOnline:
-              false,
-
-            socketId:
-              client.id,
-
-            lastSeenAt:
-              new Date().toISOString(),
-          },
-        );
+            userId,
+            isOnline: false,
+            socketId: client.id,
+            lastSeenAt: new Date().toISOString(),
+          });
+        }
+      }
 
       const response = {
         success: true,
 
         callSessionId,
 
-        roomId:
-          callSessionId,
+        roomId: callSessionId,
 
-        leftAt:
-          new Date().toISOString(),
+        leftAt: new Date().toISOString(),
       };
 
-      client.emit(
-        'chat:left',
-        response,
-      );
+      client.emit('chat:left', response);
 
       return response;
     } catch (error: unknown) {
-      return this.emitError(
-        client,
-        error,
-      );
+      return this.emitError(client, error);
     }
   }
 
-  @SubscribeMessage(
-    'chat:message',
-  )
+  @SubscribeMessage('chat:message')
   async handleMessage(
     @ConnectedSocket()
     client: AuthenticatedSocket,
@@ -366,50 +302,28 @@ export class ChatGateway
     dto: SendMessageDto,
   ) {
     try {
-      const supabaseId =
-        this.getSupabaseId(
-          client,
-        );
+      const supabaseId = this.getSupabaseId(client);
 
-      const callSessionId =
-        this.normalizeCallSessionId(
-          dto.callSessionId,
-        );
+      const callSessionId = this.normalizeCallSessionId(dto.callSessionId);
 
-      this.ensureRoomJoined(
-        client,
+      this.ensureRoomJoined(client, callSessionId);
+
+      const result = await this.chatService.sendMessage(supabaseId, {
+        ...dto,
         callSessionId,
-      );
+      });
 
-      const result =
-        await this.chatService.sendMessage(
-          supabaseId,
-          {
-            ...dto,
-            callSessionId,
-          },
-        );
-
-      this.server
-        .to(callSessionId)
-        .emit(
-          'chat:message',
-          result.data.message,
-        );
+      if (!result.data.duplicate) {
+        this.server.to(callSessionId).emit('chat:message', result.data.message);
+      }
 
       return result;
     } catch (error: unknown) {
-      return this.emitError(
-        client,
-        error,
-        'MESSAGE_SEND_FAILED',
-      );
+      return this.emitError(client, error, 'MESSAGE_SEND_FAILED');
     }
   }
 
-  @SubscribeMessage(
-    'chat:read',
-  )
+  @SubscribeMessage('chat:read')
   async handleReadReceipt(
     @ConnectedSocket()
     client: AuthenticatedSocket,
@@ -418,29 +332,16 @@ export class ChatGateway
     dto: MarkMessageReadDto,
   ) {
     try {
-      const supabaseId =
-        this.getSupabaseId(
-          client,
-        );
+      const supabaseId = this.getSupabaseId(client);
 
-      const callSessionId =
-        this.normalizeCallSessionId(
-          dto.callSessionId,
-        );
+      const callSessionId = this.normalizeCallSessionId(dto.callSessionId);
 
-      this.ensureRoomJoined(
-        client,
+      this.ensureRoomJoined(client, callSessionId);
+
+      const result = await this.chatService.markMessagesAsRead(supabaseId, {
+        ...dto,
         callSessionId,
-      );
-
-      const result =
-        await this.chatService.markMessagesAsRead(
-          supabaseId,
-          {
-            ...dto,
-            callSessionId,
-          },
-        );
+      });
 
       const payload = {
         ...result.data,
@@ -449,36 +350,23 @@ export class ChatGateway
 
         callSessionId,
 
-        readerId:
-          client.data.userId,
+        readerId: client.data.userId,
 
-        readAt:
-          result.data.readAt ??
-          new Date().toISOString(),
+        readAt: result.data.readAt ?? new Date().toISOString(),
       };
 
-      this.server
-        .to(callSessionId)
-        .emit(
-          'chat:read',
-          payload,
-        );
+      this.server.to(callSessionId).emit('chat:read', payload);
 
       return {
         ...result,
         data: payload,
       };
     } catch (error: unknown) {
-      return this.emitError(
-        client,
-        error,
-      );
+      return this.emitError(client, error);
     }
   }
 
-  @SubscribeMessage(
-    'chat:read-all',
-  )
+  @SubscribeMessage('chat:read-all')
   async handleReadAll(
     @ConnectedSocket()
     client: AuthenticatedSocket,
@@ -487,26 +375,16 @@ export class ChatGateway
     payload: ReadAllPayload,
   ) {
     try {
-      const supabaseId =
-        this.getSupabaseId(
-          client,
-        );
+      const supabaseId = this.getSupabaseId(client);
 
-      const callSessionId =
-        this.normalizeCallSessionId(
-          payload?.callSessionId,
-        );
+      const callSessionId = this.normalizeCallSessionId(payload?.callSessionId);
 
-      this.ensureRoomJoined(
-        client,
+      this.ensureRoomJoined(client, callSessionId);
+
+      const result = await this.chatService.markAllMessagesAsRead(
+        supabaseId,
         callSessionId,
       );
-
-      const result =
-        await this.chatService.markAllMessagesAsRead(
-          supabaseId,
-          callSessionId,
-        );
 
       const readPayload = {
         ...result.data,
@@ -515,36 +393,23 @@ export class ChatGateway
 
         callSessionId,
 
-        readerId:
-          client.data.userId,
+        readerId: client.data.userId,
 
-        readAt:
-          result.data.readAt ??
-          new Date().toISOString(),
+        readAt: result.data.readAt ?? new Date().toISOString(),
       };
 
-      this.server
-        .to(callSessionId)
-        .emit(
-          'chat:read-all',
-          readPayload,
-        );
+      this.server.to(callSessionId).emit('chat:read-all', readPayload);
 
       return {
         ...result,
         data: readPayload,
       };
     } catch (error: unknown) {
-      return this.emitError(
-        client,
-        error,
-      );
+      return this.emitError(client, error);
     }
   }
 
-  @SubscribeMessage(
-    'chat:typing',
-  )
+  @SubscribeMessage('chat:typing')
   async handleTyping(
     @ConnectedSocket()
     client: AuthenticatedSocket,
@@ -553,103 +418,50 @@ export class ChatGateway
     payload: TypingPayload,
   ) {
     try {
-      const supabaseId =
-        this.getSupabaseId(
-          client,
-        );
+      const supabaseId = this.getSupabaseId(client);
 
-      const callSessionId =
-        this.normalizeCallSessionId(
-          payload?.callSessionId,
-        );
+      const callSessionId = this.normalizeCallSessionId(payload?.callSessionId);
 
-      this.ensureRoomJoined(
-        client,
-        callSessionId,
-      );
+      this.ensureRoomJoined(client, callSessionId);
 
-      await this.chatService.verifyChatAccess(
-        supabaseId,
-        callSessionId,
-      );
+      await this.chatService.verifyChatAccess(supabaseId, callSessionId);
 
       const typingPayload = {
         callSessionId,
 
-        userId:
-          client.data.userId ??
-          '',
+        userId: client.data.userId ?? '',
 
-        userName:
-          client.data.userName ??
-          null,
+        userName: client.data.userName ?? null,
 
-        isTyping:
-          Boolean(
-            payload.isTyping,
-          ),
+        isTyping: Boolean(payload.isTyping),
 
-        occurredAt:
-          new Date().toISOString(),
+        occurredAt: new Date().toISOString(),
       };
 
-      client
-        .to(callSessionId)
-        .emit(
-          'chat:typing',
-          typingPayload,
-        );
+      client.to(callSessionId).emit('chat:typing', typingPayload);
 
       return {
         success: true,
-        data:
-          typingPayload,
+        data: typingPayload,
       };
     } catch (error: unknown) {
-      return this.emitError(
-        client,
-        error,
-      );
+      return this.emitError(client, error);
     }
   }
 
-  private extractToken(
-    client: AuthenticatedSocket,
-  ): string | null {
-    const authToken =
-      client.handshake.auth
-        ?.token;
+  private extractToken(client: AuthenticatedSocket): string | null {
+    const authToken = client.handshake.auth?.token;
 
-    if (
-      typeof authToken ===
-        'string' &&
-      authToken.trim()
-    ) {
+    if (typeof authToken === 'string' && authToken.trim()) {
       return authToken.trim();
     }
 
-    const authorization =
-      client.handshake.headers
-        .authorization;
+    const authorization = client.handshake.headers.authorization;
 
-    if (
-      typeof authorization ===
-        'string'
-    ) {
-      const [
-        scheme,
-        value,
-      ] =
-        authorization.split(
-          /\s+/,
-          2,
-        );
+    if (typeof authorization === 'string') {
+      const [scheme, value] = authorization.split(/\s+/, 2);
 
-      if (
-        scheme?.toLowerCase() ===
-          'bearer' &&
-        value?.trim()
-      ) {
+      if (scheme?.toLowerCase() === 'bearer' && value?.trim()) {
         return value.trim();
       }
     }
@@ -657,46 +469,96 @@ export class ChatGateway
     return null;
   }
 
-  private async verifyAccessToken(
-    token: string,
-  ): Promise<JWTPayload> {
-    const jwtSecret =
-      this.configService
-        .get<string>(
-          'SUPABASE_JWT_SECRET',
-        )
-        ?.trim() ||
-      this.configService
-        .get<string>(
-          'JWT_SECRET',
-        )
-        ?.trim();
+  private async verifyAccessToken(token: string): Promise<JWTPayload> {
+    const isProduction =
+      this.configService.get<string>('NODE_ENV') === 'production';
 
-    if (!jwtSecret) {
-      throw this.createSocketError(
-        'INTERNAL_ERROR',
-        'Supabase JWT secret is not configured',
-      );
+    const isLocalOtpEnabled =
+      this.configService.get<string>('LOCAL_OTP_ENABLED') === 'true';
+
+    /*
+     * ============================================================
+     * LOCAL DEVELOPMENT AUTHENTICATION
+     * ============================================================
+     *
+     * Local tokens are accepted ONLY when:
+     * - NODE_ENV !== production
+     * - LOCAL_OTP_ENABLED === true
+     *
+     * Customer / local user:
+     *   local-dev-token:<supabaseId>
+     *
+     * Legacy local customer:
+     *   local-dev-token
+     *
+     * Seed astrologer:
+     *   local-astrologer-token
+     *
+     * These branches are unreachable in production.
+     */
+    if (!isProduction && isLocalOtpEnabled) {
+      const localDevTokenPrefix = 'local-dev-token:';
+
+      if (token.startsWith(localDevTokenPrefix)) {
+        const localSupabaseId = token.slice(localDevTokenPrefix.length).trim();
+
+        if (!localSupabaseId) {
+          throw this.createSocketError(
+            'NOT_AUTHENTICATED',
+            'Invalid local development token',
+          );
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+
+        return {
+          sub: localSupabaseId,
+          aud: 'authenticated',
+          role: 'authenticated',
+          iss: 'astro-soul-path-local-auth',
+          iat: now,
+          exp: now + 60 * 60,
+        };
+      }
+
+      if (token === 'local-dev-token') {
+        const now = Math.floor(Date.now() / 1000);
+
+        return {
+          sub: 'local-supabase-user',
+          aud: 'authenticated',
+          role: 'authenticated',
+          iss: 'astro-soul-path-local-auth',
+          iat: now,
+          exp: now + 60 * 60,
+        };
+      }
+
+      if (token === 'local-astrologer-token') {
+        const now = Math.floor(Date.now() / 1000);
+
+        return {
+          sub: 'seed-astrologer-supabase-id',
+          aud: 'authenticated',
+          role: 'authenticated',
+          iss: 'astro-soul-path-local-auth',
+          iat: now,
+          exp: now + 60 * 60,
+        };
+      }
     }
 
+    /*
+     * ============================================================
+     * PRODUCTION / REAL SUPABASE JWT AUTHENTICATION
+     * ============================================================
+     */
     try {
-      const secret =
-        new TextEncoder().encode(
-          jwtSecret,
-        );
+      const payload = await this.supabaseJwtService.verifyAccessToken(token);
 
-      const {
-        payload,
-      } =
-        await jwtVerify(
-          token,
-          secret,
-          {
-            algorithms: [
-              'HS256',
-            ],
-          },
-        );
+      if (typeof payload.sub !== 'string' || !payload.sub.trim()) {
+        throw new Error('JWT subject is missing');
+      }
 
       return payload;
     } catch {
@@ -707,12 +569,8 @@ export class ChatGateway
     }
   }
 
-  private getSupabaseId(
-    client: AuthenticatedSocket,
-  ): string {
-    const supabaseId =
-      client.data.supabaseId
-        ?.trim();
+  private getSupabaseId(client: AuthenticatedSocket): string {
+    const supabaseId = client.data.supabaseId?.trim();
 
     if (!supabaseId) {
       throw this.createSocketError(
@@ -724,21 +582,15 @@ export class ChatGateway
     return supabaseId;
   }
 
-  private normalizeCallSessionId(
-    value: unknown,
-  ): string {
-    if (
-      typeof value !==
-      'string'
-    ) {
+  private normalizeCallSessionId(value: unknown): string {
+    if (typeof value !== 'string') {
       throw this.createSocketError(
         'INVALID_PAYLOAD',
         'Call session ID is required',
       );
     }
 
-    const normalized =
-      value.trim();
+    const normalized = value.trim();
 
     if (!normalized) {
       throw this.createSocketError(
@@ -754,10 +606,7 @@ export class ChatGateway
     client: AuthenticatedSocket,
     callSessionId: string,
   ): void {
-    const hasJoined =
-      client.data.joinedRooms?.has(
-        callSessionId,
-      );
+    const hasJoined = client.data.joinedRooms?.has(callSessionId);
 
     if (!hasJoined) {
       throw this.createSocketError(
@@ -773,10 +622,9 @@ export class ChatGateway
   ): Error & {
     code: ChatErrorCode;
   } {
-    const error =
-      new Error(message) as Error & {
-        code: ChatErrorCode;
-      };
+    const error = new Error(message) as Error & {
+      code: ChatErrorCode;
+    };
 
     error.code = code;
 
@@ -785,32 +633,16 @@ export class ChatGateway
 
   private getErrorCode(
     error: unknown,
-    fallback:
-      ChatErrorCode =
-        'INTERNAL_ERROR',
+    fallback: ChatErrorCode = 'INTERNAL_ERROR',
   ): ChatErrorCode {
-    if (
-      error &&
-      typeof error ===
-        'object' &&
-      'code' in error
-    ) {
-      const code =
-        String(
-          error.code,
-        ) as ChatErrorCode;
+    if (error && typeof error === 'object' && 'code' in error) {
+      const code = String(error.code) as ChatErrorCode;
 
       return code;
     }
 
-    if (
-      error &&
-      typeof error ===
-        'object' &&
-      'status' in error
-    ) {
-      const status =
-        Number(error.status);
+    if (error && typeof error === 'object' && 'status' in error) {
+      const status = Number(error.status);
 
       if (status === 401) {
         return 'NOT_AUTHENTICATED';
@@ -831,34 +663,22 @@ export class ChatGateway
   private emitError(
     client: AuthenticatedSocket,
     error: unknown,
-    fallbackCode:
-      ChatErrorCode =
-        'INTERNAL_ERROR',
+    fallbackCode: ChatErrorCode = 'INTERNAL_ERROR',
   ) {
     const message =
-      error instanceof Error
-        ? error.message
-        : 'Chat request failed';
+      error instanceof Error ? error.message : 'Chat request failed';
 
     const payload = {
       success: false as const,
 
-      code:
-        this.getErrorCode(
-          error,
-          fallbackCode,
-        ),
+      code: this.getErrorCode(error, fallbackCode),
 
       message,
 
-      occurredAt:
-        new Date().toISOString(),
+      occurredAt: new Date().toISOString(),
     };
 
-    client.emit(
-      'chat:error',
-      payload,
-    );
+    client.emit('chat:error', payload);
 
     return payload;
   }

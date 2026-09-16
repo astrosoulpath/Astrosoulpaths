@@ -9,24 +9,49 @@ import {
   Post,
   Query,
   Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 
+import { UserService } from '../user/user.service';
+
 import { ConsultationService } from './consultation.service';
 
 type AuthenticatedRequest = Request & {
   user?: {
+    /**
+     * Supabase JWT subject.
+     *
+     * In production this is the Supabase user ID.
+     * In local development our auth guard follows
+     * the same contract.
+     */
     sub?: string;
+
+    /**
+     * Optional compatibility field.
+     */
     id?: string;
   };
 };
 
+type ConsultationMode = 'chat' | 'audio' | 'video';
+
 type StartConsultationBody = {
+  /**
+   * IMPORTANT:
+   *
+   * This is the INTERNAL User.id of the astrologer,
+   * not Astrologer.id and not Supabase ID.
+   */
   astrologerUserId: string;
+
   purchasedMinutes: number;
+
+  mode: ConsultationMode;
 };
 
 type ExtendConsultationBody = {
@@ -43,6 +68,7 @@ type RateConsultationBody = {
 export class ConsultationController {
   constructor(
     private readonly consultationService: ConsultationService,
+    private readonly userService: UserService,
   ) {}
 
   /*
@@ -52,42 +78,54 @@ export class ConsultationController {
    */
 
   @Post('start')
-  startConsultation(
-    @Req() request: AuthenticatedRequest,
-    @Body() body: StartConsultationBody,
+  async startConsultation(
+    @Req()
+    request: AuthenticatedRequest,
+
+    @Body()
+    body: StartConsultationBody,
   ) {
-    const userId = this.getAuthenticatedUserId(request);
+    const userId = await this.getAuthenticatedInternalUserId(request);
 
     return this.consultationService.startConsultation({
       userId,
+
       astrologerUserId: body.astrologerUserId,
+
       purchasedMinutes: body.purchasedMinutes,
+
+      mode: body.mode,
     });
   }
 
   /*
    * ============================================================
-   * CURRENT CONSULTATION
+   * CURRENT CUSTOMER CONSULTATION
    * ============================================================
    */
 
   @Get('current')
-  getCurrentUserConsultation(
-    @Req() request: AuthenticatedRequest,
+  async getCurrentUserConsultation(
+    @Req()
+    request: AuthenticatedRequest,
   ) {
-    const userId = this.getAuthenticatedUserId(request);
+    const userId = await this.getAuthenticatedInternalUserId(request);
 
-    return this.consultationService.getCurrentUserConsultation(
-      userId,
-    );
+    return this.consultationService.getCurrentUserConsultation(userId);
   }
 
+  /*
+   * ============================================================
+   * CURRENT ASTROLOGER CONSULTATION
+   * ============================================================
+   */
+
   @Get('astrologer/current')
-  getCurrentAstrologerConsultation(
-    @Req() request: AuthenticatedRequest,
+  async getCurrentAstrologerConsultation(
+    @Req()
+    request: AuthenticatedRequest,
   ) {
-    const astrologerUserId =
-      this.getAuthenticatedUserId(request);
+    const astrologerUserId = await this.getAuthenticatedInternalUserId(request);
 
     return this.consultationService.getCurrentAstrologerConsultation(
       astrologerUserId,
@@ -96,39 +134,47 @@ export class ConsultationController {
 
   /*
    * ============================================================
-   * CONSULTATION HISTORY
+   * CUSTOMER CONSULTATION HISTORY
    * ============================================================
    */
 
   @Get('history')
-  getUserConsultationHistory(
-    @Req() request: AuthenticatedRequest,
+  async getUserConsultationHistory(
+    @Req()
+    request: AuthenticatedRequest,
+
     @Query('page', new DefaultValuePipe(1), ParseIntPipe)
     page: number,
+
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe)
     limit: number,
   ) {
-    const userId = this.getAuthenticatedUserId(request);
+    const userId = await this.getAuthenticatedInternalUserId(request);
 
-    return this.consultationService.getUserConsultationHistory(
-      userId,
-      {
-        page,
-        limit,
-      },
-    );
+    return this.consultationService.getUserConsultationHistory(userId, {
+      page,
+      limit,
+    });
   }
 
+  /*
+   * ============================================================
+   * ASTROLOGER CONSULTATION HISTORY
+   * ============================================================
+   */
+
   @Get('astrologer/history')
-  getAstrologerConsultationHistory(
-    @Req() request: AuthenticatedRequest,
+  async getAstrologerConsultationHistory(
+    @Req()
+    request: AuthenticatedRequest,
+
     @Query('page', new DefaultValuePipe(1), ParseIntPipe)
     page: number,
+
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe)
     limit: number,
   ) {
-    const astrologerUserId =
-      this.getAuthenticatedUserId(request);
+    const astrologerUserId = await this.getAuthenticatedInternalUserId(request);
 
     return this.consultationService.getAstrologerConsultationHistory(
       astrologerUserId,
@@ -145,13 +191,32 @@ export class ConsultationController {
    * ============================================================
    */
 
-  @Get(':id')
-  getConsultationById(
-    @Param('id') consultationId: string,
-    @Req() request: AuthenticatedRequest,
+  @Get(':id/queue-position')
+  async getConsultationQueuePosition(
+    @Param('id')
+    consultationId: string,
+
+    @Req()
+    request: AuthenticatedRequest,
   ) {
     const requestedByUserId =
-      this.getAuthenticatedUserId(request);
+      await this.getAuthenticatedInternalUserId(request);
+
+    return this.consultationService.getConsultationQueuePosition(
+      consultationId,
+      requestedByUserId,
+    );
+  }
+  @Get(':id')
+  async getConsultationById(
+    @Param('id')
+    consultationId: string,
+
+    @Req()
+    request: AuthenticatedRequest,
+  ) {
+    const requestedByUserId =
+      await this.getAuthenticatedInternalUserId(request);
 
     return this.consultationService.getConsultationById(
       consultationId,
@@ -166,17 +231,68 @@ export class ConsultationController {
    */
 
   @Patch(':id/extend')
-  extendConsultation(
-    @Param('id') consultationId: string,
-    @Req() request: AuthenticatedRequest,
-    @Body() body: ExtendConsultationBody,
+  async extendConsultation(
+    @Param('id')
+    consultationId: string,
+
+    @Req()
+    request: AuthenticatedRequest,
+
+    @Body()
+    body: ExtendConsultationBody,
   ) {
-    const userId = this.getAuthenticatedUserId(request);
+    const userId = await this.getAuthenticatedInternalUserId(request);
 
     return this.consultationService.extendConsultation({
       consultationId,
+
       userId,
+
       additionalMinutes: body.additionalMinutes,
+    });
+  }
+
+  /*
+   * ============================================================
+   * ACCEPT CONSULTATION
+   * ============================================================
+   */
+
+  @Patch(':id/accept')
+  async acceptConsultation(
+    @Param('id')
+    consultationId: string,
+
+    @Req()
+    request: AuthenticatedRequest,
+  ) {
+    const astrologerUserId = await this.getAuthenticatedInternalUserId(request);
+
+    return this.consultationService.acceptConsultation({
+      consultationId,
+      astrologerUserId,
+    });
+  }
+
+  /*
+   * ============================================================
+   * REJECT CONSULTATION
+   * ============================================================
+   */
+
+  @Patch(':id/reject')
+  async rejectConsultation(
+    @Param('id')
+    consultationId: string,
+
+    @Req()
+    request: AuthenticatedRequest,
+  ) {
+    const astrologerUserId = await this.getAuthenticatedInternalUserId(request);
+
+    return this.consultationService.rejectConsultation({
+      consultationId,
+      astrologerUserId,
     });
   }
 
@@ -187,12 +303,15 @@ export class ConsultationController {
    */
 
   @Patch(':id/cancel')
-  cancelConsultation(
-    @Param('id') consultationId: string,
-    @Req() request: AuthenticatedRequest,
+  async cancelConsultation(
+    @Param('id')
+    consultationId: string,
+
+    @Req()
+    request: AuthenticatedRequest,
   ) {
     const requestedByUserId =
-      this.getAuthenticatedUserId(request);
+      await this.getAuthenticatedInternalUserId(request);
 
     return this.consultationService.cancelConsultation({
       consultationId,
@@ -207,12 +326,15 @@ export class ConsultationController {
    */
 
   @Patch(':id/complete')
-  completeConsultation(
-    @Param('id') consultationId: string,
-    @Req() request: AuthenticatedRequest,
+  async completeConsultation(
+    @Param('id')
+    consultationId: string,
+
+    @Req()
+    request: AuthenticatedRequest,
   ) {
     const requestedByUserId =
-      this.getAuthenticatedUserId(request);
+      await this.getAuthenticatedInternalUserId(request);
 
     return this.consultationService.completeConsultation({
       consultationId,
@@ -222,43 +344,93 @@ export class ConsultationController {
 
   /*
    * ============================================================
-   * RATING AND REVIEW
+   * RATING / REVIEW
    * ============================================================
    */
 
   @Post(':id/rating')
-  rateConsultation(
-    @Param('id') consultationId: string,
-    @Req() request: AuthenticatedRequest,
-    @Body() body: RateConsultationBody,
+  async rateConsultation(
+    @Param('id')
+    consultationId: string,
+
+    @Req()
+    request: AuthenticatedRequest,
+
+    @Body()
+    body: RateConsultationBody,
   ) {
-    const userId = this.getAuthenticatedUserId(request);
+    const userId = await this.getAuthenticatedInternalUserId(request);
 
     return this.consultationService.rateConsultation({
       consultationId,
+
       userId,
+
       rating: body.rating,
+
       comment: body.comment,
     });
   }
 
   /*
    * ============================================================
-   * AUTHENTICATION HELPER
+   * AUTHENTICATED INTERNAL USER RESOLUTION
    * ============================================================
+   *
+   * Auth provider identity:
+   *
+   * Supabase JWT/local token
+   *          ↓
+   * request.user.sub
+   *          ↓
+   * User.supabaseId
+   *          ↓
+   * canonical database User.id
+   *
+   * Business tables such as:
+   *
+   * CallSession.userId
+   * CallSession.astrologerId
+   * Wallet.userId
+   * Chat participants
+   *
+   * should work with internal User.id.
    */
 
-  private getAuthenticatedUserId(
+  private async getAuthenticatedInternalUserId(
     request: AuthenticatedRequest,
-  ) {
-    const userId = request.user?.sub ?? request.user?.id;
+  ): Promise<string> {
+    const externalUserId = request.user?.sub ?? request.user?.id;
 
-    if (!userId) {
-      throw new Error(
-        'Authenticated user ID was not found in the request',
+    if (
+      !externalUserId ||
+      typeof externalUserId !== 'string' ||
+      !externalUserId.trim()
+    ) {
+      throw new UnauthorizedException(
+        'Authenticated user identity was not found',
       );
     }
 
-    return userId;
+    const normalizedExternalUserId = externalUserId.trim();
+
+    /*
+     * Supabase/local authentication provides
+     * the external Supabase-style identity.
+     *
+     * Resolve it to the canonical internal
+     * database User.id before any business logic.
+     */
+    const user = await this.userService.findBySupabaseId(
+      normalizedExternalUserId,
+    );
+
+    if (!user?.id) {
+      throw new UnauthorizedException(
+        'Authenticated user account was not found',
+      );
+    }
+
+    return user.id;
   }
 }

@@ -1,27 +1,21 @@
-import { Injectable } from '@nestjs/common';
-import { AstroExecutor } from '../../core/astro.executor';
-import { VedicProvider } from '../provider/vedic.provider';
+﻿import { Injectable } from '@nestjs/common';
 import { AstroParams } from '../../../../common/types/astro-params.type';
+import { ProkeralaProvider } from '../provider/prokerala.provider';
 
 @Injectable()
 export class DashaService {
-  constructor(
-    private readonly executor: AstroExecutor,
-    private readonly provider: VedicProvider,
-  ) {}
+  constructor(private readonly provider: ProkeralaProvider) {}
 
   async generate(params: AstroParams) {
-    return this.executor.execute({
-      params,
-      fetcher: this.provider.getmahadasha.bind(this.provider),
-      transformer: this.transform,
-    });
+    const data = await this.provider.getDashaPeriods(params);
+
+    return this.transform(data);
   }
 
   private transform(data: any) {
     return {
       raw: data,
-      timeline: data?.dasha || data?.data || [],
+      timeline: data?.dasha ?? data?.data?.dasha ?? data?.data ?? [],
     };
   }
 }

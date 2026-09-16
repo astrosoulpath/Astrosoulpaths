@@ -1,7 +1,4 @@
-import {
-  ExecutionContext,
-  INestApplication,
-} from '@nestjs/common';
+import { ExecutionContext, INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   LedgerReferenceType,
@@ -27,6 +24,7 @@ import { razorpayInstance } from '../src/config/razorpay.config';
 import { SupabaseAuthGuard } from '../src/common/guards/supabase-auth.guard';
 import { PrismaService } from '../src/infrastructure/prisma/prisma.service';
 import { KundliOrderService } from '../src/module/kundli/kundli-order.service';
+import { LocalizedPricingService } from '../src/module/payments/pricing/localized-pricing.service';
 import { PaymentsController } from '../src/module/payments/payments.controller';
 import { PaymentsService } from '../src/module/payments/payments.service';
 import { RazorpayVerificationService } from '../src/module/payments/razorpay-verification.service';
@@ -95,6 +93,11 @@ describe('Payments reconciliation (e2e)', () => {
       .spyOn(razorpayInstance.orders, 'fetchPayments')
       .mockResolvedValue({ items: [] } as never);
 
+    const localizedPricingServiceMock = {
+      quotePrice: jest.fn(),
+      quoteUsdPrice: jest.fn(),
+    };
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [PaymentsController],
       providers: [
@@ -112,6 +115,10 @@ describe('Payments reconciliation (e2e)', () => {
             triggerPdfGeneration: jest.fn(),
             markGenerationFailed: jest.fn(),
           },
+        },
+        {
+          provide: LocalizedPricingService,
+          useValue: localizedPricingServiceMock,
         },
         {
           provide: RazorpayVerificationService,
@@ -136,7 +143,9 @@ describe('Payments reconciliation (e2e)', () => {
 
   afterEach(async () => {
     fetchPaymentsSpy.mockRestore();
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
   it('reconciles a captured pending wallet payment and credits exactly once', async () => {

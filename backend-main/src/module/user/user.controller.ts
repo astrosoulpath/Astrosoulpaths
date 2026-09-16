@@ -45,6 +45,55 @@ export class UserController {
   }
 
   // 👤 Get user by ID
+
+  @Post('oauth/bootstrap')
+  @UseGuards(SupabaseAuthGuard)
+  async bootstrapOAuthUser(@CurrentUser() jwt: JWTPayload) {
+    const readString = (value: unknown): string | null =>
+      typeof value === 'string' && value.trim() ? value.trim() : null;
+
+    const supabaseId = readString(jwt.sub);
+
+    if (!supabaseId) {
+      throw new Error('Authenticated user ID is missing');
+    }
+
+    const metadata =
+      jwt.user_metadata && typeof jwt.user_metadata === 'object'
+        ? (jwt.user_metadata as Record<string, unknown>)
+        : {};
+
+    const fullName =
+      readString(metadata.full_name) ?? readString(metadata.name);
+
+    const avatarUrl =
+      readString(metadata.avatar_url) ?? readString(metadata.picture);
+
+    const { user, isNewUser } = await this.userService.syncUser({
+      supabaseId,
+      email: readString(jwt.email),
+      phone: readString(jwt.phone),
+      fullName,
+      avatarUrl,
+    });
+
+    return {
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          supabaseId: user.supabaseId,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          avatarUrl: user.avatarUrl,
+          isAstrologer: user.isAstrologer,
+          isProfileComplete: user.isProfileComplete,
+        },
+        isNewUser,
+      },
+    };
+  }
   @Get(':id')
   @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Roles(Role.Admin)

@@ -1,9 +1,4 @@
-import {
-  IsBoolean,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CancelSubscriptionDto {
   @IsOptional()
@@ -13,8 +8,7 @@ export class CancelSubscriptionDto {
   @IsOptional()
   @IsString()
   @MaxLength(250, {
-    message:
-      'Cancellation reason must be 250 characters or less',
+    message: 'Cancellation reason must be 250 characters or less',
   })
   reason?: string;
 }

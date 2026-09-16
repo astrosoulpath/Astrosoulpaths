@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+﻿import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   createClient,
@@ -35,9 +35,7 @@ export class SupabaseService {
       },
     });
 
-    const serviceRoleKey = this.config.get<string>(
-      'supabase.serviceRoleKey',
-    );
+    const serviceRoleKey = this.config.get<string>('supabase.serviceRoleKey');
 
     this.adminClient = serviceRoleKey
       ? createClient(url, serviceRoleKey, {
@@ -150,10 +148,7 @@ export class SupabaseService {
   /**
    * Authenticates an existing Supabase user using email/password.
    */
-  async signInWithEmail(
-    email: string,
-    password: string,
-  ): Promise<AuthResult> {
+  async signInWithEmail(email: string, password: string): Promise<AuthResult> {
     const normalizedEmail = email?.trim().toLowerCase();
 
     if (!normalizedEmail) {
@@ -164,20 +159,17 @@ export class SupabaseService {
       throw new BadRequestException('Password is required');
     }
 
-    const { data, error } =
-      await this.client.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      });
+    const { data, error } = await this.client.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
 
     if (error) {
       throw new BadRequestException(error.message);
     }
 
     if (!data.user || !data.session) {
-      throw new BadRequestException(
-        'Unable to create authentication session',
-      );
+      throw new BadRequestException('Unable to create authentication session');
     }
 
     return {
@@ -186,6 +178,56 @@ export class SupabaseService {
     };
   }
 
+  async sendEmailOtp(email: string): Promise<void> {
+    const normalizedEmail = email?.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      throw new BadRequestException('Email is required');
+    }
+
+    const { error } = await this.client.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: {
+        shouldCreateUser: true,
+      },
+    });
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  async verifyEmailOtp(email: string, token: string): Promise<AuthResult> {
+    const normalizedEmail = email?.trim().toLowerCase();
+    const normalizedToken = token?.trim();
+
+    if (!normalizedEmail) {
+      throw new BadRequestException('Email is required');
+    }
+
+    if (!normalizedToken) {
+      throw new BadRequestException('OTP is required');
+    }
+
+    const { data, error } = await this.client.auth.verifyOtp({
+      email: normalizedEmail,
+      token: normalizedToken,
+      type: 'email',
+    });
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    if (!data.user || !data.session) {
+      throw new BadRequestException('Unable to create authentication session');
+    }
+
+    return {
+      user: data.user,
+      session: data.session,
+    };
+  }
   /**
    * Public Supabase authentication client.
    */

@@ -1,18 +1,11 @@
-import {
-  Controller,
-  Get,
-  Header,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Header, UseGuards } from '@nestjs/common';
 
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { DashboardService } from './dashboard.service';
 
 @Controller('dashboard')
 export class DashboardController {
-  constructor(
-    private readonly dashboardService: DashboardService,
-  ) {}
+  constructor(private readonly dashboardService: DashboardService) {}
 
   /**
    * Public homepage counters.
@@ -20,10 +13,7 @@ export class DashboardController {
    * GET /dashboard/public-stats
    */
   @Get('public-stats')
-  @Header(
-    'Cache-Control',
-    'public, max-age=60, stale-while-revalidate=300',
-  )
+  @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
   getPublicStats() {
     return this.dashboardService.getPublicStats();
   }
@@ -38,10 +28,7 @@ export class DashboardController {
    */
   @Get('stats')
   @UseGuards(SupabaseAuthGuard)
-  @Header(
-    'Cache-Control',
-    'private, no-store',
-  )
+  @Header('Cache-Control', 'private, no-store')
   getAdminStats() {
     return this.dashboardService.getAdminStats();
   }

@@ -22,7 +22,9 @@ export type AdminAstrologer = {
 };
 
 function getAuthHeaders() {
-  const token = localStorage.getItem("asp_access_token");
+  const token =
+    localStorage.getItem("asp_admin_access_token") ??
+    localStorage.getItem("access_token");
 
   return {
     "Content-Type": "application/json",
@@ -72,6 +74,25 @@ export async function approveAstrologer(id: string) {
 
   return data;
 }
+
+export async function rejectAstrologer(id: string) {
+  const response = await fetch(
+    `${API_BASE_URL}/admin/astrologers/${id}/reject`,
+    {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+    },
+  );
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Failed to reject astrologer");
+  }
+
+  return data;
+}
+
 
 export async function suspendAstrologer(id: string) {
   const response = await fetch(`${API_BASE_URL}/admin/astrologers/${id}/suspend`, {

@@ -1,11 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import {
-  Geist,
-  Geist_Mono,
-} from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 
 import Footer from "@/components/layouts/Footer";
 import Navbar from "@/components/layouts/Navbar";
+import FreeChatWelcomeModal from "@/components/auth/FreeChatWelcomeModal";
 
 import "./globals.css";
 import { AppProviders } from "./providers";
@@ -23,23 +21,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    "https://astrosoulpath.com",
-  ),
+  metadataBase: new URL("https://astrosoulpath.com"),
 
   title: {
-    default:
-      "Astro Soul Path",
+    default: "Astro Soul Path",
 
-    template:
-      "%s | Astro Soul Path",
+    template: "%s | Astro Soul Path",
   },
 
   description:
     "Consult verified astrologers online for Kundli, Horoscope, Tarot, Numerology, Marriage Matching, Chat and Audio Consultation.",
 
-  applicationName:
-    "Astro Soul Path",
+  applicationName: "Astro Soul Path",
 
   keywords: [
     "Astrology",
@@ -56,16 +49,13 @@ export const metadata: Metadata = {
 
   authors: [
     {
-      name:
-        "Astro Soul Path",
+      name: "Astro Soul Path",
     },
   ],
 
-  creator:
-    "Astro Soul Path",
+  creator: "Astro Soul Path",
 
-  publisher:
-    "Astro Soul Path",
+  publisher: "Astro Soul Path",
 
   alternates: {
     canonical: "/",
@@ -78,8 +68,7 @@ export const metadata: Metadata = {
     googleBot: {
       index: true,
       follow: true,
-      "max-image-preview":
-        "large",
+      "max-image-preview": "large",
       "max-snippet": -1,
       "max-video-preview": -1,
     },
@@ -90,17 +79,14 @@ export const metadata: Metadata = {
 
     locale: "en_IN",
 
-    siteName:
-      "Astro Soul Path",
+    siteName: "Astro Soul Path",
 
-    title:
-      "Astro Soul Path",
+    title: "Astro Soul Path",
 
     description:
       "Connect with verified astrologers for live astrology consultation.",
 
-    url:
-      "https://astrosoulpath.com",
+    url: "https://astrosoulpath.com",
 
     images: [
       {
@@ -113,28 +99,21 @@ export const metadata: Metadata = {
   },
 
   twitter: {
-    card:
-      "summary_large_image",
+    card: "summary_large_image",
 
-    title:
-      "Astro Soul Path",
+    title: "Astro Soul Path",
 
-    description:
-      "Professional astrology consultation platform.",
+    description: "Professional astrology consultation platform.",
 
-    images: [
-      "/logo.png",
-    ],
+    images: ["/logo.png"],
   },
 
   icons: {
     icon: "/favicon.ico",
 
-    shortcut:
-      "/favicon.ico",
+    shortcut: "/favicon.ico",
 
-    apple:
-      "/apple-touch-icon.png",
+    apple: "/apple-touch-icon.png",
   },
 
   manifest: "/manifest.json",
@@ -145,18 +124,14 @@ export const viewport: Viewport = {
 
   initialScale: 1,
 
-  themeColor:
-    "#0B1026",
+  themeColor: "#0B1026",
 };
 
-type RootLayoutProps =
-  Readonly<{
-    children: React.ReactNode;
-  }>;
+type RootLayoutProps = Readonly<{
+  children: React.ReactNode;
+}>;
 
-export default function RootLayout({
-  children,
-}: RootLayoutProps) {
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html
       lang="en"
@@ -165,11 +140,10 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col bg-white text-[#0B1026]">
         <AppProviders>
+          <FreeChatWelcomeModal />
           <Navbar />
 
-          <main className="flex-1">
-            {children}
-          </main>
+          <main className="flex-1">{children}</main>
 
           <Footer />
         </AppProviders>

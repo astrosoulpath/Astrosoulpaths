@@ -1,26 +1,67 @@
 import {
-  Injectable,
-  BadRequestException,
   BadGatewayException,
-  HttpException,
+  BadRequestException,
+  Injectable,
   InternalServerErrorException,
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { VedicProvider } from '../provider/vedic.provider';
+import axios from 'axios';
 
-type GeoApiRecord = Record<string, unknown>;
+type OpenMeteoGeoResult = {
+  id?: number;
+  name?: string;
+  latitude?: number;
+  longitude?: number;
+  elevation?: number;
+  feature_code?: string;
+  country_code?: string;
+  admin1_id?: number;
+  admin2_id?: number;
+  admin3_id?: number;
+  admin4_id?: number;
+  timezone?: string;
+  population?: number;
+  postcodes?: string[];
+  country_id?: number;
+  country?: string;
+  admin1?: string;
+  admin2?: string;
+  admin3?: string;
+  admin4?: string;
+};
+
+type OpenMeteoGeoResponse = {
+  results?: OpenMeteoGeoResult[];
+  generationtime_ms?: number;
+};
+
+type OpenMeteoTimezoneResponse = {
+  timezone?: string;
+  timezone_abbreviation?: string;
+  utc_offset_seconds?: number;
+};
 
 type GeoSuggestion = {
-  city: string | null;
-  fullname: string | null;
-  state: string | null;
-  countryCode: string | null;
-  country: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  timezone: string | null;
-  timezoneName: string | null;
+  city: string;
+  fullname: string;
+  state: string;
+  countryCode: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+
+  /*
+   * Frontend/Kundli currently expects
+   * numeric UTC offset, e.g. India = 5.5
+   */
+  timezone: number;
+
+  /*
+   * IANA timezone name, e.g.
+   * Asia/Kolkata
+   */
+  timezoneName: string;
 };
 
 type GeoSearchResult = {
@@ -29,64 +70,53 @@ type GeoSearchResult = {
   data: GeoSuggestion[];
 };
 
-type GeoProviderResponse = {
-  status: number;
-  data: unknown;
-};
-
 @Injectable()
 export class GeoService {
   private readonly logger = new Logger(GeoService.name);
 
-  constructor(private readonly vedicProvider: VedicProvider) {}
+  /*
+   * Keep this configurable for production.
+   *
+   * Local/dev default:
+   * https://geocoding-api.open-meteo.com/v1
+   */
+  private readonly geocodingBaseUrl =
+    process.env.GEO_BASE_URL?.trim() ||
+    'https://geocoding-api.open-meteo.com/v1';
+
+  private readonly weatherBaseUrl =
+    process.env.GEO_TIMEZONE_BASE_URL?.trim() ||
+    'https://api.open-meteo.com/v1';
 
   async searchCity(city: string): Promise<GeoSearchResult> {
+    const sanitizedCity = city?.trim();
+
+    if (!sanitizedCity) {
+      throw new BadRequestException('City is required');
+    }
+
     try {
-      // Sanitize input early so downstream providers do not receive malformed values.
-      const sanitizedCity = city.trim();
-
-      if (!sanitizedCity) {
-        throw new BadRequestException('City is required');
-      }
-
       this.logger.log(`Searching geo suggestions for city="${sanitizedCity}"`);
 
-      const rawResponse: unknown = await this.vedicProvider.searchGeo({
-        city: sanitizedCity,
-      });
-      const response = this.normalizeProviderResponse(rawResponse);
-      this.logGeoApiResponse(sanitizedCity, response);
+      const response = await axios.get<OpenMeteoGeoResponse>(
+        `${this.geocodingBaseUrl}/search`,
+        {
+          params: {
+            name: sanitizedCity,
+            count: 10,
+            language: 'en',
+            format: 'json',
+          },
 
-      const upstreamErrorMessage = this.extractUpstreamErrorMessage(
-        response.data,
+          timeout: 7000,
+        },
       );
-      if (upstreamErrorMessage) {
-        this.logger.warn(
-          `Geo API returned an error payload for city="${sanitizedCity}": ${upstreamErrorMessage}`,
-        );
 
-        return {
-          success: true,
-          message: upstreamErrorMessage,
-          data: [],
-        };
-      }
+      const results = Array.isArray(response.data?.results)
+        ? response.data.results
+        : [];
 
-      const results = this.extractResults(response.data);
-      if (!results) {
-        // Defensive fallback for provider payload drift across environments.
-        this.logger.warn(
-          `Unexpected geo API payload for city="${sanitizedCity}": ${this.safeSerialize(response.data)}`,
-        );
-
-        return {
-          success: true,
-          message: 'Geo provider returned an unexpected response format',
-          data: [],
-        };
-      }
-
-      if (results.length === 0) {
+      if (!results.length) {
         return {
           success: true,
           message: 'No geo suggestions found',
@@ -94,212 +124,215 @@ export class GeoService {
         };
       }
 
-      const transformed = results.map((item) => this.mapSuggestion(item));
+      /*
+       * Resolve suggestions independently.
+       *
+       * Promise.allSettled prevents one bad
+       * location/timezone lookup from killing
+       * every result.
+       */
+      const resolved = await Promise.allSettled(
+        results.map((item) => this.mapSuggestion(item)),
+      );
+
+      const suggestions = resolved
+        .filter(
+          (item): item is PromiseFulfilledResult<GeoSuggestion | null> =>
+            item.status === 'fulfilled',
+        )
+        .map((item) => item.value)
+        .filter((item): item is GeoSuggestion => item !== null);
+
+      if (!suggestions.length) {
+        this.logger.warn(
+          `Geo provider returned results but none were usable for city="${sanitizedCity}"`,
+        );
+
+        return {
+          success: true,
+          message: 'No usable geo suggestions found',
+          data: [],
+        };
+      }
+
+      this.logger.log(
+        `Geo search successful for city="${sanitizedCity}" results=${suggestions.length}`,
+      );
 
       return {
         success: true,
         message: 'Geo suggestions fetched successfully',
-        data: transformed,
+        data: suggestions,
       };
     } catch (error: unknown) {
-      this.logSearchError(city, error);
+      const status = axios.isAxiosError(error)
+        ? error.response?.status
+        : undefined;
 
-      if (error instanceof BadRequestException) {
-        throw error;
+      const message =
+        error instanceof Error ? error.message : 'Unknown geo provider error';
+
+      this.logger.error(
+        `Geo search failed for city="${sanitizedCity}": status=${
+          status ?? 'unknown'
+        } message=${message}`,
+      );
+
+      if (status === 429) {
+        throw new ServiceUnavailableException(
+          'Geo provider rate limit exceeded. Try again later.',
+        );
       }
 
-      if (error instanceof HttpException) {
-        const status = error.getStatus();
-        const payload = error.getResponse();
+      if (status && status >= 500) {
+        throw new BadGatewayException('Geo provider is currently unavailable');
+      }
 
-        if (status === 401 || status === 403) {
-          throw new InternalServerErrorException(
-            'Geo provider authentication failed',
-          );
-        }
-
-        if (status === 429) {
-          throw new ServiceUnavailableException(
-            'Geo provider rate limit exceeded. Try again later.',
-          );
-        }
-
-        if (status >= 500) {
-          throw new BadGatewayException(
-            'Geo provider is currently unavailable',
-          );
-        }
-
-        throw new HttpException(payload, status);
+      if (axios.isAxiosError(error)) {
+        throw new BadGatewayException('Unable to resolve location right now');
       }
 
       throw new InternalServerErrorException('Failed to fetch geo suggestions');
     }
   }
 
-  private logGeoApiResponse(city: string, response: GeoProviderResponse): void {
-    this.logger.log(
-      `Geo API response for city="${city}": status=${response.status} body=${this.safeSerialize(response.data)}`,
-    );
-  }
+  private async mapSuggestion(
+    item: OpenMeteoGeoResult,
+  ): Promise<GeoSuggestion | null> {
+    const city = item.name?.trim() || null;
 
-  private logSearchError(city: string, error: unknown): void {
-    if (error instanceof HttpException) {
-      this.logger.error(
-        `Geo search failed for city="${city}": status=${error.getStatus()} response=${this.safeSerialize(error.getResponse())}`,
-      );
-      return;
-    }
+    const latitude = typeof item.latitude === 'number' ? item.latitude : null;
 
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    this.logger.error(`Geo search failed for city="${city}": ${message}`);
-  }
+    const longitude =
+      typeof item.longitude === 'number' ? item.longitude : null;
 
-  private normalizeProviderResponse(value: unknown): GeoProviderResponse {
-    const record = this.asRecord(value);
-
-    return {
-      status: typeof record?.status === 'number' ? record.status : 0,
-      data: record?.data ?? value,
-    };
-  }
-
-  private extractResults(payload: unknown): GeoApiRecord[] | null {
-    return this.extractResultsFromCandidate(payload);
-  }
-
-  private extractUpstreamErrorMessage(payload: unknown): string | null {
-    const record = this.asRecord(payload);
-    if (!record) {
+    if (!city || latitude === null || longitude === null) {
       return null;
     }
 
-    const message =
-      this.asString(record.message) ?? this.asString(record.error);
-    const success = record.success;
-    const hasErrorPayload = Boolean(record.error || record.errors);
-
-    if (success === false && message) {
-      return message;
-    }
-
-    if (hasErrorPayload && message) {
-      return message;
-    }
-
-    return null;
-  }
-
-  private mapSuggestion(item: GeoApiRecord): GeoSuggestion {
-    const coordinates = Array.isArray(item.coordinates) ? item.coordinates : [];
-    const latitude =
-      this.toNullableNumber(item.lat) ??
-      this.toNullableNumber(item.latitude) ??
-      this.toNullableNumber(coordinates[0]);
-    const longitude =
-      this.toNullableNumber(item.lon) ??
-      this.toNullableNumber(item.lng) ??
-      this.toNullableNumber(item.longitude) ??
-      this.toNullableNumber(coordinates[1]);
-
-    return {
-      city: this.asString(item.name) ?? this.asString(item.city),
-      fullname:
-        this.asString(item.alternate_name) ?? this.asString(item.fullname),
-      state: this.asString(item.state_name) ?? this.asString(item.state),
-      countryCode:
-        this.asString(item.country_code) ?? this.asString(item.country),
-      country: this.asString(item.country_name),
+    const timezoneDetails = await this.resolveTimezoneDetails(
       latitude,
       longitude,
-      timezone: this.asString(item.tz) ?? this.asString(item.timezone),
-      timezoneName:
-        this.asString(item.tzone) ?? this.asString(item.timezone_name),
-    };
-  }
-
-  private extractResultsFromCandidate(value: unknown): GeoApiRecord[] | null {
-    const directArray = this.asRecordArray(value);
-    if (directArray && directArray.length > 0) {
-      return directArray;
-    }
-
-    const record = this.asRecord(value);
-    if (!record) {
-      return directArray;
-    }
-
-    if (this.looksLikeGeoRecord(record)) {
-      return [record];
-    }
-
-    const candidates = [
-      record.response,
-      record.data,
-      record.results,
-      record.payload,
-      record.result,
-      record.location,
-      record.locations,
-      record.suggestion,
-      record.suggestions,
-    ];
-
-    for (const candidate of candidates) {
-      const extracted = this.extractResultsFromCandidate(candidate);
-      if (extracted && extracted.length > 0) {
-        return extracted;
-      }
-    }
-
-    return null;
-  }
-
-  private looksLikeGeoRecord(record: GeoApiRecord): boolean {
-    return Boolean(
-      this.asString(record.name) ??
-      this.asString(record.city) ??
-      this.toNullableNumber(record.lat) ??
-      this.toNullableNumber(record.latitude) ??
-      this.toNullableNumber(record.lon) ??
-      this.toNullableNumber(record.lng) ??
-      this.toNullableNumber(record.longitude) ??
-      (Array.isArray(record.coordinates)
-        ? record.coordinates.length > 0
-        : false),
+      item.timezone,
     );
-  }
 
-  private asRecord(value: unknown): GeoApiRecord | null {
-    return typeof value === 'object' && value !== null && !Array.isArray(value)
-      ? (value as GeoApiRecord)
-      : null;
-  }
-
-  private asRecordArray(value: unknown): GeoApiRecord[] | null {
-    if (!Array.isArray(value)) {
+    /*
+     * Profile validation requires both:
+     *
+     * timezone numeric offset
+     * timezoneName IANA identifier
+     */
+    if (timezoneDetails === null) {
       return null;
     }
 
-    return value
-      .map((item) => this.asRecord(item))
-      .filter((item): item is GeoApiRecord => item !== null);
+    const state = item.admin1?.trim() || '';
+
+    const country = item.country?.trim() || '';
+
+    const countryCode = item.country_code?.trim().toUpperCase() || '';
+
+    const fullname = [city, state, country]
+      .filter((value) => Boolean(value))
+      .join(', ');
+
+    return {
+      city,
+
+      fullname: fullname || city,
+
+      state,
+
+      countryCode,
+
+      country,
+
+      latitude,
+
+      longitude,
+
+      timezone: timezoneDetails.offset,
+
+      timezoneName: timezoneDetails.name,
+    };
   }
 
-  private asString(value: unknown): string | null {
-    return typeof value === 'string' && value.trim().length > 0 ? value : null;
-  }
-
-  private toNullableNumber(value: unknown): number | null {
-    const parsedValue = Number(value);
-    return Number.isFinite(parsedValue) ? parsedValue : null;
-  }
-
-  private safeSerialize(value: unknown): string {
+  private async resolveTimezoneDetails(
+    latitude: number,
+    longitude: number,
+    fallbackTimezone?: string,
+  ): Promise<{
+    offset: number;
+    name: string;
+  } | null> {
     try {
-      return JSON.stringify(value);
-    } catch {
-      return '[unserializable payload]';
+      const response = await axios.get<OpenMeteoTimezoneResponse>(
+        `${this.weatherBaseUrl}/forecast`,
+        {
+          params: {
+            latitude,
+            longitude,
+
+            /*
+             * Tells provider to determine
+             * timezone from coordinates.
+             */
+            timezone: 'auto',
+
+            forecast_days: 1,
+          },
+
+          timeout: 7000,
+        },
+      );
+
+      const seconds =
+        typeof response.data?.utc_offset_seconds === 'number'
+          ? response.data.utc_offset_seconds
+          : null;
+
+      const timezoneName =
+        response.data?.timezone?.trim() || fallbackTimezone?.trim() || null;
+
+      if (seconds === null || !timezoneName) {
+        this.logger.warn(
+          `Incomplete timezone response for lat=${latitude}, lon=${longitude}`,
+        );
+
+        return null;
+      }
+
+      /*
+       * Examples:
+       *
+       * India:
+       * 19800 / 3600 = 5.5
+       *
+       * New York:
+       * -14400 / 3600 = -4
+       */
+      const offset = Number((seconds / 3600).toFixed(2));
+
+      return {
+        offset,
+        name: timezoneName,
+      };
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown timezone error';
+
+      this.logger.warn(
+        `Timezone lookup failed for lat=${latitude}, lon=${longitude}: ${message}`,
+      );
+
+      /*
+       * Do NOT silently return timezone=0.
+       *
+       * 0 would look like valid UTC data and
+       * could generate incorrect astrology
+       * calculations.
+       */
+      return null;
     }
   }
 }

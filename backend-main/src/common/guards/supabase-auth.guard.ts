@@ -21,19 +21,20 @@ export class SupabaseAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // Routes marked with @Public() do not require authentication.
-    const isPublic = this.reflector.getAllAndOverride<boolean>(
-      IS_PUBLIC_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     if (isPublic) {
       return true;
     }
 
     const request = context.switchToHttp().getRequest();
-    const authHeader: string | undefined =
-      request.headers.authorization;
+
+
+
+    const authHeader: string | undefined = request.headers.authorization;
 
     if (!authHeader?.startsWith('Bearer ')) {
       this.logger.warn(
@@ -54,16 +55,23 @@ export class SupabaseAuthGuard implements CanActivate {
     /*
      * Local development authentication
      * --------------------------------
-     * This token is accepted only when:
-     * 1. The application is not running in production.
-     * 2. LOCAL_OTP_ENABLED is explicitly true.
-     * 3. The token exactly matches local-dev-token.
+     * These local tokens work only when:
+     * 1. NODE_ENV is not production.
+     * 2. LOCAL_OTP_ENABLED is true.
      *
-     * It must never work in production.
+     * local-dev-token:
+     *   customer/admin local user
+     *
+     * local-astrologer-token:
+     *   astrologer local user
+     *
+     * These tokens must never work in production.
      */
-    if (this.isValidLocalDevelopmentToken(token)) {
+    const localSupabaseId = this.getLocalDevelopmentSupabaseId(token);
+
+    if (localSupabaseId) {
       const localPayload: JWTPayload = {
-        sub: 'local-supabase-user',
+        sub: localSupabaseId,
         aud: 'authenticated',
         role: 'authenticated',
         phone: request.headers['x-local-phone'],
@@ -75,24 +83,19 @@ export class SupabaseAuthGuard implements CanActivate {
       request.user = localPayload;
 
       this.logger.debug(
-        'Local development authentication successful',
+        `Local development authentication successful for ${localSupabaseId}`,
       );
 
       return true;
     }
 
     try {
-      const payload =
-        await this.supabaseJwtService.verifyAccessToken(token);
+      const payload = await this.supabaseJwtService.verifyAccessToken(token);
 
       if (!payload.sub) {
-        this.logger.warn(
-          'Authentication failed: JWT subject is missing',
-        );
+        this.logger.warn('Authentication failed: JWT subject is missing');
 
-        throw new UnauthorizedException(
-          'Invalid token claims',
-        );
+        throw new UnauthorizedException('Invalid token claims');
       }
 
       request.user = payload;
@@ -103,32 +106,35 @@ export class SupabaseAuthGuard implements CanActivate {
 
       return true;
     } catch (error: unknown) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : String(error);
+      const message = error instanceof Error ? error.message : String(error);
 
-      this.logger.warn(
-        `Supabase authentication failed: ${message}`,
-      );
+      this.logger.warn(`Supabase authentication failed: ${message}`);
 
       throw new UnauthorizedException('Invalid token');
     }
   }
 
-  private isValidLocalDevelopmentToken(
-    token: string,
-  ): boolean {
-    const isProduction =
-      process.env.NODE_ENV === 'production';
+  private getLocalDevelopmentSupabaseId(token: string): string | null {
+    const isProduction = process.env.NODE_ENV === 'production';
 
-    const isLocalOtpEnabled =
-      process.env.LOCAL_OTP_ENABLED === 'true';
+    const isLocalOtpEnabled = process.env.LOCAL_OTP_ENABLED === 'true';
 
-    return (
-      !isProduction &&
-      isLocalOtpEnabled &&
-      token === 'local-dev-token'
-    );
+    if (isProduction || !isLocalOtpEnabled) {
+      return null;
+    }
+
+    const localDevTokenPrefix = 'local-dev-token:';
+
+    if (token.startsWith(localDevTokenPrefix)) {
+      const localSupabaseId = token.slice(localDevTokenPrefix.length);
+
+      return localSupabaseId || null;
+    }
+
+    if (token === 'local-astrologer-token') {
+      return 'seed-astrologer-supabase-id';
+    }
+
+    return null;
   }
 }

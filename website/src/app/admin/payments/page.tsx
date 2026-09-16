@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -83,7 +83,7 @@ function getAccessToken() {
   }
 
   return (
-    window.localStorage.getItem("asp_access_token") ??
+    window.localStorage.getItem("asp_admin_access_token") ??
     window.localStorage.getItem("access_token")
   );
 }
@@ -202,7 +202,7 @@ function getStatusClasses(status: string) {
     return "border-blue-200 bg-blue-100 text-blue-700";
   }
 
-  return "border-gray-200 bg-gray-100 text-gray-700";
+  return "border-gray-200 bg-gray-100 text-[#263A55]";
 }
 
 function normalizePayments(
@@ -443,19 +443,19 @@ export default function AdminPaymentsPage() {
   }, [payments]);
 
   return (
-    <main className="min-h-screen bg-[#F8F8F8] px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="asp-admin-page px-4 py-10 sm:px-6 lg:px-8">
+      <div className="asp-admin-shell">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-amber-600">
+            <p className="asp-admin-eyebrow">
               Admin Panel
             </p>
 
-            <h1 className="mt-2 text-3xl font-extrabold text-[#0B1026] sm:text-4xl">
+            <h1 className="asp-admin-title mt-2 text-3xl sm:text-4xl">
               Payment Management
             </h1>
 
-            <p className="mt-3 max-w-3xl text-base leading-7 text-gray-600">
+            <p className="asp-admin-subtitle mt-3 max-w-3xl text-base">
               Track successful, pending, failed and
               refunded payments across the platform.
             </p>
@@ -464,7 +464,7 @@ export default function AdminPaymentsPage() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link
               href="/admin"
-              className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-center font-bold text-[#0B1026] transition hover:bg-gray-50"
+              className="asp-admin-back-btn"
             >
               Back to Dashboard
             </Link>
@@ -475,7 +475,7 @@ export default function AdminPaymentsPage() {
                 void loadPayments(true)
               }
               disabled={isRefreshing}
-              className="rounded-xl bg-[#0B1026] px-5 py-3 font-bold text-white transition hover:bg-[#171D3D] disabled:cursor-not-allowed disabled:opacity-60"
+              className="asp-admin-primary-btn"
             >
               {isRefreshing
                 ? "Refreshing..."
@@ -497,8 +497,8 @@ export default function AdminPaymentsPage() {
         ) : null}
 
         <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Total Payments
             </p>
 
@@ -507,8 +507,8 @@ export default function AdminPaymentsPage() {
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Successful Amount
             </p>
 
@@ -518,13 +518,13 @@ export default function AdminPaymentsPage() {
               )}
             </p>
 
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-[#66758A]">
               {stats.successful} successful payments
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Pending Payments
             </p>
 
@@ -533,8 +533,8 @@ export default function AdminPaymentsPage() {
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Refunded Amount
             </p>
 
@@ -544,15 +544,15 @@ export default function AdminPaymentsPage() {
               )}
             </p>
 
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-[#66758A]">
               {stats.refunded} refunded payments
             </p>
           </article>
         </section>
 
         <section className="mt-4 grid gap-4 sm:grid-cols-2">
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Failed or Cancelled
             </p>
 
@@ -561,8 +561,8 @@ export default function AdminPaymentsPage() {
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Successful Payments
             </p>
 
@@ -572,7 +572,7 @@ export default function AdminPaymentsPage() {
           </article>
         </section>
 
-        <section className="mt-8 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section className="asp-admin-panel mt-8 p-5 sm:p-6">
           <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
             <input
               type="search"
@@ -581,7 +581,7 @@ export default function AdminPaymentsPage() {
                 setSearch(event.target.value)
               }
               placeholder="Search by customer, payment ID, order ID or user ID"
-              className="rounded-xl border border-gray-300 px-4 py-3 text-[#0B1026] outline-none transition focus:border-[#D4AF37]"
+              className="asp-admin-input px-4 py-3"
             />
 
             <select
@@ -592,7 +592,7 @@ export default function AdminPaymentsPage() {
                     .value as StatusFilter,
                 )
               }
-              className="rounded-xl border border-gray-300 bg-white px-4 py-3 font-semibold text-[#0B1026] outline-none focus:border-[#D4AF37]"
+              className="asp-admin-input px-4 py-3 font-semibold"
             >
               <option value="ALL">
                 All statuses
@@ -618,7 +618,7 @@ export default function AdminPaymentsPage() {
 
           {isLoading ? (
             <div className="py-16 text-center">
-              <p className="font-semibold text-gray-600">
+              <p className="font-semibold text-[#4B5C73]">
                 Loading payments...
               </p>
             </div>
@@ -626,14 +626,14 @@ export default function AdminPaymentsPage() {
             filteredPayments.length === 0 ? (
             <div className="py-16 text-center">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-2xl font-extrabold text-[#0B1026]">
-                ₹
+                Ã¢â€šÂ¹
               </div>
 
               <h2 className="mt-5 text-2xl font-extrabold text-[#0B1026]">
                 No payments found
               </h2>
 
-              <p className="mt-2 text-gray-600">
+              <p className="mt-2 text-[#4B5C73]">
                 No payment records match the selected
                 filters.
               </p>
@@ -641,29 +641,29 @@ export default function AdminPaymentsPage() {
           ) : !errorMessage ? (
             <div className="mt-6 overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-0">
-                <thead>
+                <thead className="asp-admin-table-head">
                   <tr className="text-left">
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Customer
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Payment
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Amount
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Type
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Status
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Created
                     </th>
                   </tr>
@@ -692,13 +692,13 @@ export default function AdminPaymentsPage() {
                               {getUserName(payment)}
                             </p>
 
-                            <p className="mt-1 text-sm text-gray-600">
+                            <p className="mt-1 text-sm text-[#4B5C73]">
                               {payment.user?.phone ||
                                 payment.user?.email ||
                                 "Contact unavailable"}
                             </p>
 
-                            <p className="mt-1 break-all text-xs text-gray-400">
+                            <p className="mt-1 break-all text-xs text-[#758297]">
                               User ID:{" "}
                               {payment.userId ||
                                 payment.user?.id ||
@@ -711,11 +711,11 @@ export default function AdminPaymentsPage() {
                               ID: {payment.id}
                             </p>
 
-                            <p className="mt-1 break-all text-xs text-gray-500">
+                            <p className="mt-1 break-all text-xs text-[#66758A]">
                               Order: {orderId}
                             </p>
 
-                            <p className="mt-1 break-all text-xs text-gray-500">
+                            <p className="mt-1 break-all text-xs text-[#66758A]">
                               Payment:{" "}
                               {providerPaymentId}
                             </p>
@@ -750,7 +750,7 @@ export default function AdminPaymentsPage() {
                                 "General Payment"}
                             </p>
 
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="mt-1 text-xs text-[#66758A]">
                               {payment.provider ||
                                 "Payment provider"}
                             </p>
@@ -769,7 +769,7 @@ export default function AdminPaymentsPage() {
                           </td>
 
                           <td className="border-b border-gray-100 px-4 py-5">
-                            <p className="text-sm font-semibold text-gray-700">
+                            <p className="text-sm font-semibold text-[#263A55]">
                               {formatDateTime(
                                 payment.createdAt,
                               )}
@@ -788,3 +788,4 @@ export default function AdminPaymentsPage() {
     </main>
   );
 }
+

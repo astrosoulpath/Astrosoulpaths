@@ -1,4 +1,4 @@
-import {
+﻿import {
   ConnectedSocket,
   MessageBody,
   OnGatewayConnection,
@@ -9,6 +9,9 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 
+import { SupabaseJwtService } from '../../infrastructure/supabase/supabase-jwt.service';
+
+import { CallService } from './call.service';
 import { CallSocketService } from './call-socket.service';
 
 const RING_TIMEOUT_MS = 30_000;
@@ -16,7 +19,11 @@ const RING_TIMEOUT_MS = 30_000;
 type ConsultationType = 'AUDIO' | 'VIDEO';
 
 type RegisterCallSocketPayload = {
-  userId: string;
+  /**
+   * Compatibility assertion only.
+   * Server authentication never trusts this value as identity.
+   */
+  userId?: string;
 };
 
 type InitiateCallPayload = {
@@ -57,6 +64,7 @@ type RingingCall = {
 };
 
 type CallErrorCode =
+  | 'AUTHENTICATION_FAILED'
   | 'INVALID_PAYLOAD'
   | 'NOT_REGISTERED'
   | 'IDENTITY_MISMATCH'
@@ -76,9 +84,7 @@ type CallErrorCode =
   },
   transports: ['websocket', 'polling'],
 })
-export class CallGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
-{
+export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;
 
@@ -97,16 +103,39 @@ export class CallGateway
    */
   private readonly registeredSocketUsers = new Map<string, string>();
 
-  constructor(private readonly socketService: CallSocketService) {}
+  constructor(
+    private readonly socketService: CallSocketService,
+    private readonly callService: CallService,
+    private readonly supabaseJwtService: SupabaseJwtService,
+  ) {}
 
-  handleConnection(client: Socket): void {
-    client.emit('call:connected', {
-      success: true,
-      socketId: client.id,
-      connectedAt: new Date().toISOString(),
-    });
+  async handleConnection(client: Socket): Promise<void> {
+    try {
+      const authenticatedId = await this.authenticateSocket(client);
+
+      const canonicalUserId =
+        await this.callService.resolveAuthenticatedUserId(authenticatedId);
+
+      client.data.callUserId = canonicalUserId;
+
+      client.emit('call:connected', {
+        success: true,
+        authenticated: true,
+        userId: canonicalUserId,
+        socketId: client.id,
+        connectedAt: new Date().toISOString(),
+      });
+    } catch {
+      client.emit('call:error', {
+        success: false,
+        code: 'AUTHENTICATION_FAILED',
+        message: 'Call socket authentication failed.',
+        occurredAt: new Date().toISOString(),
+      });
+
+      client.disconnect(true);
+    }
   }
-
   handleDisconnect(client: Socket): void {
     this.registeredSocketUsers.delete(client.id);
     this.socketService.unregisterSocket(client.id);
@@ -117,28 +146,41 @@ export class CallGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RegisterCallSocketPayload,
   ) {
-    const userId = this.normalizeValue(payload?.userId);
+    const authenticatedUserId = this.normalizeValue(
+      client.data?.callUserId as string | undefined,
+    );
 
-    if (!userId) {
+    if (!authenticatedUserId) {
       return this.emitError(
         client,
-        'INVALID_PAYLOAD',
-        'User ID is required.',
+        'NOT_REGISTERED',
+        'The call socket is not authenticated.',
       );
     }
 
+    const requestedUserId = this.normalizeValue(payload?.userId);
+
     /*
-     * Remove any previous registration associated with this socket
-     * before registering it again.
+     * Client userId may assert identity for compatibility,
+     * but it can never establish or switch authenticated identity.
      */
+    if (requestedUserId && requestedUserId !== authenticatedUserId) {
+      return this.emitError(
+        client,
+        'IDENTITY_MISMATCH',
+        'Socket identity does not match the authenticated account.',
+      );
+    }
+
     this.socketService.unregisterSocket(client.id);
 
-    this.registeredSocketUsers.set(client.id, userId);
-    this.socketService.registerUser(userId, client);
+    this.registeredSocketUsers.set(client.id, authenticatedUserId);
+
+    this.socketService.registerUser(authenticatedUserId, client);
 
     const registeredPayload = {
       success: true,
-      userId,
+      userId: authenticatedUserId,
       socketId: client.id,
       registeredAt: new Date().toISOString(),
     };
@@ -147,7 +189,6 @@ export class CallGateway
 
     return registeredPayload;
   }
-
   @SubscribeMessage('call:initiate')
   initiateCall(
     @ConnectedSocket() client: Socket,
@@ -472,8 +513,7 @@ export class CallGateway
     const callerUserId = this.normalizeValue(payload?.callerUserId);
     const recipientUserId = this.normalizeValue(payload?.recipientUserId);
     const reason =
-      this.normalizeValue(payload?.reason) ||
-      'The caller cancelled the call.';
+      this.normalizeValue(payload?.reason) || 'The caller cancelled the call.';
 
     if (!callId || !recipientUserId) {
       return this.emitError(
@@ -501,10 +541,7 @@ export class CallGateway
       );
     }
 
-    if (
-      callerUserId &&
-      callerUserId !== ringingCall.callerUserId
-    ) {
+    if (callerUserId && callerUserId !== ringingCall.callerUserId) {
       return this.emitError(
         client,
         'IDENTITY_MISMATCH',
@@ -611,21 +648,92 @@ export class CallGateway
     eventName: string,
     payload: unknown,
   ): void {
-    this.socketService.emitToUser(
-      callerUserId,
-      eventName,
-      payload,
-    );
+    this.socketService.emitToUser(callerUserId, eventName, payload);
 
     if (recipientUserId !== callerUserId) {
-      this.socketService.emitToUser(
-        recipientUserId,
-        eventName,
-        payload,
-      );
+      this.socketService.emitToUser(recipientUserId, eventName, payload);
     }
   }
 
+  private async authenticateSocket(client: Socket): Promise<string> {
+    const handshakeToken =
+      typeof client.handshake.auth?.token === 'string'
+        ? client.handshake.auth.token.trim()
+        : '';
+
+    const bearerToken = this.extractBearerToken(
+      client.handshake.headers.authorization,
+    );
+
+    const token = handshakeToken || bearerToken;
+
+    if (!token) {
+      throw new Error('Missing call socket access token');
+    }
+
+    /*
+     * Development-only compatibility for the existing local OTP flow.
+     * This path cannot execute in NODE_ENV=production.
+     */
+    const localIdentity = this.getLocalDevelopmentIdentity(token);
+
+    if (localIdentity) {
+      return localIdentity;
+    }
+
+    const payload = await this.supabaseJwtService.verifyAccessToken(token);
+
+    const subject = typeof payload.sub === 'string' ? payload.sub.trim() : '';
+
+    if (!subject) {
+      throw new Error('Authenticated socket subject is missing');
+    }
+
+    return subject;
+  }
+
+  private getLocalDevelopmentIdentity(token: string): string | null {
+    if (
+      process.env.NODE_ENV === 'production' ||
+      process.env.LOCAL_OTP_ENABLED !== 'true'
+    ) {
+      return null;
+    }
+
+    const localCustomerPrefix = 'local-dev-token:';
+
+    if (token.startsWith(localCustomerPrefix)) {
+      const identity = token.slice(localCustomerPrefix.length).trim();
+
+      return identity || null;
+    }
+
+    if (token === 'local-astrologer-token') {
+      return 'seed-astrologer-supabase-id';
+    }
+
+    return null;
+  }
+
+  private extractBearerToken(
+    authorization: string | string[] | undefined,
+  ): string {
+    const rawAuthorization = Array.isArray(authorization)
+      ? authorization[0]
+      : authorization;
+
+    if (typeof rawAuthorization !== 'string') {
+      return '';
+    }
+
+    const normalizedAuthorization = rawAuthorization.trim();
+
+    if (!normalizedAuthorization.toLowerCase().startsWith('bearer ')) {
+      return '';
+    }
+
+    return normalizedAuthorization.slice(7).trim();
+  }
   private normalizeConsultationType(
     value?: ConsultationType,
   ): ConsultationType {
@@ -636,11 +744,7 @@ export class CallGateway
     return typeof value === 'string' ? value.trim() : '';
   }
 
-  private emitError(
-    client: Socket,
-    code: CallErrorCode,
-    message: string,
-  ) {
+  private emitError(client: Socket, code: CallErrorCode, message: string) {
     const errorPayload = {
       success: false,
       code,

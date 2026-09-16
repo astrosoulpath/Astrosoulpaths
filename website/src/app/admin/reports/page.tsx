@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -22,7 +22,7 @@ function getToken() {
   }
 
   return (
-    window.localStorage.getItem("asp_access_token") ??
+    window.localStorage.getItem("asp_admin_access_token") ??
     window.localStorage.getItem("access_token")
   );
 }
@@ -33,9 +33,7 @@ export default function AdminReportsPage() {
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [format, setFormat] = useState<
-    "CSV" | "PDF"
-  >("CSV");
+  const [format, setFormat] = useState<"XLSX" | "CSV">("XLSX");
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -45,11 +43,23 @@ export default function AdminReportsPage() {
       setLoading(true);
       setMessage("");
 
+      if (!startDate || !endDate) {
+        throw new Error(
+          "Please select both start date and end date.",
+        );
+      }
+
+      if (startDate > endDate) {
+        throw new Error(
+          "Start date cannot be after end date.",
+        );
+      }
+
       const token = getToken();
 
       if (!token) {
         throw new Error(
-          "Admin login token is missing.",
+          "Admin login token is missing. Please log in again.",
         );
       }
 
@@ -61,38 +71,94 @@ export default function AdminReportsPage() {
         {
           method: "POST",
           headers: {
-            Accept: "application/json",
+            Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, text/csv",
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             reportType,
-            startDate: startDate || undefined,
-            endDate: endDate || undefined,
+            startDate,
+            endDate,
             format,
           }),
         },
       );
 
-      const data = await response
-        .json()
-        .catch(() => null);
-
       if (!response.ok) {
+        const contentType =
+          response.headers.get(
+            "content-type",
+          );
+
+        if (
+          contentType?.includes(
+            "application/json",
+          )
+        ) {
+          const body =
+            await response.json();
+
+          throw new Error(
+            body?.message ||
+              `Unable to generate report (${response.status}).`,
+          );
+        }
+
+        const text =
+          await response.text();
+
         throw new Error(
-          data?.message ||
+          text ||
             `Unable to generate report (${response.status}).`,
         );
       }
 
-      setMessage(
-        data?.message ||
-          "Report generated successfully.",
-      );
+      const blob = await response.blob();
 
-      if (data?.downloadUrl) {
-        window.open(data.downloadUrl, "_blank");
-      }
+      const disposition =
+        response.headers.get(
+          "content-disposition",
+        );
+
+      const filenameMatch =
+        disposition?.match(
+          /filename="?([^"]+)"?/i,
+        );
+
+      const extension =
+        format === "XLSX"
+          ? "xlsx"
+          : "csv";
+
+      const filename =
+        filenameMatch?.[1] ||
+        `AstroSoulPath_${reportType}_Report.${extension}`;
+
+      const url =
+        window.URL.createObjectURL(blob);
+
+      const anchor =
+        document.createElement("a");
+
+      anchor.href = url;
+      anchor.download = filename;
+
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+
+      window.URL.revokeObjectURL(url);
+
+      const count =
+        response.headers.get(
+          "x-report-records",
+        );
+
+      setMessage(
+        count
+          ? `Premium report generated successfully. ${count} record(s) exported.`
+          : "Premium report generated successfully.",
+      );
     } catch (error) {
       setMessage(
         error instanceof Error
@@ -103,7 +169,6 @@ export default function AdminReportsPage() {
       setLoading(false);
     }
   }
-
   const reportCards = [
     {
       title: "Customer Report",
@@ -144,11 +209,11 @@ export default function AdminReportsPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#F8F8F8] px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="asp-admin-page px-4 py-10 sm:px-6 lg:px-8">
+      <div className="asp-admin-shell">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-amber-600">
+            <p className="asp-admin-eyebrow">
               Admin Panel
             </p>
 
@@ -156,7 +221,7 @@ export default function AdminReportsPage() {
               Reports
             </h1>
 
-            <p className="mt-3 text-gray-600">
+            <p className="asp-admin-subtitle mt-3">
               Generate operational and financial reports
               for platform administration.
             </p>
@@ -164,7 +229,7 @@ export default function AdminReportsPage() {
 
           <Link
             href="/admin"
-            className="rounded-xl border border-gray-300 bg-white px-5 py-3 font-bold"
+            className="asp-admin-back-btn"
           >
             Back to Dashboard
           </Link>
@@ -188,14 +253,14 @@ export default function AdminReportsPage() {
                 {report.title}
               </h2>
 
-              <p className="mt-3 text-sm leading-6 text-gray-600">
+              <p className="mt-3 text-sm leading-6 text-[#4B5C73]">
                 {report.description}
               </p>
             </button>
           ))}
         </section>
 
-        <section className="mt-8 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+        <section className="mt-8 asp-admin-panel p-6 sm:p-8">
           <h2 className="text-2xl font-extrabold text-[#0B1026]">
             Generate Report
           </h2>
@@ -211,7 +276,7 @@ export default function AdminReportsPage() {
                 onChange={(event) =>
                   setStartDate(event.target.value)
                 }
-                className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3"
+                className="mt-2 asp-admin-input w-full px-4 py-3"
               />
             </div>
 
@@ -225,7 +290,7 @@ export default function AdminReportsPage() {
                 onChange={(event) =>
                   setEndDate(event.target.value)
                 }
-                className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3"
+                className="mt-2 asp-admin-input w-full px-4 py-3"
               />
             </div>
 
@@ -240,7 +305,7 @@ export default function AdminReportsPage() {
                     event.target.value as ReportType,
                   )
                 }
-                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-4 py-3"
+                className="mt-2 asp-admin-input w-full bg-white px-4 py-3"
               >
                 {reportCards.map((report) => (
                   <option
@@ -261,15 +326,13 @@ export default function AdminReportsPage() {
                 value={format}
                 onChange={(event) =>
                   setFormat(
-                    event.target.value as
-                      | "CSV"
-                      | "PDF",
+                    event.target.value as "XLSX" | "CSV",
                   )
                 }
-                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-4 py-3"
+                className="mt-2 asp-admin-input w-full bg-white px-4 py-3"
               >
-                <option value="CSV">CSV</option>
-                <option value="PDF">PDF</option>
+                <option value="XLSX">Premium Excel (.xlsx)</option>
+<option value="CSV">CSV - Raw Data</option>
               </select>
             </div>
           </div>
@@ -284,7 +347,7 @@ export default function AdminReportsPage() {
             type="button"
             onClick={() => void generateReport()}
             disabled={loading}
-            className="mt-6 rounded-xl bg-[#D4AF37] px-6 py-4 font-bold text-[#0B1026] disabled:opacity-50"
+            className="asp-admin-gold-btn mt-6 px-6 py-4 disabled:opacity-50"
           >
             {loading
               ? "Generating Report..."
@@ -295,3 +358,11 @@ export default function AdminReportsPage() {
     </main>
   );
 }
+
+
+
+
+
+
+
+

@@ -4,6 +4,6 @@ import { NumerologyController } from './numerology.controller';
 
 @Module({
   providers: [NumerologyService],
-  controllers: [NumerologyController]
+  controllers: [NumerologyController],
 })
 export class NumerologyModule {}

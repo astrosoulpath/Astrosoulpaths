@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { getAccessToken } from "@/services/authService";
 import type { ConsultationMode } from "@/services/consultationService";
 
 type ConsultationActionsProps = {
@@ -163,10 +164,20 @@ export function ConsultationActions({
         astrologerAvatarUrl,
       );
     }
+    const confirmationPath =
+      `/consultations/confirm?${query.toString()}`;
 
-    router.push(
-      `/consultations/confirm?${query.toString()}`,
-    );
+    if (!getAccessToken()) {
+      router.push(
+        `/login?redirect=${encodeURIComponent(
+          confirmationPath,
+        )}`,
+      );
+
+      return;
+    }
+
+    router.push(confirmationPath);
   }
 
   return (
@@ -185,7 +196,7 @@ export function ConsultationActions({
               className="shrink-0 font-semibold text-red-700 transition hover:text-red-900"
               aria-label="Close error"
             >
-              ×
+              Ã—
             </button>
           </div>
         </div>
@@ -232,11 +243,11 @@ export function ConsultationActions({
             </p>
 
             <p className="mt-1 text-xl font-bold text-[#D4AF37]">
-              ₹{estimatedAmount.toFixed(2)}
+              â‚¹{estimatedAmount.toFixed(2)}
             </p>
 
             <p className="mt-1 text-xs text-gray-500">
-              ₹{safePricePerMin.toFixed(2)}
+              â‚¹{safePricePerMin.toFixed(2)}
               /minute
             </p>
           </div>
@@ -258,7 +269,7 @@ export function ConsultationActions({
           className="rounded-xl bg-[#D4AF37] px-6 py-4 font-semibold text-[#0B1026] transition hover:bg-[#C9A52F] disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
         >
           {!isOnline
-            ? "Chat Unavailable — Offline"
+            ? "Chat Unavailable â€” Offline"
             : !chatEnabled
               ? "Chat Unavailable"
               : `Continue with ${selectedMinutes}-Minute Chat`}
@@ -273,7 +284,7 @@ export function ConsultationActions({
           className="rounded-xl bg-[#0B1026] px-6 py-4 font-semibold text-white transition hover:bg-[#171D3D] disabled:cursor-not-allowed disabled:bg-gray-300"
         >
           {!isOnline
-            ? "Audio Call Unavailable — Offline"
+            ? "Audio Call Unavailable â€” Offline"
             : !audioEnabled
               ? "Audio Call Unavailable"
               : `Continue with ${selectedMinutes}-Minute Audio Call`}
@@ -304,3 +315,6 @@ export function ConsultationActions({
     </div>
   );
 }
+
+
+

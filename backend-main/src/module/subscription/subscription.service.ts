@@ -3,10 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  Prisma,
-  SubscriptionStatus,
-} from '@prisma/client';
+import { Prisma, SubscriptionStatus } from '@prisma/client';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 
@@ -15,20 +12,17 @@ import { CancelSubscriptionDto } from './dto/cancel-subscription.dto';
 
 @Injectable()
 export class SubscriptionService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getPlans() {
-    const plans =
-      await this.prisma.subscriptionPlan.findMany({
-        where: {
-          isActive: true,
-        },
-        orderBy: {
-          price: 'asc',
-        },
-      });
+    const plans = await this.prisma.subscriptionPlan.findMany({
+      where: {
+        isActive: true,
+      },
+      orderBy: {
+        price: 'asc',
+      },
+    });
 
     return {
       success: true,
@@ -36,34 +30,28 @@ export class SubscriptionService {
     };
   }
 
-  async getCurrentSubscription(
-    supabaseId: string,
-  ) {
-    const user =
-      await this.prisma.user.findUnique({
-        where: {
-          supabaseId,
-        },
-      });
+  async getCurrentSubscription(supabaseId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        supabaseId,
+      },
+    });
 
     if (!user) {
-      throw new NotFoundException(
-        'User not found',
-      );
+      throw new NotFoundException('User not found');
     }
 
-    const subscription =
-      await this.prisma.subscription.findFirst({
-        where: {
-          userId: user.id,
-        },
-        include: {
-          subscriptionPlan: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
+    const subscription = await this.prisma.subscription.findFirst({
+      where: {
+        userId: user.id,
+      },
+      include: {
+        subscriptionPlan: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
 
     return {
       success: true,
@@ -71,132 +59,101 @@ export class SubscriptionService {
     };
   }
 
-  async createSubscription(
-    supabaseId: string,
-    dto: CreateSubscriptionDto,
-  ) {
-    const user =
-      await this.prisma.user.findUnique({
-        where: {
-          supabaseId,
-        },
-      });
+  async createSubscription(supabaseId: string, dto: CreateSubscriptionDto) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        supabaseId,
+      },
+    });
 
     if (!user) {
-      throw new NotFoundException(
-        'User not found',
-      );
+      throw new NotFoundException('User not found');
     }
 
-    const plan =
-      await this.prisma.subscriptionPlan.findUnique({
-        where: {
-          name: dto.planName,
-        },
-      });
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: {
+        name: dto.planName,
+      },
+    });
 
     if (!plan) {
-      throw new NotFoundException(
-        'Subscription plan not found',
-      );
+      throw new NotFoundException('Subscription plan not found');
     }
 
-    const existing =
-      await this.prisma.subscription.findFirst({
-        where: {
-          userId: user.id,
-          subscriptionStatus:
-            SubscriptionStatus.ACTIVE,
-        },
-      });
+    const existing = await this.prisma.subscription.findFirst({
+      where: {
+        userId: user.id,
+        subscriptionStatus: SubscriptionStatus.ACTIVE,
+      },
+    });
 
     if (existing) {
-      throw new BadRequestException(
-        'Active subscription already exists',
-      );
+      throw new BadRequestException('Active subscription already exists');
     }
 
     const startDate = new Date();
 
     const endDate = new Date();
 
-    endDate.setDate(
-      endDate.getDate() +
-        plan.durationDays,
-    );
+    endDate.setDate(endDate.getDate() + plan.durationDays);
 
-    const subscription =
-      await this.prisma.subscription.create({
-        data: {
-          userId: user.id,
-          subscriptionPlanId: plan.id,
+    const subscription = await this.prisma.subscription.create({
+      data: {
+        userId: user.id,
+        subscriptionPlanId: plan.id,
 
-          amount: plan.price,
-          currency: plan.currency,
+        amount: plan.price,
+        currency: plan.currency,
 
-          subscriptionStatus:
-            SubscriptionStatus.PENDING,
+        subscriptionStatus: SubscriptionStatus.PENDING,
 
-          startDate,
-          endDate,
-          nextBillingAt: endDate,
-        },
-        include: {
-          subscriptionPlan: true,
-        },
-      });
+        startDate,
+        endDate,
+        nextBillingAt: endDate,
+      },
+      include: {
+        subscriptionPlan: true,
+      },
+    });
 
     return {
       success: true,
-      message:
-        'Subscription created successfully',
+      message: 'Subscription created successfully',
       data: subscription,
     };
   }
 
-  async cancelSubscription(
-    supabaseId: string,
-    dto: CancelSubscriptionDto,
-  ) {
-    const user =
-      await this.prisma.user.findUnique({
-        where: {
-          supabaseId,
-        },
-      });
+  async cancelSubscription(supabaseId: string, dto: CancelSubscriptionDto) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        supabaseId,
+      },
+    });
 
     if (!user) {
-      throw new NotFoundException(
-        'User not found',
-      );
+      throw new NotFoundException('User not found');
     }
 
-    const subscription =
-      await this.prisma.subscription.findFirst({
-        where: {
-          userId: user.id,
-          subscriptionStatus:
-            SubscriptionStatus.ACTIVE,
-        },
-      });
+    const subscription = await this.prisma.subscription.findFirst({
+      where: {
+        userId: user.id,
+        subscriptionStatus: SubscriptionStatus.ACTIVE,
+      },
+    });
 
     if (!subscription) {
-      throw new NotFoundException(
-        'Active subscription not found',
-      );
+      throw new NotFoundException('Active subscription not found');
     }
 
-    const updated =
-      await this.prisma.subscription.update({
-        where: {
-          id: subscription.id,
-        },
-        data: {
-          subscriptionStatus:
-            SubscriptionStatus.CANCELLED,
-          cancelledAt: new Date(),
-        },
-      });
+    const updated = await this.prisma.subscription.update({
+      where: {
+        id: subscription.id,
+      },
+      data: {
+        subscriptionStatus: SubscriptionStatus.CANCELLED,
+        cancelledAt: new Date(),
+      },
+    });
 
     return {
       success: true,

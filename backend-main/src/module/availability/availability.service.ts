@@ -1,189 +1,135 @@
-import {
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 
 @Injectable()
 export class AvailabilityService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Returns public availability information for an astrologer.
    */
-  async getAvailability(
-    astrologerId: string,
-  ) {
-    const normalizedAstrologerId =
-      astrologerId.trim();
+  async getAvailability(astrologerId: string) {
+    const normalizedAstrologerId = astrologerId.trim();
 
     if (!normalizedAstrologerId) {
-      throw new NotFoundException(
-        'Astrologer ID is required.',
-      );
+      throw new NotFoundException('Astrologer ID is required.');
     }
 
-    const astrologer =
-      await this.prisma.astrologer.findFirst({
-        where: {
-          OR: [
-            {
-              id:
-                normalizedAstrologerId,
-            },
-            {
-              userId:
-                normalizedAstrologerId,
-            },
-          ],
+    const astrologer = await this.prisma.astrologer.findFirst({
+      where: {
+        OR: [
+          {
+            id: normalizedAstrologerId,
+          },
+          {
+            userId: normalizedAstrologerId,
+          },
+        ],
 
-          isApproved:
-            true,
+        isApproved: true,
 
-          isVerified:
-            true,
+        isVerified: true,
 
-          user: {
-            isActive:
-              true,
+        user: {
+          isActive: true,
 
-            isBlocked:
-              false,
+          isBlocked: false,
+        },
+      },
+
+      select: {
+        id: true,
+
+        userId: true,
+
+        isOnline: true,
+
+        updatedAt: true,
+
+        user: {
+          select: {
+            name: true,
+
+            avatarUrl: true,
           },
         },
-
-        select: {
-          id:
-            true,
-
-          userId:
-            true,
-
-          isOnline:
-            true,
-
-          updatedAt:
-            true,
-
-          user: {
-            select: {
-              name:
-                true,
-
-              avatarUrl:
-                true,
-            },
-          },
-        },
-      });
+      },
+    });
 
     if (!astrologer) {
-      throw new NotFoundException(
-        'Astrologer not found.',
-      );
+      throw new NotFoundException('Astrologer not found.');
     }
 
     return {
       success: true,
 
-      message:
-        'Astrologer availability fetched successfully.',
+      message: 'Astrologer availability fetched successfully.',
 
       data: {
-        astrologerId:
-          astrologer.userId,
+        astrologerId: astrologer.userId,
 
-        astrologerProfileId:
-          astrologer.id,
+        astrologerProfileId: astrologer.id,
 
-        astrologerName:
-          astrologer.user.name ??
-          'Astro Soul Path Astrologer',
+        astrologerName: astrologer.user.name ?? 'Astro Soul Path Astrologer',
 
-        avatarUrl:
-          astrologer.user.avatarUrl,
+        avatarUrl: astrologer.user.avatarUrl,
 
-        isOnline:
-          astrologer.isOnline,
+        isOnline: astrologer.isOnline,
 
-        responseTime:
-          astrologer.isOnline
-            ? 'Under 2 minutes'
-            : null,
+        responseTime: astrologer.isOnline ? 'Under 2 minutes' : null,
 
-        availabilityText:
-          astrologer.isOnline
-            ? 'Available for consultation'
-            : 'Currently offline',
+        availabilityText: astrologer.isOnline
+          ? 'Available for consultation'
+          : 'Currently offline',
 
         todaySchedule: {
-          start:
-            '10:00 AM',
+          start: '10:00 AM',
 
-          end:
-            '08:00 PM',
+          end: '08:00 PM',
 
-          timezone:
-            'Asia/Kolkata',
+          timezone: 'Asia/Kolkata',
         },
 
         weeklyAvailability: [
           {
-            day:
-              'Monday',
+            day: 'Monday',
 
-            available:
-              true,
+            available: true,
           },
           {
-            day:
-              'Tuesday',
+            day: 'Tuesday',
 
-            available:
-              true,
+            available: true,
           },
           {
-            day:
-              'Wednesday',
+            day: 'Wednesday',
 
-            available:
-              true,
+            available: true,
           },
           {
-            day:
-              'Thursday',
+            day: 'Thursday',
 
-            available:
-              true,
+            available: true,
           },
           {
-            day:
-              'Friday',
+            day: 'Friday',
 
-            available:
-              true,
+            available: true,
           },
           {
-            day:
-              'Saturday',
+            day: 'Saturday',
 
-            available:
-              true,
+            available: true,
           },
           {
-            day:
-              'Sunday',
+            day: 'Sunday',
 
-            available:
-              false,
+            available: false,
           },
         ],
 
-        lastUpdated:
-          astrologer.updatedAt,
+        lastUpdated: astrologer.updatedAt,
       },
     };
   }

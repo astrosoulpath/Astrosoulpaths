@@ -1,9 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { registerAstrologer } from "@/services/astrologerService";
 
 export function AstrologerRegistrationForm() {
+  const router = useRouter();
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -47,20 +49,57 @@ export function AstrologerRegistrationForm() {
       setLoading(true);
 
       await registerAstrologer({
-        fullName: form.fullName,
-        email: form.email,
-        phoneNumber: form.phoneNumber,
-        gender: form.gender,
-        languages: form.languages.split(",").map((item) => item.trim()),
-        expertise: form.expertise.split(",").map((item) => item.trim()),
-        experienceYears: Number(form.experienceYears),
-        consultationPrice: Number(form.consultationPrice),
-        bio: form.bio,
-      });
+  fullName: form.fullName,
+  email: form.email,
+  phoneNumber: form.phoneNumber,
+  gender: form.gender,
+  languages: form.languages.split(",").map((item) => item.trim()),
+  expertise: form.expertise.split(",").map((item) => item.trim()),
+  experienceYears: Number(form.experienceYears),
+  consultationPrice: Number(form.consultationPrice),
+  bio: form.bio,
+});
 
-      setMessage(
-        "Registration submitted successfully. Admin approval is required before your profile goes live."
-      );
+const storedUser =
+  localStorage.getItem("asp_auth_user") ??
+  localStorage.getItem("asp_user") ??
+  localStorage.getItem("user");
+
+if (storedUser) {
+  try {
+    const parsedUser = JSON.parse(storedUser);
+
+    const updatedUser = {
+      ...parsedUser,
+      isAstrologer: true,
+      astrologerStatus: "PENDING",
+      accountRole: "CUSTOMER",
+    };
+
+    const updatedUserData = JSON.stringify(updatedUser);
+
+    localStorage.setItem("asp_user", updatedUserData);
+    localStorage.setItem("asp_auth_user", updatedUserData);
+
+    document.cookie = `asp_user=${encodeURIComponent(
+      updatedUserData,
+    )}; path=/; max-age=86400; SameSite=Lax`;
+  } catch {
+    // Registration is already successful.
+    // Navbar will refresh from backend after next login.
+  }
+}
+
+window.dispatchEvent(new Event("asp-auth-changed"));
+
+setMessage(
+  "Registration submitted successfully. Waiting for admin approval.",
+);
+
+setTimeout(() => {
+  router.replace("/astrologer/pending");
+  router.refresh();
+}, 1500);
     } catch (err: any) {
       setError(err?.message || "Astrologer registration failed.");
     } finally {
@@ -77,12 +116,12 @@ export function AstrologerRegistrationForm() {
           </p>
 
           <h1 className="mt-3 text-4xl font-bold text-[#0B1026]">
-            Join Astro Soul Path as an Astrologer
+            Complete Your Astrologer Profile
           </h1>
 
           <p className="mt-3 text-[#374151]">
-            Submit your details for admin review. Once approved, your profile
-            will appear in the astrologer marketplace.
+            Complete your profile details and submit them for verification.
+            After admin approval, your astrologer profile will go live.
           </p>
 
           {error && (
@@ -102,7 +141,7 @@ export function AstrologerRegistrationForm() {
               placeholder="Full Name *"
               value={form.fullName}
               onChange={(e) => updateField("fullName", e.target.value)}
-              className="rounded-xl border p-4"
+              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
             />
 
             <input
@@ -110,20 +149,20 @@ export function AstrologerRegistrationForm() {
               placeholder="Email *"
               value={form.email}
               onChange={(e) => updateField("email", e.target.value)}
-              className="rounded-xl border p-4"
+              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
             />
 
             <input
               placeholder="Phone Number (+91...) *"
               value={form.phoneNumber}
               onChange={(e) => updateField("phoneNumber", e.target.value)}
-              className="rounded-xl border p-4"
+              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
             />
 
             <select
               value={form.gender}
               onChange={(e) => updateField("gender", e.target.value)}
-              className="rounded-xl border p-4"
+              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
             >
               <option value="">Select Gender *</option>
               <option value="MALE">Male</option>
@@ -135,14 +174,14 @@ export function AstrologerRegistrationForm() {
               placeholder="Languages e.g. Hindi, English *"
               value={form.languages}
               onChange={(e) => updateField("languages", e.target.value)}
-              className="rounded-xl border p-4"
+              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
             />
 
             <input
               placeholder="Expertise e.g. Vedic, Tarot, Numerology *"
               value={form.expertise}
               onChange={(e) => updateField("expertise", e.target.value)}
-              className="rounded-xl border p-4"
+              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
             />
 
             <input
@@ -150,22 +189,22 @@ export function AstrologerRegistrationForm() {
               placeholder="Years of Experience *"
               value={form.experienceYears}
               onChange={(e) => updateField("experienceYears", e.target.value)}
-              className="rounded-xl border p-4"
+              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
             />
 
             <input
               type="number"
-              placeholder="Consultation Price per minute ₹ *"
+              placeholder="Consultation Price per minute â‚¹ *"
               value={form.consultationPrice}
               onChange={(e) => updateField("consultationPrice", e.target.value)}
-              className="rounded-xl border p-4"
+              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
             />
 
             <textarea
               placeholder="Short Bio"
               value={form.bio}
               onChange={(e) => updateField("bio", e.target.value)}
-              className="min-h-32 rounded-xl border p-4 md:col-span-2"
+              className="min-h-32 rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none md:col-span-2"
             />
 
             <button

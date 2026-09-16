@@ -1,3 +1,4 @@
+﻿@import "react-phone-number-input/style.css";
 @import "tailwindcss";
 
 :root {
@@ -23,4 +24,439 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+
+/* ASTRO_SOUL_PATH_PHONE_PICKER_BEGIN */
+
+.asp-phone-field {
+  width: 100%;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #d1d5db;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  padding: 0 14px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.asp-phone-field:focus-within {
+  border-color: #d4af37;
+  box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.18);
+}
+
+.asp-phone-input {
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.asp-phone-input .PhoneInputCountry {
+  display: flex;
+  align-items: center;
+  margin-right: 12px;
+}
+
+.asp-phone-input .PhoneInputCountrySelect {
+  cursor: pointer;
+}
+
+.asp-phone-input .PhoneInputCountrySelect:disabled {
+  cursor: not-allowed;
+}
+
+.asp-phone-input .PhoneInputCountryIcon {
+  width: 26px;
+  height: 19px;
+  box-shadow: none;
+}
+
+.asp-phone-input .PhoneInputCountrySelectArrow {
+  width: 7px;
+  height: 7px;
+  margin-left: 8px;
+  opacity: 0.7;
+}
+
+.asp-phone-input .PhoneInputInput {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 16px;
+  color: #111827;
+}
+
+.asp-phone-input .PhoneInputInput::placeholder {
+  color: #9ca3af;
+}
+
+.asp-phone-input .PhoneInputInput:disabled {
+  cursor: not-allowed;
+  color: #6b7280;
+}
+
+/* ASTRO_SOUL_PATH_PHONE_PICKER_END */
+
+
+/* ASP ADMIN PREMIUM SYSTEM */
+
+.asp-admin-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(212, 175, 55, 0.08),
+      transparent 26rem
+    ),
+    linear-gradient(
+      180deg,
+      #f8f7f3 0%,
+      #f5f6f8 100%
+    );
+  color: #0b1730;
+}
+
+.asp-admin-shell {
+  width: 100%;
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.asp-admin-eyebrow {
+  color: #b88715;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.asp-admin-title {
+  color: #081a35;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.asp-admin-subtitle {
+  color: #45546a;
+  font-weight: 500;
+  line-height: 1.7;
+}
+
+.asp-admin-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.9rem;
+  border: 1px solid #d8dee8;
+  border-radius: 0.8rem;
+  background: #ffffff;
+  padding: 0.7rem 1.2rem;
+  color: #10233f;
+  font-size: 0.875rem;
+  font-weight: 800;
+  box-shadow:
+    0 1px 2px rgba(15, 35, 63, 0.04),
+    0 8px 24px rgba(15, 35, 63, 0.05);
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.asp-admin-back-btn:hover {
+  transform: translateY(-1px);
+  border-color: #d4af37;
+  box-shadow:
+    0 2px 4px rgba(15, 35, 63, 0.05),
+    0 12px 28px rgba(15, 35, 63, 0.08);
+}
+
+.asp-admin-primary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.9rem;
+  border-radius: 0.8rem;
+  background:
+    linear-gradient(
+      135deg,
+      #0b1f3a,
+      #142e52
+    );
+  padding: 0.7rem 1.2rem;
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 800;
+  box-shadow:
+    0 8px 20px rgba(11, 31, 58, 0.15);
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.asp-admin-primary-btn:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 12px 28px rgba(11, 31, 58, 0.21);
+}
+
+.asp-admin-primary-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.asp-admin-stat-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #e1e6ed;
+  border-radius: 1rem;
+  background:
+    linear-gradient(
+      145deg,
+      #ffffff 0%,
+      #fdfdfc 100%
+    );
+  padding: 1.25rem;
+  box-shadow:
+    0 1px 2px rgba(11, 31, 58, 0.03),
+    0 9px 28px rgba(11, 31, 58, 0.055);
+}
+
+.asp-admin-stat-card::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0.28rem;
+  height: 100%;
+  background:
+    linear-gradient(
+      180deg,
+      #d4af37,
+      #f1d885
+    );
+  content: "";
+}
+
+.asp-admin-stat-label {
+  color: #536176;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.asp-admin-stat-value {
+  margin-top: 0.55rem;
+  color: #091c38;
+  font-size: 1.75rem;
+  line-height: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.asp-admin-panel {
+  border: 1px solid #dde3ec;
+  border-radius: 1.1rem;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow:
+    0 2px 4px rgba(11, 31, 58, 0.035),
+    0 16px 44px rgba(11, 31, 58, 0.065);
+}
+
+.asp-admin-input {
+  border: 1px solid #ccd5e1;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  color: #10233f;
+  font-weight: 600;
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.asp-admin-input::placeholder {
+  color: #7b8798;
+}
+
+.asp-admin-input:focus {
+  border-color: #c79e2b;
+  box-shadow:
+    0 0 0 3px rgba(212, 175, 55, 0.14);
+}
+
+.asp-admin-table-head {
+  background:
+    linear-gradient(
+      180deg,
+      #fbf6e9,
+      #f7efd8
+    );
+}
+
+.asp-admin-table-head th {
+  color: #243650;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.asp-admin-empty {
+  border: 1px dashed #ccd5e1;
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(
+      180deg,
+      #ffffff,
+      #fafbfc
+    );
+  padding: 3.5rem 1.5rem;
+  text-align: center;
+}
+
+.asp-admin-empty-title {
+  color: #10233f;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.asp-admin-empty-text {
+  margin-top: 0.4rem;
+  color: #65748a;
+  font-size: 0.875rem;
+}
+
+
+/* ASP ADMIN PREMIUM FINAL SYSTEM */
+
+.asp-admin-section {
+  border: 1px solid #dde3ec;
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow:
+    0 1px 3px rgba(11, 31, 58, 0.035),
+    0 12px 34px rgba(11, 31, 58, 0.055);
+}
+
+.asp-admin-section-title {
+  color: #0b1f3a;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.asp-admin-muted {
+  color: #65748a;
+}
+
+.asp-admin-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  border: 1px solid #cfd7e3;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  padding: 0.65rem 1rem;
+  color: #10233f;
+  font-size: 0.875rem;
+  font-weight: 800;
+  box-shadow: 0 3px 12px rgba(11, 31, 58, 0.05);
+  transition:
+    border-color 150ms ease,
+    transform 150ms ease,
+    background-color 150ms ease;
+}
+
+.asp-admin-secondary-btn:hover {
+  transform: translateY(-1px);
+  border-color: #d4af37;
+  background: #fffdf7;
+}
+
+.asp-admin-gold-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  border: 1px solid #c99c24;
+  border-radius: 0.75rem;
+  background:
+    linear-gradient(
+      135deg,
+      #e4bd4a,
+      #cfa129
+    );
+  padding: 0.65rem 1rem;
+  color: #0b1f3a;
+  font-size: 0.875rem;
+  font-weight: 800;
+  box-shadow:
+    0 7px 18px rgba(183, 135, 21, 0.18);
+}
+
+.asp-admin-gold-btn:hover {
+  filter: brightness(1.025);
+}
+
+.asp-admin-gold-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.asp-admin-top-back {
+  margin-bottom: 1.25rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.asp-admin-soft-box {
+  border: 1px solid #e0e6ee;
+  border-radius: 0.85rem;
+  background:
+    linear-gradient(
+      180deg,
+      #ffffff,
+      #fafbfd
+    );
+}
+
+.asp-admin-message-area {
+  border: 1px solid #e1e6ed;
+  border-radius: 1rem;
+  background: #f8fafc;
+}
+
+.asp-admin-customer-message {
+  border: 1px solid #dce3ec;
+  background: #ffffff;
+  color: #10233f;
+}
+
+.asp-admin-agent-message {
+  border: 1px solid #e3c66a;
+  background: #fff7da;
+  color: #10233f;
+}
+
+
+/* ASP RESPONSIVE MEDIA HARDENING */
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+img,
+video {
+  height: auto;
 }

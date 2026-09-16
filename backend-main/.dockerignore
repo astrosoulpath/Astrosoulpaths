@@ -1,0 +1,25 @@
+# Dependencies / build output
+node_modules
+dist
+coverage
+
+# Git
+.git
+.gitignore
+
+# Local IDE / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Runtime secrets
+.env
+.env.*
+!.env.example
+
+# Local backups / logs
+_safe-local-backups
+*.log
+npm-debug.log*
+pnpm-debug.log*

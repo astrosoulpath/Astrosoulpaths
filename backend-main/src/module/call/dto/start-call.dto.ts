@@ -1,10 +1,5 @@
 import { Type } from 'class-transformer';
-import {
-  IsInt,
-  IsString,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsInt, IsString, Max, Min } from 'class-validator';
 
 export class StartCallDto {
   @IsString()

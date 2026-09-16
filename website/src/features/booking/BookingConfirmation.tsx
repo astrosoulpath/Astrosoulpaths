@@ -73,6 +73,31 @@ export function BookingConfirmation({
 
   const { userId, socketConnected } = useAppContext();
 
+  const storedUserId = useMemo(() => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const storedUser = window.localStorage.getItem("asp_user");
+
+    if (!storedUser) {
+      return null;
+    }
+
+    const parsedUser = JSON.parse(storedUser) as {
+      id?: string;
+      userId?: string;
+    };
+
+    return parsedUser.id || parsedUser.userId || null;
+  } catch {
+    return null;
+  }
+}, []);
+
+const effectiveUserId = userId || storedUserId;
+
   const [isStarting, setIsStarting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(
     null,
@@ -126,7 +151,7 @@ export function BookingConfirmation({
       "asp_access_token",
     );
 
-    if (!token || !userId) {
+    if (!token || !effectiveUserId) {
       savePendingConsultation();
 
       router.push(
@@ -222,7 +247,7 @@ export function BookingConfirmation({
         const emitted = initiateCall({
           callId: call.id,
           recipientUserId: astrologerUserId,
-          callerId: userId,
+          callerId: effectiveUserId,
           callerName: "Astro Soul Path User",
           consultationType: "AUDIO",
         });

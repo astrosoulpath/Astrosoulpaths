@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { AstrologerTable } from "./AstrologerTable";
+import { AstrologerTable } from "./components/AstrologerTable";
+import { MarketplaceManagement } from "./marketplace/MarketplaceManagement";
 
 type DashboardStats = {
   users: {
@@ -53,6 +54,17 @@ const modules = [
     href: "/admin/customers",
   },
   {
+    title: "Support Tickets",
+    description:
+      "Manage 24x7 customer support, replies, assignment and resolution.",
+    href: "/admin/support",
+  },
+  {
+    title: "Customer Feedback",
+    description: "Review customer ratings, messages, status and admin notes.",
+    href: "/admin/feedback",
+  },
+  {
     title: "Approve Astrologers",
     description: "Review pending astrologers and manage approval status.",
     href: "/admin/astrologers",
@@ -87,14 +99,30 @@ const modules = [
     description: "Generate operational and financial reports.",
     href: "/admin/reports",
   },
+  {
+    title: "Kundli Settings",
+    description: "Professional Kundli plan, charts and report controls",
+    href: "/admin/kundli-settings",
+    icon: "\u{1F52F}",
+  },
+  {
+    title: "Marketplace",
+    description:
+      "Manage sellers, products, categories, approvals and campaigns.",
+    href: "/admin#marketplace-management",
+  },
+  {
+    title: "Platform Settings",
+    description: "Manage platform commission and astrologer revenue share.",
+    href: "/admin/platform-settings",
+  },
 ];
 
 function formatCurrency(value: number | string | null | undefined) {
-  const parsedValue =
-    typeof value === "string" ? Number(value) : value ?? 0;
+  const parsedValue = typeof value === "string" ? Number(value) : (value ?? 0);
 
   if (!Number.isFinite(parsedValue)) {
-    return "₹0";
+    return "\u20B90";
   }
 
   return new Intl.NumberFormat("en-IN", {
@@ -224,24 +252,24 @@ export function AdminDashboard() {
   ];
 
   return (
-    <section>
+    <section className="relative overflow-hidden rounded-[28px] border border-slate-800/80 bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.08),_transparent_32%),linear-gradient(145deg,#07101f_0%,#0a1324_48%,#070d18_100%)] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.38)] sm:p-7 lg:p-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-base font-bold uppercase tracking-[0.18em] text-amber-600">
+          <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-400">
             Platform Overview
           </p>
 
-          <h1 className="mt-2 text-4xl font-extrabold text-black sm:text-5xl">
+          <h1 className="mt-2 text-4xl font-black tracking-tight text-white sm:text-5xl">
             Admin Dashboard
           </h1>
 
-          <p className="mt-3 max-w-3xl text-lg leading-8 text-gray-700">
-            Monitor customers, astrologers, consultations, payments, wallets
-            and overall platform activity.
+          <p className="mt-3 max-w-3xl text-base leading-7 text-slate-400 sm:text-lg">
+            Monitor customers, astrologers, consultations, payments, wallets and
+            overall platform activity.
           </p>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
+        <div className="rounded-2xl border border-slate-700/70 bg-slate-900/80 px-4 py-3 text-xs font-semibold text-slate-400 shadow-inner backdrop-blur">
           API: {API_BASE_URL}
         </div>
       </div>
@@ -262,34 +290,34 @@ export function AdminDashboard() {
         {dashboardCards.map((item) => (
           <article
             key={item.title}
-            className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-sm"
+            className="group relative overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-900/75 p-5 shadow-[0_12px_35px_rgba(0,0,0,0.22)] backdrop-blur transition duration-300 hover:-translate-y-1 hover:border-amber-400/50 hover:shadow-[0_18px_45px_rgba(0,0,0,0.34)]"
           >
-            <p className="text-lg font-semibold text-gray-700">
+            <p className="text-sm font-bold uppercase tracking-wide text-slate-400">
               {item.title}
             </p>
 
-            <h2 className="mt-3 text-5xl font-extrabold text-black">
+            <h2 className="mt-3 text-4xl font-black tracking-tight text-white sm:text-5xl">
               {isLoading ? "..." : item.value}
             </h2>
 
-            <p className="mt-3 text-base font-medium text-gray-600">
+            <p className="mt-3 text-sm font-medium leading-6 text-slate-500">
               {item.description}
             </p>
           </article>
         ))}
       </section>
 
-      <section className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-6">
+      <section className="mt-8 rounded-[26px] border border-slate-700/70 bg-slate-900/55 p-6 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
         <div>
-          <p className="text-base font-bold uppercase tracking-[0.18em] text-amber-600">
+          <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-400">
             Administration
           </p>
 
-          <h2 className="mt-2 text-4xl font-extrabold text-black">
+          <h2 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
             Management Modules
           </h2>
 
-          <p className="mt-2 text-lg text-gray-700">
+          <p className="mt-2 text-base text-slate-400">
             Open a module to manage the corresponding platform area.
           </p>
         </div>
@@ -299,36 +327,38 @@ export function AdminDashboard() {
             <Link
               key={`${module.href}-${module.title}`}
               href={module.href}
-              className="group rounded-2xl border border-white/10 bg-slate-950/40 p-5 transition hover:border-amber-400/40 hover:bg-amber-400/10"
+              className="group relative overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-950/75 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.18)] transition duration-300 hover:-translate-y-1 hover:border-amber-400/60 hover:bg-slate-900 hover:shadow-[0_16px_40px_rgba(0,0,0,0.30)]"
             >
-              <h3 className="text-2xl font-bold text-black transition group-hover:text-amber-700">
+              <h3 className="text-lg font-black tracking-tight text-white transition group-hover:text-amber-300">
                 {module.title}
               </h3>
 
-              <p className="mt-3 text-base leading-7 text-gray-700">
+              <p className="mt-2 text-sm leading-6 text-slate-400">
                 {module.description}
               </p>
 
-              <p className="mt-5 text-lg font-bold text-amber-700">
-                Open module →
+              <p className="mt-5 inline-flex items-center gap-2 text-sm font-black text-amber-400 transition group-hover:text-amber-300">
+                Open module <span aria-hidden="true">&rarr;</span>
               </p>
             </Link>
           ))}
         </div>
       </section>
 
-      <section className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-6">
+      <MarketplaceManagement />
+
+      <section className="mt-8 rounded-[26px] border border-slate-700/70 bg-slate-900/55 p-6 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
         <div>
-          <p className="text-base font-bold uppercase tracking-[0.18em] text-amber-600">
+          <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-400">
             Astrologer Management
           </p>
 
-          <h2 className="mt-2 text-4xl font-extrabold text-black">
+          <h2 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
             Recent Astrologers
           </h2>
         </div>
 
-        <div className="mt-6 overflow-hidden rounded-xl border border-white/10 bg-slate-950/30">
+        <div className="mt-6 overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-950/70 shadow-[0_12px_35px_rgba(0,0,0,0.22)]">
           <AstrologerTable />
         </div>
       </section>

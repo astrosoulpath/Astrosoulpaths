@@ -1,4 +1,4 @@
-import {
+﻿import {
   Injectable,
   Logger,
   OnModuleDestroy,
@@ -18,11 +18,30 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
+    const startupTimeoutMs = 5000;
+
     try {
-      await this.client.ping();
+      await Promise.race([
+        this.client.ping(),
+        new Promise<never>((_, reject) => {
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `Redis startup ping timed out after ${startupTimeoutMs}ms`,
+                ),
+              ),
+            startupTimeoutMs,
+          );
+        }),
+      ]);
+
       this.logger.log('Redis ping succeeded');
     } catch (error) {
-      this.logger.error('Redis connection failed during startup', error);
+      this.logger.error(
+        'Redis connection failed during startup; application will continue starting',
+        error instanceof Error ? error.stack : String(error),
+      );
     }
   }
 

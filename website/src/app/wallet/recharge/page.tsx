@@ -3,13 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
-type WalletTransaction = {
-  id: string;
-  type: "credit" | "debit";
-  title: string;
-  amount: number;
-  date: string;
-};
+import { rechargeWallet } from "@/services/walletService";
 
 const presetAmounts = [100, 250, 500, 1000];
 
@@ -37,7 +31,9 @@ export default function WalletRechargePage() {
     setMessage("");
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     setError("");
@@ -45,7 +41,10 @@ export default function WalletRechargePage() {
 
     const rechargeAmount = getSelectedAmount();
 
-    if (!Number.isFinite(rechargeAmount) || rechargeAmount < 10) {
+    if (
+      !Number.isFinite(rechargeAmount) ||
+      rechargeAmount < 10
+    ) {
       setError("Minimum recharge amount is ₹10.");
       return;
     }
@@ -58,59 +57,31 @@ export default function WalletRechargePage() {
     try {
       setLoading(true);
 
-      const storedBalance = Number(
-        localStorage.getItem("asp_wallet_balance") ?? "0",
+      const response = await rechargeWallet(
+        rechargeAmount,
       );
 
-      const currentBalance = Number.isFinite(storedBalance)
-        ? storedBalance
-        : 0;
-
-      const updatedBalance = currentBalance + rechargeAmount;
-
-      localStorage.setItem(
-        "asp_wallet_balance",
-        String(updatedBalance),
-      );
-
-      const storedTransactions = localStorage.getItem(
-        "asp_wallet_transactions",
-      );
-
-      let transactions: WalletTransaction[] = [];
-
-      if (storedTransactions) {
-        try {
-          const parsed = JSON.parse(
-            storedTransactions,
-          ) as WalletTransaction[];
-
-          if (Array.isArray(parsed)) {
-            transactions = parsed;
-          }
-        } catch {
-          transactions = [];
-        }
-      }
-
-      const newTransaction: WalletTransaction = {
-        id: crypto.randomUUID(),
-        type: "credit",
-        title: "Wallet Recharge",
-        amount: rechargeAmount,
-        date: new Date().toLocaleString("en-IN"),
-      };
-
-      localStorage.setItem(
-        "asp_wallet_transactions",
-        JSON.stringify([newTransaction, ...transactions]),
-      );
+      const updatedBalance =
+        response?.data?.wallet?.availableBalance ??
+        response?.data?.wallet?.balance;
 
       setMessage(
-        `₹${rechargeAmount.toFixed(2)} added successfully to your wallet.`,
+        updatedBalance !== undefined
+          ? `₹${rechargeAmount.toFixed(
+              2,
+            )} added successfully. Wallet balance: ₹${Number(
+              updatedBalance,
+            ).toFixed(2)}`
+          : `₹${rechargeAmount.toFixed(
+              2,
+            )} added successfully to your wallet.`,
       );
-    } catch {
-      setError("Unable to recharge wallet. Please try again.");
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to recharge wallet. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -168,7 +139,9 @@ export default function WalletRechargePage() {
                 <button
                   key={value}
                   type="button"
-                  onClick={() => handlePresetAmount(value)}
+                  onClick={() =>
+                    handlePresetAmount(value)
+                  }
                   className={`rounded-2xl border px-5 py-5 text-xl font-bold transition ${
                     !customAmount && amount === value
                       ? "border-[#D4AF37] bg-[#D4AF37]/15 text-[#0B1026]"
@@ -201,7 +174,9 @@ export default function WalletRechargePage() {
                   step="1"
                   value={customAmount}
                   onChange={(event) => {
-                    setCustomAmount(event.target.value);
+                    setCustomAmount(
+                      event.target.value,
+                    );
                     setError("");
                     setMessage("");
                   }}
@@ -230,7 +205,9 @@ export default function WalletRechargePage() {
             >
               {loading
                 ? "Processing..."
-                : `Add ₹${getSelectedAmount().toFixed(2)}`}
+                : `Add ₹${getSelectedAmount().toFixed(
+                    2,
+                  )}`}
             </button>
 
             <p className="mt-4 text-center text-xs text-gray-500">

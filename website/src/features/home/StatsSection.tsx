@@ -1,5 +1,6 @@
-"use client";
+﻿"use client";
 
+import { Headphones, Sparkles, Star, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
@@ -10,7 +11,7 @@ import {
 type StatCard = {
   label: string;
   value: string;
-  icon: string;
+  icon: "astrologers" | "customers" | "consultations" | "rating";
 };
 
 function formatNumber(value: number): string {
@@ -29,36 +30,50 @@ function formatNumber(value: number): string {
   return value.toString();
 }
 
+function StatIcon({ type }: { type: StatCard["icon"] }) {
+  const className = "h-5 w-5";
+
+  if (type === "customers") {
+    return <Users className={className} />;
+  }
+
+  if (type === "consultations") {
+    return <Headphones className={className} />;
+  }
+
+  if (type === "rating") {
+    return <Star className={`${className} fill-current`} />;
+  }
+
+  return <Sparkles className={className} />;
+}
+
 export function StatsSection() {
-  const [stats, setStats] =
-    useState<StatCard[]>([
-      {
-        value: "--",
-        label: "Verified Astrologers",
-        icon: "🪔",
-      },
-      {
-        value: "--",
-        label: "Registered Customers",
-        icon: "😊",
-      },
-      {
-        value: "--",
-        label: "Consultations",
-        icon: "📞",
-      },
-      {
-        value: "--",
-        label: "Average Rating",
-        icon: "⭐",
-      },
-    ]);
+  const [stats, setStats] = useState<StatCard[]>([
+    {
+      value: "--",
+      label: "Verified Astrologers",
+      icon: "astrologers",
+    },
+    {
+      value: "--",
+      label: "Registered Customers",
+      icon: "customers",
+    },
+    {
+      value: "--",
+      label: "Consultations",
+      icon: "consultations",
+    },
+    {
+      value: "--",
+      label: "Average Rating",
+      icon: "rating",
+    },
+  ]);
 
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     async function loadStats() {
@@ -66,55 +81,38 @@ export function StatsSection() {
         setLoading(true);
         setError("");
 
-        const response =
-          await getPublicDashboardStats();
+        const response = await getPublicDashboardStats();
 
-        const data: PublicDashboardStats =
-          response.data;
+        const data: PublicDashboardStats = response.data;
 
         setStats([
           {
-            value: formatNumber(
-              data.verifiedAstrologers,
-            ),
-            label:
-              "Verified Astrologers",
-            icon: "🪔",
+            value: formatNumber(data.verifiedAstrologers),
+            label: "Verified Astrologers",
+            icon: "astrologers",
           },
           {
-            value: formatNumber(
-              data.registeredCustomers,
-            ),
-            label:
-              "Registered Customers",
-            icon: "😊",
+            value: formatNumber(data.registeredCustomers),
+            label: "Registered Customers",
+            icon: "customers",
           },
           {
-            value: formatNumber(
-              data.totalConsultations,
-            ),
-            label:
-              "Consultations",
-            icon: "📞",
+            value: formatNumber(data.totalConsultations),
+            label: "Consultations",
+            icon: "consultations",
           },
           {
             value:
-              data.averageRating !==
-                null &&
-              data.averageRating > 0
-                ? `${data.averageRating.toFixed(
-                    1,
-                  )}★`
+              data.averageRating !== null && data.averageRating > 0
+                ? data.averageRating.toFixed(1)
                 : "New",
             label: "Average Rating",
-            icon: "⭐",
+            icon: "rating",
           },
         ]);
       } catch (err) {
         setError(
-          err instanceof Error
-            ? err.message
-            : "Unable to load statistics.",
+          err instanceof Error ? err.message : "Unable to load statistics.",
         );
       } finally {
         setLoading(false);
@@ -125,51 +123,77 @@ export function StatsSection() {
   }, []);
 
   return (
-    <section className="bg-[#0B1026] py-16">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mb-12 text-center">
-          <p className="font-semibold uppercase tracking-[0.18em] text-[#D4AF37]">
-            Our Community
-          </p>
+    <section className="relative overflow-hidden bg-[#071229] py-20 sm:py-24">
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 opacity-[0.13]"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 1px 1px, rgba(255,255,255,.5) 1px, transparent 0)",
+          backgroundSize: "34px 34px",
+        }}
+      />
 
-          <h2 className="mt-3 text-3xl font-bold text-white md:text-4xl">
-            Trusted by Thousands of Users
+      <div
+        aria-hidden="true"
+        className="absolute -left-28 top-0 h-80 w-80 rounded-full bg-[#D4AF37]/10 blur-[100px]"
+      />
+
+      <div
+        aria-hidden="true"
+        className="absolute -right-28 bottom-0 h-80 w-80 rounded-full bg-indigo-400/10 blur-[100px]"
+      />
+
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto mb-12 max-w-3xl text-center sm:mb-14">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/20 bg-[#D4AF37]/10 px-4 py-2">
+            <Sparkles className="h-3.5 w-3.5 text-[#E3C454]" />
+
+            <span className="text-xs font-extrabold uppercase tracking-[0.22em] text-[#E3C454]">
+              Our Community
+            </span>
+          </div>
+
+          <h2 className="mt-5 text-3xl font-black tracking-[-0.035em] text-white sm:text-4xl lg:text-5xl">
+            Trusted experiences.
+            <span className="block text-white/72">Real platform activity.</span>
           </h2>
 
-          <p className="mx-auto mt-4 max-w-2xl text-gray-300">
-            Astro Soul Path helps
-            people connect with
-            experienced Vedic
-            astrologers for secure
-            consultations and
-            personalized spiritual
-            guidance.
+          <p className="mx-auto mt-5 max-w-2xl text-sm font-medium leading-7 text-slate-300 sm:text-base">
+            Connect with verified Vedic astrologers through a secure platform
+            built for personalized consultations and meaningful guidance.
           </p>
         </div>
 
         {error && (
-          <div className="mb-8 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-center text-red-200">
+          <div className="mx-auto mb-8 max-w-2xl rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-center text-sm text-red-100">
             {error}
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-5 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
           {stats.map((item) => (
             <div
               key={item.label}
-              className="group rounded-3xl border border-white/10 bg-white/5 p-6 text-center transition duration-300 hover:-translate-y-1 hover:bg-white/10"
+              className="group relative overflow-hidden rounded-[1.5rem] border border-white/[0.09] bg-white/[0.055] p-5 text-center shadow-[0_20px_50px_rgba(0,0,0,.12)] backdrop-blur transition duration-300 hover:-translate-y-1 hover:border-[#D4AF37]/35 hover:bg-white/[0.085] sm:p-7"
             >
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#D4AF37]/20 text-3xl">
-                {item.icon}
+              <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#D4AF37]/55 to-transparent opacity-0 transition group-hover:opacity-100" />
+
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-[#D4AF37]/15 bg-[#D4AF37]/10 text-[#E3C454] sm:h-14 sm:w-14">
+                <StatIcon type={item.icon} />
               </div>
 
-              <h3 className="mt-5 text-3xl font-bold text-[#D4AF37] md:text-4xl">
-                {loading
-                  ? "..."
-                  : item.value}
-              </h3>
+              <div className="mt-5 flex items-center justify-center gap-1">
+                <h3 className="text-2xl font-black tracking-tight text-[#E2C24E] sm:text-3xl lg:text-4xl">
+                  {loading ? "..." : item.value}
+                </h3>
 
-              <p className="mt-3 text-sm font-medium text-gray-300">
+                {!loading && item.icon === "rating" && item.value !== "New" && (
+                  <Star className="h-4 w-4 fill-[#E2C24E] text-[#E2C24E]" />
+                )}
+              </div>
+
+              <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-300 sm:text-xs">
                 {item.label}
               </p>
             </div>

@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 export function KundliToolsPanel() {
   return (
@@ -14,13 +15,15 @@ export function KundliToolsPanel() {
           </p>
         </div>
 
-        <button className="rounded-xl bg-[#D4AF37] px-6 py-3 font-semibold text-white">
+        <Link
+          href="/astrologer/kundli"
+          className="rounded-xl bg-[#D4AF37] px-6 py-3 font-semibold text-[#0B1026] transition hover:bg-[#C9A52F]"
+        >
           Generate Kundli
-        </button>
+        </Link>
       </div>
 
       <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-
         <div className="rounded-xl border p-5">
           <h3 className="font-semibold">Today's Reports</h3>
           <p className="mt-4 text-4xl font-bold">0</p>
@@ -40,19 +43,12 @@ export function KundliToolsPanel() {
           <h3 className="font-semibold">Downloads</h3>
           <p className="mt-4 text-4xl font-bold">0</p>
         </div>
-
       </div>
 
       <div className="mt-8 rounded-xl border p-6">
+        <h3 className="text-xl font-semibold">Recent Kundli Requests</h3>
 
-        <h3 className="text-xl font-semibold">
-          Recent Kundli Requests
-        </h3>
-
-        <div className="mt-6 text-gray-500">
-          No Kundli requests available.
-        </div>
-
+        <div className="mt-6 text-gray-500">No Kundli requests available.</div>
       </div>
     </section>
   );

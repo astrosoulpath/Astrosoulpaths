@@ -1,0 +1,1375 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                    String                           @id @default(uuid())
+  supabaseId            String                           @unique
+  phone                 String?                          @unique
+  email                 String?                          @unique
+  name                  String?
+  avatarUrl             String?
+  gender                Gender?
+  roleId                String
+  isActive              Boolean                          @default(true)
+  isBlocked             Boolean                          @default(false)
+  isVerified            Boolean                          @default(false)
+  lastLoginAt           DateTime?
+  createdAt             DateTime                         @default(now())
+  updatedAt             DateTime                         @updatedAt
+  isAstrologer          Boolean                          @default(false)
+  isNewUser             Boolean                          @default(true)
+  freeChatGrantedAt     DateTime?
+  freeChatUsedAt        DateTime?
+  freeChatMinutes       Int                              @default(1)
+  isProfileComplete     Boolean                          @default(false)
+  razorpayCustomerId    String?
+  subscriptionPlanId    String?
+  subscriptionStatus    SubscriptionStatus               @default(FREE)
+  astrologer            Astrologer?
+  astrologerCalls       CallSession[]                    @relation("AstrologerCalls")
+  calls                 CallSession[]                    @relation("UserCalls")
+  kundliOrders          KundliOrder[]
+  savedKundlis          KundliSavedRecord[]
+  profiles              Profile[]                        @relation("UserProfiles")
+  reviews               Review[]
+  blocksCreated         UserBlock[]                      @relation("UserBlocksCreated")
+  blocksReceived        UserBlock[]                      @relation("UserBlocksReceived")
+  reportsCreated        UserReport[]                     @relation("UserReportsCreated")
+  reportsReceived       UserReport[]                     @relation("UserReportsReceived")
+  subscriptions         Subscription[]
+  dailyHoroscopeHistory DailyHoroscopeHistory[]
+  role                  Role                             @relation(fields: [roleId], references: [id])
+  subscriptionPlan      SubscriptionPlan?                @relation(fields: [subscriptionPlanId], references: [id])
+  userProfile           UserProfile?
+  sentChatMessages      ChatMessage[]                    @relation("ChatMessageSender")
+  paymentOrders         PaymentOrder[]
+  walletLedger          WalletLedger[]
+  wallet                Wallet?
+  pushDevices           PushDevice[]
+  qualificationAttempts AstrologerQualificationAttempt[]
+  e2eeDevices           ChatEncryptionDevice[]
+  liveViews             LiveViewer[]
+  aiAstroUsages         AiAstroUsage[]
+  aiAstroConversations  AiAstroConversation[]
+  appNotifications      AppNotification[]
+  UserPreference        UserPreference?
+
+  // 24x7 Support System
+  supportTickets         SupportTicket[]         @relation("SupportTicketCustomer")
+  assignedSupportTickets SupportTicket[]         @relation("SupportTicketAssignedAdmin")
+  supportMessages        SupportMessage[]        @relation("SupportMessageSender")
+  assistantConversations AssistantConversation[] @relation("AssistantConversationCustomer")
+  assistantMessages      AssistantMessage[]      @relation("AssistantMessageSender")
+  Feedback               Feedback[]
+
+  @@index([phone])
+  @@index([supabaseId])
+  @@index([roleId])
+  @@index([isAstrologer])
+}
+
+model Astrologer {
+  availabilities       AstrologerAvailability[]
+  id                   String                   @id @default(uuid())
+  userId               String                   @unique
+  profileUrl           String?
+  aiAvatarUrl          String?
+  Gender               Gender?
+  bio                  String?
+  languages            String[]
+  experience           Int?
+  pricePerMin          Float?
+  rating               Float?
+  totalReviews         Int                      @default(0)
+  isApproved           Boolean                  @default(false)
+  isVerified           Boolean                  @default(false)
+  documents            Json?
+  isOnline             Boolean                  @default(false)
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  user                 User                     @relation(fields: [userId], references: [id])
+  expertise            AstrologerExpertise[]
+  reviews              Review[]
+  earnings             AstrologerEarning[]
+  payouts              AstrologerPayout[]
+  bankAccounts         AstrologerBankAccount[]
+  savedKundlis         KundliSavedRecord[]
+  liveSessions         LiveSession[]
+  aiAstroPricing       AiAstroPricing?
+  aiAstroUsages        AiAstroUsage[]
+  aiAstroConversations AiAstroConversation[]
+
+  @@index([userId])
+  @@index([isApproved])
+  @@index([isVerified])
+  @@index([isOnline])
+  @@index([rating])
+}
+
+model Expertise {
+  id          String                @id @default(uuid())
+  name        String                @unique
+  astrologers AstrologerExpertise[]
+}
+
+model AstrologerExpertise {
+  id           String     @id @default(uuid())
+  astrologerId String
+  expertiseId  String
+  astrologer   Astrologer @relation(fields: [astrologerId], references: [id])
+  expertise    Expertise  @relation(fields: [expertiseId], references: [id])
+
+  @@unique([astrologerId, expertiseId])
+}
+
+model Review {
+  id            String      @id @default(uuid())
+  astrologerId  String
+  userId        String
+  callSessionId String      @unique
+  rating        Int
+  comment       String?
+  createdAt     DateTime    @default(now())
+  astrologer    Astrologer  @relation(fields: [astrologerId], references: [id])
+  user          User        @relation(fields: [userId], references: [id])
+  callSession   CallSession @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+
+  @@index([astrologerId])
+  @@index([userId])
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  permissions RolePermission[]
+  users       User[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  role         Role       @relation(fields: [roleId], references: [id])
+
+  @@id([roleId, permissionId])
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  createdAt   DateTime         @default(now())
+  roles       RolePermission[]
+}
+
+model Profile {
+  id            String   @id @default(uuid())
+  userId        String
+  name          String
+  gender        Gender
+  lat           Float
+  lon           Float
+  timezone      Float
+  createdAt     DateTime @default(now())
+  birthDate     DateTime
+  birthTime     String
+  isDeleted     Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+  lang          String   @default("en")
+  city          String?
+  countryCode   String?
+  country       String?
+  fullname      String?
+  state         String?
+  timezoneName  String?
+  avatarUrl     String?
+  maritalStatus String?
+  occupation    String?
+  matchesAsBoy  Match[]  @relation("Boy")
+  matchesAsGirl Match[]  @relation("Girl")
+  user          User     @relation("UserProfiles", fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model Match {
+  id        String   @id @default(uuid())
+  score     Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isDeleted Boolean  @default(false)
+  status    String   @default("PENDING")
+  summary   String?
+  boyId     String
+  girlId    String
+  isSaved   Boolean  @default(false)
+  result    Json?
+  boy       Profile  @relation("Boy", fields: [boyId], references: [id])
+  girl      Profile  @relation("Girl", fields: [girlId], references: [id])
+
+  @@unique([boyId, girlId])
+  @@index([boyId])
+  @@index([girlId])
+}
+
+model KundliData {
+  id               String   @id @default(cuid())
+  apiVersion       String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  currentMahaDasha Json?
+  kundliId         String   @unique
+  lang             String   @default("en")
+  vedic            Json?
+  kundli           Kundli   @relation(fields: [kundliId], references: [id])
+
+  @@unique([kundliId, lang])
+}
+
+model Kundli {
+  id           String              @id @default(cuid())
+  latitude     Float
+  longitude    Float
+  createdAt    DateTime            @default(now())
+  timezone     Float
+  hash         String              @unique
+  dob          String
+  tob          String
+  data         KundliData?
+  orders       KundliOrder[]
+  savedRecords KundliSavedRecord[]
+}
+
+model KundliSavedRecord {
+  id                    String   @id @default(cuid())
+  kundliId              String
+  createdByAstrologerId String
+  customerUserId        String?
+  name                  String
+  gender                Gender?
+  birthPlace            String?
+  lang                  String   @default("en")
+  idempotencyKey        String   @unique
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  kundli              Kundli     @relation(fields: [kundliId], references: [id], onDelete: Cascade)
+  createdByAstrologer Astrologer @relation(fields: [createdByAstrologerId], references: [id], onDelete: Cascade)
+  customerUser        User?      @relation(fields: [customerUserId], references: [id], onDelete: SetNull)
+
+  @@index([kundliId])
+  @@index([createdByAstrologerId, createdAt])
+  @@index([customerUserId, createdAt])
+  @@map("kundli_saved_records")
+}
+
+model Subscription {
+  id                     String             @id @default(uuid())
+  userId                 String
+  subscriptionPlanId     String?
+  subscriptionStatus     SubscriptionStatus @default(FREE)
+  amount                 Decimal?           @db.Decimal(12, 3)
+  currency               String             @default("INR")
+  razorpaySubscriptionId String?            @unique
+  razorpayCustomerId     String?
+  razorpayPaymentId      String?
+  razorpayOrderId        String?
+  startDate              DateTime?
+  endDate                DateTime?
+  nextBillingAt          DateTime?
+  isTrial                Boolean            @default(false)
+  cancelledAt            DateTime?
+  expiredAt              DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  subscriptionPlan       SubscriptionPlan?  @relation(fields: [subscriptionPlanId], references: [id])
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([subscriptionStatus])
+  @@index([subscriptionPlanId])
+}
+
+model SubscriptionPlan {
+  id             String         @id @default(uuid())
+  name           String         @unique
+  displayName    String
+  description    String?
+  price          Decimal        @db.Decimal(12, 3)
+  currency       String         @default("INR")
+  durationDays   Int
+  features       Json?
+  isActive       Boolean        @default(true)
+  isFeatured     Boolean        @default(false)
+  razorpayPlanId String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  subscriptions  Subscription[]
+  users          User[]
+}
+
+model Wallet {
+  id            String         @id @default(cuid())
+  userId        String         @unique
+  balance       Decimal        @default(0) @db.Decimal(12, 2)
+  lockedBalance Decimal        @default(0) @db.Decimal(12, 2)
+  currency      String         @default("INR")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  paymentOrders PaymentOrder[]
+  ledgerEntries WalletLedger[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("wallets")
+}
+
+model PaymentOrder {
+  id                String        @id @default(cuid())
+  userId            String
+  walletId          String?
+  razorpayOrderId   String        @unique
+  razorpayPaymentId String?
+  razorpaySignature String?
+  amount            Decimal       @db.Decimal(12, 2)
+  currency          String        @default("INR")
+  paymentMethod     String?
+  status            PaymentStatus @default(PENDING)
+  rawWebhook        Json?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  type              PaymentType   @default(WALLET_RECHARGE)
+  metadata          Json?
+  kundliOrder       KundliOrder?
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet            Wallet?       @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([walletId])
+  @@index([status])
+  @@index([type])
+  @@map("payment_orders")
+}
+
+model KundliOrder {
+  id             String            @id @default(cuid())
+  userId         String
+  paymentOrderId String            @unique
+  kundliId       String?
+  status         KundliOrderStatus @default(PENDING)
+  pdfUrl         String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  kundli         Kundli?           @relation(fields: [kundliId], references: [id])
+  paymentOrder   PaymentOrder      @relation(fields: [paymentOrderId], references: [id], onDelete: Cascade)
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model WalletLedger {
+  id            String               @id @default(cuid())
+  walletId      String
+  userId        String
+  type          LedgerType
+  amount        Decimal              @db.Decimal(12, 2)
+  balanceBefore Decimal              @db.Decimal(12, 2)
+  balanceAfter  Decimal              @db.Decimal(12, 2)
+  referenceId   String?
+  description   String?
+  createdAt     DateTime             @default(now())
+  referenceType LedgerReferenceType?
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet        Wallet               @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([userId])
+  @@index([type])
+  @@map("wallet_ledger")
+}
+
+model CallSession {
+  id                    String             @id @default(cuid())
+  userId                String
+  astrologerId          String
+  channelName           String
+  ratePerMinute         Float
+  purchasedMinutes      Int
+  extendedMinutes       Int                @default(0)
+  amountCharged         Float
+  isFreeChat            Boolean            @default(false)
+  startedAt             DateTime
+  expiresAt             DateTime
+  endedAt               DateTime?
+  status                String
+  createdAt             DateTime           @default(now())
+  mode                  String             @default("audio")
+  astrologyQuestionId   String?
+  astrologyQuestionText String?
+  astrologyCategorySlug String?
+  astrologer            User               @relation("AstrologerCalls", fields: [astrologerId], references: [id])
+  user                  User               @relation("UserCalls", fields: [userId], references: [id])
+  earning               AstrologerEarning?
+  messages              ChatMessage[]
+  review                Review?
+}
+
+model AstrologerEarning {
+  id            String                  @id @default(cuid())
+  astrologerId  String
+  callSessionId String                  @unique
+  payoutId      String?
+  grossAmount   Decimal                 @db.Decimal(12, 2)
+  platformFee   Decimal                 @default(0) @db.Decimal(12, 2)
+  netAmount     Decimal                 @db.Decimal(12, 2)
+  currency      String                  @default("INR")
+  status        AstrologerEarningStatus @default(PENDING)
+  availableAt   DateTime?
+  paidAt        DateTime?
+  reversedAt    DateTime?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  astrologer    Astrologer              @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
+  callSession   CallSession             @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+  payout        AstrologerPayout?       @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+
+  @@index([astrologerId])
+  @@index([payoutId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("astrologer_earnings")
+}
+
+model AstrologerPayout {
+  id                    String                 @id @default(cuid())
+  astrologerId          String
+  bankAccountId         String?
+  amount                Decimal                @db.Decimal(12, 2)
+  currency              String                 @default("INR")
+  status                AstrologerPayoutStatus @default(REQUESTED)
+  providerReference     String?
+  idempotencyKey        String?                @unique
+  providerStatus        String?
+  providerStatusDetails Json?
+  lastWebhookAt         DateTime?
+  failureReason         String?
+  requestedAt           DateTime               @default(now())
+  processedAt           DateTime?
+  completedAt           DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  astrologer            Astrologer             @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
+  bankAccount           AstrologerBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  earnings              AstrologerEarning[]
+
+  @@index([astrologerId])
+  @@index([bankAccountId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("astrologer_payouts")
+}
+
+model AstrologerBankAccount {
+  id           String @id @default(cuid())
+  astrologerId String
+
+  accountHolderName  String
+  accountNumberLast4 String
+  ifsc               String
+  bankName           String?
+
+  providerContactId     String? @unique
+  providerFundAccountId String? @unique
+
+  isVerified Boolean @default(false)
+  isActive   Boolean @default(true)
+
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  astrologer Astrologer @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
+
+  payouts AstrologerPayout[]
+
+  @@index([astrologerId])
+  @@index([isActive])
+  @@index([createdAt])
+  @@map("astrologer_bank_accounts")
+}
+
+model ChatMessage {
+  id                 String          @id @default(cuid())
+  callSessionId      String
+  senderId           String
+  messageType        ChatMessageType @default(TEXT)
+  content            String?
+  encryptedContent   String?
+  encryptionNonce    String?
+  encryptionMac      String?
+  encryptionVersion  Int?
+  attachmentUrl      String?
+  attachmentPath     String?
+  attachmentName     String?
+  attachmentMimeType String?
+  attachmentSize     Int?
+  isRead             Boolean         @default(false)
+  readAt             DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  clientMessageId    String?
+  replyToMessageId   String?
+  callSession        CallSession     @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+  sender             User            @relation("ChatMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  replyToMessage     ChatMessage?    @relation("ChatMessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies            ChatMessage[]   @relation("ChatMessageReplies")
+
+  @@unique([senderId, clientMessageId])
+  @@index([callSessionId])
+  @@index([senderId])
+  @@index([isRead])
+  @@index([replyToMessageId])
+  @@index([createdAt])
+  @@map("chat_messages")
+}
+
+model UserPreference {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  chartStyle       String   @default("NORTH_INDIAN")
+  monthType        String   @default("AMANT")
+  darkMode         Boolean  @default(false)
+  hideOuterPlanets Boolean  @default(false)
+  customCalendar   Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_preferences")
+}
+
+model UserProfile {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  fullName     String
+  username     String?   @unique
+  email        String?   @unique
+  phoneNumber  String?   @unique
+  dateOfBirth  DateTime?
+  timeOfBirth  String?
+  latitude     Float?
+  longitude    Float?
+  timezone     Float?
+  city         String?
+  state        String?
+  country      String?
+  countryCode  String?
+  timezoneName String?
+  gender       Gender
+  location     String?
+  avatarUrl    String?
+  lang         String    @default("en")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum StorageType {
+  CLOUD
+  LOCAL
+}
+
+model DailyHoroscopeHistory {
+  id             String   @id @default(cuid())
+  userId         String
+  targetDate     DateTime
+  requestedDay   String
+  vedic          Json
+  ai             Json
+  response       Json
+  providerSource String
+  aiModel        String?
+  generatedAt    DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetDate])
+  @@index([userId, targetDate])
+  @@index([generatedAt])
+  @@map("daily_horoscope_history")
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  CANCELLED
+  EXPIRED
+  FAILED
+  PAUSED
+  FREE
+  TRIAL
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSED
+  FAILED
+  PARTIAL
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+  EXPIRED
+}
+
+enum LedgerType {
+  RECHARGE
+  CALL_DEDUCTION
+  AI_ASTRO_DEDUCTION
+  REFUND
+  BONUS
+  PENALTY
+  WITHDRAWAL
+  GIFT_SENT
+  GIFT_RECEIVED
+}
+
+enum LedgerReferenceType {
+  WALLET_RECHARGE
+  CALL_SESSION
+  AI_ASTRO_USAGE
+  GIFT
+  KUNDLI_REPORT
+  REFUND
+}
+
+enum PaymentType {
+  WALLET_RECHARGE
+  KUNDLI_REPORT
+  SUBSCRIPTION
+  GIFT_PURCHASE
+}
+
+enum AstrologerEarningStatus {
+  PENDING
+  AVAILABLE
+  PAID
+  REVERSED
+}
+
+enum AstrologerPayoutStatus {
+  REQUESTED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum KundliOrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ChatMessageType {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM
+}
+
+model AstrologerAvailability {
+  id           String     @id @default(cuid())
+  astrologerId String
+  dayOfWeek    Int
+  isEnabled    Boolean    @default(true)
+  startTime    String
+  endTime      String
+  timezone     String     @default("Asia/Kolkata")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  astrologer   Astrologer @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
+
+  @@unique([astrologerId, dayOfWeek])
+  @@index([astrologerId])
+}
+
+model PlatformSettings {
+  id                        String   @id @default("default")
+  platformCommissionPercent Decimal  @default(30) @db.Decimal(5, 2)
+  videoCallEnabled          Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@map("platform_settings")
+}
+
+model AstrologyQuestionCategory {
+  id          String  @id @default(uuid())
+  slug        String  @unique
+  name        String
+  description String?
+  icon        String?
+  sortOrder   Int     @default(0)
+  isActive    Boolean @default(true)
+
+  questions AstrologyQuestion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+model AstrologyQuestion {
+  id          String  @id @default(uuid())
+  categoryId  String
+  text        String
+  description String?
+  sortOrder   Int     @default(0)
+  isActive    Boolean @default(true)
+
+  category AstrologyQuestionCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId, isActive, sortOrder])
+}
+
+model AstrologerQualificationSettings {
+  id                 String   @id @default("default")
+  isEnabled          Boolean  @default(true)
+  questionCount      Int      @default(10)
+  passingPercentage  Float    @default(70)
+  allowRetake        Boolean  @default(true)
+  maxAttempts        Int?
+  retakeCooldownMins Int      @default(0)
+  randomizeQuestions Boolean  @default(true)
+  randomizeOptions   Boolean  @default(false)
+  showScore          Boolean  @default(true)
+  showCorrectAnswers Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model AstrologerQualificationQuestion {
+  id            String   @id @default(uuid())
+  question      String
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctOption String
+  category      String?
+  explanation   String?
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@index([category])
+}
+
+model AstrologerQualificationAttempt {
+  id             String    @id @default(uuid())
+  userId         String
+  score          Float
+  totalQuestions Int
+  correctAnswers Int
+  passingScore   Float
+  passed         Boolean
+  answers        Json
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, passed])
+  @@index([createdAt])
+}
+
+model PushDevice {
+  id         String         @id @default(cuid())
+  userId     String
+  fcmToken   String         @unique
+  platform   DevicePlatform
+  deviceId   String?
+  isActive   Boolean        @default(true)
+  lastSeenAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([platform])
+  @@index([isActive])
+  @@index([userId, isActive])
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+}
+
+model ChatEncryptionDevice {
+  id         String   @id @default(cuid())
+  userId     String
+  deviceId   String
+  publicKey  String
+  keyVersion Int      @default(1)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@index([isActive])
+  @@map("chat_encryption_devices")
+}
+
+//
+// ============================================================
+// USER SAFETY / MODERATION
+// ============================================================
+// UserBlock is participant-to-participant blocking.
+// This is intentionally separate from User.isBlocked, which is
+// an account/admin suspension flag.
+//
+
+model UserBlock {
+  id String @id @default(cuid())
+
+  blockerId     String
+  blockedUserId String
+
+  isActive    Boolean   @default(true)
+  blockedAt   DateTime  @default(now())
+  unblockedAt DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  blocker     User     @relation("UserBlocksCreated", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedUser User     @relation("UserBlocksReceived", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedUserId])
+  @@index([blockerId, isActive])
+  @@index([blockedUserId, isActive])
+  @@index([createdAt])
+}
+
+model UserReport {
+  id String @id @default(cuid())
+
+  reporterId     String
+  reportedUserId String
+
+  // Optional consultation reference used as moderation context.
+  // The service layer verifies that the reporter participated
+  // in this consultation before accepting the report.
+  callSessionId String?
+
+  reason  UserReportReason
+  details String?
+
+  status UserReportStatus @default(OPEN)
+
+  resolutionNote String?
+  reviewedAt     DateTime?
+  resolvedAt     DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  reporter     User     @relation("UserReportsCreated", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser User     @relation("UserReportsReceived", fields: [reportedUserId], references: [id], onDelete: Cascade)
+
+  @@index([reporterId, createdAt])
+  @@index([reportedUserId, status])
+  @@index([callSessionId])
+  @@index([status, createdAt])
+}
+
+enum UserReportReason {
+  ABUSIVE_LANGUAGE
+  HARASSMENT
+  SPAM
+  FRAUD_OR_SCAM
+  SEXUAL_OR_INAPPROPRIATE_CONTENT
+  HATE_OR_THREATS
+  OFF_PLATFORM_PAYMENT
+  IMPERSONATION
+  OTHER
+}
+
+enum UserReportStatus {
+  OPEN
+  UNDER_REVIEW
+  ACTION_TAKEN
+  DISMISSED
+}
+
+model AiReceptionistSession {
+  id                String  @id @default(uuid())
+  provider          String  @default("mock")
+  providerSessionId String?
+  channel           String  @default("DEMO")
+  status            String  @default("CREATED")
+  language          String  @default("AUTO")
+
+  customerPhone  String?
+  customerUserId String?
+
+  failureReason  String?
+  transferReason String?
+  transferredTo  String?
+
+  startedAt     DateTime?
+  connectedAt   DateTime?
+  transferredAt DateTime?
+  endedAt       DateTime?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages AiReceptionistMessage[]
+
+  @@index([status])
+  @@index([provider])
+  @@index([customerUserId])
+  @@index([customerPhone])
+  @@index([createdAt])
+  @@index([startedAt])
+}
+
+model AiReceptionistMessage {
+  id        String @id @default(uuid())
+  sessionId String
+
+  role    String
+  content String
+
+  providerMessageId String?
+  sequenceNumber    Int?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  session AiReceptionistSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([sessionId, createdAt])
+  @@index([sessionId, sequenceNumber])
+}
+
+model LiveSession {
+  id           String       @id @default(cuid())
+  astrologerId String
+  channelName  String       @unique
+  title        String?
+  status       String       @default("LIVE")
+  startedAt    DateTime     @default(now())
+  endedAt      DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  astrologer   Astrologer   @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
+  viewers      LiveViewer[]
+
+  @@index([astrologerId, status])
+  @@index([status, startedAt])
+}
+
+model LiveViewer {
+  id            String    @id @default(cuid())
+  liveSessionId String
+  userId        String
+  joinedAt      DateTime  @default(now())
+  leftAt        DateTime?
+
+  liveSession LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([liveSessionId, leftAt])
+  @@index([userId, leftAt])
+  @@index([liveSessionId, userId])
+}
+
+model AiAstroPricing {
+  id           String @id @default(cuid())
+  astrologerId String @unique
+
+  // Admin-controlled production switch.
+  isEnabled Boolean @default(false)
+
+  // Explicit FREE profile support.
+  isFree Boolean @default(false)
+
+  // Null until admin configures a real price.
+  // Never infer this from human consultation pricePerMin.
+  pricePerQuestion Decimal? @db.Decimal(12, 2)
+
+  currency String @default("INR")
+
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  astrologer Astrologer @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
+
+  @@index([isEnabled])
+  @@index([isFree])
+  @@map("ai_astro_pricing")
+}
+
+model AiAstroUsage {
+  id String @id @default(cuid())
+
+  userId       String
+  astrologerId String
+
+  clientRequestId String
+  category        String
+
+  // Snapshot of the real configured charge.
+  amountCharged Decimal @default(0) @db.Decimal(12, 2)
+  currency      String  @default("INR")
+
+  // TRUE only when server grants a free AI interaction.
+  isFree Boolean @default(false)
+
+  provider String?
+  model    String?
+
+  createdAt  DateTime   @default(now())
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  astrologer Astrologer @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientRequestId])
+  @@index([userId, createdAt])
+  @@index([astrologerId, createdAt])
+  @@index([userId, isFree])
+  @@map("ai_astro_usages")
+}
+
+model AiAstroConversation {
+  id String @id @default(cuid())
+
+  userId       String
+  astrologerId String
+
+  startingCategory String
+  status           String @default("ACTIVE")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  astrologer Astrologer @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
+
+  messages AiAstroMessage[]
+
+  @@index([userId, updatedAt])
+  @@index([astrologerId, updatedAt])
+  @@index([userId, astrologerId])
+  @@map("ai_astro_conversations")
+}
+
+model AiAstroMessage {
+  id String @id @default(cuid())
+
+  conversationId String
+
+  role     String
+  content  String
+  category String?
+
+  createdAt DateTime @default(now())
+
+  conversation AiAstroConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("ai_astro_messages")
+}
+
+model AppNotification {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  type      String?
+  data      Json?
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("app_notifications")
+}
+
+// ============================================================================
+// ASTRO SOUL PATH - 24x7 SUPPORT SYSTEM
+// Dedicated from paid astrologer consultation ChatMessage.
+// ============================================================================
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum SupportTicketCategory {
+  GENERAL
+  CONSULTATION
+  PAYMENT
+  WALLET
+  ACCOUNT
+  ASTROLOGER
+  TECHNICAL
+  ASSISTANT_ESCALATION
+  OTHER
+}
+
+enum SupportSenderType {
+  CUSTOMER
+  ADMIN
+  SYSTEM
+}
+
+enum AssistantConversationStatus {
+  ACTIVE
+  ESCALATED
+  CLOSED
+}
+
+enum AssistantSenderType {
+  CUSTOMER
+  ASSISTANT
+  ADMIN
+  SYSTEM
+}
+
+model SupportTicket {
+  id           String @id @default(cuid())
+  ticketNumber String @unique
+
+  customerId String
+
+  subject     String
+  description String?
+
+  category SupportTicketCategory @default(GENERAL)
+  priority SupportTicketPriority @default(NORMAL)
+  status   SupportTicketStatus   @default(OPEN)
+
+  assignedAdminId String?
+
+  relatedCallSessionId String?
+  relatedPaymentId     String?
+  relatedWalletTxnId   String?
+
+  lastMessageAt      DateTime?
+  customerLastReadAt DateTime?
+  adminLastReadAt    DateTime?
+
+  resolvedAt DateTime?
+  closedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer      User  @relation("SupportTicketCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  assignedAdmin User? @relation("SupportTicketAssignedAdmin", fields: [assignedAdminId], references: [id], onDelete: SetNull)
+
+  messages SupportMessage[]
+
+  assistantConversation AssistantConversation?
+
+  @@index([customerId, createdAt])
+  @@index([status, updatedAt])
+  @@index([priority, status])
+  @@index([assignedAdminId, status])
+  @@index([lastMessageAt])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id String @id @default(cuid())
+
+  ticketId String
+
+  senderType   SupportSenderType
+  senderUserId String?
+
+  content String
+
+  clientMessageId String?
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderUser User?         @relation("SupportMessageSender", fields: [senderUserId], references: [id], onDelete: SetNull)
+
+  @@unique([senderUserId, clientMessageId])
+  @@index([ticketId, createdAt])
+  @@index([ticketId, isRead])
+  @@index([senderUserId])
+  @@map("support_messages")
+}
+
+model AssistantConversation {
+  id String @id @default(cuid())
+
+  customerId String
+
+  status AssistantConversationStatus @default(ACTIVE)
+
+  supportTicketId String? @unique
+
+  startedAt     DateTime  @default(now())
+  lastMessageAt DateTime?
+  escalatedAt   DateTime?
+  closedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer      User           @relation("AssistantConversationCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  supportTicket SupportTicket? @relation(fields: [supportTicketId], references: [id], onDelete: SetNull)
+
+  messages AssistantMessage[]
+
+  @@index([customerId, updatedAt])
+  @@index([status, updatedAt])
+  @@index([lastMessageAt])
+  @@map("assistant_conversations")
+}
+
+model AssistantMessage {
+  id String @id @default(cuid())
+
+  conversationId String
+
+  senderType   AssistantSenderType
+  senderUserId String?
+
+  content String
+
+  provider          String?
+  providerMessageId String?
+  model             String?
+
+  clientMessageId String?
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  conversation AssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderUser   User?                 @relation("AssistantMessageSender", fields: [senderUserId], references: [id], onDelete: SetNull)
+
+  @@unique([senderUserId, clientMessageId])
+  @@index([conversationId, createdAt])
+  @@index([conversationId, isRead])
+  @@index([senderUserId])
+  @@map("assistant_messages")
+}
+
+model AppConfig {
+  id              String  @id @default(cuid())
+  key             String  @unique
+  shareMessage    String
+  androidStoreUrl String?
+  iosStoreUrl     String?
+  websiteUrl      String?
+
+  aboutTitle       String?
+  aboutDescription String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+enum FeedbackCategory {
+  GENERAL
+  APP_EXPERIENCE
+  ASTROLOGY_CONTENT
+  PAYMENT
+  CONSULTATION
+  TECHNICAL
+  SUGGESTION
+  OTHER
+}
+
+enum FeedbackStatus {
+  NEW
+  REVIEWED
+  RESOLVED
+}
+
+model Feedback {
+  id         String           @id @default(cuid())
+  customerId String
+  category   FeedbackCategory
+  rating     Int?
+  message    String
+  status     FeedbackStatus   @default(NEW)
+
+  adminNote String?
+
+  reviewedAt DateTime?
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer User @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, createdAt])
+  @@index([status, createdAt])
+  @@index([category, createdAt])
+  @@map("feedback")
+}

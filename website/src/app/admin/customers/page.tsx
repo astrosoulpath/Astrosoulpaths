@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -73,7 +73,7 @@ function getAccessToken() {
   }
 
   return (
-    window.localStorage.getItem("asp_access_token") ??
+    window.localStorage.getItem("asp_admin_access_token") ??
     window.localStorage.getItem("access_token")
   );
 }
@@ -436,19 +436,19 @@ export default function AdminCustomersPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F8F8F8] px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="asp-admin-page px-4 py-10 sm:px-6 lg:px-8">
+      <div className="asp-admin-shell">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-amber-600">
+            <p className="asp-admin-eyebrow">
               Admin Panel
             </p>
 
-            <h1 className="mt-2 text-3xl font-extrabold text-[#0B1026] sm:text-4xl">
+            <h1 className="asp-admin-title mt-2 text-3xl sm:text-4xl">
               Customer Management
             </h1>
 
-            <p className="mt-3 max-w-3xl text-base leading-7 text-gray-600">
+            <p className="asp-admin-subtitle mt-3 max-w-3xl text-base">
               Review customer accounts, wallet balances,
               account status and consultation activity.
             </p>
@@ -457,7 +457,7 @@ export default function AdminCustomersPage() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link
               href="/admin"
-              className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-center font-bold text-[#0B1026] transition hover:bg-gray-50"
+              className="asp-admin-back-btn"
             >
               Back to Dashboard
             </Link>
@@ -468,7 +468,7 @@ export default function AdminCustomersPage() {
                 void loadCustomers(true)
               }
               disabled={isRefreshing}
-              className="rounded-xl bg-[#0B1026] px-5 py-3 font-bold text-white transition hover:bg-[#171D3D] disabled:cursor-not-allowed disabled:opacity-60"
+              className="asp-admin-primary-btn"
             >
               {isRefreshing
                 ? "Refreshing..."
@@ -498,42 +498,42 @@ export default function AdminCustomersPage() {
         ) : null}
 
         <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Total Customers
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-[#0B1026]">
+            <p className="asp-admin-stat-value">
               {stats.total}
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Active Customers
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-green-700">
+            <p className="asp-admin-stat-value text-green-700">
               {stats.active}
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Blocked Customers
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-red-700">
+            <p className="asp-admin-stat-value text-red-700">
               {stats.blocked}
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Total Wallet Balance
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-[#0B1026]">
+            <p className="asp-admin-stat-value">
               {formatCurrency(
                 stats.walletBalance,
               )}
@@ -541,7 +541,7 @@ export default function AdminCustomersPage() {
           </article>
         </section>
 
-        <section className="mt-8 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section className="asp-admin-panel mt-8 p-5 sm:p-6">
           <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
             <input
               type="search"
@@ -550,7 +550,7 @@ export default function AdminCustomersPage() {
                 setSearch(event.target.value)
               }
               placeholder="Search by name, email, phone or customer ID"
-              className="rounded-xl border border-gray-300 px-4 py-3 text-[#0B1026] outline-none transition focus:border-[#D4AF37]"
+              className="asp-admin-input px-4 py-3"
             />
 
             <select
@@ -561,7 +561,7 @@ export default function AdminCustomersPage() {
                     .value as StatusFilter,
                 )
               }
-              className="rounded-xl border border-gray-300 bg-white px-4 py-3 font-semibold text-[#0B1026] outline-none focus:border-[#D4AF37]"
+              className="asp-admin-input px-4 py-3 font-semibold"
             >
               <option value="ALL">
                 All customers
@@ -587,7 +587,7 @@ export default function AdminCustomersPage() {
 
           {isLoading ? (
             <div className="py-16 text-center">
-              <p className="font-semibold text-gray-600">
+              <p className="font-semibold text-[#4B5C73]">
                 Loading customers...
               </p>
             </div>
@@ -597,7 +597,7 @@ export default function AdminCustomersPage() {
                 No customers found
               </h2>
 
-              <p className="mt-2 text-gray-600">
+              <p className="mt-2 text-[#4B5C73]">
                 No customer records match the selected
                 filters.
               </p>
@@ -605,29 +605,29 @@ export default function AdminCustomersPage() {
           ) : (
             <div className="mt-6 overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-0">
-                <thead>
+                <thead className="asp-admin-table-head">
                   <tr className="text-left">
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Customer
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Contact
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Wallet
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Activity
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Status
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-right text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-right text-xs font-extrabold text-[#243650]">
                       Actions
                     </th>
                   </tr>
@@ -678,11 +678,11 @@ export default function AdminCustomersPage() {
                                   )}
                                 </p>
 
-                                <p className="mt-1 break-all text-xs text-gray-500">
+                                <p className="mt-1 break-all text-xs text-[#66758A]">
                                   ID: {customer.id}
                                 </p>
 
-                                <p className="mt-1 text-xs text-gray-500">
+                                <p className="mt-1 text-xs text-[#66758A]">
                                   Joined:{" "}
                                   {formatDate(
                                     customer.createdAt,
@@ -698,7 +698,7 @@ export default function AdminCustomersPage() {
                                 "Phone not available"}
                             </p>
 
-                            <p className="mt-1 text-sm text-gray-600">
+                            <p className="mt-1 text-sm text-[#4B5C73]">
                               {customer.email ||
                                 "Email not available"}
                             </p>
@@ -715,7 +715,7 @@ export default function AdminCustomersPage() {
                               )}
                             </p>
 
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="mt-1 text-xs text-[#66758A]">
                               Locked:{" "}
                               {formatCurrency(
                                 customer.wallet
@@ -737,7 +737,7 @@ export default function AdminCustomersPage() {
                               consultations
                             </p>
 
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="mt-1 text-xs text-[#66758A]">
                               {
                                 customer._count
                                   ?.reviews
@@ -765,7 +765,7 @@ export default function AdminCustomersPage() {
                                 href={`/admin/customers/${encodeURIComponent(
                                   customer.id,
                                 )}`}
-                                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-[#0B1026] transition hover:bg-gray-50"
+                                className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-extrabold text-[#10233F] shadow-sm transition hover:border-[#D4AF37] hover:bg-[#FFFCF5]"
                               >
                                 View Details
                               </Link>
@@ -812,3 +812,4 @@ export default function AdminCustomersPage() {
     </main>
   );
 }
+

@@ -1,0 +1,3246 @@
+{
+  "testedAt": "2026-08-19T06:53:16.303Z",
+  "testInput": {
+    "dob": "1995-01-10",
+    "tob": "10:30:00",
+    "lat": 25.5941,
+    "lon": 85.1376,
+    "timezone": 5.5,
+    "lang": "en"
+  },
+  "validation": {
+    "corePass": true,
+    "professionalSectionsPass": true,
+    "provider": "vedicastro",
+    "status": "COMPLETE",
+    "planetCount": 10,
+    "dashaPeriods": 9
+  },
+  "report": {
+    "provider": "vedicastro",
+    "language": "en",
+    "status": "COMPLETE",
+    "generatedAt": "2026-08-19T06:52:42.994Z",
+    "completeness": {
+      "corePercent": 100,
+      "availableCoreSections": 4,
+      "totalCoreSections": 4
+    },
+    "input": {
+      "dob": "1995-01-10",
+      "tob": "10:30:00",
+      "latitude": 25.5941,
+      "longitude": 85.1376,
+      "timezone": 5.5,
+      "language": "en"
+    },
+    "charts": {
+      "birthChart": {
+        "0": {
+          "name": "As",
+          "zodiac": "Pisces",
+          "rasi_no": 12,
+          "house": 1,
+          "retro": false,
+          "full_name": "Ascendant",
+          "local_degree": 5.367497572438083
+        },
+        "1": {
+          "name": "Su",
+          "zodiac": "Sagittarius",
+          "rasi_no": 9,
+          "house": 10,
+          "retro": false,
+          "full_name": "Sun",
+          "local_degree": 25.686680545788363
+        },
+        "2": {
+          "name": "Mo",
+          "zodiac": "Aries",
+          "rasi_no": 1,
+          "house": 2,
+          "retro": false,
+          "full_name": "Moon",
+          "local_degree": 12.642636735238309
+        },
+        "3": {
+          "name": "Ma",
+          "zodiac": "Leo",
+          "rasi_no": 5,
+          "house": 6,
+          "retro": true,
+          "full_name": "Mars",
+          "local_degree": 8.521785965026652
+        },
+        "4": {
+          "name": "Me",
+          "zodiac": "Capricorn",
+          "rasi_no": 10,
+          "house": 11,
+          "retro": false,
+          "full_name": "Mercury",
+          "local_degree": 11.385178950146269
+        },
+        "5": {
+          "name": "Ju",
+          "zodiac": "Scorpio",
+          "rasi_no": 8,
+          "house": 9,
+          "retro": false,
+          "full_name": "Jupiter",
+          "local_degree": 12.7432803315059
+        },
+        "6": {
+          "name": "Ve",
+          "zodiac": "Scorpio",
+          "rasi_no": 8,
+          "house": 9,
+          "retro": false,
+          "full_name": "Venus",
+          "local_degree": 8.866866896978365
+        },
+        "7": {
+          "name": "Sa",
+          "zodiac": "Aquarius",
+          "rasi_no": 11,
+          "house": 12,
+          "retro": false,
+          "full_name": "Saturn",
+          "local_degree": 15.015286051595922
+        },
+        "8": {
+          "name": "Ra",
+          "zodiac": "Libra",
+          "rasi_no": 7,
+          "house": 8,
+          "retro": true,
+          "full_name": "Rahu",
+          "local_degree": 17.509668190078315
+        },
+        "9": {
+          "name": "Ke",
+          "zodiac": "Aries",
+          "rasi_no": 1,
+          "house": 2,
+          "retro": true,
+          "full_name": "Ketu",
+          "local_degree": 17.509668190078305
+        },
+        "chart": "D1",
+        "chart_name": "Lagna"
+      },
+      "navamsaChart": {
+        "0": {
+          "name": "As",
+          "zodiac": "Leo",
+          "rasi_no": 5,
+          "house": 1,
+          "retro": false,
+          "full_name": "Ascendant",
+          "local_degree": 18.307478151943087
+        },
+        "1": {
+          "name": "Su",
+          "zodiac": "Scorpio",
+          "rasi_no": 8,
+          "house": 4,
+          "retro": false,
+          "full_name": "Sun",
+          "local_degree": 21.18012491209538
+        },
+        "2": {
+          "name": "Mo",
+          "zodiac": "Cancer",
+          "rasi_no": 4,
+          "house": 12,
+          "retro": false,
+          "full_name": "Moon",
+          "local_degree": 23.783730617144798
+        },
+        "3": {
+          "name": "Ma",
+          "zodiac": "Gemini",
+          "rasi_no": 3,
+          "house": 11,
+          "retro": true,
+          "full_name": "Mars",
+          "local_degree": 16.69607368523998
+        },
+        "4": {
+          "name": "Me",
+          "zodiac": "Aries",
+          "rasi_no": 1,
+          "house": 9,
+          "retro": false,
+          "full_name": "Mercury",
+          "local_degree": 12.466610551316535
+        },
+        "5": {
+          "name": "Ju",
+          "zodiac": "Libra",
+          "rasi_no": 7,
+          "house": 3,
+          "retro": false,
+          "full_name": "Jupiter",
+          "local_degree": 24.68952298355316
+        },
+        "6": {
+          "name": "Ve",
+          "zodiac": "Virgo",
+          "rasi_no": 6,
+          "house": 2,
+          "retro": false,
+          "full_name": "Venus",
+          "local_degree": 19.801802072805458
+        },
+        "7": {
+          "name": "Sa",
+          "zodiac": "Aquarius",
+          "rasi_no": 11,
+          "house": 7,
+          "retro": false,
+          "full_name": "Saturn",
+          "local_degree": 15.137574464363752
+        },
+        "8": {
+          "name": "Ra",
+          "zodiac": "Pisces",
+          "rasi_no": 12,
+          "house": 8,
+          "retro": true,
+          "full_name": "Rahu",
+          "local_degree": 7.587013710704923
+        },
+        "9": {
+          "name": "Ke",
+          "zodiac": "Virgo",
+          "rasi_no": 6,
+          "house": 2,
+          "retro": true,
+          "full_name": "Ketu",
+          "local_degree": 7.587013710704781
+        },
+        "chart": "D9",
+        "chart_name": "Navamsa"
+      },
+      "divisionalCharts": {
+        "D2": {
+          "0": {
+            "name": "As",
+            "zodiac": "Cancer",
+            "rasi_no": 4,
+            "house": 1,
+            "retro": false,
+            "full_name": "Ascendant",
+            "local_degree": 10.734995144876166
+          },
+          "1": {
+            "name": "Su",
+            "zodiac": "Cancer",
+            "rasi_no": 4,
+            "house": 1,
+            "retro": false,
+            "full_name": "Sun",
+            "local_degree": 21.373361091576726
+          },
+          "2": {
+            "name": "Mo",
+            "zodiac": "Leo",
+            "rasi_no": 5,
+            "house": 2,
+            "retro": false,
+            "full_name": "Moon",
+            "local_degree": 25.285273470476618
+          },
+          "3": {
+            "name": "Ma",
+            "zodiac": "Leo",
+            "rasi_no": 5,
+            "house": 2,
+            "retro": true,
+            "full_name": "Mars",
+            "local_degree": 17.043571930053304
+          },
+          "4": {
+            "name": "Me",
+            "zodiac": "Cancer",
+            "rasi_no": 4,
+            "house": 1,
+            "retro": false,
+            "full_name": "Mercury",
+            "local_degree": 22.770357900292538
+          },
+          "5": {
+            "name": "Ju",
+            "zodiac": "Cancer",
+            "rasi_no": 4,
+            "house": 1,
+            "retro": false,
+            "full_name": "Jupiter",
+            "local_degree": 25.4865606630118
+          },
+          "6": {
+            "name": "Ve",
+            "zodiac": "Cancer",
+            "rasi_no": 4,
+            "house": 1,
+            "retro": false,
+            "full_name": "Venus",
+            "local_degree": 17.73373379395673
+          },
+          "7": {
+            "name": "Sa",
+            "zodiac": "Cancer",
+            "rasi_no": 4,
+            "house": 1,
+            "retro": false,
+            "full_name": "Saturn",
+            "local_degree": 0.03057210319184378
+          },
+          "8": {
+            "name": "Ra",
+            "zodiac": "Cancer",
+            "rasi_no": 4,
+            "house": 1,
+            "retro": true,
+            "full_name": "Rahu",
+            "local_degree": 5.019336380156631
+          },
+          "9": {
+            "name": "Ke",
+            "zodiac": "Cancer",
+            "rasi_no": 4,
+            "house": 1,
+            "retro": true,
+            "full_name": "Ketu",
+            "local_degree": 5.019336380156609
+          },
+          "chart": "D2",
+          "chart_name": "Hora"
+        },
+        "D3": {
+          "0": {
+            "name": "As",
+            "zodiac": "Pisces",
+            "rasi_no": 12,
+            "house": 1,
+            "retro": false,
+            "full_name": "Ascendant",
+            "local_degree": 16.102492717314362
+          },
+          "1": {
+            "name": "Su",
+            "zodiac": "Leo",
+            "rasi_no": 5,
+            "house": 6,
+            "retro": false,
+            "full_name": "Sun",
+            "local_degree": 17.06004163736509
+          },
+          "2": {
+            "name": "Mo",
+            "zodiac": "Leo",
+            "rasi_no": 5,
+            "house": 6,
+            "retro": false,
+            "full_name": "Moon",
+            "local_degree": 7.927910205714923
+          },
+          "3": {
+            "name": "Ma",
+            "zodiac": "Leo",
+            "rasi_no": 5,
+            "house": 6,
+            "retro": true,
+            "full_name": "Mars",
+            "local_degree": 25.565357895079956
+          },
+          "4": {
+            "name": "Me",
+            "zodiac": "Taurus",
+            "rasi_no": 2,
+            "house": 3,
+            "retro": false,
+            "full_name": "Mercury",
+            "local_degree": 4.155536850438807
+          },
+          "5": {
+            "name": "Ju",
+            "zodiac": "Pisces",
+            "rasi_no": 12,
+            "house": 1,
+            "retro": false,
+            "full_name": "Jupiter",
+            "local_degree": 8.229840994517645
+          },
+          "6": {
+            "name": "Ve",
+            "zodiac": "Scorpio",
+            "rasi_no": 8,
+            "house": 9,
+            "retro": false,
+            "full_name": "Venus",
+            "local_degree": 26.60060069093504
+          },
+          "7": {
+            "name": "Sa",
+            "zodiac": "Gemini",
+            "rasi_no": 3,
+            "house": 4,
+            "retro": false,
+            "full_name": "Saturn",
+            "local_degree": 15.045858154787766
+          },
+          "8": {
+            "name": "Ra",
+            "zodiac": "Aquarius",
+            "rasi_no": 11,
+            "house": 12,
+            "retro": true,
+            "full_name": "Rahu",
+            "local_degree": 22.529004570234974
+          },
+          "9": {
+            "name": "Ke",
+            "zodiac": "Leo",
+            "rasi_no": 5,
+            "house": 6,
+            "retro": true,
+            "full_name": "Ketu",
+            "local_degree": 22.529004570234918
+          },
+          "chart": "D3",
+          "chart_name": "Dreshkana"
+        },
+        "D7": {
+          "0": {
+            "name": "As",
+            "zodiac": "Libra",
+            "rasi_no": 7,
+            "house": 1,
+            "retro": false,
+            "full_name": "Ascendant",
+            "local_degree": 7.572483007066694
+          },
+          "1": {
+            "name": "Su",
+            "zodiac": "Taurus",
+            "rasi_no": 2,
+            "house": 8,
+            "retro": false,
+            "full_name": "Sun",
+            "local_degree": 29.806763820518654
+          },
+          "2": {
+            "name": "Mo",
+            "zodiac": "Gemini",
+            "rasi_no": 3,
+            "house": 9,
+            "retro": false,
+            "full_name": "Moon",
+            "local_degree": 28.49845714666816
+          },
+          "3": {
+            "name": "Ma",
+            "zodiac": "Virgo",
+            "rasi_no": 6,
+            "house": 12,
+            "retro": true,
+            "full_name": "Mars",
+            "local_degree": 29.652501755186563
+          },
+          "4": {
+            "name": "Me",
+            "zodiac": "Virgo",
+            "rasi_no": 6,
+            "house": 12,
+            "retro": false,
+            "full_name": "Mercury",
+            "local_degree": 19.69625265102377
+          },
+          "5": {
+            "name": "Ju",
+            "zodiac": "Cancer",
+            "rasi_no": 4,
+            "house": 10,
+            "retro": false,
+            "full_name": "Jupiter",
+            "local_degree": 29.202962320541246
+          },
+          "6": {
+            "name": "Ve",
+            "zodiac": "Cancer",
+            "rasi_no": 4,
+            "house": 10,
+            "retro": false,
+            "full_name": "Venus",
+            "local_degree": 2.0680682788486138
+          },
+          "7": {
+            "name": "Sa",
+            "zodiac": "Taurus",
+            "rasi_no": 2,
+            "house": 8,
+            "retro": false,
+            "full_name": "Saturn",
+            "local_degree": 15.107002361171453
+          },
+          "8": {
+            "name": "Ra",
+            "zodiac": "Aquarius",
+            "rasi_no": 11,
+            "house": 5,
+            "retro": true,
+            "full_name": "Rahu",
+            "local_degree": 2.5676773305483493
+          },
+          "9": {
+            "name": "Ke",
+            "zodiac": "Leo",
+            "rasi_no": 5,
+            "house": 11,
+            "retro": true,
+            "full_name": "Ketu",
+            "local_degree": 2.567677330548136
+          },
+          "chart": "D7",
+          "chart_name": "Saptamsa"
+        },
+        "D10": {
+          "0": {
+            "name": "As",
+            "zodiac": "Sagittarius",
+            "rasi_no": 9,
+            "house": 1,
+            "retro": false,
+            "full_name": "Ascendant",
+            "local_degree": 23.6749757243806
+          },
+          "1": {
+            "name": "Su",
+            "zodiac": "Leo",
+            "rasi_no": 5,
+            "house": 9,
+            "retro": false,
+            "full_name": "Sun",
+            "local_degree": 16.866805457883856
+          },
+          "2": {
+            "name": "Mo",
+            "zodiac": "Leo",
+            "rasi_no": 5,
+            "house": 9,
+            "retro": false,
+            "full_name": "Moon",
+            "local_degree": 6.426367352383096
+          },
+          "3": {
+            "name": "Ma",
+            "zodiac": "Libra",
+            "rasi_no": 7,
+            "house": 11,
+            "retro": true,
+            "full_name": "Mars",
+            "local_degree": 25.21785965026652
+          },
+          "4": {
+            "name": "Me",
+            "zodiac": "Sagittarius",
+            "rasi_no": 9,
+            "house": 1,
+            "retro": false,
+            "full_name": "Mercury",
+            "local_degree": 23.851789501462918
+          },
+          "5": {
+            "name": "Ju",
+            "zodiac": "Scorpio",
+            "rasi_no": 8,
+            "house": 12,
+            "retro": false,
+            "full_name": "Jupiter",
+            "local_degree": 7.432803315059118
+          },
+          "6": {
+            "name": "Ve",
+            "zodiac": "Virgo",
+            "rasi_no": 6,
+            "house": 10,
+            "retro": false,
+            "full_name": "Venus",
+            "local_degree": 28.668668969783994
+          },
+          "7": {
+            "name": "Sa",
+            "zodiac": "Cancer",
+            "rasi_no": 4,
+            "house": 8,
+            "retro": false,
+            "full_name": "Saturn",
+            "local_degree": 0.1528605159592189
+          },
+          "8": {
+            "name": "Ra",
+            "zodiac": "Pisces",
+            "rasi_no": 12,
+            "house": 4,
+            "retro": true,
+            "full_name": "Rahu",
+            "local_degree": 25.096681900783096
+          },
+          "9": {
+            "name": "Ke",
+            "zodiac": "Virgo",
+            "rasi_no": 6,
+            "house": 10,
+            "retro": true,
+            "full_name": "Ketu",
+            "local_degree": 25.09668190078304
+          },
+          "chart": "D10",
+          "chart_name": "Dasamsa"
+        },
+        "D12": {
+          "0": {
+            "name": "As",
+            "zodiac": "Taurus",
+            "rasi_no": 2,
+            "house": 1,
+            "retro": false,
+            "full_name": "Ascendant",
+            "local_degree": 4.4099708692574495
+          },
+          "1": {
+            "name": "Su",
+            "zodiac": "Libra",
+            "rasi_no": 7,
+            "house": 6,
+            "retro": false,
+            "full_name": "Sun",
+            "local_degree": 8.240166549460355
+          },
+          "2": {
+            "name": "Mo",
+            "zodiac": "Virgo",
+            "rasi_no": 6,
+            "house": 5,
+            "retro": false,
+            "full_name": "Moon",
+            "local_degree": 1.7116408228596924
+          },
+          "3": {
+            "name": "Ma",
+            "zodiac": "Scorpio",
+            "rasi_no": 8,
+            "house": 7,
+            "retro": true,
+            "full_name": "Mars",
+            "local_degree": 12.261431580319822
+          },
+          "4": {
+            "name": "Me",
+            "zodiac": "Taurus",
+            "rasi_no": 2,
+            "house": 1,
+            "retro": false,
+            "full_name": "Mercury",
+            "local_degree": 16.622147401755228
+          },
+          "5": {
+            "name": "Ju",
+            "zodiac": "Aries",
+            "rasi_no": 1,
+            "house": 12,
+            "retro": false,
+            "full_name": "Jupiter",
+            "local_degree": 2.919363978070578
+          },
+          "6": {
+            "name": "Ve",
+            "zodiac": "Aquarius",
+            "rasi_no": 11,
+            "house": 10,
+            "retro": false,
+            "full_name": "Venus",
+            "local_degree": 16.402402763740156
+          },
+          "7": {
+            "name": "Sa",
+            "zodiac": "Leo",
+            "rasi_no": 5,
+            "house": 4,
+            "retro": false,
+            "full_name": "Saturn",
+            "local_degree": 0.18343261915106268
+          },
+          "8": {
+            "name": "Ra",
+            "zodiac": "Taurus",
+            "rasi_no": 2,
+            "house": 1,
+            "retro": true,
+            "full_name": "Rahu",
+            "local_degree": 0.11601828093989752
+          },
+          "9": {
+            "name": "Ke",
+            "zodiac": "Scorpio",
+            "rasi_no": 8,
+            "house": 7,
+            "retro": true,
+            "full_name": "Ketu",
+            "local_degree": 0.11601828093967015
+          },
+          "chart": "D12",
+          "chart_name": "Dwadasamsa"
+        },
+        "D60": {
+          "0": {
+            "name": "As",
+            "zodiac": "Capricorn",
+            "rasi_no": 10,
+            "house": 1,
+            "retro": false,
+            "full_name": "Ascendant",
+            "local_degree": 22.04985434628543
+          },
+          "1": {
+            "name": "Su",
+            "zodiac": "Pisces",
+            "rasi_no": 12,
+            "house": 3,
+            "retro": false,
+            "full_name": "Sun",
+            "local_degree": 11.20083274730132
+          },
+          "2": {
+            "name": "Mo",
+            "zodiac": "Taurus",
+            "rasi_no": 2,
+            "house": 5,
+            "retro": false,
+            "full_name": "Moon",
+            "local_degree": 8.558204114298519
+          },
+          "3": {
+            "name": "Ma",
+            "zodiac": "Capricorn",
+            "rasi_no": 10,
+            "house": 1,
+            "retro": true,
+            "full_name": "Mars",
+            "local_degree": 1.3071579015995667
+          },
+          "4": {
+            "name": "Me",
+            "zodiac": "Scorpio",
+            "rasi_no": 8,
+            "house": 11,
+            "retro": false,
+            "full_name": "Mercury",
+            "local_degree": 23.110737008777505
+          },
+          "5": {
+            "name": "Ju",
+            "zodiac": "Sagittarius",
+            "rasi_no": 9,
+            "house": 12,
+            "retro": false,
+            "full_name": "Jupiter",
+            "local_degree": 14.5968198903538
+          },
+          "6": {
+            "name": "Ve",
+            "zodiac": "Aries",
+            "rasi_no": 1,
+            "house": 4,
+            "retro": false,
+            "full_name": "Venus",
+            "local_degree": 22.012013818701234
+          },
+          "7": {
+            "name": "Sa",
+            "zodiac": "Leo",
+            "rasi_no": 5,
+            "house": 8,
+            "retro": false,
+            "full_name": "Saturn",
+            "local_degree": 0.9171630957571324
+          },
+          "8": {
+            "name": "Ra",
+            "zodiac": "Virgo",
+            "rasi_no": 6,
+            "house": 9,
+            "retro": true,
+            "full_name": "Rahu",
+            "local_degree": 0.5800914046994876
+          },
+          "9": {
+            "name": "Ke",
+            "zodiac": "Pisces",
+            "rasi_no": 12,
+            "house": 3,
+            "retro": true,
+            "full_name": "Ketu",
+            "local_degree": 0.5800914046983507
+          },
+          "chart": "D60",
+          "chart_name": "Shastiamsha"
+        }
+      }
+    },
+    "birthChart": {
+      "0": {
+        "name": "As",
+        "zodiac": "Pisces",
+        "rasi_no": 12,
+        "house": 1,
+        "retro": false,
+        "full_name": "Ascendant",
+        "local_degree": 5.367497572438083
+      },
+      "1": {
+        "name": "Su",
+        "zodiac": "Sagittarius",
+        "rasi_no": 9,
+        "house": 10,
+        "retro": false,
+        "full_name": "Sun",
+        "local_degree": 25.686680545788363
+      },
+      "2": {
+        "name": "Mo",
+        "zodiac": "Aries",
+        "rasi_no": 1,
+        "house": 2,
+        "retro": false,
+        "full_name": "Moon",
+        "local_degree": 12.642636735238309
+      },
+      "3": {
+        "name": "Ma",
+        "zodiac": "Leo",
+        "rasi_no": 5,
+        "house": 6,
+        "retro": true,
+        "full_name": "Mars",
+        "local_degree": 8.521785965026652
+      },
+      "4": {
+        "name": "Me",
+        "zodiac": "Capricorn",
+        "rasi_no": 10,
+        "house": 11,
+        "retro": false,
+        "full_name": "Mercury",
+        "local_degree": 11.385178950146269
+      },
+      "5": {
+        "name": "Ju",
+        "zodiac": "Scorpio",
+        "rasi_no": 8,
+        "house": 9,
+        "retro": false,
+        "full_name": "Jupiter",
+        "local_degree": 12.7432803315059
+      },
+      "6": {
+        "name": "Ve",
+        "zodiac": "Scorpio",
+        "rasi_no": 8,
+        "house": 9,
+        "retro": false,
+        "full_name": "Venus",
+        "local_degree": 8.866866896978365
+      },
+      "7": {
+        "name": "Sa",
+        "zodiac": "Aquarius",
+        "rasi_no": 11,
+        "house": 12,
+        "retro": false,
+        "full_name": "Saturn",
+        "local_degree": 15.015286051595922
+      },
+      "8": {
+        "name": "Ra",
+        "zodiac": "Libra",
+        "rasi_no": 7,
+        "house": 8,
+        "retro": true,
+        "full_name": "Rahu",
+        "local_degree": 17.509668190078315
+      },
+      "9": {
+        "name": "Ke",
+        "zodiac": "Aries",
+        "rasi_no": 1,
+        "house": 2,
+        "retro": true,
+        "full_name": "Ketu",
+        "local_degree": 17.509668190078305
+      },
+      "chart": "D1",
+      "chart_name": "Lagna"
+    },
+    "navamsaChart": {
+      "0": {
+        "name": "As",
+        "zodiac": "Leo",
+        "rasi_no": 5,
+        "house": 1,
+        "retro": false,
+        "full_name": "Ascendant",
+        "local_degree": 18.307478151943087
+      },
+      "1": {
+        "name": "Su",
+        "zodiac": "Scorpio",
+        "rasi_no": 8,
+        "house": 4,
+        "retro": false,
+        "full_name": "Sun",
+        "local_degree": 21.18012491209538
+      },
+      "2": {
+        "name": "Mo",
+        "zodiac": "Cancer",
+        "rasi_no": 4,
+        "house": 12,
+        "retro": false,
+        "full_name": "Moon",
+        "local_degree": 23.783730617144798
+      },
+      "3": {
+        "name": "Ma",
+        "zodiac": "Gemini",
+        "rasi_no": 3,
+        "house": 11,
+        "retro": true,
+        "full_name": "Mars",
+        "local_degree": 16.69607368523998
+      },
+      "4": {
+        "name": "Me",
+        "zodiac": "Aries",
+        "rasi_no": 1,
+        "house": 9,
+        "retro": false,
+        "full_name": "Mercury",
+        "local_degree": 12.466610551316535
+      },
+      "5": {
+        "name": "Ju",
+        "zodiac": "Libra",
+        "rasi_no": 7,
+        "house": 3,
+        "retro": false,
+        "full_name": "Jupiter",
+        "local_degree": 24.68952298355316
+      },
+      "6": {
+        "name": "Ve",
+        "zodiac": "Virgo",
+        "rasi_no": 6,
+        "house": 2,
+        "retro": false,
+        "full_name": "Venus",
+        "local_degree": 19.801802072805458
+      },
+      "7": {
+        "name": "Sa",
+        "zodiac": "Aquarius",
+        "rasi_no": 11,
+        "house": 7,
+        "retro": false,
+        "full_name": "Saturn",
+        "local_degree": 15.137574464363752
+      },
+      "8": {
+        "name": "Ra",
+        "zodiac": "Pisces",
+        "rasi_no": 12,
+        "house": 8,
+        "retro": true,
+        "full_name": "Rahu",
+        "local_degree": 7.587013710704923
+      },
+      "9": {
+        "name": "Ke",
+        "zodiac": "Virgo",
+        "rasi_no": 6,
+        "house": 2,
+        "retro": true,
+        "full_name": "Ketu",
+        "local_degree": 7.587013710704781
+      },
+      "chart": "D9",
+      "chart_name": "Navamsa"
+    },
+    "planetaryPositions": [
+      {
+        "name": "Ascendant",
+        "full_name": "Ascendant",
+        "local_degree": 5.367497572438083,
+        "global_degree": 335.3674975724381,
+        "progress_in_percentage": 17.89165857479361,
+        "rasi_no": 12,
+        "zodiac": "Pisces",
+        "house": 1,
+        "nakshatra": "UttaraBhadra",
+        "nakshatra_lord": "Saturn",
+        "nakshatra_pada": 1,
+        "nakshatra_no": 26,
+        "zodiac_lord": "Jupiter",
+        "is_planet_set": false,
+        "lord_status": "-",
+        "basic_avastha": "-",
+        "is_combust": false,
+        "shortName": "As",
+        "sign": "Pisces",
+        "degree": 5.367497572438083,
+        "retrograde": false
+      },
+      {
+        "name": "Sun",
+        "full_name": "Sun",
+        "local_degree": 25.686680545788363,
+        "global_degree": 265.68668054578836,
+        "progress_in_percentage": 85.6222684859612,
+        "rasi_no": 9,
+        "zodiac": "Sagittarius",
+        "house": 10,
+        "speed_radians_per_day": 1.179269547325127e-8,
+        "retro": false,
+        "nakshatra": "PurvaShadha",
+        "nakshatra_lord": "Venus",
+        "nakshatra_pada": 4,
+        "nakshatra_no": 20,
+        "zodiac_lord": "Jupiter",
+        "is_planet_set": false,
+        "basic_avastha": "Mritya",
+        "lord_status": "Malefic",
+        "shortName": "Su",
+        "sign": "Sagittarius",
+        "degree": 25.686680545788363,
+        "retrograde": false
+      },
+      {
+        "name": "Moon",
+        "full_name": "Moon",
+        "local_degree": 12.642636735238309,
+        "global_degree": 12.642636735238309,
+        "progress_in_percentage": 42.14212245079436,
+        "rasi_no": 1,
+        "zodiac": "Aries",
+        "house": 2,
+        "speed_radians_per_day": 1.3673482510288066e-7,
+        "retro": false,
+        "nakshatra": "Ashvini",
+        "nakshatra_lord": "Ketu",
+        "nakshatra_pada": 4,
+        "nakshatra_no": 1,
+        "zodiac_lord": "Mars",
+        "is_planet_set": false,
+        "basic_avastha": "Yuva",
+        "lord_status": "Benefic",
+        "is_combust": false,
+        "shortName": "Mo",
+        "sign": "Aries",
+        "degree": 12.642636735238309,
+        "retrograde": false
+      },
+      {
+        "name": "Mars",
+        "full_name": "Mars",
+        "local_degree": 8.521785965026652,
+        "global_degree": 128.52178596502665,
+        "progress_in_percentage": 28.40595321675551,
+        "rasi_no": 5,
+        "zodiac": "Leo",
+        "house": 6,
+        "speed_radians_per_day": -1.1606224279833607e-9,
+        "retro": true,
+        "nakshatra": "Magha",
+        "nakshatra_lord": "Ketu",
+        "nakshatra_pada": 3,
+        "nakshatra_no": 10,
+        "zodiac_lord": "Sun",
+        "is_planet_set": false,
+        "basic_avastha": "Kumara",
+        "lord_status": "Highly Benefic",
+        "is_combust": false,
+        "shortName": "Ma",
+        "sign": "Leo",
+        "degree": 8.521785965026652,
+        "retrograde": true
+      },
+      {
+        "name": "Mercury",
+        "full_name": "Mercury",
+        "local_degree": 11.385178950146269,
+        "global_degree": 281.38517895014627,
+        "progress_in_percentage": 37.95059650048756,
+        "rasi_no": 10,
+        "zodiac": "Capricorn",
+        "house": 11,
+        "speed_radians_per_day": 1.7836934156379046e-8,
+        "retro": false,
+        "nakshatra": "Sravana",
+        "nakshatra_lord": "Moon",
+        "nakshatra_pada": 1,
+        "nakshatra_no": 22,
+        "zodiac_lord": "Saturn",
+        "is_planet_set": false,
+        "basic_avastha": "Kumara",
+        "lord_status": "Malefic",
+        "is_combust": false,
+        "shortName": "Me",
+        "sign": "Capricorn",
+        "degree": 11.385178950146269,
+        "retrograde": false
+      },
+      {
+        "name": "Jupiter",
+        "full_name": "Jupiter",
+        "local_degree": 12.7432803315059,
+        "global_degree": 222.7432803315059,
+        "progress_in_percentage": 42.477601105019666,
+        "rasi_no": 8,
+        "zodiac": "Scorpio",
+        "house": 9,
+        "speed_radians_per_day": 2.1958590534980285e-9,
+        "retro": false,
+        "nakshatra": "Anuradha",
+        "nakshatra_lord": "Saturn",
+        "nakshatra_pada": 3,
+        "nakshatra_no": 17,
+        "zodiac_lord": "Mars",
+        "is_planet_set": false,
+        "basic_avastha": "Yuva",
+        "lord_status": "Benefic",
+        "is_combust": false,
+        "shortName": "Ju",
+        "sign": "Scorpio",
+        "degree": 12.7432803315059,
+        "retrograde": false
+      },
+      {
+        "name": "Venus",
+        "full_name": "Venus",
+        "local_degree": 8.866866896978365,
+        "global_degree": 218.86686689697837,
+        "progress_in_percentage": 29.556222989927882,
+        "rasi_no": 8,
+        "zodiac": "Scorpio",
+        "house": 9,
+        "speed_radians_per_day": 1.153227880658418e-8,
+        "retro": false,
+        "nakshatra": "Anuradha",
+        "nakshatra_lord": "Saturn",
+        "nakshatra_pada": 2,
+        "nakshatra_no": 17,
+        "zodiac_lord": "Mars",
+        "is_planet_set": false,
+        "basic_avastha": "Kumara",
+        "lord_status": "Highly Malefic",
+        "is_combust": false,
+        "shortName": "Ve",
+        "sign": "Scorpio",
+        "degree": 8.866866896978365,
+        "retrograde": false
+      },
+      {
+        "name": "Saturn",
+        "full_name": "Saturn",
+        "local_degree": 15.015286051595922,
+        "global_degree": 315.0152860515959,
+        "progress_in_percentage": 50.05095350531974,
+        "rasi_no": 11,
+        "zodiac": "Aquarius",
+        "house": 12,
+        "speed_radians_per_day": 1.0898919753089665e-9,
+        "retro": false,
+        "nakshatra": "Shatabhisha",
+        "nakshatra_lord": "Rahu",
+        "nakshatra_pada": 3,
+        "nakshatra_no": 24,
+        "zodiac_lord": "Saturn",
+        "is_planet_set": false,
+        "basic_avastha": "Yuva",
+        "lord_status": "Highly Malefic",
+        "is_combust": false,
+        "shortName": "Sa",
+        "sign": "Aquarius",
+        "degree": 15.015286051595922,
+        "retrograde": false
+      },
+      {
+        "name": "Rahu",
+        "full_name": "Rahu",
+        "local_degree": 17.509668190078315,
+        "global_degree": 197.50966819007832,
+        "progress_in_percentage": 58.365560633594384,
+        "rasi_no": 7,
+        "zodiac": "Libra",
+        "house": 8,
+        "retro": true,
+        "nakshatra": "Svati",
+        "nakshatra_lord": "Rahu",
+        "nakshatra_pada": 4,
+        "nakshatra_no": 15,
+        "zodiac_lord": "Venus",
+        "is_planet_set": false,
+        "basic_avastha": "Yuva",
+        "lord_status": "Highly Malefic",
+        "is_combust": false,
+        "shortName": "Ra",
+        "sign": "Libra",
+        "degree": 17.509668190078315,
+        "retrograde": true
+      },
+      {
+        "name": "Ketu",
+        "full_name": "Ketu",
+        "local_degree": 17.509668190078305,
+        "global_degree": 17.509668190078305,
+        "progress_in_percentage": 58.36556063359435,
+        "rasi_no": 1,
+        "zodiac": "Aries",
+        "house": 2,
+        "retro": true,
+        "nakshatra": "Bharani",
+        "nakshatra_lord": "Venus",
+        "nakshatra_pada": 2,
+        "nakshatra_no": 2,
+        "zodiac_lord": "Mars",
+        "is_planet_set": false,
+        "basic_avastha": "Yuva",
+        "lord_status": "Highly Benefic",
+        "is_combust": false,
+        "shortName": "Ke",
+        "sign": "Aries",
+        "degree": 17.509668190078305,
+        "retrograde": true
+      }
+    ],
+    "yogas": {
+      "yogas_list": [
+        {
+          "yoga": "Vesi Yoga",
+          "meaning": "Vesi Yoga represents a balanced outlook, characterized by truthfulness and a tall yet somewhat sluggish nature. Those born under this yoga find contentment and happiness with modest wealth and resources.",
+          "strength_in_percentage": 100,
+          "planets_involved": [
+            "Sun",
+            "Moon"
+          ],
+          "houses_involved": [
+            10,
+            2
+          ]
+        },
+        {
+          "yoga": "Vosi Yoga",
+          "meaning": "Vosi Yoga indicates skillfulness, charity, fame, knowledge, and physical strength. Individuals born under this yoga tend to be recognized for their talents and are often celebrated for their generosity and wisdom.",
+          "strength_in_percentage": 100,
+          "planets_involved": [
+            "Sun",
+            "Moon"
+          ],
+          "houses_involved": [
+            10,
+            2
+          ]
+        },
+        {
+          "yoga": "Ubhayachara Yoga",
+          "meaning": "Ubhayachara Yoga suggests being born with all the comforts of life. Such individuals often rise to positions of authority, possibly becoming kings or holding prominent leadership roles due to their innate qualities.",
+          "strength_in_percentage": 100,
+          "planets_involved": [
+            "Sun",
+            "Moon"
+          ],
+          "houses_involved": [
+            10,
+            2
+          ]
+        },
+        {
+          "yoga": "Moon is panapara from Sun",
+          "meaning": "A Moon that is panapara from the Sun suggests an average level of wealth, intelligence, and skills for the individual.",
+          "strength_in_percentage": 100,
+          "planets_involved": [
+            "Sun",
+            "Moon"
+          ],
+          "houses_involved": [
+            10,
+            2
+          ]
+        },
+        {
+          "yoga": "Anaphaa Yoga",
+          "meaning": "Anaphaa Yoga suggests good status, a pleasing appearance, an excellent reputation, a life filled with comforts, and robust health. Those under this yoga tend to enjoy a prosperous and healthy life.",
+          "strength_in_percentage": 80,
+          "planets_involved": [
+            "Sun"
+          ],
+          "houses_involved": [
+            1
+          ]
+        },
+        {
+          "yoga": "Duradhara Yoga",
+          "meaning": "Duradhara Yoga indicates the presence of many pleasures, a charitable nature, the accumulation of wealth, ownership of vehicles, and the support of loyal subordinates. Those born under this yoga often lead a fulfilling and prosperous life.",
+          "strength_in_percentage": 60,
+          "planets_involved": [
+            "Ascendant"
+          ],
+          "houses_involved": [
+            1
+          ]
+        },
+        {
+          "yoga": "Daama Yoga",
+          "meaning": "Daama Yoga is associated with significant wealth and fame, the presence of many children, the ownership of numerous gems, and a strong inclination to assist others. It is also known as Daamini Yoga.",
+          "strength_in_percentage": 100,
+          "planets_involved": [
+            "Moon",
+            "Ketu",
+            "Mars",
+            "Rahu",
+            "Sun",
+            "Saturn"
+          ],
+          "houses_involved": [
+            10,
+            2,
+            6,
+            11,
+            9,
+            12
+          ]
+        },
+        {
+          "yoga": "Chaamara Yoga",
+          "meaning": "Chaamara Yoga signifies a leadership role, often being respected by other leaders and enjoying a long and scholarly life. These individuals are eloquent and well-learned in various arts and may hold positions of influence and power.",
+          "strength_in_percentage": 100,
+          "planets_involved": [
+            "Jupiter",
+            "Venus"
+          ],
+          "houses_involved": [
+            7,
+            8,
+            9
+          ]
+        },
+        {
+          "yoga": "Trilochana Yoga",
+          "meaning": "Trilochana Yoga signifies individuals who are wealthy, intelligent, and long-lived. They consistently emerge victorious over their adversaries, achieving their goals with an apparent lack of obstacles.",
+          "strengthInHouse": 90,
+          "planets_involved": [
+            "Sun",
+            "Moon",
+            "Mars"
+          ],
+          "houses_involved": [
+            10,
+            2,
+            6
+          ]
+        },
+        {
+          "yoga": "Vimala Yoga",
+          "meaning": "Vimala Yoga represents individuals who are noble, frugal, happy, and independent. They lead lives marked by simplicity, contentment, and self-sufficiency.",
+          "strength_in_percentage": 80,
+          "planets_involved": [
+            "Saturn"
+          ],
+          "houses_involved": [
+            12
+          ]
+        },
+        {
+          "yoga": "Raja Yoga",
+          "meaning": "32 raja Yogas present by house associations, Raja Yogas are associated with significant power and prosperity, often granting individuals leadership roles and material abundance.",
+          "strength_in_percentage": 3.125,
+          "planets_involved": [
+            "Venus",
+            "Saturn",
+            "Mars",
+            "Jupiter",
+            "Mercury",
+            "Sun",
+            "Moon"
+          ],
+          "houses_involved": [
+            1,
+            9,
+            10,
+            5,
+            4,
+            7
+          ]
+        },
+        {
+          "yoga": "Dharma-Karmadhipati Yoga",
+          "meaning": "Dharma-Karmadhipati Yoga signifies individuals who are sincere, devoted, and righteous. They are fortunate and highly praised for their moral and ethical virtues.",
+          "strength_in_percentage": 71.42857142857144,
+          "planets_involved": [
+            "Saturn"
+          ],
+          "houses_involved": [
+            10,
+            9
+          ]
+        },
+        {
+          "yoga": "Vipareeta Raaja Yoga",
+          "meaning": "Vipareeta Raaja Yoga represents individuals who achieve tremendous success, typically after overcoming initial struggles and obstacles. They have a knack for turning challenges into victories.",
+          "strength_in_percentage": 90,
+          "planets_involved": [
+            "Sun",
+            "Venus",
+            "Saturn",
+            "Saturn"
+          ],
+          "houses_involved": [
+            10,
+            9,
+            12,
+            12
+          ]
+        },
+        {
+          "yoga": "Raja Sambandha Yoga",
+          "meaning": "Individuals with Raja Sambandha Yoga often play important roles as subordinates or associates of great leaders or kings. They are valued and respected for their contributions.",
+          "strength_in_percentage": 100,
+          "planets_involved": [
+            "Jupiter",
+            "Venus"
+          ],
+          "houses_involved": [
+            9,
+            9
+          ]
+        },
+        {
+          "yoga": "Raja Sambandha Yoga",
+          "meaning": "Those with Raja Sambandha Yoga have a special association with kings or leaders, and they are genuinely liked and respected by these powerful figures. Their influence extends to the highest levels of leadership.",
+          "strength_in_percentage": 100,
+          "planets_involved": [
+            "Venus",
+            "Mars"
+          ],
+          "houses_involved": [
+            9,
+            6
+          ]
+        },
+        {
+          "yoga": "Dhana Yoga",
+          "meaning": "Individuals experience wealth during their mahadasha, which is sufficient to satisfy all their desires. It's a period of financial abundance.",
+          "strength_in_percentage": 80,
+          "planets_involved": [
+            "Mars"
+          ],
+          "houses_involved": [
+            6
+          ]
+        },
+        {
+          "yoga": "Daridra Yoga",
+          "meaning": "Individuals with Daridra Yoga may face financial challenges and live in poverty and misery.",
+          "strength_in_percentage": 100,
+          "planets_involved": [
+            "Moon"
+          ],
+          "houses_involved": [
+            2
+          ]
+        },
+        {
+          "yoga": "Daridra Yoga",
+          "meaning": "Individuals with Daridra Yoga may face financial challenges and live in poverty and misery.",
+          "strength_in_percentage": 90,
+          "planets_involved": [
+            "Jupiter",
+            "Sun",
+            "Ketu"
+          ],
+          "houses_involved": [
+            9,
+            10
+          ]
+        },
+        {
+          "yoga": "Daridra Yoga",
+          "meaning": "Individuals with Daridra Yoga may face financial challenges and live in poverty and misery.",
+          "strength_in_percentage": 90,
+          "planets_involved": [
+            "Sun",
+            "Venus",
+            "Saturn"
+          ],
+          "houses_involved": [
+            10,
+            9,
+            12
+          ]
+        }
+      ],
+      "yogas_count": 19,
+      "raja_yoga_count": 2,
+      "dhana_yoga_count": 1,
+      "daridra_yoga_count": 3
+    },
+    "shadbala": {
+      "uccha_bala": {
+        "Sun": 25.228893515262786,
+        "Moon": 53.21421224507943,
+        "Mars": 3.507261988342217,
+        "Mercury": 21.204940349951244,
+        "Jupiter": 17.4189065561647,
+        "Venus": 13.95562229899277,
+        "Saturn": 21.661571316134694,
+        "Rahu": 5.163443936640562,
+        "Ketu": 0.8301106033072377
+      },
+      "saptavargaja_bala": {
+        "Sun": 67.5,
+        "Moon": 60,
+        "Mars": 46.875,
+        "Mercury": 86.25,
+        "Jupiter": 67.5,
+        "Venus": 41.25,
+        "Saturn": 90,
+        "Rahu": 69.375,
+        "Ketu": 46.875
+      },
+      "ojayugma_bala": {
+        "Sun": 15,
+        "Moon": 15,
+        "Mars": 30,
+        "Mercury": 15,
+        "Jupiter": 15,
+        "Venus": 30,
+        "Saturn": 30,
+        "Rahu": 0,
+        "Ketu": 0
+      },
+      "kendra_bala": {
+        "Sun": 60,
+        "Moon": 30,
+        "Mars": 15,
+        "Mercury": 30,
+        "Jupiter": 15,
+        "Venus": 15,
+        "Saturn": 15,
+        "Rahu": 30,
+        "Ketu": 30
+      },
+      "drekkna_bala": {
+        "Sun": 0,
+        "Moon": 0,
+        "Mars": 15,
+        "Mercury": 15,
+        "Jupiter": 0,
+        "Venus": 0,
+        "Saturn": 15,
+        "Rahu": 0,
+        "Ketu": 0
+      },
+      "total_sthana_bala": {
+        "Sun": 167.72889351526277,
+        "Moon": 158.21421224507944,
+        "Mars": 125.38226198834222,
+        "Mercury": 167.45494034995124,
+        "Jupiter": 114.9189065561647,
+        "Venus": 100.20562229899278,
+        "Saturn": 186.6615713161347,
+        "Rahu": 104.53844393664056,
+        "Ketu": 77.70511060330725
+      },
+      "nathonnatha_bala": {
+        "Sun": 52.5,
+        "Moon": 7.5,
+        "Mars": 7.5,
+        "Mercury": 60,
+        "Jupiter": 52.5,
+        "Venus": 52.5,
+        "Saturn": 7.5,
+        "Rahu": 7.5,
+        "Ketu": 7.5
+      },
+      "dig_bala": {
+        "Sun": 56.43777315140388,
+        "Moon": 29.214212245079427,
+        "Mars": 7.840595321675551,
+        "Mercury": 28.795059650048756,
+        "Jupiter": 9.247760110501986,
+        "Venus": 12.044377701007212,
+        "Saturn": 9.994904649468026,
+        "Rahu": 59.16344393664056,
+        "Ketu": 39.16344393664057
+      },
+      "paksha_bala": {
+        "Sun": 25.200000000000003,
+        "Moon": 34.79999999999999,
+        "Mars": 25.200000000000003,
+        "Mercury": 25.200000000000003,
+        "Jupiter": 34.79999999999999,
+        "Venus": 34.79999999999999,
+        "Saturn": 25.200000000000003,
+        "Rahu": 25.200000000000003,
+        "Ketu": 25.200000000000003
+      },
+      "thribhaga_bala": {
+        "Sun": 60,
+        "Moon": 0,
+        "Mars": 0,
+        "Mercury": 0,
+        "Jupiter": 60,
+        "Venus": 0,
+        "Saturn": 0,
+        "Rahu": 0,
+        "Ketu": 0
+      },
+      "abda_bala": {
+        "Sun": 0,
+        "Moon": 0,
+        "Mars": 0,
+        "Mercury": 0,
+        "Jupiter": 15,
+        "Venus": 0,
+        "Saturn": 0,
+        "Rahu": 0,
+        "Ketu": 0
+      },
+      "masa_bala": {
+        "Sun": 0,
+        "Moon": 0,
+        "Mars": 30,
+        "Mercury": 0,
+        "Jupiter": 0,
+        "Venus": 0,
+        "Saturn": 0,
+        "Rahu": 0,
+        "Ketu": 0
+      },
+      "vara_bala": {
+        "Sun": 0,
+        "Moon": 0,
+        "Mars": 45,
+        "Mercury": 0,
+        "Jupiter": 0,
+        "Venus": 0,
+        "Saturn": 0,
+        "Rahu": 0,
+        "Ketu": 0
+      },
+      "hora_bala": {
+        "Sun": 0,
+        "Moon": 60,
+        "Mars": 0,
+        "Mercury": 0,
+        "Jupiter": 0,
+        "Venus": 0,
+        "Saturn": 0,
+        "Rahu": 0,
+        "Ketu": 0
+      },
+      "total_balas": {
+        "Sun": 427.01476813965434,
+        "Moon": 364.71217324480756,
+        "Mars": 343.36732508974825,
+        "Mercury": 420.5808444287324,
+        "Jupiter": 357.58198815730657,
+        "Venus": 288.22939950748696,
+        "Saturn": 252.50962653500093,
+        "Rahu": null,
+        "Ketu": null
+      },
+      "ayana_bala": {
+        "Sun": 3.432067648658477,
+        "Moon": 12.176317152431132,
+        "Mars": 43.91499531417891,
+        "Mercury": 54.49151703259272,
+        "Jupiter": 2.4795497483387776,
+        "Venus": 3.349615273960964,
+        "Saturn": 40.82300566168291,
+        "Rahu": 0,
+        "Ketu": 0
+      },
+      "chesta_Bala": {
+        "Sun": 1.7160338243292386,
+        "Moon": 34.79999999999999,
+        "Mars": 41.36947246555155,
+        "Mercury": 58.89932739613969,
+        "Jupiter": 41.34808494649115,
+        "Venus": 49.94664911703208,
+        "Saturn": 7.9678415586807505,
+        "Rahu": 0,
+        "Ketu": 0
+      },
+      "naisargeka_balas": {
+        "Sun": 60,
+        "Moon": 51.42,
+        "Mars": 17.16,
+        "Mercury": 25.74,
+        "Jupiter": 34.26,
+        "Venus": 42.84,
+        "Saturn": 8.58
+      },
+      "drik_bala": {
+        "Sun": 0,
+        "Moon": -23.412568397782508,
+        "Mars": 0,
+        "Mercury": 0,
+        "Jupiter": -6.972313204190094,
+        "Venus": -7.456864883506036,
+        "Saturn": -34.21769665096545,
+        "Rahu": 0,
+        "Ketu": -22.500000000000007
+      },
+      "ratio": {
+        "Sun": 1.0949096618965495,
+        "Moon": 1.0130893701244654,
+        "Mars": 1.1445577502991608,
+        "Mercury": 1.0013829629255533,
+        "Jupiter": 0.9168768927110424,
+        "Venus": 0.8734224227499605,
+        "Saturn": 0.8416987551166698,
+        "Rahu": null,
+        "Ketu": null
+      }
+    },
+    "ashtakavarga": {
+      "ashtakvarga_order": [
+        "Sun",
+        "Moon",
+        "Mars",
+        "Mercury",
+        "Jupiter",
+        "Venus",
+        "Saturn",
+        "Ascendant"
+      ],
+      "ashtakvarga_points": [
+        [
+          3,
+          5,
+          5,
+          2,
+          4,
+          6,
+          4,
+          3,
+          4,
+          3,
+          4,
+          5
+        ],
+        [
+          4,
+          6,
+          5,
+          4,
+          4,
+          5,
+          5,
+          2,
+          3,
+          5,
+          4,
+          2
+        ],
+        [
+          3,
+          5,
+          4,
+          0,
+          4,
+          6,
+          4,
+          3,
+          2,
+          1,
+          4,
+          3
+        ],
+        [
+          4,
+          5,
+          5,
+          2,
+          4,
+          6,
+          5,
+          6,
+          4,
+          4,
+          4,
+          5
+        ],
+        [
+          4,
+          4,
+          6,
+          4,
+          6,
+          6,
+          3,
+          4,
+          5,
+          5,
+          5,
+          4
+        ],
+        [
+          4,
+          4,
+          7,
+          6,
+          3,
+          4,
+          4,
+          6,
+          4,
+          3,
+          2,
+          5
+        ],
+        [
+          3,
+          2,
+          6,
+          3,
+          2,
+          5,
+          5,
+          1,
+          5,
+          3,
+          1,
+          3
+        ],
+        [
+          3,
+          5,
+          5,
+          3,
+          4,
+          3,
+          3,
+          5,
+          4,
+          5,
+          6,
+          4
+        ]
+      ],
+      "ashtakvarga_total": [
+        25,
+        31,
+        38,
+        21,
+        27,
+        38,
+        30,
+        25,
+        27,
+        24,
+        24,
+        27
+      ]
+    },
+    "dasha": {
+      "timeline": [
+        {
+          "lord": "Ketu",
+          "level": "Mahadasha",
+          "start": "Sat May 21 1988",
+          "end": "Mon May 22 1995"
+        },
+        {
+          "lord": "Venus",
+          "level": "Mahadasha",
+          "start": "Mon May 22 1995",
+          "end": "Fri May 22 2015"
+        },
+        {
+          "lord": "Sun",
+          "level": "Mahadasha",
+          "start": "Fri May 22 2015",
+          "end": "Fri May 21 2021"
+        },
+        {
+          "lord": "Moon",
+          "level": "Mahadasha",
+          "start": "Fri May 21 2021",
+          "end": "Thu May 22 2031"
+        },
+        {
+          "lord": "Mars",
+          "level": "Mahadasha",
+          "start": "Thu May 22 2031",
+          "end": "Fri May 21 2038"
+        },
+        {
+          "lord": "Rahu",
+          "level": "Mahadasha",
+          "start": "Fri May 21 2038",
+          "end": "Sun May 21 2056"
+        },
+        {
+          "lord": "Jupiter",
+          "level": "Mahadasha",
+          "start": "Sun May 21 2056",
+          "end": "Sat May 21 2072"
+        },
+        {
+          "lord": "Saturn",
+          "level": "Mahadasha",
+          "start": "Sat May 21 2072",
+          "end": "Mon May 21 2091"
+        },
+        {
+          "lord": "Mercury",
+          "level": "Mahadasha",
+          "start": "Mon May 21 2091",
+          "end": "Mon May 21 2108"
+        }
+      ],
+      "mahaDasha": {
+        "mahadasha": [
+          "Ketu",
+          "Venus",
+          "Sun",
+          "Moon",
+          "Mars",
+          "Rahu",
+          "Jupiter",
+          "Saturn",
+          "Mercury"
+        ],
+        "mahadasha_order": [
+          "Mon May 22 1995",
+          "Fri May 22 2015",
+          "Fri May 21 2021",
+          "Thu May 22 2031",
+          "Fri May 21 2038",
+          "Sun May 21 2056",
+          "Sat May 21 2072",
+          "Mon May 21 2091",
+          "Mon May 21 2108"
+        ],
+        "start_year": 1988,
+        "dasha_start_date": "Sat May 21 1988",
+        "dasha_remaining_at_birth": "0 years 4 months 12 days 10 hours 37 minutes 17 seconds"
+      },
+      "mahaDashaPrediction": {
+        "dashas": [
+          {
+            "prediction": "If Ketu in positioned in 3rd house at the time of birth and is favorable, the person becomes active and valorous. Ketu here makes the native a courageous person. The physical constitution of such natives is likely to be strong and sturdy. It also gives a spiritual bent of mind. The person takes part in religious and virtuous activities and can also attain name and fame in these areas. Moreover, there is also a possibility of sudden money with this position. Predictably, Ketu in house 2 and Aries will bring positive transition in your health, wealth, and communications. Aries is driven and dynamic, aligning well with Ketu's spiritual growth. Expect to see improvements in your physical strength, energy, and appearance. Speaking will be your strong trait, you may find a new richness in communication, making you increasingly persuasive. Seminars or any events requiring dialogue will seem less intimidating. Wealth gains are also possible. Ketu could trigger unexpected profits and raise your financial status. The Aries influence will enhance enterprising capabilities, guiding you in smart investments and assets growth. Family relationships may deepen – past problems can be resolved with spiritual guidance from Ketu.",
+            "dasha": "Ketu",
+            "dasha_end_year": "Mon May 22 1995",
+            "dasha_start_year": "Mon May 22 1988",
+            "planet_in_zodiac": "Aries is a sign ruled by Mars, which shares a good rapport with Ketu as per Vedic Astrology principles. Ketu in fact, is said to give results like Mars.  Ketu is Dragon’s tail. It is considered to be headless in Hindu mythology. People born with Ketu in Aries are not mindful of their actions and speech. Aries is fire ruled by a fiery masculine planet and Ketu further adds mindlessness to the native so the person often speaks unnecessarily & without thinking. Those born with Ketu in Aries are usually cheerful, talkative and are articulate in many languages. However, they can be moody at times. Their disposition is unpredictable and instable. There is a tendency to seek change and move from one place to another. These natives believe in leading a simple life. There is a strong need for calm and quiet in life. They always look for peaceful ways to get things done. These people do not like to be in the limelight. They rather like to work from behind the curtains. They put in a lot of efforts into anything they do. They remain doubtful and apprehensive in their relationships however. "
+          },
+          {
+            "prediction": " Since the 3rd lord, Venus, is in the 9th house of Scorpio, You will love to travel to far distant places and will love to meet new people of different cultures. You will also be inclined towards higher studies and different philosophies. You will have an interest in the occult. Your partner may even be of a different culture. In your Venus mahadasha, you're likely to experience an abundance of love, beauty, and harmony, particularly in terms of father, foreign travel, spirituality, and leadership-all characteristics linked with the 9th house. Expanding your knowledge, the air will be filled with philosophy and optimism. You'll encounter many opportunities in career, particularly in fields of science, finance, medicine, law, occult, and psychology inherent in Scorpio. Luxury and pleasure will accompany materialistic gains. Relationships, particularly of a romantic nature, will blossom. Travel experiences will be enriching and spiritually satisfying. Venus' influence will introduce harmonious family times.",
+            "dasha": "Venus",
+            "dasha_end_year": "Fri May 22 2015",
+            "dasha_start_year": "Mon May 22 1995",
+            "planet_in_zodiac": "Scorpio is a fixed water sign ruled by Mars, which shares a neutral relationship with Venus. Venus is the planet of love and Scorpio is associated with passion and sensuality. When Venus is placed in Scorpio, it gives the native a heightened desire for sex, romance, sensuality, and love. Such people are quite assertive when it comes to the fulfillment of their desires. Mars also gives them aggression in love matters. These natives have the capability of eternal love and loyalty but if they are wronged, they sting like a Scorpion and develop feelings of revenge towards the betrayer. People born with Venus in Scorpio are very determined and straightforward. They are quite clear about what they want from life. In love matters however, they tend to be quite secretive about what they feel. They are romantic nonetheless, and can be seriously possessive and jealous at times. There is no fooling around with those having Venus in Scorpio. They want serious commitment. These natives can be quite dominating and demanding in nature. There is also a tendency to start arguments. They are proud of themselves. However, their relationship with brothers often sours. Venus in Scorpio also makes the person crafty and creative. This position also poses the person at risk of a venereal disease. "
+          },
+          {
+            "prediction": " Since the 6th lord, Sun, is in the 10th house of Sagittarius, You or father shall be working in the government. You will be related to the field of law and order or in the administration. You are a person of higher learning and wisdom and will be a person of authority. Your Sun Mahadasha in the 10th house as Sagittarius indicates a vibrant period in your career. Sun's vitality boosts leadership qualities, propelling you towards career growth and fame. Your inherent dynamism will be well-complimented, leading to great honours and self-respect. You'll be recognized for your enterprising action and valiant decisions. As a visionary, you may even enter government offices or take on activist roles. Sun's energy in your career house points to a prosperous period full of accomplishment. Your wealth will significantly increase, and there will be harmony in your family. Your marriage will be strengthened, and you'll enjoy good relationships with everyone.",
+            "dasha": "Sun",
+            "dasha_end_year": "Fri May 21 2021",
+            "dasha_start_year": "Fri May 22 2015",
+            "planet_in_zodiac": "Sagittarius is a dual fire sign ruled by Jupiter, which shares a friendly relationship with Sun. The person having Sun in Sagittarius is a god fearing and peace-loving soul, endowed with the art of eloquence in speech. Such a native is likely to be a learned individual, an honorable and compassionate person with a lot of wisdom and intelligence. Sun in this position also gives a never-dying hunger for knowledge. These people do well in fields such as law, administration and banking. People with Sun in Sagittarius are trustworthy and justice-loving people. They are honest and straightforward, do not sugarcoat and talk to the point. These natives understand the difference between living and existing. They are freedom-loving individuals with a love for the outdoors. Often times, these natives are fond of a sport or two. These natives earn a lot of wealth in life, and live like a king. Their physique also contributes to the royal radiance that their personality has. They are of a broad stature and a beautiful body. They also tend to be famous among their social sphere.  They are of a supportive nature, like to lend a helping hand to their relatives and friends. After marriage, natives with Sun in Sagittarius tend to have sons."
+          },
+          {
+            "prediction": " Since the 5th lord, Moon, is in the 2nd house of Aries, You will have an emotional connection with your children and family, However, you shall be strict with your children. Your mother will be the dominant force in the family. During this Moon Mahadasha, your house number 2 illustrates wealth, assets, family, and speech falling under Aries, indicating dynamic and enterprising qualities. This cycle brings prosperity and growth in wealth from various sources. Your communication skills are sharp, supportive in both career advancement and relationship harmony. An enthusiastic sense of family bonding pervades your life. You are perceived as an emotional yet commanding figure in the family, driving family unity and strength. The pleasure of good food and luxury could be part of your life during this period. Your eye health, contributing to the radiance in your physical appearance, could significantly improve.",
+            "dasha": "Moon",
+            "dasha_end_year": "Thu May 22 2031",
+            "dasha_start_year": "Fri May 21 2021",
+            "planet_in_zodiac": "The lord of Aries is Mars, a fiery masculine planet that is friendly towards Moon, which in turn is a watery feminine planet. This conflict of energies engenders a native who is aggressive but resolute and honest. There is no mystery in the nature of the Moon in Aries people. You are what you look like. Your subconscious manifests itself in your temperament and reactions. You tend to trust your instincts and sensory perceptions and make quick decisions & act without forethought. You have a higher than average sense of self-respect. This gives you a kind of restlessness and recklessness in life.  You are a self-motivated person, with a lot of new ideas to toil with. You have a very active mind, and there is a sense of joy about how you live and carry yourself, which others find very attractive.  You tend to stay away from emotional involvement and are a freedom-loving soul. Moon in Aries makes you Financially sound, you have a prosperous life in general."
+          },
+          {
+            "prediction": " Since the 2nd lord, Mars, is in the 6th house of Leo, You’ll fight for the underprivileged and seek justice through your strong communication and advocacy. You may become a lawyer, human rights activist, or even a motivational speaker, working to bring balance and fairness. Your Mars-6-Leo mahadasha embarks on a period of strong determination and aggression. Your valor will be lauded, leading to potential promotion in areas of law, sports or security. You may witness victory over enemies and diseases. This period will be flourishing for jobs related to agriculture, healthcare, or healing. You'll likely excel in your job and overcome conflicts. Mars energy will enhance your leadership skills, making you a dominant figure in professional and family life. Agreeable marriage situations and elevated sexual passion may enhance your love life. Travel related to career growth may be prominent. Higher chances of success in property disputes or inheritance matters.",
+            "dasha": "Mars",
+            "dasha_end_year": "Fri May 21 2038",
+            "dasha_start_year": "Thu May 22 2031",
+            "planet_in_zodiac": "The lord of Leo is Sun, which is friend with Mars. Both Mars and Sun are masculine fiery planets.  This is a positive placement because the person gets the abilities from Mars and the confidence to shine out from the Sun. People born with Mars in Leo are quite helpful and generous in nature. They are clever and intelligent and know how to use their abilities wisely. These native tend to have many a tricks up their sleeves. This position of Mars also gives a fondness for travel, and love for hilly places and forests. Penchant for poetry and fine arts is also possible with Mars in Leo. Mars here also gives a great capacity to learn. Their physical energy is boundless and their creativity outshines. These people also have a strong willpower and confidence. Leadership quality is ingrained in their personality. While they can be demonstrative physically, they are quite affectionate beings from inside. These people are always in an excited mood and keep the aura of a room filled with exuberance. Mars in Leo people take proud in their sexual abilities. Excess of passion and pride can also bring them defame and troubles though. "
+          },
+          {
+            "prediction": "Here, Rahu gives a lust to be recognized as a pioneer in the field of philosophy and religion. Such a person likes to be called a religious scholar, philosopher, priest, professor of higher education, temple manager, ritualist and so on.  Their belief and values are unconventional, nonetheless inspiring. They essentially want to become the Gurus in a sacred field.  Many indulge in grand religious movements on a ‘global’ level and become an important figure too. However, the wisdom they gain is superficial in nature. Often, they misuse their religious knowledge to gain privileges in life. However, Rahu's placement in the 8th house of Libra Rasi could also bring some challenges. Rahu's trait of introducing sudden changes paired with 8th house significations like diseases and debts, could lead to unexpected health issues or financial troubles. You may witness losses related to business and partnerships, disrupting your wealth accumulation. Your fascination with secrets might put you in difficult situations, so caution should be exercised. Relationships may face turbulence owing to miscommunication or hidden secrets coming to light. Achieving balance during these trials will call for patience and tact.",
+            "dasha": "Rahu",
+            "dasha_end_year": "Sun May 21 2056",
+            "dasha_start_year": "Fri May 21 2038",
+            "planet_in_zodiac": "Rahu is the master of manipulation, tact, secrecy and illusion. Libra is a sign that represents balance. Libra is ruled by Venus, which shares an average relationship with Rahu. Both Venus and Rahu are airy planets. Due to placement in friendly sign, Rahu here increases one’s desire for balance. Rahu makes the native skillful in manipulation while still maintaining a balance in life. Rahu in Libra gives the native detachment from elders of the family. Such a person tends to experience problems in life, especially in relationships. Loss of land and property is possible too with this position of Rahu. While Rahu in Libra makes the person tactful, it is not good for love and married life. Such a person tends to be dominating and destructive in love. Lack of trust and loyalty persists in their relationships. Such people suffer from a sense of dissatisfaction in their love life. Moreover, they are also prone to moral depravity."
+          },
+          {
+            "prediction": " Since the 1st lord, Jupiter, is in the 9th house of Scorpio, Teaching, guiding, and inspiring others come naturally to you. You may become a respected figure in society, with interests spanning philosophy, religion, and even occult studies. Transformative experiences could redefine your spiritual path. Your Jupiter Mahadasha in the 9th house of Scorpio promises fruitful outcomes. Your higher knowledge, philosophical wisdom courtesy of Jupiter, and spirituality from the 9th house may lead you to enlightening foreign trips. Your teaching or leadership abilities may florish resulting in a successful career. Your curiosity in the occult or secretive growth areas may provide breakthroughs, especially in science, medicine, or law. You may gain fortune through inheritance and friendships. You might become a source of inspiration through your tactfulness and sharp insight. Strong paternal bonds and opportunities in activism might bring happiness.",
+            "dasha": "Jupiter",
+            "dasha_end_year": "Sat May 21 2072",
+            "dasha_start_year": "Sun May 21 2056",
+            "planet_in_zodiac": "Scorpio is a fixed water sign, governed by Mars, a fiery planet, which is friendly to Jupiter that also considers Mars as a friend. Jupiter is the only planet to have ether as its element, also called Akaash, meaning ‘space’ in Vedic Astrology. This amalgamation of elements creates a balanced personality. Scorpio is known to be a vindictive sign, which is a false and harsh allegation but it’s true that Scorpio do not forget betrayal. Natives with Jupiter in Scorpio conduct their affairs in quite a serious and secretive way. They are quite passionate and determined, if they want something, they leave no stone unturned to get it. They can also be diplomatic in their ways. There is also a streak of jealousy in their behavior. They are quite proud of themselves. They can also be selfish at times, which should be avoided. Their manner however is still poised and elegant so much so that you don’t understand when they wrong you. These natives have a strong intellect and also a flair of business. They do well in areas that require deep research. They also excel in finance and entrepreneurship. Their knowledge of spirituality is exceptional, but they are quite secretive about it. Others never find out how much they know. "
+          },
+          {
+            "prediction": " Since the 11th lord, Saturn, is in the 12th house of Aquarius, Access to foreign lands shall come very late in life. You will have to struggle a lot in earning money as nothing shall be easy for you. Even if you reach foreign lands return shall be extremely hard. You shall be a miser as you shall have a dearth of money in your childhood. You may be working for the law or in the corporate sector. The placement of Saturn in the 12th house could lead to some setbacks. It may involve losses or expenditures at a higher level. There may be periods of isolation or seclusion, leading to feelings of loneliness or estrangement from friends and family. Saturn's realm of responsibility might become burdensome, leading to stress and potential health issues, particularly related to ankles and feet. Unexpected major changes in your career or setbacks in your ambitions may occur. Your desire for larger communities could put too much pressure on yourself, leading to burnout. In relationships and marriage, there might be misunderstandings and absence of communication leading to conflicts. Be wary of secret enemies during this period.",
+            "dasha": "Saturn",
+            "dasha_end_year": "Mon May 21 2091",
+            "dasha_start_year": "Sat May 21 2072",
+            "planet_in_zodiac": "Saturn also rules Aquarius so when it is placed in its own sign, the results are mostly positive. The mascot of Aquarius is a water bearer with a vessel. People born with Saturn in Aquarius are quite like a vessel. Just as it accommodates water, these natives accommodate a lot of emotions and secrets too.  They are quite flexible and justice loving. They are compassionate too, and love to serve others. They have a good judgment of right and wrong. They also have a strong desire to lead. In fact, they tend to show the right path to others. Their social circle is quite varied and huge. Saturn in Aquarius gives a strong power of concentration. These natives are democratic and believe in equality. Their approach in life is backed by practicality. They work hard, often towards betterment of themselves as well as others. They are impartial and observe both sides of the argument to reach a rational decision. These people are responsible beings and make a wonderful & loyal friend too. They are quite philosophical and intellectual. However, they are susceptible to self-pride, which makes them a social loner. Moreover, addiction to wine and women may also be present in these natives. "
+          },
+          {
+            "prediction": " Since the 4th lord, Mercury, is in the 11th house of Capricorn, You will have good gains from your mother. Your communicative skills shall also be great. You may be in business fields related to real estate or construction. You will be a motivating person. In the challenging phase of Mercury-Capricorn Mahadasha in the 11th house, you might experience a disparity between your prudent nature and the erratic income flow. This could lead to financial instability. Your cautious approach may hamper business growth. An overdependence on intellect and communication might cause strain in relationships. Furthermore, your perfectionist nature could be bothersome to the elder siblings causing a rift. Incurring unnecessary expenditure might also be a part of this phase. Be prepared to face some tough lessons during this dasha cycle. An unfavorable Saturn could cause anxieties and losses, impacting your health.",
+            "dasha": "Mercury",
+            "dasha_end_year": "Mon May 21 2108",
+            "dasha_start_year": "Mon May 21 2091",
+            "planet_in_zodiac": "Capricorn is a movable earth sign, having Saturn as its lord. While Saturn and Mercury share a friendly relationship, this placement brings some obstacles due to Saturn’s omnipresence in the background. People having Mercury in Capricorn are methodical and cautious in their ways. These natives think carefully before taking a step. Both Mercury and Capricorn have earth as their element so the native having Mercury in Capricorn is quite realistic and grounded, and doesn’t build castles in the air. They have better-than-average business acumen and their organization ability is also at par with excellence. This naturally gives them an edge in their career. The negative influence of this placement makes the person harsh, deceptive, clever, and reserved in nature. These natives do not like to communicate much and keep their emotions hidden. They often spend their life serving others than starting something of their own. Their attitude is quite stubborn and narrow-minded, which doesn’t come off as likable to others. While they are quite intelligent, they do not use their aptitude constructively. They are also vulnerable to addictions and intoxication. "
+          }
+        ],
+        "translated_mahadasha": "Mahadasha"
+      },
+      "current": {
+        "dashaStartDate": "Sat May 21 1988",
+        "remainingAtBirth": "0 years 4 months 12 days 10 hours 37 minutes 17 seconds"
+      }
+    },
+    "panchang": {
+      "day": {
+        "name": "Tuesday"
+      },
+      "tithi": {
+        "name": "Navami",
+        "number": 9,
+        "next_tithi": "Dasami",
+        "type": "Shukla",
+        "diety": "Rama",
+        "start": "Mon Jan 09 1995 9:54:05 AM",
+        "end": "Tue Jan 10 1995 12:21:57 PM",
+        "meaning": "Ninth day after Amavasya (new moon) or Purnima (full moon).",
+        "special": "Good for work related to agriculture and nature."
+      },
+      "nakshatra": {
+        "pada": 4,
+        "name": "Ashvini",
+        "number": 1,
+        "lord": "Ketu",
+        "diety": "Ashvin Devta",
+        "start": "Mon Jan 09 1995 8:35:25 AM",
+        "next_nakshatra": "Bharani",
+        "end": "Tue Jan 10 1995 11:27:44 AM",
+        "auspicious_disha": [
+          "North",
+          "East"
+        ],
+        "meaning": "Horse's head. Signifies new beginnings and is associated with healing and rejuvenation.",
+        "special": "Good for starting new projects and beginnings.",
+        "summary": "This nakshatra is of a mixed quality. Good for immediate actions, competition, work with metals. It is suitable to perform the routine activities, day-to-day duties, but it is not recommended to start new important deeds. Consult an astrologer for more information"
+      },
+      "karana": {
+        "name": "Kaulava",
+        "number": 3,
+        "type": "Benefic",
+        "lord": "Mangala",
+        "diety": "Mitra",
+        "start": "Mon Jan 09 1995 11:05:02 PM",
+        "end": "Tue Jan 10 1995 12:21:59 PM",
+        "special": "Time to declare marriage, propose and date, good time for women to start new work",
+        "next_karana": "Taitula"
+      },
+      "yoga": {
+        "name": "Siddha",
+        "number": 21,
+        "start": "Mon Jan 09 1995 12:23:01 PM",
+        "end": "Tue Jan 10 1995 1:10:17 PM",
+        "next_yoga": "Sadhya",
+        "meaning": "Perfected. Associated with perfection, completion, and mastery.",
+        "special": "Good for activities that involve perfection and mastery."
+      },
+      "ayanamsa": {
+        "name": "23 47'30\"",
+        "number": 23.791673060286698
+      },
+      "rasi": {
+        "name": "Aries"
+      },
+      "sun_position": {
+        "zodiac": "Sagittarius",
+        "nakshatra": "PurvaShadha",
+        "rasi_no": 9,
+        "nakshatra_no": 19,
+        "sun_degree_at_rise": 265.6999631736196
+      },
+      "moon_position": {
+        "moon_degree": 12.859011461246851
+      },
+      "advanced_details": {
+        "sun_rise": "6:38:28 AM",
+        "sun_set": "5:17:17 PM",
+        "moon_rise": "12:21:00 PM",
+        "moon_set": "1:47:05 AM",
+        "next_full_moon": "Mon Jan 16 1995",
+        "next_new_moon": "Mon Jan 30 1995",
+        "masa": {
+          "amanta_number": 10,
+          "amanta_date": 9,
+          "amanta_name": "Pausa",
+          "alternate_amanta_name": "Thai",
+          "amanta_start": "Sun Jan 01 1995",
+          "amanta_end": "Mon Jan 30 1995",
+          "adhik_maasa": false,
+          "ayana": "Dakshinayana",
+          "real_ayana": "Uttrayana",
+          "tamil_month_num": 9,
+          "tamil_month": "margazhi",
+          "tamil_day": 26,
+          "purnimanta_date": 24,
+          "purnimanta_number": 10,
+          "purnimanta_name": "Pausa",
+          "alternate_purnimanta_name": "Thai",
+          "purnimanta_start": "Sun Dec 18 1994",
+          "purnimanta_end": "Mon Jan 16 1995",
+          "moon_phase": "105/360",
+          "paksha": "Shukla Paksha",
+          "ritu": "Shishir",
+          "ritu_tamil": "Pinpani"
+        },
+        "moon_yogini_nivas": "East",
+        "ahargana": 1861262.2767230002,
+        "years": {
+          "kali": 5095,
+          "saka": 1916,
+          "vikram_samvaat": 2051,
+          "kali_samvaat_number": 9,
+          "kali_samvaat_name": "Yuva",
+          "vikram_samvaat_number": 21,
+          "vikram_samvaat_name": "Sarvajeeth",
+          "saka_samvaat_number": 8,
+          "saka_samvaat_name": "Bhava"
+        },
+        "vaara": "Mangal vaara",
+        "disha_shool": "North",
+        "abhijit_muhurta": {
+          "start": "11:33:53 AM",
+          "end": "12:21:53 PM"
+        }
+      },
+      "rahukaal": "02:36 PM to 03:56 PM",
+      "gulika": "11:57 AM to 01:17 PM",
+      "yamakanta": "09:17 AM to 10:37 AM",
+      "date": "Tue Jan 10 1995"
+    },
+    "dosha": {
+      "mangal": {
+        "factors": {
+          "mars": "Mangal dosh is created by, mars in house 6, aspecting the houses 9, 12 and 1",
+          "venus": "mars-venus association/aspect, mars in house 6 and venus in 9 ",
+          "saturn": "Mangal dosh along with mars-saturn association/aspect, mars in house 6 and saturn in house 12 "
+        },
+        "is_dosha_present_mars_from_lagna": false,
+        "is_dosha_present_mars_from_moon": false,
+        "is_dosha_present": true,
+        "is_anshik": false,
+        "bot_response": "You are 56% manglik, It is good to consult an astrologer",
+        "score": 56,
+        "cancellation": {
+          "cancellationScore": 0.25,
+          "cancellationReason": [
+            "Mars is in it's own or friendly sign of Leo"
+          ]
+        }
+      },
+      "manglik": {
+        "manglik_by_mars": true,
+        "factors": [
+          "Manglik dosha is created by Mars in the 6th house in Lagna chart, Mars-Venus association, and Mars-Saturn association.",
+          "manglik dosha is created by rahu-ketu in 8-2 axis."
+        ],
+        "bot_response": "You are 53% manglik. ",
+        "manglik_by_saturn": false,
+        "manglik_by_rahuketu": true,
+        "aspects": [
+          "Rahu in the 8th is aspecting the 12th and 4th",
+          "Ketu in the 2nd is aspecting the 8th",
+          "Mars in the 6th is aspecting the 12th and 1st"
+        ],
+        "score": 53
+      },
+      "kaalSarp": {
+        "is_dosha_present": false,
+        "bot_response": "Even if all planets are on either side of Rahu and Ketu , You may have slight influence of kaalsarp dosh as all planets (considering retrograde) are moving towards Rahu",
+        "remedies": [
+          "Kaal Sarpa Dosh Nivaran Puja is recommended. A person having Kaal Sarpa Yoga in his/her kundli should worship Lord Shiva regularly and for better results, one can also chant the Moola Mantra of Lord Shiva. “Om Namah Shivaya”(ॐ नमः शिवाय). This mantra acts as a Kaal Sarpa Dosha Nivaran mantra. The students who are affected by the malefic effects of Kaal Sarpa Yoga should chant the Moola Mantra of Goddess Sarasvati. Chanting the Moola mantra will enhance the concentration power of the students and as a result, they will be able to perform better. ‘Om SaraswatiMayaa Drishtwa, VeenaPustak Dharnim| HansVahini Samayuktaa MaaVidya DaanKarotu Me Om’",
+          "Kaal Sarpa Dosh Nivaran Puja is recommended. In an auspicious Muhurat, offer three pieces of coal in flowing water, one at a time. It is one of the best Kaal Sarpa Dosh remedies. This will nullify the effect of Kaal Sarpa Dosh from the native’s horoscope and he/she would be able to lead a more peaceful and happy life.Chanting Hanuman Chalisa 108 times regularly is highly beneficial for the natives who are suffering from Kaal Sarpa Yoga. The people who are affected by this yoga can also visit Lord Hanuman’s Mandir and can apply a Tilak of Sindhoor from the idol of Lord Hanuman.",
+          "Kaal Sarpa Dosh Nivaran Puja is recommended. Chanting Maha Mrityunjaya Mantra 108 times on a Rudraksha Rosary will help the native in getting rid of the Kaal Sarpa Yoga.'Om Tayambakam Yajamahe Sugandhim Pustivardhanam. Urvarukamiva Bandhanan Mrtyor Muksiya Mamratat’.",
+          "Keeping a peacock’s feather in the home will reduce the effects of Kaal Sarpa Yoga. Children can also keep it in their books for enhancing their concentration level.",
+          "On every Saturday, worshipping Lord Shani and chanting the Moola Mantra of Lord Shani will reduce the effects of Kaal Sarpa Yoga. People can also offer sesame and black gram to Lord Shani.‘Om Shani Charaya Namaha’",
+          "Kaal Sarpa Dosh Nivaran Puja is recommended. Place the Kaal Sarpa Yoga Yantra in your home in an auspicious Mahurat to get rid of the Kaal sarpa Yoga. You can also chant this Moola mantra for energizing the yantra. “Bramha Muri Tripurantkari Bhanuh Shashih BhumiSuto Budhashch”",
+          "Do pooja on Naag Panchami and after the pooja, make sure that the snake charmer frees the snake in an open ground. ",
+          "General Shiva Pooja. Even a general Shiva Pooja where one would chant a certain Stotra of Lord Shiva will also reduce the impact of Kaal Sarpaa Dosha. This will please Lord Shiva who can remove all the problems from a natives life. This canting of the mantras in the pooja should be done religiously and with an outbreak.",
+          "Do Kaal Sarpa Dosh Nivaran Puja. On every Monday, on the same place and time, offer a handful of wheat, shrivel and a coin of 1, 2, 5, or 10. Chant the name of Lord Rama while offering all these things. Make sure that you take the same value of the coin on every Monday. Perform this cycle of activities for 21 Mondays and get rid of this Yoga."
+        ]
+      },
+      "pitra": {
+        "is_dosha_present": true,
+        "bot_response": "Pitra dosha happens when Saturn / Rahu is conjunct or aspects sun or moon.  This occurs in your horoscope and thus this dosha is present in your birth chart.",
+        "effects": [
+          "Children can face mental and physical disabilities. Either later or from the day of the birth.",
+          "Un-favorable environment and arguments on small things with life-partner.",
+          "Sometimes one is not able to marry at the correct time. Delay in marriage.",
+          "The person face financial and physical problems due to continuous sickness.",
+          "The person is having Pitra Dosh, if he is not able to achieve success in any work he starts.",
+          "Continuous scarcity and financial problems.",
+          "If the person or any other family member see dreams related to snakes hint towards this dosha.",
+          "One can have a dream of ancestors asking you for food or clothes."
+        ],
+        "remedies": [
+          "Offer water to Banyan tree regularly.",
+          "Keep fasts to reduce the effects of Dosha.",
+          "Organize Pooja or Mantra Jap to nullify the effects of past sinful activities done by ancestors.",
+          "Give food to Brahmins on every Amavasya.",
+          "Donate food, blankets, bedding and clothes on the day of Ardh-Kumbha-Snaan.",
+          "Give food and milk to cows, street dogs, crows and ants.",
+          "Complete Trapandi Shraad.",
+          "Give help to poor, needy and old people as much as possible.",
+          "Chant the mantras of Devi Kaalika Stotram. Especially on Navratri.",
+          "Do Snaan at various religious places like, Ujjain, Nasik, Ganga Sagar, Haridwar, etc.",
+          "Offer water mixed with sesame seeds to the rising Sun regularly and chant Gayatri Mantra."
+        ]
+      },
+      "papaSamaya": {
+        "rahu_papa": 8.75,
+        "sun_papa": 1.5,
+        "saturn_papa": 1.3125,
+        "mars_papa": 0
+      }
+    },
+    "extended": {
+      "gemSuggestion": {
+        "name": "Cat's Eye",
+        "gem": "cat_eye",
+        "other_name": "Lehsunia",
+        "planet": "Ketu",
+        "description": "It is an aluminate of beryllium - a mixture of aluminum and beryllium - having traces of oxide of iron and chromium, which serve as coloring agents and give it brownish and greenish tinges. It has a chatoyant glowing from inside like the eye of a cat and having white fibers. The brighter the fiber, the higher is the quality of the gem. Cat's-eye has a silky streak of light that moves with the turning of the stone like a gleam in a straight line across the stone.",
+        "good_results": [
+          "Wisdom",
+          "Spirituality",
+          "Progeny",
+          "Wealth",
+          "Escape from danger"
+        ],
+        "diseases_cure": [
+          "Mental disability",
+          "Lung diseases",
+          "Internal wounds",
+          "Undiagnosable illnesses"
+        ],
+        "finger": "Middle finger",
+        "weight": "4 to 7 carats",
+        "day": "Wednesday",
+        "metal": "Silver/Gold",
+        "substitute": [
+          "Sangi",
+          "Gondat"
+        ],
+        "not_to_wear_with": [
+          "Gomed",
+          "Pearl",
+          "Ruby"
+        ],
+        "flaw_results": [
+          {
+            "flaw_type": "Dullness",
+            "flaw_effects": "health and financial isues"
+          },
+          {
+            "flaw_type": "Cracks",
+            "flaw_effects": "Leaves place of comfort"
+          },
+          {
+            "flaw_type": "Cobweb",
+            "flaw_effects": "Misfortunes and Imprisonment"
+          },
+          {
+            "flaw_type": "Holes or dents",
+            "flaw_effects": "Diseases in thorax and abdomen"
+          },
+          {
+            "flaw_type": "Uneven Shape",
+            "flaw_effects": "Unlucky"
+          }
+        ],
+        "time_to_wear_short": "2 hours after sunset",
+        "time_to_wear": "A Cat's eye gem should be brought on a Wednesday, Thursday or Friday when the moon is in Ashvini, Magha or Mula nakshatras. The jeweller should mix it in an alloy of 5 metals - Gold, iron, silver, copper and zinc. The ring should have an open back to let the stone to touch the skin. This should be worn on two hours after sunset.",
+        "methods": "Before wearing, the ring should be kept for some time in raw cow's milk and should be washed with Ganga water (if available) or water kept in a copper pot or rainwater. After it has been washed, the ring should be kept on a smoky-green cloth, on which a ketu yantra is drawn with either sandalwood paste or roli o. Flowers and incense should be offered to the engraved copper yantra and the yantra and the gemstone mounted in the ring should be worshiped, reciting the mantra of the Ketu.",
+        "mantra": "Om Kaim Ketuve Namah Om",
+        "key": "cat_eye"
+      },
+      "sadeSati": [
+        {
+          "retro": true,
+          "start_date": "Mon Apr 20 1998",
+          "zodiac": "Aries",
+          "type": "Sade Sati",
+          "dhaiya": "2nd Dhaiya",
+          "direction": "Peak",
+          "end_date": "Fri Jun 09 2000"
+        },
+        {
+          "retro": false,
+          "start_date": "Fri Jun 09 2000",
+          "zodiac": "Taurus",
+          "type": "Sade Sati",
+          "dhaiya": "3rd Dhaiya",
+          "direction": "Setting",
+          "end_date": "Fri Jan 19 2001"
+        },
+        {
+          "retro": true,
+          "start_date": "Fri Jan 19 2001",
+          "zodiac": "Aries",
+          "type": "Sade Sati",
+          "dhaiya": "2nd Dhaiya",
+          "direction": "Peak",
+          "end_date": "Thu Feb 01 2001"
+        },
+        {
+          "retro": false,
+          "start_date": "Thu Feb 01 2001",
+          "zodiac": "Taurus",
+          "type": "Sade Sati",
+          "dhaiya": "3rd Dhaiya",
+          "direction": "Setting",
+          "end_date": "Thu Jul 25 2002"
+        },
+        {
+          "retro": true,
+          "start_date": "Mon Jan 06 2003",
+          "zodiac": "Taurus",
+          "type": "Sade Sati",
+          "dhaiya": "3rd Dhaiya",
+          "direction": "Setting",
+          "end_date": "Fri Apr 11 2003"
+        },
+        {
+          "retro": false,
+          "start_date": "Wed Sep 08 2004",
+          "zodiac": "Cancer",
+          "type": "Ardhastama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Wed Jan 12 2005"
+        },
+        {
+          "retro": false,
+          "start_date": "Sat May 28 2005",
+          "zodiac": "Cancer",
+          "type": "Ardhastama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Sat Nov 04 2006"
+        },
+        {
+          "retro": true,
+          "start_date": "Tue Jan 09 2007",
+          "zodiac": "Cancer",
+          "type": "Ardhastama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Wed Jul 18 2007"
+        },
+        {
+          "retro": false,
+          "start_date": "Wed Nov 16 2011",
+          "zodiac": "Libra",
+          "type": "Kantaka Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Tue May 15 2012"
+        },
+        {
+          "retro": false,
+          "start_date": "Mon Aug 06 2012",
+          "zodiac": "Libra",
+          "type": "Kantaka Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Mon Nov 03 2014"
+        },
+        {
+          "retro": false,
+          "start_date": "Mon Nov 03 2014",
+          "zodiac": "Scorpio",
+          "type": "Ashtama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Fri Jan 27 2017"
+        },
+        {
+          "retro": true,
+          "start_date": "Wed Jun 21 2017",
+          "zodiac": "Scorpio",
+          "type": "Ashtama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Fri Oct 27 2017"
+        },
+        {
+          "retro": true,
+          "start_date": "Wed Jun 02 2027",
+          "zodiac": "Aries",
+          "type": "Sade Sati",
+          "dhaiya": "2nd Dhaiya",
+          "direction": "Peak",
+          "end_date": "Fri Oct 22 2027"
+        },
+        {
+          "retro": true,
+          "start_date": "Tue Feb 22 2028",
+          "zodiac": "Aries",
+          "type": "Sade Sati",
+          "dhaiya": "2nd Dhaiya",
+          "direction": "Peak",
+          "end_date": "Sun Aug 05 2029"
+        },
+        {
+          "retro": false,
+          "start_date": "Sun Aug 05 2029",
+          "zodiac": "Taurus",
+          "type": "Sade Sati",
+          "dhaiya": "3rd Dhaiya",
+          "direction": "Setting",
+          "end_date": "Tue Oct 09 2029"
+        },
+        {
+          "retro": true,
+          "start_date": "Tue Oct 09 2029",
+          "zodiac": "Aries",
+          "type": "Sade Sati",
+          "dhaiya": "2nd Dhaiya",
+          "direction": "Peak",
+          "end_date": "Tue Apr 16 2030"
+        },
+        {
+          "retro": false,
+          "start_date": "Tue Apr 16 2030",
+          "zodiac": "Taurus",
+          "type": "Sade Sati",
+          "dhaiya": "3rd Dhaiya",
+          "direction": "Setting",
+          "end_date": "Sun May 30 2032"
+        },
+        {
+          "retro": false,
+          "start_date": "Wed Jul 12 2034",
+          "zodiac": "Cancer",
+          "type": "Ardhastama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Tue Aug 26 2036"
+        },
+        {
+          "retro": false,
+          "start_date": "Sun Jan 13 2041",
+          "zodiac": "Libra",
+          "type": "Kantaka Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Fri Feb 22 2041"
+        },
+        {
+          "retro": false,
+          "start_date": "Tue Sep 24 2041",
+          "zodiac": "Libra",
+          "type": "Kantaka Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Wed Dec 09 2043"
+        },
+        {
+          "retro": false,
+          "start_date": "Wed Dec 09 2043",
+          "zodiac": "Scorpio",
+          "type": "Ashtama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Sat Jul 02 2044"
+        },
+        {
+          "retro": true,
+          "start_date": "Sat Jul 02 2044",
+          "zodiac": "Libra",
+          "type": "Kantaka Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Mon Aug 22 2044"
+        },
+        {
+          "retro": false,
+          "start_date": "Mon Aug 22 2044",
+          "zodiac": "Scorpio",
+          "type": "Ashtama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Wed Dec 05 2046"
+        },
+        {
+          "retro": true,
+          "start_date": "Tue Apr 03 2057",
+          "zodiac": "Aries",
+          "type": "Sade Sati",
+          "dhaiya": "2nd Dhaiya",
+          "direction": "Peak",
+          "end_date": "Sat May 24 2059"
+        },
+        {
+          "retro": false,
+          "start_date": "Sat May 24 2059",
+          "zodiac": "Taurus",
+          "type": "Sade Sati",
+          "dhaiya": "3rd Dhaiya",
+          "direction": "Setting",
+          "end_date": "Wed Jul 06 2061"
+        },
+        {
+          "retro": false,
+          "start_date": "Sun Aug 19 2063",
+          "zodiac": "Cancer",
+          "type": "Ardhastama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Sat Feb 16 2064"
+        },
+        {
+          "retro": false,
+          "start_date": "Thu May 01 2064",
+          "zodiac": "Cancer",
+          "type": "Ardhastama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Tue Oct 06 2065"
+        },
+        {
+          "retro": true,
+          "start_date": "Sat Feb 13 2066",
+          "zodiac": "Cancer",
+          "type": "Ardhastama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Sun Jun 27 2066"
+        },
+        {
+          "retro": false,
+          "start_date": "Thu Oct 30 2070",
+          "zodiac": "Libra",
+          "type": "Kantaka Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Mon Jan 23 2073"
+        },
+        {
+          "retro": false,
+          "start_date": "Mon Jan 23 2073",
+          "zodiac": "Scorpio",
+          "type": "Ashtama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Sat Apr 15 2073"
+        },
+        {
+          "retro": true,
+          "start_date": "Sat Apr 15 2073",
+          "zodiac": "Libra",
+          "type": "Kantaka Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Tue Oct 17 2073"
+        },
+        {
+          "retro": false,
+          "start_date": "Tue Oct 17 2073",
+          "zodiac": "Scorpio",
+          "type": "Ashtama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Thu Jan 09 2076"
+        },
+        {
+          "retro": true,
+          "start_date": "Sun Jul 26 2076",
+          "zodiac": "Scorpio",
+          "type": "Ashtama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Mon Sep 28 2076"
+        },
+        {
+          "retro": true,
+          "start_date": "Tue May 14 2086",
+          "zodiac": "Aries",
+          "type": "Sade Sati",
+          "dhaiya": "2nd Dhaiya",
+          "direction": "Peak",
+          "end_date": "Wed Nov 27 2086"
+        },
+        {
+          "retro": true,
+          "start_date": "Fri Jan 24 2087",
+          "zodiac": "Aries",
+          "type": "Sade Sati",
+          "dhaiya": "2nd Dhaiya",
+          "direction": "Peak",
+          "end_date": "Wed Jul 07 2088"
+        },
+        {
+          "retro": false,
+          "start_date": "Wed Jul 07 2088",
+          "zodiac": "Taurus",
+          "type": "Sade Sati",
+          "dhaiya": "3rd Dhaiya",
+          "direction": "Setting",
+          "end_date": "Sat Nov 13 2088"
+        },
+        {
+          "retro": true,
+          "start_date": "Sat Nov 13 2088",
+          "zodiac": "Aries",
+          "type": "Sade Sati",
+          "dhaiya": "2nd Dhaiya",
+          "direction": "Peak",
+          "end_date": "Mon Mar 28 2089"
+        },
+        {
+          "retro": false,
+          "start_date": "Mon Mar 28 2089",
+          "zodiac": "Taurus",
+          "type": "Sade Sati",
+          "dhaiya": "3rd Dhaiya",
+          "direction": "Setting",
+          "end_date": "Wed Aug 30 2090"
+        },
+        {
+          "retro": true,
+          "start_date": "Wed Nov 15 2090",
+          "zodiac": "Taurus",
+          "type": "Sade Sati",
+          "dhaiya": "3rd Dhaiya",
+          "direction": "Setting",
+          "end_date": "Sun May 13 2091"
+        },
+        {
+          "retro": false,
+          "start_date": "Thu Jun 25 2093",
+          "zodiac": "Cancer",
+          "type": "Ardhastama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Wed Aug 10 2095"
+        },
+        {
+          "retro": false,
+          "start_date": "Fri Dec 11 2099",
+          "zodiac": "Libra",
+          "type": "Kantaka Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Sat Apr 03 2100"
+        },
+        {
+          "retro": false,
+          "start_date": "Mon Sep 06 2100",
+          "zodiac": "Libra",
+          "type": "Kantaka Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Thu Nov 23 2102"
+        },
+        {
+          "retro": false,
+          "start_date": "Thu Nov 23 2102",
+          "zodiac": "Scorpio",
+          "type": "Ashtama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Wed Feb 25 2105"
+        },
+        {
+          "retro": true,
+          "start_date": "Thu May 14 2105",
+          "zodiac": "Scorpio",
+          "type": "Ashtama Shani",
+          "dhaiya": "Small Panoti",
+          "direction": "N/A",
+          "end_date": "Thu Nov 19 2105"
+        },
+        {
+          "retro": true,
+          "start_date": "Mon Jul 08 2115",
+          "zodiac": "Aries",
+          "type": "Sade Sati",
+          "dhaiya": "2nd Dhaiya",
+          "direction": "Peak",
+          "end_date": "Sat Sep 07 2115"
+        },
+        {
+          "retro": true,
+          "start_date": "Wed Mar 18 2116",
+          "zodiac": "Aries",
+          "type": "Sade Sati",
+          "dhaiya": "2nd Dhaiya",
+          "direction": "Peak",
+          "end_date": "Sun May 08 2118"
+        }
+      ],
+      "friendship": null
+    },
+    "kp": {
+      "houses": [
+        {
+          "start_rasi": "Pisces",
+          "end_rasi": "Aries",
+          "end_rasi_lord": "Mars",
+          "local_start_degree": 10.444702427561907,
+          "local_end_degree": 12.069102427561887,
+          "length": 31.62439999999998,
+          "house": 1,
+          "bhavmadhya": 5.367497572438083,
+          "global_start_degree": 335.0602,
+          "global_end_degree": 6.6846,
+          "start_nakshatra": "UttaraBhadra",
+          "end_nakshatra": "Ashvini",
+          "start_nakshatra_lord": "Saturn",
+          "end_nakshatra_lord": "Ketu",
+          "planets": [
+            {
+              "planetId": "0",
+              "full_name": "Ascendant",
+              "name": "As",
+              "nakshatra": "UttaraBhadra",
+              "nakshatra_no": 26,
+              "nakshatra_pada": 1,
+              "retro": false
+            }
+          ],
+          "cusp_sub_lord": "Saturn",
+          "cusp_sub_sub_lord": "Rahu"
+        },
+        {
+          "start_rasi": "Aries",
+          "end_rasi": "Taurus",
+          "end_rasi_lord": "Venus",
+          "local_start_degree": 9.729202427561937,
+          "local_end_degree": 13.171402427561937,
+          "length": 33.4422,
+          "house": 2,
+          "bhavmadhya": 6.991897572438063,
+          "global_start_degree": 6.6846,
+          "global_end_degree": 40.1268,
+          "start_nakshatra": "Ashvini",
+          "end_nakshatra": "Rohini",
+          "start_nakshatra_lord": "Ketu",
+          "end_nakshatra_lord": "Moon",
+          "planets": [
+            {
+              "planetId": "2",
+              "full_name": "Moon",
+              "name": "Mo",
+              "nakshatra": "Ashvini",
+              "nakshatra_no": 1,
+              "nakshatra_pada": 4,
+              "retro": false
+            },
+            {
+              "planetId": "9",
+              "full_name": "Ketu",
+              "name": "Ke",
+              "nakshatra": "Bharani",
+              "nakshatra_no": 2,
+              "nakshatra_pada": 2,
+              "retro": true
+            }
+          ],
+          "cusp_sub_lord": "Rahu",
+          "cusp_sub_sub_lord": "Mercury"
+        },
+        {
+          "start_rasi": "Taurus",
+          "end_rasi": "Gemini",
+          "end_rasi_lord": "Mercury",
+          "local_start_degree": 2.1724024275619342,
+          "local_end_degree": 27.385402427561928,
+          "length": 25.212999999999994,
+          "house": 3,
+          "bhavmadhya": 10.434097572438063,
+          "global_start_degree": 40.1268,
+          "global_end_degree": 65.3398,
+          "start_nakshatra": "Rohini",
+          "end_nakshatra": "Mrigashira",
+          "start_nakshatra_lord": "Moon",
+          "end_nakshatra_lord": "Mars",
+          "planets": [],
+          "cusp_sub_lord": "Moon",
+          "cusp_sub_sub_lord": "Mars"
+        },
+        {
+          "start_rasi": "Gemini",
+          "end_rasi": "Cancer",
+          "end_rasi_lord": "Moon",
+          "local_start_degree": 7.289352427561944,
+          "local_end_degree": 3.1622524275619455,
+          "length": 25.8729,
+          "house": 4,
+          "bhavmadhya": 5.6470975724380565,
+          "global_start_degree": 65.3398,
+          "global_end_degree": 91.2127,
+          "start_nakshatra": "Mrigashira",
+          "end_nakshatra": "Punarvasu",
+          "start_nakshatra_lord": "Mars",
+          "end_nakshatra_lord": "Jupiter",
+          "planets": [],
+          "cusp_sub_lord": "Sun",
+          "cusp_sub_sub_lord": "Mercury"
+        },
+        {
+          "start_rasi": "Cancer",
+          "end_rasi": "Cancer",
+          "end_rasi_lord": "Moon",
+          "local_start_degree": 11.01310242756194,
+          "local_end_degree": 6.0793024275619345,
+          "length": 25.066199999999995,
+          "house": 5,
+          "bhavmadhya": 1.5199975724380579,
+          "global_start_degree": 91.2127,
+          "global_end_degree": 116.2789,
+          "start_nakshatra": "Punarvasu",
+          "end_nakshatra": "Ashlesha",
+          "start_nakshatra_lord": "Jupiter",
+          "end_nakshatra_lord": "Mercury",
+          "planets": [],
+          "cusp_sub_lord": "Mars",
+          "cusp_sub_sub_lord": "Venus"
+        },
+        {
+          "start_rasi": "Cancer",
+          "end_rasi": "Virgo",
+          "end_rasi_lord": "Mercury",
+          "local_start_degree": 7.195547572438045,
+          "local_end_degree": 15.97684757243806,
+          "length": 38.781300000000016,
+          "house": 6,
+          "bhavmadhya": 26.586197572438053,
+          "global_start_degree": 116.2789,
+          "global_end_degree": 155.0602,
+          "start_nakshatra": "Ashlesha",
+          "end_nakshatra": "UttaraPhalguni",
+          "start_nakshatra_lord": "Mercury",
+          "end_nakshatra_lord": "Sun",
+          "planets": [
+            {
+              "planetId": "3",
+              "full_name": "Mars",
+              "name": "Ma",
+              "nakshatra": "Magha",
+              "nakshatra_no": 10,
+              "nakshatra_pada": 3,
+              "retro": true
+            }
+          ],
+          "cusp_sub_lord": "Jupiter",
+          "cusp_sub_sub_lord": "Jupiter"
+        },
+        {
+          "start_rasi": "Virgo",
+          "end_rasi": "Libra",
+          "end_rasi_lord": "Venus",
+          "local_start_degree": 10.444702427561921,
+          "local_end_degree": 12.069102427561901,
+          "length": 31.62439999999998,
+          "house": 7,
+          "bhavmadhya": 5.367497572438069,
+          "global_start_degree": 155.0602,
+          "global_end_degree": 186.6846,
+          "start_nakshatra": "UttaraPhalguni",
+          "end_nakshatra": "Svati",
+          "start_nakshatra_lord": "Sun",
+          "end_nakshatra_lord": "Rahu",
+          "planets": [],
+          "cusp_sub_lord": "Saturn",
+          "cusp_sub_sub_lord": "Jupiter"
+        },
+        {
+          "start_rasi": "Libra",
+          "end_rasi": "Scorpio",
+          "end_rasi_lord": "Mars",
+          "local_start_degree": 9.729202427561958,
+          "local_end_degree": 13.171402427561972,
+          "length": 33.442200000000014,
+          "house": 8,
+          "bhavmadhya": 6.991897572438049,
+          "global_start_degree": 186.6846,
+          "global_end_degree": 220.1268,
+          "start_nakshatra": "Svati",
+          "end_nakshatra": "Anuradha",
+          "start_nakshatra_lord": "Rahu",
+          "end_nakshatra_lord": "Saturn",
+          "planets": [
+            {
+              "planetId": "6",
+              "full_name": "Venus",
+              "name": "Ve",
+              "nakshatra": "Anuradha",
+              "nakshatra_no": 17,
+              "nakshatra_pada": 2,
+              "retro": false
+            },
+            {
+              "planetId": "8",
+              "full_name": "Rahu",
+              "name": "Ra",
+              "nakshatra": "Svati",
+              "nakshatra_no": 15,
+              "nakshatra_pada": 4,
+              "retro": true
+            }
+          ],
+          "cusp_sub_lord": "Rahu",
+          "cusp_sub_sub_lord": "Rahu"
+        },
+        {
+          "start_rasi": "Scorpio",
+          "end_rasi": "Sagittarius",
+          "end_rasi_lord": "Jupiter",
+          "local_start_degree": 2.1724024275619342,
+          "local_end_degree": 27.385402427561928,
+          "length": 25.212999999999994,
+          "house": 9,
+          "bhavmadhya": 10.434097572438063,
+          "global_start_degree": 220.1268,
+          "global_end_degree": 245.3398,
+          "start_nakshatra": "Anuradha",
+          "end_nakshatra": "Mula",
+          "start_nakshatra_lord": "Saturn",
+          "end_nakshatra_lord": "Ketu",
+          "planets": [
+            {
+              "planetId": "5",
+              "full_name": "Jupiter",
+              "name": "Ju",
+              "nakshatra": "Anuradha",
+              "nakshatra_no": 17,
+              "nakshatra_pada": 3,
+              "retro": false
+            }
+          ],
+          "cusp_sub_lord": "Venus",
+          "cusp_sub_sub_lord": "Mercury"
+        },
+        {
+          "start_rasi": "Sagittarius",
+          "end_rasi": "Capricorn",
+          "end_rasi_lord": "Saturn",
+          "local_start_degree": 7.289352427561937,
+          "local_end_degree": 3.162252427561924,
+          "length": 25.872899999999987,
+          "house": 10,
+          "bhavmadhya": 5.6470975724380565,
+          "global_start_degree": 245.3398,
+          "global_end_degree": 271.2127,
+          "start_nakshatra": "Mula",
+          "end_nakshatra": "UttraShadha",
+          "start_nakshatra_lord": "Ketu",
+          "end_nakshatra_lord": "Sun",
+          "planets": [
+            {
+              "planetId": "1",
+              "full_name": "Sun",
+              "name": "Su",
+              "nakshatra": "PurvaShadha",
+              "nakshatra_no": 20,
+              "nakshatra_pada": 4,
+              "retro": false
+            }
+          ],
+          "cusp_sub_lord": "Mars",
+          "cusp_sub_sub_lord": "Venus"
+        },
+        {
+          "start_rasi": "Capricorn",
+          "end_rasi": "Capricorn",
+          "end_rasi_lord": "Saturn",
+          "local_start_degree": 11.013102427561975,
+          "local_end_degree": 6.079302427562013,
+          "length": 25.066200000000038,
+          "house": 11,
+          "bhavmadhya": 1.5199975724380437,
+          "global_start_degree": 271.2127,
+          "global_end_degree": 296.2789,
+          "start_nakshatra": "UttraShadha",
+          "end_nakshatra": "Dhanista",
+          "start_nakshatra_lord": "Sun",
+          "end_nakshatra_lord": "Mars",
+          "planets": [
+            {
+              "planetId": "4",
+              "full_name": "Mercury",
+              "name": "Me",
+              "nakshatra": "Sravana",
+              "nakshatra_no": 22,
+              "nakshatra_pada": 1,
+              "retro": false
+            }
+          ],
+          "cusp_sub_lord": "Rahu",
+          "cusp_sub_sub_lord": "Mars"
+        },
+        {
+          "start_rasi": "Capricorn",
+          "end_rasi": "Pisces",
+          "end_rasi_lord": "Jupiter",
+          "local_start_degree": 7.1955475724380875,
+          "local_end_degree": 15.976847572438075,
+          "length": 38.78129999999999,
+          "house": 12,
+          "bhavmadhya": 26.58619757243808,
+          "global_start_degree": 296.2789,
+          "global_end_degree": 335.0602,
+          "start_nakshatra": "Dhanista",
+          "end_nakshatra": "UttaraBhadra",
+          "start_nakshatra_lord": "Mars",
+          "end_nakshatra_lord": "Saturn",
+          "planets": [
+            {
+              "planetId": "7",
+              "full_name": "Saturn",
+              "name": "Sa",
+              "nakshatra": "Shatabhisha",
+              "nakshatra_no": 24,
+              "nakshatra_pada": 3,
+              "retro": false
+            }
+          ],
+          "cusp_sub_lord": "Jupiter",
+          "cusp_sub_sub_lord": "Jupiter"
+        }
+      ],
+      "planets": {
+        "0": {
+          "rasi_no": 12,
+          "zodiac": "Pisces",
+          "retro": false,
+          "name": "As",
+          "house": 1,
+          "global_degree": 335.47348701974266,
+          "local_degree": 5.473487019742667,
+          "pseudo_rasi_no": 12,
+          "pseudo_rasi": "Pisces",
+          "pseudo_rasi_lord": "Jupiter",
+          "pseudo_nakshatra": "UttaraBhadra",
+          "pseudo_nakshatra_no": 26,
+          "pseudo_nakshatra_pada": 1,
+          "pseudo_nakshatra_lord": "Saturn",
+          "sub_lord": "Saturn",
+          "sub_sub_lord": "Jupiter",
+          "full_name": "Ascendant"
+        },
+        "1": {
+          "rasi_no": 9,
+          "zodiac": "Sagittarius",
+          "retro": false,
+          "name": "Su",
+          "house": 10,
+          "global_degree": 265.79266999309294,
+          "local_degree": 25.792669993092947,
+          "pseudo_rasi_no": 9,
+          "pseudo_rasi": "Sagittarius",
+          "pseudo_rasi_lord": "Jupiter",
+          "pseudo_nakshatra": "PurvaShadha",
+          "pseudo_nakshatra_no": 20,
+          "pseudo_nakshatra_pada": 4,
+          "pseudo_nakshatra_lord": "Venus",
+          "sub_lord": "Mercury",
+          "sub_sub_lord": "Saturn",
+          "full_name": "Sun"
+        },
+        "2": {
+          "rasi_no": 1,
+          "zodiac": "Aries",
+          "retro": false,
+          "name": "Mo",
+          "house": 2,
+          "global_degree": 12.748626182542893,
+          "local_degree": 12.748626182542893,
+          "pseudo_rasi_no": 1,
+          "pseudo_rasi": "Aries",
+          "pseudo_rasi_lord": "Mars",
+          "pseudo_nakshatra": "Ashvini",
+          "pseudo_nakshatra_no": 1,
+          "pseudo_nakshatra_pada": 4,
+          "pseudo_nakshatra_lord": "Ketu",
+          "sub_lord": "Mercury",
+          "sub_sub_lord": "Rahu",
+          "full_name": "Moon"
+        },
+        "3": {
+          "rasi_no": 5,
+          "zodiac": "Leo",
+          "retro": true,
+          "name": "Ma",
+          "house": 6,
+          "global_degree": 128.62777541233123,
+          "local_degree": 8.627775412331236,
+          "pseudo_rasi_no": 5,
+          "pseudo_rasi": "Leo",
+          "pseudo_rasi_lord": "Sun",
+          "pseudo_nakshatra": "Magha",
+          "pseudo_nakshatra_no": 10,
+          "pseudo_nakshatra_pada": 3,
+          "pseudo_nakshatra_lord": "Ketu",
+          "sub_lord": "Jupiter",
+          "sub_sub_lord": "Venus",
+          "full_name": "Mars"
+        },
+        "4": {
+          "rasi_no": 10,
+          "zodiac": "Capricorn",
+          "retro": false,
+          "name": "Me",
+          "house": 11,
+          "global_degree": 281.49116839745085,
+          "local_degree": 11.491168397450853,
+          "pseudo_rasi_no": 10,
+          "pseudo_rasi": "Capricorn",
+          "pseudo_rasi_lord": "Saturn",
+          "pseudo_nakshatra": "Sravana",
+          "pseudo_nakshatra_no": 22,
+          "pseudo_nakshatra_pada": 1,
+          "pseudo_nakshatra_lord": "Moon",
+          "sub_lord": "Mars",
+          "sub_sub_lord": "Saturn",
+          "full_name": "Mercury"
+        },
+        "5": {
+          "rasi_no": 8,
+          "zodiac": "Scorpio",
+          "retro": false,
+          "name": "Ju",
+          "house": 9,
+          "global_degree": 222.84926977881048,
+          "local_degree": 12.849269778810484,
+          "pseudo_rasi_no": 8,
+          "pseudo_rasi": "Scorpio",
+          "pseudo_rasi_lord": "Mars",
+          "pseudo_nakshatra": "Anuradha",
+          "pseudo_nakshatra_no": 17,
+          "pseudo_nakshatra_pada": 3,
+          "pseudo_nakshatra_lord": "Saturn",
+          "sub_lord": "Mars",
+          "sub_sub_lord": "Venus",
+          "full_name": "Jupiter"
+        },
+        "6": {
+          "rasi_no": 8,
+          "zodiac": "Scorpio",
+          "retro": false,
+          "name": "Ve",
+          "house": 8,
+          "global_degree": 218.97285634428295,
+          "local_degree": 8.972856344282949,
+          "pseudo_rasi_no": 8,
+          "pseudo_rasi": "Scorpio",
+          "pseudo_rasi_lord": "Mars",
+          "pseudo_nakshatra": "Anuradha",
+          "pseudo_nakshatra_no": 17,
+          "pseudo_nakshatra_pada": 2,
+          "pseudo_nakshatra_lord": "Saturn",
+          "sub_lord": "Venus",
+          "sub_sub_lord": "Mars",
+          "full_name": "Venus"
+        },
+        "7": {
+          "rasi_no": 11,
+          "zodiac": "Aquarius",
+          "retro": false,
+          "name": "Sa",
+          "house": 12,
+          "global_degree": 315.1212754989005,
+          "local_degree": 15.121275498900506,
+          "pseudo_rasi_no": 11,
+          "pseudo_rasi": "Aquarius",
+          "pseudo_rasi_lord": "Saturn",
+          "pseudo_nakshatra": "Shatabhisha",
+          "pseudo_nakshatra_no": 24,
+          "pseudo_nakshatra_pada": 3,
+          "pseudo_nakshatra_lord": "Rahu",
+          "sub_lord": "Ketu",
+          "sub_sub_lord": "Saturn",
+          "full_name": "Saturn"
+        },
+        "8": {
+          "rasi_no": 7,
+          "zodiac": "Libra",
+          "retro": true,
+          "name": "Ra",
+          "house": 8,
+          "global_degree": 197.61565763738292,
+          "local_degree": 17.6156576373829,
+          "pseudo_rasi_no": 7,
+          "pseudo_rasi": "Libra",
+          "pseudo_rasi_lord": "Venus",
+          "pseudo_nakshatra": "Svati",
+          "pseudo_nakshatra_no": 15,
+          "pseudo_nakshatra_pada": 4,
+          "pseudo_nakshatra_lord": "Rahu",
+          "sub_lord": "Sun",
+          "sub_sub_lord": "Moon",
+          "full_name": "Rahu"
+        },
+        "9": {
+          "rasi_no": 1,
+          "zodiac": "Aries",
+          "retro": true,
+          "name": "Ke",
+          "house": 2,
+          "global_degree": 17.61565763738289,
+          "local_degree": 17.61565763738289,
+          "pseudo_rasi_no": 1,
+          "pseudo_rasi": "Aries",
+          "pseudo_rasi_lord": "Mars",
+          "pseudo_nakshatra": "Bharani",
+          "pseudo_nakshatra_no": 2,
+          "pseudo_nakshatra_pada": 2,
+          "pseudo_nakshatra_lord": "Venus",
+          "sub_lord": "Mars",
+          "sub_sub_lord": "Jupiter",
+          "full_name": "Ketu"
+        },
+        "midheaven": 5.6470975724380565,
+        "ascendant": 5.367497572438083
+      }
+    }
+  },
+  "aiAnalysis": {
+    "character": "Pisces Ascendant gives a sensitive, intuitive and compassionate disposition, while the Ascendant in Uttara Bhadrapada adds seriousness, patience and an interest in deeper meaning. Jupiter, the Ascendant lord, occupies the 9th house in Scorpio with Venus, supporting learning, research, spirituality, travel and the ability to understand complex or hidden subjects. The Aries Moon in the 2nd house makes emotional expression direct and decisive; however, its conjunction with Ketu can produce periods of detachment, abrupt speech or a feeling of being different from the family environment. The Sun in the 10th house strengthens ambition, dignity and the wish to perform meaningful, visible work. Retrograde Mars in the 6th gives persistence in competition and the capacity to confront difficult situations, though impatience and internalized frustration should be handled constructively. Overall, the chart combines empathy with independence, depth and a strong problem-solving instinct.",
+    "career": "The Sun in Sagittarius in the 10th house is a prominent career indication, favoring responsibility, leadership, administration, teaching, advisory work, law, governance or roles connected with principles and large institutions. Mercury in Capricorn in the 11th supports strategic communication, planning, analysis, commerce, technology and gains through professional networks. Jupiter and Venus in the 9th can connect career with education, consulting, research, finance, psychology, travel, international environments or creative knowledge-based fields. Mars in the 6th is helpful for competitive employment, operations, crisis management, compliance, engineering or work requiring persistence against obstacles. In the D10, Sagittarius Ascendant with Mercury in the 1st reinforces communication and advisory abilities; the Sun and Moon in the 9th support recognition through knowledge, while Venus with Ketu in the 10th may create periodic dissatisfaction or changes in professional direction. Progress is more likely through specialization, disciplined networking and service than through shortcuts. The Moon Mahadasha runs from May 2021 to May 2031, emphasizing income, family responsibilities, communication and emotional alignment with work. Since Antardasha data is unavailable, narrower career timing is limited.",
+    "finance": "Financial indications are mixed rather than uniformly easy or difficult. Mercury in the 11th supports income through intellect, organization, communication and contacts, while the Sun in the 10th links earnings with status and sustained professional effort. Mars, ruler of the 2nd and 9th houses for Pisces Ascendant, is placed in the 6th, indicating that wealth may be built through employment, competition, problem-solving and disciplined management of obligations. The Moon and Ketu in the 2nd can create fluctuations in saving habits, changing family expenses or emotional decisions around money. Rahu in the 8th advises caution with debt, taxes, insurance, joint assets and opaque investments. The supplied Dhana and Daridra yogas give competing indications, so neither extreme prosperity nor permanent scarcity should be assumed. A conservative budget, emergency reserves, clear documentation and avoidance of speculative or highly leveraged commitments would suit this chart. This is general astrological guidance, not professional financial advice.",
+    "marriage": "The 7th house is Virgo, and its lord Mercury is placed in the 11th house, supporting the possibility of partnership through friends, professional circles, communities or shared long-term goals. A spouse may be practical, intelligent, communicative and career-aware. In the Navamsa, Saturn occupies its own sign Aquarius in the 7th house, suggesting that commitment is approached seriously and may become more stable with maturity, patience and clearly defined responsibilities. It can also indicate delay, caution or a relationship that requires sustained work rather than effortless romance. Venus in Virgo in the Navamsa 2nd house points to the need to avoid excessive criticism and to cultivate warmth in family communication. The supplied data identifies a moderate Manglik influence and Rahu-Ketu involvement; this does not by itself deny marriage, but traditional compatibility assessment may be useful if culturally important. Emotional directness from the Aries Moon and occasional detachment from Ketu should be balanced through calm dialogue. Exact marriage timing cannot be responsibly narrowed because Antardasha information is not supplied.",
+    "health": "Mars in the 6th can provide resilience and the motivation to overcome health or lifestyle challenges, but it may also correspond symbolically with overexertion, irritability or stress when conflict is prolonged. Saturn in the 12th emphasizes the importance of regular sleep, rest, solitude and sustainable routines. Rahu in the 8th and the Moon-Ketu combination suggest that uncertainty or emotional intensity may sometimes affect peace of mind, so grounding practices can be helpful. Maintain consistent meals, moderate exercise, adequate recovery and timely preventive checkups. These are general wellness indications only; the chart cannot diagnose illness, and persistent physical or psychological symptoms should be discussed with a qualified healthcare professional.",
+    "remedies": [
+      "Offer a short daily prayer or quiet meditation to Lord Vishnu, Shiva or your chosen form of the Divine, focusing on clarity and emotional steadiness.",
+      "Chant “Om Namah Shivaya” 11 or 21 times on Mondays or whenever the mind feels unsettled.",
+      "On Tuesdays, channel Mars constructively through exercise, disciplined service or recitation of the Hanuman Chalisa according to personal faith.",
+      "Because Pitra Dosha is marked as present in the supplied data, respectfully remember ancestors on Amavasya and make a simple donation of food to people or animals in their memory; elaborate or costly rituals are not required.",
+      "Practice mindful speech: pause before reacting, especially in family or financial discussions, to balance the Moon-Ketu influence in the 2nd house.",
+      "Support Saturn constructively through regular service to elderly, disadvantaged or isolated people and by maintaining dependable routines.",
+      "Avoid wearing strong remedial gemstones, including Cat’s Eye, solely from an automated suggestion; gemstone use should be considered only after personalized assessment by a trusted qualified practitioner."
+    ]
+  }
+}

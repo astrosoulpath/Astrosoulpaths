@@ -3,52 +3,74 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  LedgerReferenceType,
-  LedgerType,
-  Prisma,
-} from '@prisma/client';
+import { LedgerReferenceType, LedgerType, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RechargeWalletDto } from './dto/recharge-wallet.dto';
 
 @Injectable()
 export class WalletService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  private async findUserBySupabaseId(
-    supabaseId: string,
-  ) {
+  private async findUserBySupabaseId(supabaseId: string) {
     if (!supabaseId) {
-      throw new BadRequestException(
-        'Authenticated user ID is required',
-      );
+      throw new BadRequestException('Authenticated user ID is required');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: {
-        supabaseId,
-      },
-      select: {
-        id: true,
-        supabaseId: true,
-        isActive: true,
-        isBlocked: true,
-      },
-    });
+    /*
+     * Canonical wallet owner resolution
+     * ---------------------------------
+     * Phone OTP and Google may have different Supabase UUIDs,
+     * but both identities must resolve to the same ASP userId.
+     *
+     * Explicit UserAuthIdentity mapping wins.
+     * User.supabaseId remains the legacy fallback.
+     */
+    const normalizedSupabaseId = supabaseId.trim();
+
+    const authIdentity =
+      await this.prisma.userAuthIdentity.findUnique({
+        where: {
+          provider_providerUserId: {
+            provider: 'supabase',
+            providerUserId: normalizedSupabaseId,
+          },
+        },
+        select: {
+          userId: true,
+        },
+      });
+
+    const user = authIdentity
+      ? await this.prisma.user.findUnique({
+          where: {
+            id: authIdentity.userId,
+          },
+          select: {
+            id: true,
+            supabaseId: true,
+            isActive: true,
+            isBlocked: true,
+          },
+        })
+      : await this.prisma.user.findUnique({
+          where: {
+            supabaseId: normalizedSupabaseId,
+          },
+          select: {
+            id: true,
+            supabaseId: true,
+            isActive: true,
+            isBlocked: true,
+          },
+        });
 
     if (!user) {
-      throw new NotFoundException(
-        'User account was not found',
-      );
+      throw new NotFoundException('User account was not found');
     }
 
     if (!user.isActive || user.isBlocked) {
-      throw new BadRequestException(
-        'User account is not active',
-      );
+      throw new BadRequestException('User account is not active');
     }
 
     return user;
@@ -67,28 +89,63 @@ export class WalletService {
     });
   }
 
-  async getWallet(supabaseId: string) {
-    const user =
-      await this.findUserBySupabaseId(supabaseId);
+  async getRechargePacks() {
+    const packs = await this.prisma.rechargePack.findMany({
+      where: {
+        isActive: true,
+      },
+      orderBy: [
+        {
+          sortOrder: 'asc',
+        },
+        {
+          amount: 'asc',
+        },
+      ],
+    });
 
-    const wallet =
-      await this.getOrCreateWallet(user.id);
+    const data = packs.map((pack) => {
+      const amount = new Prisma.Decimal(pack.amount);
+      const bonusPercent = new Prisma.Decimal(pack.bonusPercent);
+
+      const bonusAmount = new Prisma.Decimal(pack.bonusAmount).toDecimalPlaces(2);
+
+      const creditAmount = amount.plus(bonusAmount).toDecimalPlaces(2);
+
+      return {
+        id: pack.id,
+        amount: amount.toNumber(),
+        bonusPercent: bonusPercent.toNumber(),
+        bonusAmount: bonusAmount.toNumber(),
+        creditAmount: creditAmount.toNumber(),
+        label: pack.label,
+      };
+    });
+
+    return {
+      success: true,
+      data,
+    };
+  }
+  async getWallet(supabaseId: string) {
+    const user = await this.findUserBySupabaseId(supabaseId);
+
+    const wallet = await this.getOrCreateWallet(user.id);
 
     const balance = Number(wallet.balance);
-    const lockedBalance = Number(
-      wallet.lockedBalance,
-    );
+    const paidBalance = Number(wallet.paidBalance);
+    const freeBalance = Number(wallet.freeBalance);
+    const lockedBalance = Number(wallet.lockedBalance);
 
     return {
       success: true,
       data: {
         id: wallet.id,
         balance,
+        paidBalance,
+        freeBalance,
         lockedBalance,
-        availableBalance: Math.max(
-          0,
-          balance - lockedBalance,
-        ),
+        availableBalance: Math.max(0, balance - lockedBalance),
         currency: wallet.currency,
         createdAt: wallet.createdAt,
         updatedAt: wallet.updatedAt,
@@ -97,23 +154,20 @@ export class WalletService {
   }
 
   async getWalletHistory(supabaseId: string) {
-    const user =
-      await this.findUserBySupabaseId(supabaseId);
+    const user = await this.findUserBySupabaseId(supabaseId);
 
-    const wallet =
-      await this.getOrCreateWallet(user.id);
+    const wallet = await this.getOrCreateWallet(user.id);
 
-    const ledgerEntries =
-      await this.prisma.walletLedger.findMany({
-        where: {
-          walletId: wallet.id,
-          userId: user.id,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        take: 100,
-      });
+    const ledgerEntries = await this.prisma.walletLedger.findMany({
+      where: {
+        walletId: wallet.id,
+        userId: user.id,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 100,
+    });
 
     const creditTypes: LedgerType[] = [
       LedgerType.RECHARGE,
@@ -122,35 +176,23 @@ export class WalletService {
       LedgerType.GIFT_RECEIVED,
     ];
 
-    const transactions = ledgerEntries.map(
-      (entry) => {
-        const isCredit = creditTypes.includes(
-          entry.type,
-        );
+    const transactions = ledgerEntries.map((entry) => {
+      const isCredit = creditTypes.includes(entry.type);
 
-        return {
-          id: entry.id,
-          type: isCredit ? 'credit' : 'debit',
-          ledgerType: entry.type,
-          title:
-            entry.description ||
-            this.getTransactionTitle(entry.type),
-          amount: Number(entry.amount),
-          balanceBefore: Number(
-            entry.balanceBefore,
-          ),
-          balanceAfter: Number(
-            entry.balanceAfter,
-          ),
-          referenceType:
-            entry.referenceType,
-          referenceId:
-            entry.referenceId,
-          date: entry.createdAt,
-          createdAt: entry.createdAt,
-        };
-      },
-    );
+      return {
+        id: entry.id,
+        type: isCredit ? 'credit' : 'debit',
+        ledgerType: entry.type,
+        title: entry.description || this.getTransactionTitle(entry.type),
+        amount: Number(entry.amount),
+        balanceBefore: Number(entry.balanceBefore),
+        balanceAfter: Number(entry.balanceAfter),
+        referenceType: entry.referenceType,
+        referenceId: entry.referenceId,
+        date: entry.createdAt,
+        createdAt: entry.createdAt,
+      };
+    });
 
     return {
       success: true,
@@ -161,82 +203,64 @@ export class WalletService {
     };
   }
 
-  async rechargeWallet(
-    supabaseId: string,
-    dto: RechargeWalletDto,
-  ) {
+  async rechargeWallet(supabaseId: string, dto: RechargeWalletDto) {
     if (process.env.NODE_ENV === 'production') {
       throw new BadRequestException(
         'Direct wallet recharge is disabled in production',
       );
     }
 
-    const user =
-      await this.findUserBySupabaseId(supabaseId);
+    const user = await this.findUserBySupabaseId(supabaseId);
 
-    const amount = new Prisma.Decimal(
-      dto.amount.toFixed(2),
-    );
+    const amount = new Prisma.Decimal(dto.amount.toFixed(2));
 
-    const result = await this.prisma.$transaction(
-      async (transaction) => {
-        const wallet =
-          await transaction.wallet.upsert({
-            where: {
-              userId: user.id,
-            },
-            update: {},
-            create: {
-              userId: user.id,
-              currency: 'INR',
-            },
-          });
+    const result = await this.prisma.$transaction(async (transaction) => {
+      const wallet = await transaction.wallet.upsert({
+        where: {
+          userId: user.id,
+        },
+        update: {},
+        create: {
+          userId: user.id,
+          currency: 'INR',
+        },
+      });
 
-        const balanceBefore = wallet.balance;
-        const balanceAfter =
-          balanceBefore.plus(amount);
+      const balanceBefore = wallet.balance;
+      const balanceAfter = balanceBefore.plus(amount);
 
-        const updatedWallet =
-          await transaction.wallet.update({
-            where: {
-              id: wallet.id,
-            },
-            data: {
-              balance: balanceAfter,
-            },
-          });
+      const updatedWallet = await transaction.wallet.update({
+        where: {
+          id: wallet.id,
+        },
+        data: {
+          balance: balanceAfter,
+        },
+      });
 
-        const ledgerEntry =
-          await transaction.walletLedger.create({
-            data: {
-              walletId: wallet.id,
-              userId: user.id,
-              type: LedgerType.RECHARGE,
-              amount,
-              balanceBefore,
-              balanceAfter,
-              referenceType:
-                LedgerReferenceType.WALLET_RECHARGE,
-              referenceId: `LOCAL-${Date.now()}`,
-              description:
-                'Local development wallet recharge',
-            },
-          });
+      const ledgerEntry = await transaction.walletLedger.create({
+        data: {
+          walletId: wallet.id,
+          userId: user.id,
+          type: LedgerType.RECHARGE,
+          amount,
+          balanceBefore,
+          balanceAfter,
+          referenceType: LedgerReferenceType.WALLET_RECHARGE,
+          referenceId: `LOCAL-${Date.now()}`,
+          description: 'Local development wallet recharge',
+        },
+      });
 
-        return {
-          wallet: updatedWallet,
-          ledgerEntry,
-        };
-      },
-    );
+      return {
+        wallet: updatedWallet,
+        ledgerEntry,
+      };
+    });
 
-    const walletBalance = Number(
-      result.wallet.balance,
-    );
+    const walletBalance = Number(result.wallet.balance);
 
-    const lockedBalance = Number(
-      result.wallet.lockedBalance,
-    );
+    const lockedBalance = Number(result.wallet.lockedBalance);
 
     return {
       success: true,
@@ -246,47 +270,28 @@ export class WalletService {
           id: result.wallet.id,
           balance: walletBalance,
           lockedBalance,
-          availableBalance: Math.max(
-            0,
-            walletBalance - lockedBalance,
-          ),
-          currency:
-            result.wallet.currency,
+          availableBalance: Math.max(0, walletBalance - lockedBalance),
+          currency: result.wallet.currency,
         },
 
         transaction: {
           id: result.ledgerEntry.id,
           type: 'credit',
-          ledgerType:
-            result.ledgerEntry.type,
-          title:
-            result.ledgerEntry.description ||
-            'Wallet Recharge',
-          amount: Number(
-            result.ledgerEntry.amount,
-          ),
-          balanceBefore: Number(
-            result.ledgerEntry.balanceBefore,
-          ),
-          balanceAfter: Number(
-            result.ledgerEntry.balanceAfter,
-          ),
-          referenceType:
-            result.ledgerEntry.referenceType,
-          referenceId:
-            result.ledgerEntry.referenceId,
-          date:
-            result.ledgerEntry.createdAt,
-          createdAt:
-            result.ledgerEntry.createdAt,
+          ledgerType: result.ledgerEntry.type,
+          title: result.ledgerEntry.description || 'Wallet Recharge',
+          amount: Number(result.ledgerEntry.amount),
+          balanceBefore: Number(result.ledgerEntry.balanceBefore),
+          balanceAfter: Number(result.ledgerEntry.balanceAfter),
+          referenceType: result.ledgerEntry.referenceType,
+          referenceId: result.ledgerEntry.referenceId,
+          date: result.ledgerEntry.createdAt,
+          createdAt: result.ledgerEntry.createdAt,
         },
       },
     };
   }
 
-  private getTransactionTitle(
-    type: LedgerType,
-  ): string {
+  private getTransactionTitle(type: LedgerType): string {
     switch (type) {
       case LedgerType.RECHARGE:
         return 'Wallet Recharge';

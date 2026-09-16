@@ -1,7 +1,9 @@
+import { CreateRechargePackOrderDto } from '../wallet/dto/create-recharge-pack-order.dto';
 import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   HttpException,
   InternalServerErrorException,
   Logger,
@@ -28,15 +30,11 @@ type RazorpayWebhookRequest = Request & {
   rawBody?: Buffer;
 };
 
-type ReconciliationApiStatus =
-  | 'SUCCESS'
-  | 'FAILED';
+type ReconciliationApiStatus = 'SUCCESS' | 'FAILED';
 
 @Controller('payments')
 export class PaymentsController {
-  private readonly logger = new Logger(
-    PaymentsController.name,
-  );
+  private readonly logger = new Logger(PaymentsController.name);
 
   constructor(
     private readonly paymentsService: PaymentsService,
@@ -62,6 +60,18 @@ export class PaymentsController {
   /**
    * Create Razorpay order for wallet recharge.
    */
+
+  @Post('create-wallet-recharge-pack-order')
+  @UseGuards(SupabaseAuthGuard)
+  createWalletRechargePackOrder(
+    @CurrentUser() user: JWTPayload,
+    @Body() dto: CreateRechargePackOrderDto,
+  ) {
+    return this.paymentsService.createWalletRechargePackOrder(
+      user.sub as string,
+      dto.packId,
+    );
+  }
   @Post('create-wallet-recharge-order')
   @UseGuards(SupabaseAuthGuard)
   createWalletRechargeOrder(
@@ -124,22 +134,16 @@ export class PaymentsController {
     @CurrentUser() user: JWTPayload,
     @Param('orderId') orderId: string,
   ) {
-    const result =
-      await this.paymentsService.reconcileOrder(
-        user.sub as string,
-        orderId,
-      );
+    const result = await this.paymentsService.reconcileOrder(
+      user.sub as string,
+      orderId,
+    );
 
     return {
       success: true,
-      status: this.mapReconciliationStatus(
-        result.status,
-      ),
+      status: this.mapReconciliationStatus(result.status),
       reason:
-        result.reason ??
-        this.getFallbackReconciliationReason(
-          result.status,
-        ),
+        result.reason ?? this.getFallbackReconciliationReason(result.status),
     };
   }
 
@@ -151,18 +155,14 @@ export class PaymentsController {
    */
   @Public()
   @Post('webhook')
-  async webhook(
-    @Req() req: RazorpayWebhookRequest,
-  ) {
+  async webhook(@Req() req: RazorpayWebhookRequest) {
     try {
-      const signature =
-        this.extractWebhookSignature(req);
+      const signature = this.extractWebhookSignature(req);
 
-      const rawBody =
-        this.razorpayVerificationService.extractWebhookRawBody(
-          req.rawBody,
-          req.body,
-        );
+      const rawBody = this.razorpayVerificationService.extractWebhookRawBody(
+        req.rawBody,
+        req.body,
+      );
 
       const signatureValid =
         this.razorpayVerificationService.verifyWebhookSignature(
@@ -171,25 +171,17 @@ export class PaymentsController {
         );
 
       if (!signatureValid) {
-        this.logger.warn(
-          'webhook.signature_invalid',
-        );
+        this.logger.warn('webhook.signature_invalid');
 
-        throw new BadRequestException(
-          'Invalid webhook signature',
-        );
+        throw new BadRequestException('Invalid webhook signature');
       }
 
-      const event =
-        this.razorpayVerificationService.parseWebhookPayload(
-          rawBody,
-          req.body,
-        );
+      const event = this.razorpayVerificationService.parseWebhookPayload(
+        rawBody,
+        req.body,
+      );
 
-      const result =
-        await this.paymentsService.processVerifiedWebhook(
-          event,
-        );
+      const result = await this.paymentsService.processVerifiedWebhook(event);
 
       return {
         success: true,
@@ -200,50 +192,29 @@ export class PaymentsController {
         throw error;
       }
 
-      const message =
-        error instanceof Error
-          ? error.message
-          : String(error);
+      const message = error instanceof Error ? error.message : String(error);
 
-      this.logger.error(
-        `webhook.unhandled_error reason=${message}`,
-      );
+      this.logger.error(`webhook.unhandled_error reason=${message}`);
 
-      throw new InternalServerErrorException(
-        'Failed to process webhook',
-      );
+      throw new InternalServerErrorException('Failed to process webhook');
     }
   }
 
-  private extractWebhookSignature(
-    req: Request,
-  ): string {
-    const signature =
-      req.headers['x-razorpay-signature'];
+  private extractWebhookSignature(req: Request): string {
+    const signature = req.headers['x-razorpay-signature'];
 
-    if (
-      typeof signature !== 'string' ||
-      signature.length === 0
-    ) {
-      throw new BadRequestException(
-        'Missing webhook signature',
-      );
+    if (typeof signature !== 'string' || signature.length === 0) {
+      throw new BadRequestException('Missing webhook signature');
     }
 
     return signature;
   }
 
-  private mapReconciliationStatus(
-    status: string,
-  ): ReconciliationApiStatus {
-    return status === 'failed'
-      ? 'FAILED'
-      : 'SUCCESS';
+  private mapReconciliationStatus(status: string): ReconciliationApiStatus {
+    return status === 'failed' ? 'FAILED' : 'SUCCESS';
   }
 
-  private getFallbackReconciliationReason(
-    status: string,
-  ): string {
+  private getFallbackReconciliationReason(status: string): string {
     if (status === 'failed') {
       return 'gateway_payment_failed';
     }
@@ -253,5 +224,21 @@ export class PaymentsController {
     }
 
     return 'reconciled_from_gateway';
+  }
+
+  @Get('razorpay-public-config')
+  getRazorpayPublicConfig() {
+    const keyId = process.env.RAZORPAY_KEY_ID?.trim() ?? '';
+
+    if (!keyId) {
+      throw new Error('Razorpay public key is not configured');
+    }
+
+    return {
+      success: true,
+      data: {
+        keyId,
+      },
+    };
   }
 }

@@ -2,10 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import {
-  useParams,
-  useRouter,
-} from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   type FormEvent,
   useCallback,
@@ -39,9 +36,7 @@ import {
   type ChatTypingPayload,
 } from "@/lib/chatSocket";
 
-import {
-  getCallToken,
-} from "@/services/callService";
+import { getCallToken } from "@/services/callService";
 
 import {
   acceptCall,
@@ -69,24 +64,19 @@ import {
 import {
   completeConsultation,
   getCurrentConsultation,
+  getCurrentAstrologerConsultation,
   type ConsultationSession,
 } from "@/services/consultationService";
 
-const AudioCall = dynamic(
-  () =>
-    import(
-      "@/components/call/AudioCall"
-    ),
-  {
-    ssr: false,
+const AudioCall = dynamic(() => import("@/components/call/AudioCall"), {
+  ssr: false,
 
-    loading: () => (
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-lg">
-        Preparing audio consultation...
-      </div>
-    ),
-  },
-);
+  loading: () => (
+    <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-lg">
+      Preparing audio consultation...
+    </div>
+  ),
+});
 
 type UploadedChatAttachment = {
   url: string;
@@ -112,47 +102,29 @@ type CallTokenData = {
   uid: number;
 };
 
-function getErrorMessage(
-  error: unknown,
-  fallback: string,
-): string {
-  if (
-    error instanceof Error &&
-    error.message.trim()
-  ) {
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) {
     return error.message;
   }
 
   return fallback;
 }
 
-function normalizeMessageList(
-  messages: ChatMessage[],
-): ChatMessage[] {
-  const uniqueMessages =
-    new Map<string, ChatMessage>();
+function normalizeMessageList(messages: ChatMessage[]): ChatMessage[] {
+  const uniqueMessages = new Map<string, ChatMessage>();
 
   for (const message of messages) {
     if (!message?.id) {
       continue;
     }
 
-    uniqueMessages.set(
-      message.id,
-      message,
-    );
+    uniqueMessages.set(message.id, message);
   }
 
-  return Array.from(
-    uniqueMessages.values(),
-  ).sort(
+  return Array.from(uniqueMessages.values()).sort(
     (first, second) =>
-      new Date(
-        first.createdAt,
-      ).getTime() -
-      new Date(
-        second.createdAt,
-      ).getTime(),
+      new Date(first.createdAt).getTime() -
+      new Date(second.createdAt).getTime(),
   );
 }
 
@@ -161,33 +133,26 @@ function formatClock(totalSeconds: number): string {
   const minutes = Math.floor(safeSeconds / 60);
   const seconds = safeSeconds % 60;
 
-  return `${String(minutes).padStart(2, "0")}:${String(
-    seconds,
-  ).padStart(2, "0")}`;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
+    2,
+    "0",
+  )}`;
 }
 
-function getElapsedSeconds(
-  startedAt: string,
-  endedAt?: string | null,
-): number {
+function getElapsedSeconds(startedAt: string, endedAt?: string | null): number {
   const startedTime = new Date(startedAt).getTime();
 
   if (!Number.isFinite(startedTime)) {
     return 0;
   }
 
-  const endedTime = endedAt
-    ? new Date(endedAt).getTime()
-    : Date.now();
+  const endedTime = endedAt ? new Date(endedAt).getTime() : Date.now();
 
   if (!Number.isFinite(endedTime)) {
     return 0;
   }
 
-  return Math.max(
-    0,
-    Math.floor((endedTime - startedTime) / 1000),
-  );
+  return Math.max(0, Math.floor((endedTime - startedTime) / 1000));
 }
 
 function getRemainingSeconds(expiresAt: string): number {
@@ -197,10 +162,7 @@ function getRemainingSeconds(expiresAt: string): number {
     return 0;
   }
 
-  return Math.max(
-    0,
-    Math.ceil((expiryTime - Date.now()) / 1000),
-  );
+  return Math.max(0, Math.ceil((expiryTime - Date.now()) / 1000));
 }
 
 function formatMessageTime(createdAt: string): string {
@@ -238,8 +200,7 @@ function appendUniqueMessage(
 ): ChatMessage[] {
   if (
     currentMessages.some(
-      (existingMessage) =>
-        existingMessage.id === newMessage.id,
+      (existingMessage) => existingMessage.id === newMessage.id,
     )
   ) {
     return currentMessages;
@@ -253,246 +214,128 @@ function appendUniqueMessage(
 }
 
 export default function ChatConsultationPage() {
-     const params = useParams<{
+  const params = useParams<{
     bookingId?: string | string[];
   }>();
 
   const router = useRouter();
 
   const bookingId = useMemo(() => {
-    const rawBookingId =
-      params?.bookingId;
+    const rawBookingId = params?.bookingId;
 
-    if (
-      Array.isArray(rawBookingId)
-    ) {
+    if (Array.isArray(rawBookingId)) {
+      return rawBookingId[0]?.trim() ?? "";
+    }
+
+    return String(rawBookingId ?? "").trim();
+  }, [params?.bookingId]);
+
+  const [consultation, setConsultation] = useState<ConsultationSession | null>(
+    null,
+  );
+
+  const [chatRoom, setChatRoom] = useState<JoinChatResponse["data"] | null>(
+    null,
+  );
+
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  const [message, setMessage] = useState("");
+
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+
+  const [loading, setLoading] = useState(true);
+
+  const [sending, setSending] = useState(false);
+
+  const [ending, setEnding] = useState(false);
+
+  const [socketConnected, setSocketConnected] = useState(false);
+
+  const [otherParticipantOnline, setOtherParticipantOnline] = useState(false);
+
+  const [otherParticipantTyping, setOtherParticipantTyping] = useState(false);
+
+  const [error, setError] = useState("");
+
+  const [tokenLoading, setTokenLoading] = useState(false);
+
+  const [showAudioCall, setShowAudioCall] = useState(false);
+
+  const [callId, setCallId] = useState("");
+
+  const [tokenData, setTokenData] = useState<CallTokenData | null>(null);
+
+  const [incomingCall, setIncomingCall] = useState<IncomingCallPayload | null>(
+    null,
+  );
+
+  const [callStatus, setCallStatus] = useState<CallStatus>("IDLE");
+
+  const endProcessedRef = useRef(false);
+
+  const mountedRef = useRef(true);
+
+  const typingTimeoutRef = useRef<number | null>(null);
+
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const currentUserId = chatRoom?.currentUser.id?.trim() ?? "";
+
+  const otherParticipantUserId = useMemo(() => {
+    if (!chatRoom) {
+      return "";
+    }
+
+    const currentId = chatRoom.currentUser.id;
+
+    if (currentId === chatRoom.customer.id) {
+      return chatRoom.astrologer.id?.trim() ?? "";
+    }
+
+    return chatRoom.customer.id?.trim() ?? "";
+  }, [chatRoom]);
+
+  const isActive = Boolean(
+    consultation && consultation.status === "ACTIVE" && !consultation.endedAt,
+  );
+
+  const otherParticipantName = useMemo(() => {
+    if (!chatRoom) {
       return (
-        rawBookingId[0]?.trim() ??
-        ""
+        consultation?.astrologer?.userProfile?.fullName?.trim() ||
+        "Astro Soul Path Astrologer"
       );
     }
 
-    return String(
-      rawBookingId ?? "",
-    ).trim();
-  }, [params?.bookingId]);
+    const currentId = chatRoom.currentUser.id;
 
-  const [
-    consultation,
-    setConsultation,
-  ] =
-    useState<ConsultationSession | null>(
-      null,
-    );
-
-  const [
-    chatRoom,
-    setChatRoom,
-  ] =
-    useState<
-      JoinChatResponse["data"] | null
-    >(null);
-
-  const [
-    messages,
-    setMessages,
-  ] = useState<ChatMessage[]>([]);
-
-  const [
-    message,
-    setMessage,
-  ] = useState("");
-
-  const [
-    elapsedSeconds,
-    setElapsedSeconds,
-  ] = useState(0);
-
-  const [
-    remainingSeconds,
-    setRemainingSeconds,
-  ] = useState(0);
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    sending,
-    setSending,
-  ] = useState(false);
-
-  const [
-    ending,
-    setEnding,
-  ] = useState(false);
-
-  const [
-    socketConnected,
-    setSocketConnected,
-  ] = useState(false);
-
-  const [
-    otherParticipantOnline,
-    setOtherParticipantOnline,
-  ] = useState(false);
-
-  const [
-    otherParticipantTyping,
-    setOtherParticipantTyping,
-  ] = useState(false);
-
-  const [
-    error,
-    setError,
-  ] = useState("");
-
-  const [
-    tokenLoading,
-    setTokenLoading,
-  ] = useState(false);
-
-  const [
-    showAudioCall,
-    setShowAudioCall,
-  ] = useState(false);
-
-  const [
-    callId,
-    setCallId,
-  ] = useState("");
-
-  const [
-    tokenData,
-    setTokenData,
-  ] =
-    useState<CallTokenData | null>(
-      null,
-    );
-
-  const [
-    incomingCall,
-    setIncomingCall,
-  ] =
-    useState<IncomingCallPayload | null>(
-      null,
-    );
-
-  const [
-    callStatus,
-    setCallStatus,
-  ] =
-    useState<CallStatus>(
-      "IDLE",
-    );
-
-  const endProcessedRef =
-    useRef(false);
-
-  const mountedRef =
-    useRef(true);
-
-  const typingTimeoutRef =
-    useRef<number | null>(
-      null,
-    );
-
-  const messagesContainerRef =
-    useRef<HTMLDivElement | null>(
-      null,
-    );
-
-  const currentUserId =
-    chatRoom?.currentUser.id?.trim() ??
-    "";
-
-  const otherParticipantUserId =
-    useMemo(() => {
-      if (!chatRoom) {
-        return "";
-      }
-
-      const currentId =
-        chatRoom.currentUser.id;
-
-      if (
-        currentId ===
-        chatRoom.customer.id
-      ) {
-        return (
-          chatRoom.astrologer.id?.trim() ??
-          ""
-        );
-      }
-
+    if (currentId === chatRoom.customer.id) {
       return (
-        chatRoom.customer.id?.trim() ??
-        ""
+        chatRoom.astrologer.name?.trim() ||
+        consultation?.astrologer?.userProfile?.fullName?.trim() ||
+        "Astrologer"
       );
-    }, [chatRoom]);
+    }
 
-  const isActive =
-    Boolean(
-      consultation &&
-        consultation.status ===
-          "ACTIVE" &&
-        !consultation.endedAt &&
-        remainingSeconds > 0,
-    );
+    return chatRoom.customer.name?.trim() || "Customer";
+  }, [chatRoom, consultation]);
 
-  const otherParticipantName =
-    useMemo(() => {
-      if (!chatRoom) {
-        return (
-          consultation?.astrologer?.userProfile?.fullName?.trim() ||
-          "Astro Soul Path Astrologer"
-        );
-      }
+  const canStartAudioCall = Boolean(
+    isActive && currentUserId && otherParticipantUserId && !tokenLoading,
+  );
 
-      const currentId =
-        chatRoom.currentUser.id;
+  const callIsOpen = callStatus === "RINGING" || callStatus === "ACCEPTED";
 
-      if (
-        currentId ===
-        chatRoom.customer.id
-      ) {
-        return (
-          chatRoom.astrologer.name?.trim() ||
-          consultation?.astrologer?.userProfile?.fullName?.trim() ||
-          "Astrologer"
-        );
-      }
-
-      return (
-        chatRoom.customer.name?.trim() ||
-        "Customer"
-      );
-    }, [
-      chatRoom,
-      consultation,
-    ]);
-
-  const canStartAudioCall =
-    Boolean(
-      isActive &&
-        currentUserId &&
-        otherParticipantUserId &&
-        !tokenLoading,
-    );
-
-  const callIsOpen =
-    callStatus === "RINGING" ||
-    callStatus === "ACCEPTED";
-
-  const clearAudioCallState =
-    useCallback(() => {
-      setIncomingCall(null);
-      setShowAudioCall(false);
-      setTokenData(null);
-      setCallId("");
-      setTokenLoading(false);
-    }, []);
+  const clearAudioCallState = useCallback(() => {
+    setIncomingCall(null);
+    setShowAudioCall(false);
+    setTokenData(null);
+    setCallId("");
+    setTokenLoading(false);
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -500,15 +343,10 @@ export default function ChatConsultationPage() {
     return () => {
       mountedRef.current = false;
 
-      if (
-        typingTimeoutRef.current
-      ) {
-        window.clearTimeout(
-          typingTimeoutRef.current,
-        );
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current);
 
-        typingTimeoutRef.current =
-          null;
+        typingTimeoutRef.current = null;
       }
     };
   }, []);
@@ -522,9 +360,7 @@ export default function ChatConsultationPage() {
       const unreadMessageIds = incomingMessages
         .filter(
           (chatMessage) =>
-            chatMessage.senderId !==
-              currentUserId &&
-            !chatMessage.isRead,
+            chatMessage.senderId !== currentUserId && !chatMessage.isRead,
         )
         .map((chatMessage) => chatMessage.id);
 
@@ -532,24 +368,16 @@ export default function ChatConsultationPage() {
         return;
       }
 
-      markRealtimeRead(
-        bookingId,
-        unreadMessageIds,
-      );
+      markRealtimeRead(bookingId, unreadMessageIds);
 
       try {
-        await markAllChatMessagesAsRead(
-          bookingId,
-        );
+        await markAllChatMessagesAsRead(bookingId);
 
-        const readAt =
-          new Date().toISOString();
+        const readAt = new Date().toISOString();
 
         setMessages((current) =>
           current.map((chatMessage) =>
-            unreadMessageIds.includes(
-              chatMessage.id,
-            )
+            unreadMessageIds.includes(chatMessage.id)
               ? {
                   ...chatMessage,
                   isRead: true,
@@ -567,22 +395,19 @@ export default function ChatConsultationPage() {
 
   const loadChatData = useCallback(async () => {
     if (!bookingId) {
-      setError(
-        "Consultation ID is missing.",
-      );
+      setError("Consultation ID is missing.");
       setLoading(false);
       return;
     }
 
-    const token = localStorage.getItem(
-      "asp_access_token",
-    );
+    const token =
+      localStorage.getItem("asp_astrologer_access_token") ??
+      localStorage.getItem("asp_access_token") ??
+      localStorage.getItem("access_token");
 
     if (!token) {
       router.replace(
-        `/login?redirect=${encodeURIComponent(
-          `/chat/${bookingId}`,
-        )}`,
+        `/login?redirect=${encodeURIComponent(`/chat/${bookingId}`)}`,
       );
 
       return;
@@ -592,31 +417,27 @@ export default function ChatConsultationPage() {
       setLoading(true);
       setError("");
 
-      const consultationResponse =
-        await getCurrentConsultation();
+      let consultationResponse = await getCurrentConsultation();
 
-      const currentConsultation =
-        consultationResponse.data ?? null;
+      let currentConsultation = consultationResponse.data ?? null;
+
+      if (!currentConsultation || currentConsultation.id !== bookingId) {
+        consultationResponse = await getCurrentAstrologerConsultation();
+
+        currentConsultation = consultationResponse.data ?? null;
+      }
 
       if (!currentConsultation) {
-        setError(
-          "No active consultation was found.",
-        );
+        setError("No active consultation was found.");
         return;
       }
 
-      if (
-        currentConsultation.id !== bookingId
-      ) {
-        setError(
-          "This is not your currently active consultation.",
-        );
+      if (currentConsultation.id !== bookingId) {
+        setError("This is not your currently active consultation.");
         return;
       }
 
-      setConsultation(
-        currentConsultation,
-      );
+      setConsultation(currentConsultation);
 
       setElapsedSeconds(
         getElapsedSeconds(
@@ -625,56 +446,33 @@ export default function ChatConsultationPage() {
         ),
       );
 
-      setRemainingSeconds(
-        getRemainingSeconds(
-          currentConsultation.expiresAt,
-        ),
-      );
+      setRemainingSeconds(getRemainingSeconds(currentConsultation.expiresAt));
 
-      const [
-        joinResponse,
-        historyResponse,
-      ] = await Promise.all([
-        joinChat(bookingId),
-        getChatHistory(bookingId),
-      ]);
+      const joinResponse = await joinChat(bookingId);
+
+      const historyResponse = await getChatHistory(bookingId);
 
       setChatRoom(joinResponse.data);
 
-      setMessages(
-      normalizeMessageList(
-      historyResponse.data.messages ?? [],
-     ),
-    );
+      setMessages(normalizeMessageList(historyResponse.data.messages ?? []));
 
-      const unreadIds =
-        historyResponse.data.messages
-          .filter(
-            (chatMessage) =>
-              chatMessage.senderId !==
-                joinResponse.data.currentUser
-                  .id &&
-              !chatMessage.isRead,
-          )
-          .map(
-            (chatMessage) =>
-              chatMessage.id,
-          );
+      const unreadIds = historyResponse.data.messages
+        .filter(
+          (chatMessage) =>
+            chatMessage.senderId !== joinResponse.data.currentUser.id &&
+            !chatMessage.isRead,
+        )
+        .map((chatMessage) => chatMessage.id);
 
       if (unreadIds.length > 0) {
         try {
-          await markAllChatMessagesAsRead(
-            bookingId,
-          );
+          await markAllChatMessagesAsRead(bookingId);
 
-          const readAt =
-            new Date().toISOString();
+          const readAt = new Date().toISOString();
 
           setMessages((current) =>
             current.map((chatMessage) =>
-              unreadIds.includes(
-                chatMessage.id,
-              )
+              unreadIds.includes(chatMessage.id)
                 ? {
                     ...chatMessage,
                     isRead: true,
@@ -693,21 +491,13 @@ export default function ChatConsultationPage() {
           ? err.message
           : "Unable to load chat consultation.";
 
-      if (
-        messageText === "LOGIN_REQUIRED"
-      ) {
-        localStorage.removeItem(
-          "asp_access_token",
-        );
+      if (messageText === "LOGIN_REQUIRED") {
+        localStorage.removeItem("asp_access_token");
 
-        localStorage.removeItem(
-          "asp_refresh_token",
-        );
+        localStorage.removeItem("asp_refresh_token");
 
         router.replace(
-          `/login?redirect=${encodeURIComponent(
-            `/chat/${bookingId}`,
-          )}`,
+          `/login?redirect=${encodeURIComponent(`/chat/${bookingId}`)}`,
         );
 
         return;
@@ -723,21 +513,90 @@ export default function ChatConsultationPage() {
     void loadChatData();
   }, [loadChatData]);
 
-    useEffect(() => {
+  /*
+   * Poll a pending consultation until the astrologer accepts it.
+   * Once ACTIVE, reload the room and complete message history so
+   * the automated astrologer welcome message appears immediately.
+   */
+  useEffect(() => {
+    if (
+      !bookingId ||
+      !consultation ||
+      consultation.id !== bookingId ||
+      consultation.status === "ACTIVE" ||
+      consultation.endedAt
+    ) {
+      return;
+    }
+
+    let isChecking = false;
+
+    const interval = window.setInterval(async () => {
+      if (isChecking) {
+        return;
+      }
+
+      isChecking = true;
+
+      try {
+        const response = await getCurrentConsultation();
+
+        const latest = response.data ?? null;
+
+        if (!latest || latest.id !== bookingId) {
+          return;
+        }
+
+        setConsultation(latest);
+
+        setElapsedSeconds(getElapsedSeconds(latest.startedAt, latest.endedAt));
+
+        setRemainingSeconds(getRemainingSeconds(latest.expiresAt));
+
+        if (latest.status === "ACTIVE" && !latest.endedAt) {
+          const joinResponse = await joinChat(bookingId);
+
+          const historyResponse = await getChatHistory(bookingId);
+
+          setChatRoom(joinResponse.data);
+
+          setMessages(
+            normalizeMessageList(historyResponse.data.messages ?? []),
+          );
+
+          setError("");
+
+          window.clearInterval(interval);
+        }
+      } catch (pollError) {
+        console.error(
+          "[CHAT] Unable to refresh pending consultation:",
+          pollError,
+        );
+      } finally {
+        isChecking = false;
+      }
+    }, 2000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [bookingId, consultation]);
+
+  // aapka existing line 737 wala effect yahan se continue hoga
+
+  useEffect(() => {
     if (!bookingId || !chatRoom) {
       return;
     }
 
-    const socket =
-      connectChatSocket();
+    const socket = connectChatSocket();
 
     const handleConnect = () => {
       setSocketConnected(true);
       setError("");
 
-      joinChatRoom(
-        bookingId,
-      );
+      joinChatRoom(bookingId);
     };
 
     const handleDisconnect = () => {
@@ -746,204 +605,110 @@ export default function ChatConsultationPage() {
       setOtherParticipantTyping(false);
     };
 
-    const cleanupConnected =
-      onChatConnected(() => {
-        setSocketConnected(true);
+    const cleanupConnected = onChatConnected(() => {
+      setSocketConnected(true);
 
-        joinChatRoom(
-          bookingId,
-        );
-      });
+      joinChatRoom(bookingId);
+    });
 
-    const cleanupJoined =
-      onChatJoined((payload) => {
-        if (
-          payload.callSessionId !==
-          bookingId
-        ) {
-          return;
-        }
+    const cleanupJoined = onChatJoined((payload) => {
+      if (payload.callSessionId !== bookingId) {
+        return;
+      }
 
-        setSocketConnected(true);
-      });
+      setSocketConnected(true);
+    });
 
-    const cleanupMessage =
-      onNewMessage(
-        (incomingMessage) => {
-          if (
-            !incomingMessage?.id ||
-            incomingMessage.callSessionId !==
-              bookingId
-          ) {
-            return;
-          }
+    const cleanupMessage = onNewMessage((incomingMessage) => {
+      if (!incomingMessage?.id || incomingMessage.callSessionId !== bookingId) {
+        return;
+      }
 
-          setMessages(
-            (current) =>
-              appendUniqueMessage(
-                current,
-                incomingMessage,
-              ),
-          );
+      setMessages((current) => appendUniqueMessage(current, incomingMessage));
 
-          if (
-            incomingMessage.senderId !==
-            chatRoom.currentUser.id
-          ) {
-            void markIncomingMessagesAsRead([
-              incomingMessage,
-            ]);
-          }
-        },
-      );
+      if (incomingMessage.senderId !== chatRoom.currentUser.id) {
+        void markIncomingMessagesAsRead([incomingMessage]);
+      }
+    });
 
-    const cleanupTyping =
-      onTyping(
-        (
-          payload: ChatTypingPayload,
-        ) => {
-          if (
-            payload.callSessionId !==
-              bookingId ||
-            payload.userId ===
-              chatRoom.currentUser.id
-          ) {
-            return;
-          }
-
-          setOtherParticipantTyping(
-            Boolean(
-              payload.isTyping,
-            ),
-          );
-        },
-      );
-
-    const cleanupPresence =
-      onPresence(
-        (
-          payload: ChatPresencePayload,
-        ) => {
-          if (
-            payload.callSessionId !==
-              bookingId ||
-            payload.userId ===
-              chatRoom.currentUser.id
-          ) {
-            return;
-          }
-
-          setOtherParticipantOnline(
-            Boolean(
-              payload.isOnline,
-            ),
-          );
-        },
-      );
-
-    const cleanupReadReceipt = onReadReceipt(
-  (payload) => {
+    const cleanupTyping = onTyping((payload: ChatTypingPayload) => {
       if (
-        payload.callSessionId !==
-        bookingId
+        payload.callSessionId !== bookingId ||
+        payload.userId === chatRoom.currentUser.id
       ) {
         return;
       }
 
-      const readAt =
-        payload.readAt ||
-        new Date().toISOString();
+      setOtherParticipantTyping(Boolean(payload.isTyping));
+    });
 
-          setMessages((current) =>
-            current.map(
-              (chatMessage) => {
-                if (
-                  chatMessage.senderId !==
-                  chatRoom.currentUser.id
-                ) {
-                  return chatMessage;
-                }
+    const cleanupPresence = onPresence((payload: ChatPresencePayload) => {
+      if (
+        payload.callSessionId !== bookingId ||
+        payload.userId === chatRoom.currentUser.id
+      ) {
+        return;
+      }
 
-                if (
-                  "messageIds" in
-                    payload &&
-                  Array.isArray(
-                    payload.messageIds,
-                  ) &&
-                  !payload.messageIds.includes(
-                    chatMessage.id,
-                  )
-                ) {
-                  return chatMessage;
-                }
+      setOtherParticipantOnline(Boolean(payload.isOnline));
+    });
 
-                return {
-                  ...chatMessage,
-                  isRead: true,
-                  readAt,
-                };
-              },
-            ),
-          );
-        },
+    const cleanupReadReceipt = onReadReceipt((payload) => {
+      if (payload.callSessionId !== bookingId) {
+        return;
+      }
+
+      const readAt = payload.readAt || new Date().toISOString();
+
+      setMessages((current) =>
+        current.map((chatMessage) => {
+          if (chatMessage.senderId !== chatRoom.currentUser.id) {
+            return chatMessage;
+          }
+
+          if (
+            "messageIds" in payload &&
+            Array.isArray(payload.messageIds) &&
+            !payload.messageIds.includes(chatMessage.id)
+          ) {
+            return chatMessage;
+          }
+
+          return {
+            ...chatMessage,
+            isRead: true,
+            readAt,
+          };
+        }),
       );
+    });
 
-    const cleanupError =
-      onChatError(
-        (
-          payload: ChatErrorPayload,
-        ) => {
-          setError(
-            payload.message ||
-              "Realtime chat connection failed.",
-          );
-        },
-      );
+    const cleanupError = onChatError((payload: ChatErrorPayload) => {
+      setError(payload.message || "Realtime chat connection failed.");
+    });
 
-    socket.on(
-      "connect",
-      handleConnect,
-    );
+    socket.on("connect", handleConnect);
 
-    socket.on(
-      "disconnect",
-      handleDisconnect,
-    );
+    socket.on("disconnect", handleDisconnect);
 
     if (socket.connected) {
       handleConnect();
     }
 
     return () => {
-      if (
-        typingTimeoutRef.current
-      ) {
-        window.clearTimeout(
-          typingTimeoutRef.current,
-        );
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current);
 
-        typingTimeoutRef.current =
-          null;
+        typingTimeoutRef.current = null;
       }
 
-      sendTypingStatus(
-        bookingId,
-        false,
-      );
+      sendTypingStatus(bookingId, false);
 
-      leaveChatRoom(
-        bookingId,
-      );
+      leaveChatRoom(bookingId);
 
-      socket.off(
-        "connect",
-        handleConnect,
-      );
+      socket.off("connect", handleConnect);
 
-      socket.off(
-        "disconnect",
-        handleDisconnect,
-      );
+      socket.off("disconnect", handleDisconnect);
 
       cleanupConnected();
       cleanupJoined();
@@ -955,232 +720,127 @@ export default function ChatConsultationPage() {
 
       disconnectChatSocket();
     };
-  }, [
-    bookingId,
-    chatRoom,
-    markIncomingMessagesAsRead,
-  ]);
+  }, [bookingId, chatRoom, markIncomingMessagesAsRead]);
 
-
-    useEffect(() => {
+  useEffect(() => {
     if (!currentUserId) {
       return;
     }
 
-    const socket =
-      connectCallSocket(
-        currentUserId,
-      );
+    const socket = connectCallSocket(currentUserId);
 
     const handleConnect = () => {
       setError("");
     };
 
-    const handleConnectError = (
-      connectError: Error,
-    ) => {
-      setError(
-        connectError.message ||
-          "Unable to connect to the call server.",
-      );
+    const handleConnectError = (connectError: Error) => {
+      setError(connectError.message || "Unable to connect to the call server.");
     };
 
-    const cleanupAccepted =
-      onCallAccepted(
-        (payload) => {
-          if (
-            payload.callId !==
-            bookingId
-          ) {
-            return;
-          }
-
-          setIncomingCall(null);
-          setCallStatus(
-            "ACCEPTED",
-          );
-          setError("");
-
-          setCallId(
-            payload.callId,
-          );
-        },
-      );
-
-    const cleanupRejected =
-      onCallRejected(
-        (payload) => {
-          if (
-            payload.callId !==
-            bookingId
-          ) {
-            return;
-          }
-
-          clearAudioCallState();
-
-          setCallStatus(
-            "REJECTED",
-          );
-
-          setError(
-            payload.reason ||
-              "The audio call was rejected.",
-          );
-        },
-      );
-
-    const cleanupMissed =
-      onCallMissed(
-        (payload) => {
-          if (
-            payload.callId !==
-            bookingId
-          ) {
-            return;
-          }
-
-          clearAudioCallState();
-
-          setCallStatus(
-            "MISSED",
-          );
-
-          setError(
-            payload.reason ||
-              "The call was not answered.",
-          );
-        },
-      );
-
-    const cleanupCancelled =
-      onCallCancelled(
-        (payload) => {
-          if (
-            payload.callId !==
-            bookingId
-          ) {
-            return;
-          }
-
-          clearAudioCallState();
-
-          setCallStatus(
-            "CANCELLED",
-          );
-
-          setError(
-            payload.reason ||
-              "The audio call was cancelled.",
-          );
-        },
-      );
-
-    const cleanupUnavailable =
-      onCallUnavailable(
-        (payload) => {
-          if (
-            payload.callId !==
-            bookingId
-          ) {
-            return;
-          }
-
-          clearAudioCallState();
-
-          setCallStatus(
-            "UNAVAILABLE",
-          );
-
-          setError(
-            payload.reason ||
-              "The other participant is currently unavailable.",
-          );
-        },
-      );
-
-    const cleanupRinging =
-      onCallRinging(
-        (payload) => {
-          if (
-            payload.callId !==
-            bookingId
-          ) {
-            return;
-          }
-
-          setCallId(
-            payload.callId,
-          );
-
-          setCallStatus(
-            "RINGING",
-          );
-
-          setError("");
-        },
-      );
-
-    const handleIncomingCall = (
-      payload: IncomingCallPayload,
-    ) => {
-      if (
-        !payload?.callId ||
-        payload.callId !==
-          bookingId
-      ) {
+    const cleanupAccepted = onCallAccepted((payload) => {
+      if (payload.callId !== bookingId) {
         return;
       }
 
-      setIncomingCall(
-        payload,
-      );
+      setIncomingCall(null);
+      setCallStatus("ACCEPTED");
+      setError("");
 
-      setCallId(
-        payload.callId,
-      );
+      setCallId(payload.callId);
+    });
 
-      setCallStatus(
-        "RINGING",
+    const cleanupRejected = onCallRejected((payload) => {
+      if (payload.callId !== bookingId) {
+        return;
+      }
+
+      clearAudioCallState();
+
+      setCallStatus("REJECTED");
+
+      setError(payload.reason || "The audio call was rejected.");
+    });
+
+    const cleanupMissed = onCallMissed((payload) => {
+      if (payload.callId !== bookingId) {
+        return;
+      }
+
+      clearAudioCallState();
+
+      setCallStatus("MISSED");
+
+      setError(payload.reason || "The call was not answered.");
+    });
+
+    const cleanupCancelled = onCallCancelled((payload) => {
+      if (payload.callId !== bookingId) {
+        return;
+      }
+
+      clearAudioCallState();
+
+      setCallStatus("CANCELLED");
+
+      setError(payload.reason || "The audio call was cancelled.");
+    });
+
+    const cleanupUnavailable = onCallUnavailable((payload) => {
+      if (payload.callId !== bookingId) {
+        return;
+      }
+
+      clearAudioCallState();
+
+      setCallStatus("UNAVAILABLE");
+
+      setError(
+        payload.reason || "The other participant is currently unavailable.",
       );
+    });
+
+    const cleanupRinging = onCallRinging((payload) => {
+      if (payload.callId !== bookingId) {
+        return;
+      }
+
+      setCallId(payload.callId);
+
+      setCallStatus("RINGING");
+
+      setError("");
+    });
+
+    const handleIncomingCall = (payload: IncomingCallPayload) => {
+      if (!payload?.callId || payload.callId !== bookingId) {
+        return;
+      }
+
+      setIncomingCall(payload);
+
+      setCallId(payload.callId);
+
+      setCallStatus("RINGING");
 
       setError("");
     };
 
-    socket.on(
-      "connect",
-      handleConnect,
-    );
+    socket.on("connect", handleConnect);
 
-    socket.on(
-      "connect_error",
-      handleConnectError,
-    );
+    socket.on("connect_error", handleConnectError);
 
-    socket.on(
-      "call:incoming",
-      handleIncomingCall,
-    );
+    socket.on("call:incoming", handleIncomingCall);
 
     if (!socket.connected) {
       socket.connect();
     }
 
     return () => {
-      socket.off(
-        "connect",
-        handleConnect,
-      );
+      socket.off("connect", handleConnect);
 
-      socket.off(
-        "connect_error",
-        handleConnectError,
-      );
+      socket.off("connect_error", handleConnectError);
 
-      socket.off(
-        "call:incoming",
-        handleIncomingCall,
-      );
+      socket.off("call:incoming", handleIncomingCall);
 
       cleanupAccepted();
       cleanupRejected();
@@ -1194,72 +854,58 @@ export default function ChatConsultationPage() {
        * isliye yahan disconnectCallSocket() nahi karna.
        */
     };
-  }, [
-    bookingId,
-    clearAudioCallState,
-    currentUserId,
-  ]);
+  }, [bookingId, clearAudioCallState, currentUserId]);
 
   useEffect(() => {
-  if (
-    !consultation ||
-    consultation.status !== "ACTIVE" ||
-    consultation.endedAt
-  ) {
-    return;
-  }
+    if (
+      !consultation ||
+      consultation.status !== "ACTIVE" ||
+      consultation.endedAt
+    ) {
+      return;
+    }
 
-  const timer = window.setInterval(() => {
-    setElapsedSeconds(
-      getElapsedSeconds(
-        consultation.startedAt,
-      ),
-    );
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(getElapsedSeconds(consultation.startedAt));
 
-    setRemainingSeconds(
-      getRemainingSeconds(
-        consultation.expiresAt,
-      ),
-    );
-  }, 1000);
+      setRemainingSeconds(getRemainingSeconds(consultation.expiresAt));
+    }, 1000);
 
-  return () => {
-    window.clearInterval(timer);
-  };
-}, [consultation]);
-
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [consultation]);
 
   useEffect(() => {
     if (
       !consultation ||
       consultation.status !== "ACTIVE" ||
       consultation.endedAt ||
-      remainingSeconds > 0 ||
       endProcessedRef.current
     ) {
       return;
     }
 
+    const expiryTime = new Date(consultation.expiresAt).getTime();
+
+    if (!Number.isFinite(expiryTime) || expiryTime > Date.now()) {
+      return;
+    }
+
     endProcessedRef.current = true;
 
-    void completeConsultation(
-    consultation.id,
-   )
-  .then((response) => {
-    setConsultation(
-      response.data,
-    );
+    void completeConsultation(consultation.id)
+      .then((response) => {
+        setConsultation(response.data);
 
-    leaveChatRoom(
-      consultation.id,
-    );
+        setRemainingSeconds(0);
 
-    window.setTimeout(() => {
-      router.replace(
-        "/consultations",
-      );
-    }, 1500);
-   })
+        leaveChatRoom(consultation.id);
+
+        window.setTimeout(() => {
+          router.replace("/consultations");
+        }, 1500);
+      })
       .catch((err: unknown) => {
         endProcessedRef.current = false;
 
@@ -1269,73 +915,40 @@ export default function ChatConsultationPage() {
             : "Unable to end expired consultation.",
         );
       });
-  }, [
-    consultation,
-    remainingSeconds,
-    router,
-  ]);
+  }, [consultation, remainingSeconds, router]);
 
   useEffect(() => {
-    const container =
-      messagesContainerRef.current;
+    const container = messagesContainerRef.current;
 
     if (container) {
-      container.scrollTop =
-        container.scrollHeight;
+      container.scrollTop = container.scrollHeight;
     }
-  }, [
-    messages,
-    otherParticipantTyping,
-  ]);
+  }, [messages, otherParticipantTyping]);
 
-  function handleMessageInputChange(
-    value: string,
-  ) {
+  function handleMessageInputChange(value: string) {
     setMessage(value);
 
-    if (
-      !bookingId ||
-      !socketConnected
-    ) {
+    if (!bookingId || !socketConnected) {
       return;
     }
 
-    sendTypingStatus(
-      bookingId,
-      Boolean(value.trim()),
-    );
+    sendTypingStatus(bookingId, Boolean(value.trim()));
 
-    if (
-      typingTimeoutRef.current
-    ) {
-      window.clearTimeout(
-        typingTimeoutRef.current,
-      );
+    if (typingTimeoutRef.current) {
+      window.clearTimeout(typingTimeoutRef.current);
     }
 
-    typingTimeoutRef.current =
-      window.setTimeout(() => {
-        sendTypingStatus(
-          bookingId,
-          false,
-        );
-      }, 1200);
+    typingTimeoutRef.current = window.setTimeout(() => {
+      sendTypingStatus(bookingId, false);
+    }, 1200);
   }
 
-  async function handleSendMessage(
-    event: FormEvent<HTMLFormElement>,
-  ) {
+  async function handleSendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const normalizedMessage =
-      message.trim();
+    const normalizedMessage = message.trim();
 
-    if (
-      !normalizedMessage ||
-      !consultation ||
-      !isActive ||
-      sending
-    ) {
+    if (!normalizedMessage || !consultation || !isActive || sending) {
       return;
     }
 
@@ -1344,10 +957,7 @@ export default function ChatConsultationPage() {
       setError("");
       setMessage("");
 
-      sendTypingStatus(
-        bookingId,
-        false,
-      );
+      sendTypingStatus(bookingId, false);
 
       if (socketConnected) {
         sendRealtimeMessage({
@@ -1359,38 +969,26 @@ export default function ChatConsultationPage() {
         return;
       }
 
-      const response =
-        await sendChatMessage({
-          callSessionId: bookingId,
-          messageType: "TEXT",
-          content: normalizedMessage,
-        });
+      const response = await sendChatMessage({
+        callSessionId: bookingId,
+        messageType: "TEXT",
+        content: normalizedMessage,
+      });
 
       setMessages((current) =>
-        appendUniqueMessage(
-          current,
-          response.data.message,
-        ),
+        appendUniqueMessage(current, response.data.message),
       );
     } catch (err: unknown) {
       setMessage(normalizedMessage);
 
       const messageText =
-        err instanceof Error
-          ? err.message
-          : "Unable to send message.";
+        err instanceof Error ? err.message : "Unable to send message.";
 
-      if (
-        messageText === "LOGIN_REQUIRED"
-      ) {
-        localStorage.removeItem(
-          "asp_access_token",
-        );
+      if (messageText === "LOGIN_REQUIRED") {
+        localStorage.removeItem("asp_access_token");
 
         router.replace(
-          `/login?redirect=${encodeURIComponent(
-            `/chat/${bookingId}`,
-          )}`,
+          `/login?redirect=${encodeURIComponent(`/chat/${bookingId}`)}`,
         );
 
         return;
@@ -1402,14 +1000,8 @@ export default function ChatConsultationPage() {
     }
   }
 
-  async function handleAttachmentUploaded(
-    attachment: UploadedChatAttachment,
-  ) {
-    if (
-      !isActive ||
-      !bookingId ||
-      sending
-    ) {
+  async function handleAttachmentUploaded(attachment: UploadedChatAttachment) {
+    if (!isActive || !bookingId || sending) {
       return;
     }
 
@@ -1421,12 +1013,9 @@ export default function ChatConsultationPage() {
         callSessionId: bookingId,
         messageType: attachment.type,
         attachmentUrl: attachment.url,
-        attachmentName:
-          attachment.fileName,
-        attachmentMimeType:
-          attachment.mimeType,
-        attachmentSize:
-          attachment.size,
+        attachmentName: attachment.fileName,
+        attachmentMimeType: attachment.mimeType,
+        attachmentSize: attachment.size,
       } as const;
 
       if (socketConnected) {
@@ -1434,32 +1023,20 @@ export default function ChatConsultationPage() {
         return;
       }
 
-      const response =
-        await sendChatMessage(payload);
+      const response = await sendChatMessage(payload);
 
       setMessages((current) =>
-        appendUniqueMessage(
-          current,
-          response.data.message,
-        ),
+        appendUniqueMessage(current, response.data.message),
       );
     } catch (err: unknown) {
       const messageText =
-        err instanceof Error
-          ? err.message
-          : "Unable to send attachment.";
+        err instanceof Error ? err.message : "Unable to send attachment.";
 
-      if (
-        messageText === "LOGIN_REQUIRED"
-      ) {
-        localStorage.removeItem(
-          "asp_access_token",
-        );
+      if (messageText === "LOGIN_REQUIRED") {
+        localStorage.removeItem("asp_access_token");
 
         router.replace(
-          `/login?redirect=${encodeURIComponent(
-            `/chat/${bookingId}`,
-          )}`,
+          `/login?redirect=${encodeURIComponent(`/chat/${bookingId}`)}`,
         );
 
         return;
@@ -1471,30 +1048,18 @@ export default function ChatConsultationPage() {
     }
   }
 
-    async function handleAcceptIncomingCall():
-    Promise<void> {
-    if (
-      !incomingCall ||
-      !currentUserId ||
-      tokenLoading
-    ) {
+  async function handleAcceptIncomingCall(): Promise<void> {
+    if (!incomingCall || !currentUserId || tokenLoading) {
       return;
     }
 
-    const incomingCallId =
-      incomingCall.callId.trim();
+    const incomingCallId = incomingCall.callId.trim();
 
     const callerUserId =
-      incomingCall.callerUserId?.trim() ||
-      incomingCall.callerId?.trim();
+      incomingCall.callerUserId?.trim() || incomingCall.callerId?.trim();
 
-    if (
-      !incomingCallId ||
-      !callerUserId
-    ) {
-      setError(
-        "Incoming call information is incomplete.",
-      );
+    if (!incomingCallId || !callerUserId) {
+      setError("Incoming call information is incomplete.");
 
       return;
     }
@@ -1503,68 +1068,48 @@ export default function ChatConsultationPage() {
       setTokenLoading(true);
       setError("");
 
-      const accepted =
-        acceptCall({
-          callId:
-            incomingCallId,
+      const accepted = acceptCall({
+        callId: incomingCallId,
 
-          callerUserId,
+        callerUserId,
 
-          receiverUserId:
-            currentUserId,
-        });
+        receiverUserId: currentUserId,
+      });
 
       if (!accepted) {
-        throw new Error(
-          "Call server is disconnected. Please try again.",
-        );
+        throw new Error("Call server is disconnected. Please try again.");
       }
 
-      const response =
-        await getCallToken(
-          incomingCallId,
-        );
+      const response = await getCallToken(incomingCallId);
 
       if (
         !response?.data?.appId ||
         !response.data.token ||
         !response.data.channelName ||
-        !Number.isInteger(
-          response.data.uid,
-        )
+        !Number.isInteger(response.data.uid)
       ) {
-        throw new Error(
-          "Backend returned incomplete audio-call credentials.",
-        );
+        throw new Error("Backend returned incomplete audio-call credentials.");
       }
 
       if (!mountedRef.current) {
         return;
       }
 
-      setCallId(
-        incomingCallId,
-      );
+      setCallId(incomingCallId);
 
       setTokenData({
-        appId:
-          response.data.appId,
+        appId: response.data.appId,
 
-        token:
-          response.data.token,
+        token: response.data.token,
 
-        channelName:
-          response.data.channelName,
+        channelName: response.data.channelName,
 
-        uid:
-          response.data.uid,
+        uid: response.data.uid,
       });
 
       setIncomingCall(null);
 
-      setCallStatus(
-        "ACCEPTED",
-      );
+      setCallStatus("ACCEPTED");
 
       setShowAudioCall(true);
     } catch (error: unknown) {
@@ -1572,12 +1117,7 @@ export default function ChatConsultationPage() {
         return;
       }
 
-      setError(
-        getErrorMessage(
-          error,
-          "Unable to accept the audio call.",
-        ),
-      );
+      setError(getErrorMessage(error, "Unable to accept the audio call."));
     } finally {
       if (mountedRef.current) {
         setTokenLoading(false);
@@ -1585,79 +1125,49 @@ export default function ChatConsultationPage() {
     }
   }
 
-  function handleRejectIncomingCall():
-    void {
-    if (
-      !incomingCall ||
-      !currentUserId ||
-      tokenLoading
-    ) {
+  function handleRejectIncomingCall(): void {
+    if (!incomingCall || !currentUserId || tokenLoading) {
       return;
     }
 
-    const incomingCallId =
-      incomingCall.callId.trim();
+    const incomingCallId = incomingCall.callId.trim();
 
-    const callerUserId =
-     incomingCall.callerId?.trim();
+    const callerUserId = incomingCall.callerId?.trim();
 
-    if (
-      !incomingCallId ||
-      !callerUserId
-    ) {
-      setError(
-        "Incoming call information is incomplete.",
-      );
+    if (!incomingCallId || !callerUserId) {
+      setError("Incoming call information is incomplete.");
 
       return;
     }
 
-    const rejected =
-      rejectCall({
-        callId:
-          incomingCallId,
+    const rejected = rejectCall({
+      callId: incomingCallId,
 
-        callerUserId,
+      callerUserId,
 
-        receiverUserId:
-          currentUserId,
+      receiverUserId: currentUserId,
 
-        reason:
-          "Call rejected by recipient.",
-      });
+      reason: "Call rejected by recipient.",
+    });
 
     if (!rejected) {
-      setError(
-        "Call server is disconnected. Unable to reject the call.",
-      );
+      setError("Call server is disconnected. Unable to reject the call.");
 
       return;
     }
 
     clearAudioCallState();
 
-    setCallStatus(
-      "REJECTED",
-    );
+    setCallStatus("REJECTED");
   }
 
-  async function handleStartAudioCall():
-    Promise<void> {
-    if (
-      !canStartAudioCall ||
-      callIsOpen
-    ) {
+  async function handleStartAudioCall(): Promise<void> {
+    if (!canStartAudioCall || callIsOpen) {
       return;
     }
 
-    if (
-      !bookingId ||
-      !currentUserId ||
-      !otherParticipantUserId
-    ) {
-      setError(
-        "Call participant information is missing.",
-      );
+    if (!bookingId || !currentUserId || !otherParticipantUserId) {
+      setError("Call participant information is missing.");
 
       return;
     }
@@ -1666,24 +1176,18 @@ export default function ChatConsultationPage() {
       setTokenLoading(true);
       setError("");
 
-      const emitted =
-        initiateCall({
-          callId:
-            bookingId,
+      const emitted = initiateCall({
+        callId: bookingId,
 
-          recipientUserId:
-            otherParticipantUserId,
+        recipientUserId: otherParticipantUserId,
 
-          callerId:
-            currentUserId,
+        callerId: currentUserId,
 
-          callerName:
-            chatRoom?.currentUser.name?.trim() ||
-            "Astro Soul Path User",
+        callerName:
+          chatRoom?.currentUser.name?.trim() || "Astro Soul Path User",
 
-          consultationType:
-            "AUDIO",
-        });
+        consultationType: "AUDIO",
+      });
 
       if (!emitted) {
         throw new Error(
@@ -1691,49 +1195,34 @@ export default function ChatConsultationPage() {
         );
       }
 
-      const response =
-        await getCallToken(
-          bookingId,
-        );
+      const response = await getCallToken(bookingId);
 
       if (
         !response?.data?.appId ||
         !response.data.token ||
         !response.data.channelName ||
-        !Number.isInteger(
-          response.data.uid,
-        )
+        !Number.isInteger(response.data.uid)
       ) {
-        throw new Error(
-          "Backend returned incomplete audio-call credentials.",
-        );
+        throw new Error("Backend returned incomplete audio-call credentials.");
       }
 
       if (!mountedRef.current) {
         return;
       }
 
-      setCallId(
-        bookingId,
-      );
+      setCallId(bookingId);
 
       setTokenData({
-        appId:
-          response.data.appId,
+        appId: response.data.appId,
 
-        token:
-          response.data.token,
+        token: response.data.token,
 
-        channelName:
-          response.data.channelName,
+        channelName: response.data.channelName,
 
-        uid:
-          response.data.uid,
+        uid: response.data.uid,
       });
 
-      setCallStatus(
-        "RINGING",
-      );
+      setCallStatus("RINGING");
 
       /*
        * AudioCall component render hoga,
@@ -1748,16 +1237,9 @@ export default function ChatConsultationPage() {
 
       clearAudioCallState();
 
-      setCallStatus(
-        "IDLE",
-      );
+      setCallStatus("IDLE");
 
-      setError(
-        getErrorMessage(
-          error,
-          "Unable to start the audio call.",
-        ),
-      );
+      setError(getErrorMessage(error, "Unable to start the audio call."));
     } finally {
       if (mountedRef.current) {
         setTokenLoading(false);
@@ -1766,12 +1248,7 @@ export default function ChatConsultationPage() {
   }
 
   async function handleEndConsultation() {
-    if (
-      !consultation ||
-      !isActive ||
-      ending ||
-      endProcessedRef.current
-    ) {
+    if (!consultation || !isActive || ending || endProcessedRef.current) {
       return;
     }
 
@@ -1779,16 +1256,11 @@ export default function ChatConsultationPage() {
       [
         "End this chat consultation?",
         "",
-        `Elapsed time: ${formatClock(
-          elapsedSeconds,
-        )}`,
+        `Elapsed time: ${formatClock(elapsedSeconds)}`,
         `Purchased time: ${
-            consultation.purchasedMinutes +
-            consultation.extendedMinutes
+          consultation.purchasedMinutes + consultation.extendedMinutes
         } minute(s)`,
-        `Amount already charged: ₹${consultation.amountCharged.toFixed(
-          2,
-        )}`,
+        `Amount already charged: ₹${consultation.amountCharged.toFixed(2)}`,
       ].join("\n"),
     );
 
@@ -1801,54 +1273,30 @@ export default function ChatConsultationPage() {
       endProcessedRef.current = true;
       setError("");
 
-      sendTypingStatus(
-        consultation.id,
-        false,
-      );
+      sendTypingStatus(consultation.id, false);
 
-      leaveChatRoom(
-        consultation.id,
-      );
+      leaveChatRoom(consultation.id);
 
-      const response =
-      await completeConsultation(
-      consultation.id,
-     );
+      const response = await completeConsultation(consultation.id);
 
-    setConsultation(
-     response.data,
-    );
+      setConsultation(response.data);
 
-      localStorage.removeItem(
-        "asp_active_call",
-      );
+      localStorage.removeItem("asp_active_call");
 
-      localStorage.removeItem(
-        "asp_pending_consultation",
-      );
+      localStorage.removeItem("asp_pending_consultation");
 
-      router.replace(
-        "/consultations",
-      );
+      router.replace("/consultations");
     } catch (err: unknown) {
       endProcessedRef.current = false;
 
       const messageText =
-        err instanceof Error
-          ? err.message
-          : "Unable to end consultation.";
+        err instanceof Error ? err.message : "Unable to end consultation.";
 
-      if (
-        messageText === "LOGIN_REQUIRED"
-      ) {
-        localStorage.removeItem(
-          "asp_access_token",
-        );
+      if (messageText === "LOGIN_REQUIRED") {
+        localStorage.removeItem("asp_access_token");
 
         router.replace(
-          `/login?redirect=${encodeURIComponent(
-            `/chat/${bookingId}`,
-          )}`,
+          `/login?redirect=${encodeURIComponent(`/chat/${bookingId}`)}`,
         );
 
         return;
@@ -1860,7 +1308,7 @@ export default function ChatConsultationPage() {
     }
   }
 
-    if (loading) {
+  if (loading) {
     return (
       <main className="min-h-screen bg-[#FAF7F0] px-4 py-12 sm:px-6 sm:py-20">
         <div
@@ -1876,10 +1324,7 @@ export default function ChatConsultationPage() {
               {Array.from({
                 length: 4,
               }).map((_, index) => (
-                <div
-                  key={index}
-                  className="h-14 w-28 rounded-xl bg-white/10"
-                />
+                <div key={index} className="h-14 w-28 rounded-xl bg-white/10" />
               ))}
             </div>
           </div>
@@ -1925,9 +1370,7 @@ export default function ChatConsultationPage() {
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <button
               type="button"
-              onClick={() =>
-                void loadChatData()
-              }
+              onClick={() => void loadChatData()}
               className="rounded-xl border border-red-300 px-5 py-3 font-semibold text-red-700 transition hover:bg-red-50"
             >
               Try Again
@@ -1955,30 +1398,13 @@ export default function ChatConsultationPage() {
   return (
     <>
       <IncomingCallModal
-        open={Boolean(
-          incomingCall,
-        )}
-        callerName={
-          incomingCall?.callerName ??
-          "Astro Soul Path User"
-        }
-        consultationType={
-          incomingCall?.consultationType ??
-          "AUDIO"
-        }
-        timeoutSeconds={
-          incomingCall?.timeoutSeconds ??
-          30
-        }
-        isProcessing={
-          tokenLoading
-        }
-        onAccept={() =>
-          void handleAcceptIncomingCall()
-        }
-        onReject={
-          handleRejectIncomingCall
-        }
+        open={Boolean(incomingCall)}
+        callerName={incomingCall?.callerName ?? "Astro Soul Path User"}
+        consultationType={incomingCall?.consultationType ?? "AUDIO"}
+        timeoutSeconds={incomingCall?.timeoutSeconds ?? 30}
+        isProcessing={tokenLoading}
+        onAccept={() => void handleAcceptIncomingCall()}
+        onReject={handleRejectIncomingCall}
       />
 
       <main className="min-h-screen bg-[#FAF7F0] px-4 py-8 sm:px-6 sm:py-12">
@@ -2008,15 +1434,11 @@ export default function ChatConsultationPage() {
               className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
             >
               <div className="flex items-start justify-between gap-4">
-                <p className="leading-6">
-                  {error}
-                </p>
+                <p className="leading-6">{error}</p>
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setError("")
-                  }
+                  onClick={() => setError("")}
                   className="shrink-0 rounded-lg px-2 text-xl leading-none transition hover:bg-red-100"
                   aria-label="Close error"
                 >
@@ -2062,9 +1484,7 @@ export default function ChatConsultationPage() {
 
                     <span
                       className={`inline-flex items-center gap-2 ${
-                        socketConnected
-                          ? "text-green-300"
-                          : "text-amber-300"
+                        socketConnected ? "text-green-300" : "text-amber-300"
                       }`}
                     >
                       <span
@@ -2082,10 +1502,7 @@ export default function ChatConsultationPage() {
                     </span>
 
                     <span className="text-gray-300">
-                      ₹
-                      {Number(
-                        consultation.ratePerMinute,
-                      ).toFixed(2)}
+                      ₹{Number(consultation.ratePerMinute).toFixed(2)}
                       /minute
                     </span>
                   </div>
@@ -2093,58 +1510,40 @@ export default function ChatConsultationPage() {
 
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:flex xl:flex-wrap xl:items-center">
                   <div className="rounded-xl bg-white/10 px-4 py-2">
-                    <p className="text-xs text-gray-300">
-                      Elapsed
-                    </p>
+                    <p className="text-xs text-gray-300">Elapsed</p>
 
                     <p className="mt-1 font-bold">
-                      {formatClock(
-                        elapsedSeconds,
-                      )}
+                      {formatClock(elapsedSeconds)}
                     </p>
                   </div>
 
                   <div className="rounded-xl bg-white/10 px-4 py-2">
-                    <p className="text-xs text-gray-300">
-                      Remaining
-                    </p>
+                    <p className="text-xs text-gray-300">Remaining</p>
 
                     <p
                       className={`mt-1 font-bold ${
-                        remainingSeconds <= 60 &&
-                        isActive
-                          ? "text-red-300"
-                          : ""
+                        remainingSeconds <= 60 && isActive ? "text-red-300" : ""
                       }`}
                     >
-                      {formatClock(
-                        remainingSeconds,
-                      )}
+                      {formatClock(remainingSeconds)}
                     </p>
                   </div>
 
                   <div className="rounded-xl bg-white/10 px-4 py-2">
-                    <p className="text-xs text-gray-300">
-                      Purchased
-                    </p>
+                    <p className="text-xs text-gray-300">Purchased</p>
 
                     <p className="mt-1 font-bold">
                       {consultation.purchasedMinutes +
-                       consultation.extendedMinutes}{" "}
-                       min
+                        consultation.extendedMinutes}{" "}
+                      min
                     </p>
                   </div>
 
                   <div className="rounded-xl bg-white/10 px-4 py-2">
-                    <p className="text-xs text-gray-300">
-                      Charged
-                    </p>
+                    <p className="text-xs text-gray-300">Charged</p>
 
                     <p className="mt-1 font-bold text-[#D4AF37]">
-                      ₹
-                      {Number(
-                        consultation.amountCharged,
-                      ).toFixed(2)}
+                      ₹{Number(consultation.amountCharged).toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -2153,40 +1552,26 @@ export default function ChatConsultationPage() {
               <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row sm:flex-wrap">
                 <button
                   type="button"
-                  onClick={() =>
-                    void handleStartAudioCall()
-                  }
-                  disabled={
-                    !canStartAudioCall ||
-                    callIsOpen
-                  }
+                  onClick={() => void handleStartAudioCall()}
+                  disabled={!canStartAudioCall || callIsOpen}
                   className="inline-flex items-center justify-center rounded-xl bg-green-600 px-6 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-500 disabled:opacity-70"
                 >
                   {tokenLoading
                     ? "Preparing Audio..."
-                    : callStatus ===
-                        "RINGING"
+                    : callStatus === "RINGING"
                       ? "Calling..."
-                      : callStatus ===
-                          "ACCEPTED"
+                      : callStatus === "ACCEPTED"
                         ? "Audio Connected"
                         : "Start Audio Call"}
                 </button>
 
                 <button
                   type="button"
-                  onClick={() =>
-                    void handleEndConsultation()
-                  }
-                  disabled={
-                    ending ||
-                    !isActive
-                  }
+                  onClick={() => void handleEndConsultation()}
+                  disabled={ending || !isActive}
                   className="inline-flex items-center justify-center rounded-xl bg-red-600 px-6 py-3 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {ending
-                    ? "Ending Consultation..."
-                    : "End Consultation"}
+                  {ending ? "Ending Consultation..." : "End Consultation"}
                 </button>
               </div>
             </header>
@@ -2197,56 +1582,45 @@ export default function ChatConsultationPage() {
               </div>
             )}
 
-            {remainingSeconds > 0 &&
-              remainingSeconds <= 60 &&
-              isActive && (
-                <div
-                  role="alert"
-                  className="border-b border-red-200 bg-red-50 p-4 text-center font-semibold text-red-700"
-                >
-                  Less than one minute remains in this
-                  consultation.
-                </div>
-              )}
-
-            {callStatus ===
-              "RINGING" && (
-              <div className="border-b border-blue-200 bg-blue-50 p-4 text-center text-sm font-semibold text-blue-700">
-                Audio call request sent. Waiting for{" "}
-                {otherParticipantName} to accept…
+            {remainingSeconds > 0 && remainingSeconds <= 60 && isActive && (
+              <div
+                role="alert"
+                className="border-b border-red-200 bg-red-50 p-4 text-center font-semibold text-red-700"
+              >
+                Less than one minute remains in this consultation.
               </div>
             )}
 
-            {callStatus ===
-              "REJECTED" && (
+            {callStatus === "RINGING" && (
+              <div className="border-b border-blue-200 bg-blue-50 p-4 text-center text-sm font-semibold text-blue-700">
+                Audio call request sent. Waiting for {otherParticipantName} to
+                accept…
+              </div>
+            )}
+
+            {callStatus === "REJECTED" && (
               <div className="border-b border-red-200 bg-red-50 p-4 text-center text-sm font-semibold text-red-700">
                 The audio call was rejected.
               </div>
             )}
 
-            {callStatus ===
-              "MISSED" && (
+            {callStatus === "MISSED" && (
               <div className="border-b border-amber-200 bg-amber-50 p-4 text-center text-sm font-semibold text-amber-700">
                 The audio call was not answered.
               </div>
             )}
 
-            {callStatus ===
-              "UNAVAILABLE" && (
+            {callStatus === "UNAVAILABLE" && (
               <div className="border-b border-amber-200 bg-amber-50 p-4 text-center text-sm font-semibold text-amber-700">
-                The other participant is currently
-                unavailable.
+                The other participant is currently unavailable.
               </div>
             )}
 
             <div
-              ref={
-                messagesContainerRef
-              }
+              ref={messagesContainerRef}
               className="h-[55vh] min-h-[420px] max-h-[650px] overflow-y-auto bg-[#FAF7F0] p-4 sm:p-6"
             >
-              {messages.length ===
-              0 ? (
+              {messages.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-center">
                   <div className="max-w-md">
                     <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#D4AF37]/15 text-4xl">
@@ -2258,154 +1632,110 @@ export default function ChatConsultationPage() {
                     </h2>
 
                     <p className="mt-2 leading-7 text-gray-600">
-                      Send your first message to begin the
-                      consultation.
+                      Send your first message to begin the consultation.
                     </p>
 
                     <p className="mt-3 text-sm leading-6 text-gray-500">
-                      Messages and attachments are securely
-                      stored in your consultation history.
+                      Messages and attachments are securely stored in your
+                      consultation history.
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {messages.map(
-                    (chatMessage) => {
-                      const isOwnMessage =
-                        chatMessage.senderId ===
-                        currentUserId;
+                  {messages.map((chatMessage) => {
+                    const isOwnMessage = chatMessage.senderId === currentUserId;
 
-                      const attachment =
-                        chatMessage.attachment;
+                    const attachment = chatMessage.attachment;
 
-                      const isImage =
-                        chatMessage.messageType ===
-                          "IMAGE" &&
-                        Boolean(
-                          attachment,
-                        );
+                    const isImage =
+                      chatMessage.messageType === "IMAGE" &&
+                      Boolean(attachment);
 
-                      return (
-                        <article
-                          key={
-                            chatMessage.id
-                          }
-                          className={`flex ${
+                    return (
+                      <article
+                        key={chatMessage.id}
+                        className={`flex ${
+                          isOwnMessage ? "justify-end" : "justify-start"
+                        }`}
+                      >
+                        <div
+                          className={`max-w-[88%] rounded-2xl px-4 py-3 sm:max-w-[75%] sm:px-5 ${
                             isOwnMessage
-                              ? "justify-end"
-                              : "justify-start"
+                              ? "rounded-br-md bg-[#D4AF37] text-[#0B1026]"
+                              : "rounded-bl-md bg-white text-[#0B1026] shadow-sm"
                           }`}
                         >
-                          <div
-                            className={`max-w-[88%] rounded-2xl px-4 py-3 sm:max-w-[75%] sm:px-5 ${
-                              isOwnMessage
-                                ? "rounded-br-md bg-[#D4AF37] text-[#0B1026]"
-                                : "rounded-bl-md bg-white text-[#0B1026] shadow-sm"
-                            }`}
-                          >
-                            {!isOwnMessage && (
-                              <p className="mb-1 text-xs font-bold opacity-70">
-                                {chatMessage
-                                  .sender
-                                  ?.name ||
-                                  otherParticipantName}
-                              </p>
-                            )}
+                          {!isOwnMessage && (
+                            <p className="mb-1 text-xs font-bold opacity-70">
+                              {chatMessage.sender?.name || otherParticipantName}
+                            </p>
+                          )}
 
-                            {chatMessage.content && (
-                              <p className="whitespace-pre-wrap break-words leading-6">
-                                {
-                                  chatMessage.content
-                                }
-                              </p>
-                            )}
+                          {chatMessage.content && (
+                            <p className="whitespace-pre-wrap break-words leading-6">
+                              {chatMessage.content}
+                            </p>
+                          )}
 
-                            {isImage &&
-                              attachment && (
-                                <a
-                                  href={
-                                    attachment.url
-                                  }
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="mt-3 block"
-                                >
-                                  { }
-                                  <img
-                                    src={
-                                      attachment.url
-                                    }
-                                    alt={
-                                      attachment.name ||
-                                      "Chat attachment"
-                                    }
-                                    className="max-h-80 w-auto max-w-full rounded-xl object-contain"
-                                  />
-                                </a>
-                              )}
+                          {isImage && attachment && (
+                            <a
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-3 block"
+                            >
+                              {}
+                              <img
+                                src={attachment.url}
+                                alt={attachment.name || "Chat attachment"}
+                                className="max-h-80 w-auto max-w-full rounded-xl object-contain"
+                              />
+                            </a>
+                          )}
 
-                            {attachment &&
-                              !isImage && (
-                                <a
-                                  href={
-                                    attachment.url
-                                  }
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="mt-3 flex items-center gap-3 rounded-xl border border-current/20 p-3 no-underline transition hover:bg-black/5"
-                                >
-                                  <span
-                                    className="text-2xl"
-                                    aria-hidden="true"
-                                  >
-                                    📎
-                                  </span>
+                          {attachment && !isImage && (
+                            <a
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-3 flex items-center gap-3 rounded-xl border border-current/20 p-3 no-underline transition hover:bg-black/5"
+                            >
+                              <span className="text-2xl" aria-hidden="true">
+                                📎
+                              </span>
 
-                                  <span className="min-w-0">
-                                    <span className="block truncate font-semibold underline">
-                                      {attachment.name ||
-                                        "Open attachment"}
-                                    </span>
-
-                                    <span className="mt-1 block text-xs opacity-60">
-                                      {attachment.mimeType ||
-                                        "File"}
-
-                                      {attachment.size
-                                        ? ` · ${formatFileSize(
-                                            attachment.size,
-                                          )}`
-                                        : ""}
-                                    </span>
-                                  </span>
-                                </a>
-                              )}
-
-                            <div className="mt-2 flex items-center justify-end gap-2 text-[11px] opacity-60">
-                              <time
-                                dateTime={
-                                  chatMessage.createdAt
-                                }
-                              >
-                                {formatMessageTime(
-                                  chatMessage.createdAt,
-                                )}
-                              </time>
-
-                              {isOwnMessage && (
-                                <span>
-                                  {chatMessage.isRead
-                                    ? "✓✓ Read"
-                                    : "✓ Sent"}
+                              <span className="min-w-0">
+                                <span className="block truncate font-semibold underline">
+                                  {attachment.name || "Open attachment"}
                                 </span>
-                              )}
-                            </div>
+
+                                <span className="mt-1 block text-xs opacity-60">
+                                  {attachment.mimeType || "File"}
+
+                                  {attachment.size
+                                    ? ` · ${formatFileSize(attachment.size)}`
+                                    : ""}
+                                </span>
+                              </span>
+                            </a>
+                          )}
+
+                          <div className="mt-2 flex items-center justify-end gap-2 text-[11px] opacity-60">
+                            <time dateTime={chatMessage.createdAt}>
+                              {formatMessageTime(chatMessage.createdAt)}
+                            </time>
+
+                            {isOwnMessage && (
+                              <span>
+                                {chatMessage.isRead ? "✓✓ Read" : "✓ Sent"}
+                              </span>
+                            )}
                           </div>
-                        </article>
-                      );
-                    },
-                  )}
+                        </div>
+                      </article>
+                    );
+                  })}
 
                   {otherParticipantTyping && (
                     <div className="flex justify-start">
@@ -2416,7 +1746,6 @@ export default function ChatConsultationPage() {
                             <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:150ms]" />
                             <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:300ms]" />
                           </span>
-
                           {otherParticipantName} is typing
                         </span>
                       </div>
@@ -2430,30 +1759,19 @@ export default function ChatConsultationPage() {
               {isActive && (
                 <div className="mb-4">
                   <ChatAttachmentButton
-                    callSessionId={
-                      bookingId
-                    }
-                    onUploaded={(
-                      attachment,
-                    ) =>
-                      void handleAttachmentUploaded(
-                        attachment,
-                      )
+                    callSessionId={bookingId}
+                    onUploaded={(attachment) =>
+                      void handleAttachmentUploaded(attachment)
                     }
                   />
                 </div>
               )}
 
               <form
-                onSubmit={
-                  handleSendMessage
-                }
+                onSubmit={handleSendMessage}
                 className="flex flex-col gap-3 sm:flex-row"
               >
-                <label
-                  htmlFor="chat-message"
-                  className="sr-only"
-                >
+                <label htmlFor="chat-message" className="sr-only">
                   Chat message
                 </label>
 
@@ -2461,99 +1779,57 @@ export default function ChatConsultationPage() {
                   id="chat-message"
                   type="text"
                   value={message}
-                  disabled={
-                    !isActive ||
-                    sending
-                  }
+                  disabled={!isActive || sending}
                   maxLength={2_000}
                   autoComplete="off"
-                  onChange={(
-                    event,
-                  ) =>
-                    handleMessageInputChange(
-                      event.target
-                        .value,
-                    )
+                  onChange={(event) =>
+                    handleMessageInputChange(event.target.value)
                   }
                   placeholder={
-                    isActive
-                      ? "Type your message..."
-                      : "Consultation has ended"
+                    isActive ? "Type your message..." : "Consultation has ended"
                   }
                   className="min-w-0 flex-1 rounded-xl border border-gray-300 px-4 py-3.5 outline-none transition focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/15 disabled:cursor-not-allowed disabled:bg-gray-100"
                 />
 
                 <button
                   type="submit"
-                  disabled={
-                    !message.trim() ||
-                    !isActive ||
-                    sending
-                  }
+                  disabled={!message.trim() || !isActive || sending}
                   className="inline-flex min-w-28 items-center justify-center rounded-xl bg-[#D4AF37] px-7 py-3.5 font-semibold text-[#0B1026] transition hover:bg-[#C9A52F] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {sending
-                    ? "Sending..."
-                    : "Send"}
+                  {sending ? "Sending..." : "Send"}
                 </button>
               </form>
 
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
-                <span>
-                  Maximum message length: 2,000 characters
-                </span>
+                <span>Maximum message length: 2,000 characters</span>
 
-                <span>
-                  {message.length}/2,000
-                </span>
+                <span>{message.length}/2,000</span>
               </div>
 
-              {showAudioCall &&
-                tokenData &&
-                callId && (
-                  <div className="mt-6">
-                    <AudioCall
-                      callId={
-                        callId
-                      }
-                      appId={
-                        tokenData.appId
-                      }
-                      channelName={
-                        tokenData.channelName
-                      }
-                      token={
-                        tokenData.token
-                      }
-                      uid={
-                        tokenData.uid
-                      }
-                      autoJoin={
-                        callStatus ===
-                        "ACCEPTED"
-                      }
-                        expiresAt={
-                        consultation.expiresAt
-                      }
-                        participantName={
-                        otherParticipantName
-                      }
-                      onEnd={() => {
-                        clearAudioCallState();
-                        setCallStatus(
-                          "IDLE",
-                        );
-                      }}
-                    />
-                  </div>
-                )}
+              {showAudioCall && tokenData && callId && (
+                <div className="mt-6">
+                  <AudioCall
+                    callId={callId}
+                    appId={tokenData.appId}
+                    channelName={tokenData.channelName}
+                    token={tokenData.token}
+                    uid={tokenData.uid}
+                    autoJoin={callStatus === "ACCEPTED"}
+                    expiresAt={consultation.expiresAt}
+                    participantName={otherParticipantName}
+                    onEnd={() => {
+                      clearAudioCallState();
+                      setCallStatus("IDLE");
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </section>
 
           <p className="mt-4 text-center text-xs leading-5 text-gray-500">
-            Live messages, attachments, typing status,
-            presence and read receipts are connected to the
-            Astro Soul Path backend.
+            Live messages, attachments, typing status, presence and read
+            receipts are connected to the Astro Soul Path backend.
           </p>
         </div>
       </main>

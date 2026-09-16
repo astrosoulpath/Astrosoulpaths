@@ -1,59 +1,36 @@
-import {
-  Injectable,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  RtcRole,
-  RtcTokenBuilder,
-} from 'agora-token';
+import { RtcRole, RtcTokenBuilder } from 'agora-token';
 
-const DEFAULT_TOKEN_EXPIRY_SECONDS =
-  60 * 60; // 1 hour
+const DEFAULT_TOKEN_EXPIRY_SECONDS = 60 * 60; // 1 hour
 
 @Injectable()
 export class AgoraService {
-  constructor(
-    private readonly config: ConfigService,
-  ) {}
+  constructor(private readonly config: ConfigService) {}
 
   generateRtcToken(
     channelName: string,
     uid: number,
+    role: 'PUBLISHER' | 'SUBSCRIBER' = 'PUBLISHER',
   ) {
-    const normalizedChannel =
-      channelName?.trim();
+    const normalizedChannel = channelName?.trim();
 
     if (!normalizedChannel) {
-      throw new InternalServerErrorException(
-        'Agora channel name is missing.',
-      );
+      throw new InternalServerErrorException('Agora channel name is missing.');
     }
 
-    if (
-      !Number.isInteger(uid) ||
-      uid <= 0
-    ) {
-      throw new InternalServerErrorException(
-        'Invalid Agora UID.',
-      );
+    if (!Number.isInteger(uid) || uid <= 0) {
+      throw new InternalServerErrorException('Invalid Agora UID.');
     }
 
-    const appId = this.config
-      .get<string>('AGORA_APP_ID')
+    const appId = this.config.get<string>('AGORA_APP_ID')?.trim();
+
+    const appCertificate = this.config
+      .get<string>('AGORA_APP_CERTIFICATE')
       ?.trim();
 
-    const appCertificate =
-      this.config
-        .get<string>(
-          'AGORA_APP_CERTIFICATE',
-        )
-        ?.trim();
-
     if (!appId) {
-      throw new InternalServerErrorException(
-        'AGORA_APP_ID is missing.',
-      );
+      throw new InternalServerErrorException('AGORA_APP_ID is missing.');
     }
 
     if (!appCertificate) {
@@ -63,30 +40,22 @@ export class AgoraService {
     }
 
     const expirySeconds =
-      Number(
-        this.config.get(
-          'AGORA_TOKEN_EXPIRY',
-        ),
-      ) ||
+      Number(this.config.get('AGORA_TOKEN_EXPIRY')) ||
       DEFAULT_TOKEN_EXPIRY_SECONDS;
 
-    const currentTimestamp =
-      Math.floor(Date.now() / 1000);
+    const currentTimestamp = Math.floor(Date.now() / 1000);
 
-    const privilegeExpireTime =
-      currentTimestamp +
-      expirySeconds;
+    const privilegeExpireTime = currentTimestamp + expirySeconds;
 
-    const token =
-      RtcTokenBuilder.buildTokenWithUid(
-        appId,
-        appCertificate,
-        normalizedChannel,
-        uid,
-        RtcRole.PUBLISHER,
-        privilegeExpireTime,
-        privilegeExpireTime,
-      );
+    const token = RtcTokenBuilder.buildTokenWithUid(
+      appId,
+      appCertificate,
+      normalizedChannel,
+      uid,
+      role === 'SUBSCRIBER' ? RtcRole.SUBSCRIBER : RtcRole.PUBLISHER,
+      privilegeExpireTime,
+      privilegeExpireTime,
+    );
 
     return {
       success: true,
@@ -95,33 +64,25 @@ export class AgoraService {
 
       token,
 
-      channelName:
-        normalizedChannel,
+      channelName: normalizedChannel,
 
       uid,
 
-      role: 'PUBLISHER',
+      role,
 
-      issuedAt:
-        currentTimestamp,
+      issuedAt: currentTimestamp,
 
-      expiresAt:
-        privilegeExpireTime,
+      expiresAt: privilegeExpireTime,
 
-      expiresIn:
-        expirySeconds,
+      expiresIn: expirySeconds,
     };
   }
 
   getRtcConfiguration() {
-    const appId = this.config
-      .get<string>('AGORA_APP_ID')
-      ?.trim();
+    const appId = this.config.get<string>('AGORA_APP_ID')?.trim();
 
     if (!appId) {
-      throw new InternalServerErrorException(
-        'AGORA_APP_ID is missing.',
-      );
+      throw new InternalServerErrorException('AGORA_APP_ID is missing.');
     }
 
     return {

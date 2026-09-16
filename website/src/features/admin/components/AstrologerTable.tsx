@@ -1,9 +1,11 @@
 "use client";
+import Link from "next/link";
 
 import { useEffect, useState } from "react";
 import {
   AdminAstrologer,
   approveAstrologer,
+  rejectAstrologer,
   getAdminAstrologers,
   suspendAstrologer,
 } from "@/services/adminService";
@@ -40,6 +42,11 @@ export function AstrologerTable() {
     await loadAstrologers();
   }
 
+  async function handleReject(id: string) {
+    await rejectAstrologer(id);
+    await loadAstrologers();
+  }
+
   async function handleSuspend(id: string) {
     await suspendAstrologer(id);
     await loadAstrologers();
@@ -50,70 +57,109 @@ export function AstrologerTable() {
   }, []);
 
   return (
-    <div className="mt-10 rounded-2xl bg-white p-6 shadow">
-      <h2 className="text-2xl font-bold text-[#0B1026]">
+    <div className="rounded-2xl border border-slate-700/70 bg-slate-950/55 p-5 shadow-[0_16px_45px_rgba(0,0,0,0.26)] sm:p-6">
+      <h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">
         Astrologer Approval Management
       </h2>
 
-      {loading && <p className="mt-6 text-gray-600">Loading astrologers...</p>}
+      {loading && (
+        <p className="mt-6 rounded-xl border border-slate-700/60 bg-slate-900/70 px-4 py-5 text-sm font-medium text-slate-400">
+          Loading astrologers...
+        </p>
+      )}
 
       {error && (
-        <p className="mt-6 rounded-xl bg-red-50 p-3 text-red-600">{error}</p>
+        <p className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-semibold text-red-300">
+          {error}
+        </p>
       )}
 
       {!loading && !error && astrologers.length === 0 && (
-        <p className="mt-6 text-gray-600">No astrologers found.</p>
+        <p className="mt-6 rounded-xl border border-slate-700/60 bg-slate-900/70 px-4 py-5 text-sm font-medium text-slate-400">
+          No astrologers found.
+        </p>
       )}
 
       {!loading && !error && astrologers.length > 0 && (
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full min-w-[900px] border-collapse text-left">
+        <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-700/70 bg-slate-950/75">
+          <table className="w-full min-w-[980px] border-collapse text-left text-sm text-slate-300">
             <thead>
-              <tr className="border-b bg-gray-50">
-                <th className="p-4">ID</th>
-                <th className="p-4">Experience</th>
-                <th className="p-4">Languages</th>
-                <th className="p-4">Specialties</th>
-                <th className="p-4">Price/min</th>
-                <th className="p-4">Status</th>
-                <th className="p-4">Actions</th>
+              <tr className="border-b border-slate-700/80 bg-slate-900/95">
+                <th className="px-4 py-4 text-xs font-black uppercase tracking-[0.12em] text-amber-400">
+                  ID
+                </th>
+                <th className="px-4 py-4 text-xs font-black uppercase tracking-[0.12em] text-amber-400">
+                  Experience
+                </th>
+                <th className="px-4 py-4 text-xs font-black uppercase tracking-[0.12em] text-amber-400">
+                  Languages
+                </th>
+                <th className="px-4 py-4 text-xs font-black uppercase tracking-[0.12em] text-amber-400">
+                  Specialties
+                </th>
+                <th className="px-4 py-4 text-xs font-black uppercase tracking-[0.12em] text-amber-400">
+                  Price/min
+                </th>
+                <th className="px-4 py-4 text-xs font-black uppercase tracking-[0.12em] text-amber-400">
+                  Status
+                </th>
+                <th className="px-4 py-4 text-xs font-black uppercase tracking-[0.12em] text-amber-400">
+                  Actions
+                </th>
               </tr>
             </thead>
 
             <tbody>
               {astrologers.map((astrologer) => (
-                <tr key={astrologer.id} className="border-b">
-                  <td className="p-4 font-semibold">{astrologer.id}</td>
+                <tr
+                  key={astrologer.id}
+                  className="border-b border-slate-800/90 transition duration-200 hover:bg-amber-400/[0.045]"
+                >
+                  <td className="max-w-[210px] px-4 py-4 font-mono text-xs font-semibold text-slate-400">
+                    {astrologer.id}
+                  </td>
 
-                  <td className="p-4">
+                  <td className="px-4 py-4 text-sm font-medium text-slate-300">
                     {astrologer.experience ?? 0} years
                   </td>
 
-                  <td className="p-4">
+                  <td className="px-4 py-4 text-sm font-medium text-slate-300">
                     {astrologer.languages?.join(", ") || "-"}
                   </td>
 
-                  <td className="p-4">
+                  <td className="px-4 py-4 text-sm font-medium text-slate-300">
                     {astrologer.expertise
                       ?.map((item) => item.expertise?.name)
                       .filter(Boolean)
                       .join(", ") || "-"}
                   </td>
 
-                  <td className="p-4">
-                    ₹{astrologer.pricePerMin ?? 0}
+                  <td className="px-4 py-4 text-sm font-medium text-slate-300">
+                    {"\u20B9"}
+                    {astrologer.pricePerMin ?? 0}
                   </td>
 
-                  <td className="p-4">
+                  <td className="px-4 py-4 text-sm font-medium text-slate-300">
                     <StatusBadge status={getStatus(astrologer)} />
                   </td>
 
-                  <td className="p-4">
-                    <ActionButtons
-                      onApprove={() => handleApprove(astrologer.id)}
-                      onReject={() => handleSuspend(astrologer.id)}
-                      onSuspend={() => handleSuspend(astrologer.id)}
-                    />
+                  <td className="px-4 py-4 text-sm font-medium text-slate-300">
+                    <div className="flex min-w-max flex-wrap items-center gap-2">
+                      <Link
+                        href={`/admin/astrologers/${encodeURIComponent(
+                          astrologer.id,
+                        )}`}
+                        className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-xs font-bold text-slate-200 transition hover:border-amber-400/60 hover:bg-amber-400/10 hover:text-amber-300"
+                      >
+                        View Profile
+                      </Link>
+
+                      <ActionButtons
+                        onApprove={() => handleApprove(astrologer.id)}
+                        onReject={() => handleReject(astrologer.id)}
+                        onSuspend={() => handleSuspend(astrologer.id)}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}

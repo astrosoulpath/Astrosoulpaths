@@ -5,6 +5,7 @@ import { razorpayInstance } from '../../config/razorpay.config';
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { KundliOrderService } from '../kundli/kundli-order.service';
+import { LocalizedPricingService } from './pricing/localized-pricing.service';
 
 describe('PaymentsService', () => {
   let service: PaymentsService;
@@ -34,6 +35,11 @@ describe('PaymentsService', () => {
     triggerPdfGeneration: jest.Mock;
     markGenerationFailed: jest.Mock;
   };
+  let localizedPricingServiceMock: {
+    quotePrice: jest.Mock;
+    quoteUsdPrice: jest.Mock;
+  };
+
   let fetchPaymentsSpy: jest.SpyInstance;
 
   const buildCapturedEvent = () => ({
@@ -133,6 +139,11 @@ describe('PaymentsService', () => {
       markGenerationFailed: jest.fn(),
     };
 
+    localizedPricingServiceMock = {
+      quotePrice: jest.fn(),
+      quoteUsdPrice: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PaymentsService,
@@ -143,6 +154,10 @@ describe('PaymentsService', () => {
         {
           provide: KundliOrderService,
           useValue: kundliOrderServiceMock,
+        },
+        {
+          provide: LocalizedPricingService,
+          useValue: localizedPricingServiceMock,
         },
       ],
     }).compile();
@@ -290,6 +305,8 @@ describe('PaymentsService', () => {
     prismaMock.user.findUnique.mockResolvedValue({
       id: 'user_123',
       supabaseId: 'supabase_user_123',
+      isActive: true,
+      isBlocked: false,
     });
     prismaMock.paymentOrder.findUnique.mockResolvedValue(paymentOrder);
     fetchPaymentsSpy.mockResolvedValue({
@@ -342,6 +359,8 @@ describe('PaymentsService', () => {
     prismaMock.user.findUnique.mockResolvedValue({
       id: 'user_123',
       supabaseId: 'supabase_user_123',
+      isActive: true,
+      isBlocked: false,
     });
     prismaMock.paymentOrder.findUnique
       .mockResolvedValueOnce(paymentOrder)
@@ -387,6 +406,8 @@ describe('PaymentsService', () => {
     prismaMock.user.findUnique.mockResolvedValue({
       id: 'user_123',
       supabaseId: 'supabase_user_123',
+      isActive: true,
+      isBlocked: false,
     });
     prismaMock.paymentOrder.findUnique.mockResolvedValue(paymentOrder);
 

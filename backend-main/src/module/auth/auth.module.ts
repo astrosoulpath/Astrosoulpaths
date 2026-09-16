@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { SupabaseModule } from '../../infrastructure/supabase/supabase.module';
@@ -10,3 +10,5 @@ import { UserModule } from '../user/user.module';
   providers: [AuthService],
 })
 export class AuthModule {}
+
+

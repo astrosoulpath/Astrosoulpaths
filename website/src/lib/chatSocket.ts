@@ -222,13 +222,23 @@ function getAccessToken(): string {
 }
 
 function requireAccessToken(): string {
+  if (typeof window === "undefined") {
+    throw new Error("LOGIN_REQUIRED");
+  }
+
   const token =
-    getAccessToken();
+    window.localStorage
+      .getItem("asp_astrologer_access_token")
+      ?.trim() ||
+    window.localStorage
+      .getItem("asp_access_token")
+      ?.trim() ||
+    window.localStorage
+      .getItem("access_token")
+      ?.trim();
 
   if (!token) {
-    throw new Error(
-      "LOGIN_REQUIRED",
-    );
+    throw new Error("LOGIN_REQUIRED");
   }
 
   return token;

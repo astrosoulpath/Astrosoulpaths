@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -51,7 +51,7 @@ function getAccessToken() {
   }
 
   return (
-    localStorage.getItem("asp_access_token") ??
+    localStorage.getItem("asp_admin_access_token") ??
     localStorage.getItem("access_token")
   );
 }
@@ -239,18 +239,18 @@ export default function AdminWalletPage() {
     }, [wallets, search]);
 
   return (    <main className="min-h-screen bg-[#FAF7F0] px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+      <div className="asp-admin-shell">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#D4AF37]">
               Admin Panel
             </p>
 
-            <h1 className="mt-2 text-3xl font-extrabold text-[#0B1026] sm:text-4xl">
+            <h1 className="asp-admin-title mt-2 text-3xl sm:text-4xl">
               Wallet & Transactions
             </h1>
 
-            <p className="mt-3 max-w-3xl text-base leading-7 text-gray-600">
+            <p className="asp-admin-subtitle mt-3 max-w-3xl text-base">
               Monitor customer wallet balances, locked funds and
               wallet account activity.
             </p>
@@ -259,7 +259,7 @@ export default function AdminWalletPage() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link
               href="/admin"
-              className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-center font-bold text-[#0B1026] transition hover:bg-gray-50"
+              className="asp-admin-back-btn"
             >
               Back to Dashboard
             </Link>
@@ -268,7 +268,7 @@ export default function AdminWalletPage() {
               type="button"
               onClick={() => void loadWallets(true)}
               disabled={refreshing}
-              className="rounded-xl bg-[#0B1026] px-5 py-3 font-bold text-white transition hover:bg-[#171D3D] disabled:cursor-not-allowed disabled:opacity-60"
+              className="asp-admin-primary-btn"
             >
               {refreshing ? "Refreshing..." : "Refresh"}
             </button>
@@ -288,8 +288,8 @@ export default function AdminWalletPage() {
         ) : null}
 
         <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Total Wallets
             </p>
 
@@ -298,8 +298,8 @@ export default function AdminWalletPage() {
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Total Balance
             </p>
 
@@ -308,8 +308,8 @@ export default function AdminWalletPage() {
             </p>
           </article>
 
-          <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-500">
+          <article className="asp-admin-stat-card">
+            <p className="asp-admin-stat-label">
               Locked Balance
             </p>
 
@@ -319,20 +319,20 @@ export default function AdminWalletPage() {
           </article>
         </section>
 
-        <section className="mt-8 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section className="asp-admin-panel mt-8 p-5 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-2xl font-extrabold text-[#0B1026]">
                 Customer Wallets
               </h2>
 
-              <p className="mt-1 text-sm text-gray-600">
+              <p className="mt-1 text-sm text-[#4B5C73]">
                 Search wallet records by customer name, phone, email,
                 user ID or wallet ID.
               </p>
             </div>
 
-            <p className="text-sm font-semibold text-gray-500">
+            <p className="asp-admin-stat-label">
               Showing {filteredWallets.length} of {wallets.length}
             </p>
           </div>
@@ -343,52 +343,52 @@ export default function AdminWalletPage() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search customer wallet..."
-              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-[#0B1026] outline-none transition focus:border-[#D4AF37]"
+              className="asp-admin-input w-full px-4 py-3"
             />
           </div>
 
           {loading ? (
             <div className="py-16 text-center">
-              <p className="font-semibold text-gray-600">
+              <p className="font-semibold text-[#4B5C73]">
                 Loading wallets...
               </p>
             </div>
           ) : !error && filteredWallets.length === 0 ? (
             <div className="py-16 text-center">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-2xl">
-                ₹
+                Ã¢â€šÂ¹
               </div>
 
               <h3 className="mt-5 text-2xl font-extrabold text-[#0B1026]">
                 No wallets found
               </h3>
 
-              <p className="mt-2 text-sm text-gray-600">
+              <p className="mt-2 text-sm text-[#4B5C73]">
                 No wallet records match the current search.
               </p>
             </div>
           ) : !error ? (
             <div className="mt-6 overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-0">
-                <thead>
+                <thead className="asp-admin-table-head">
                   <tr className="text-left">
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Customer
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Wallet Balance
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Locked Balance
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Available Balance
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-600">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
                       Last Updated
                     </th>
                   </tr>
@@ -412,17 +412,17 @@ export default function AdminWalletPage() {
                               {wallet.user.name?.trim() || "Customer"}
                             </p>
 
-                            <p className="mt-1 text-sm text-gray-600">
+                            <p className="mt-1 text-sm text-[#4B5C73]">
                               {wallet.user.phone ||
                                 wallet.user.email ||
                                 "Contact unavailable"}
                             </p>
 
-                            <p className="mt-1 break-all text-xs text-gray-400">
+                            <p className="mt-1 break-all text-xs text-[#758297]">
                               User ID: {wallet.user.id}
                             </p>
 
-                            <p className="mt-1 break-all text-xs text-gray-400">
+                            <p className="mt-1 break-all text-xs text-[#758297]">
                               Wallet ID: {wallet.id}
                             </p>
                           </div>
@@ -447,7 +447,7 @@ export default function AdminWalletPage() {
                         </td>
 
                         <td className="border-b border-gray-100 px-4 py-5">
-                          <p className="text-sm font-semibold text-gray-700">
+                          <p className="text-sm font-semibold text-[#263A55]">
                             {formatDate(wallet.updatedAt)}
                           </p>
                         </td>
@@ -463,3 +463,4 @@ export default function AdminWalletPage() {
     </main>
   );
 }
+

@@ -4,12 +4,14 @@ export class DailyInsightMapper {
 
     return {
       // =============================
-      // 🧑 USER HEADER
+      // USER HEADER
       // =============================
       user: {
-        name: user?.name || data?.subject_name || 'User',
+        name: user?.name || data?.subject_name,
         greeting: this.getGreeting(),
         date: data?.prediction_date,
+        requestedDay: user?.requestedDay,
+        requestedDate: user?.targetDate,
 
         natalNakshatra: data?.natal_moon?.nakshatra,
         natalNakshatraNumber: data?.natal_moon?.nakshatra_number,
@@ -20,10 +22,14 @@ export class DailyInsightMapper {
       },
 
       // =============================
-      // 🌌 COSMIC OVERVIEW
+      // COSMIC OVERVIEW
       // =============================
       cosmic: {
-        overallScore: data?.overall_score || 0,
+        overallScore:
+          typeof data?.overall_score === 'number' &&
+          Number.isFinite(data.overall_score)
+            ? data.overall_score
+            : null,
 
         tarabala: {
           name: data?.tarabala?.name,
@@ -33,7 +39,7 @@ export class DailyInsightMapper {
       },
 
       // =============================
-      // 🌙 CURRENT MOON DETAILS
+      // CURRENT MOON DETAILS
       // =============================
       moon: {
         current: {
@@ -52,13 +58,13 @@ export class DailyInsightMapper {
       },
 
       // =============================
-      // 🔮 LIFE AREA PREDICTIONS
+      // LIFE AREA PREDICTIONS
       // =============================
       lifeAreas: [
         {
           title: 'General',
           description: data?.predictions?.general,
-          emoji: '✨',
+          emoji: '🌟',
         },
         {
           title: 'Career',
@@ -68,12 +74,12 @@ export class DailyInsightMapper {
         {
           title: 'Relationships',
           description: data?.predictions?.relationships,
-          emoji: '❤️',
+          emoji: '❤',
         },
         {
           title: 'Health',
           description: data?.predictions?.health,
-          emoji: '🧘',
+          emoji: '🩺',
         },
         {
           title: 'Finance',
@@ -83,15 +89,27 @@ export class DailyInsightMapper {
       ],
 
       // =============================
-      // 🍀 LUCKY ELEMENTS
+      // LUCKY ELEMENTS
       // =============================
+      dailyHighlights: {
+        mood: data?.mood ?? data?.mood_of_day ?? data?.guidance?.mood ?? null,
+
+        focus: data?.focus ?? data?.focus_area ?? data?.guidance?.focus ?? null,
+
+        dailyAdvice:
+          data?.advice ??
+          data?.daily_advice ??
+          data?.guidance?.advice ??
+          data?.predictions?.general ??
+          null,
+      },
       lucky: {
         colors: this.capitalize(data?.guidance?.lucky_colors || []),
         numbers: data?.guidance?.lucky_numbers || [],
       },
 
       // =============================
-      // 🪐 GUIDANCE
+      // GUIDANCE
       // =============================
       guidance: {
         favorableActivities: this.capitalize(
@@ -104,7 +122,7 @@ export class DailyInsightMapper {
       },
 
       // =============================
-      // 📊 SUMMARY CARD
+      // SUMMARY CARD
       // =============================
       summary: {
         bestFor: this.formatActivities(
@@ -119,7 +137,7 @@ export class DailyInsightMapper {
   }
 
   // =============================
-  // 🔧 HELPERS
+  // HELPERS
   // =============================
 
   static getGreeting() {

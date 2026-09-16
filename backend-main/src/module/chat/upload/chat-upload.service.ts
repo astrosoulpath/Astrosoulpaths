@@ -12,94 +12,85 @@ import { SupabaseService } from '../../../infrastructure/supabase/supabase.servi
 
 const CHAT_BUCKET = 'chat';
 
-const MAX_IMAGE_SIZE =
-  10 * 1024 * 1024;
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
-const MAX_FILE_SIZE =
-  20 * 1024 * 1024;
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
-const IMAGE_MIME_TYPES =
-  new Set([
-    'image/jpeg',
-    'image/jpg',
-    'image/png',
-    'image/webp',
-    'image/gif',
-  ]);
+const IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+]);
 
-const FILE_MIME_TYPES =
-  new Set([
-    'application/pdf',
-    'application/zip',
-    'application/x-zip-compressed',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'text/plain',
-    'audio/mpeg',
-    'audio/mp3',
-    'audio/wav',
-    'audio/x-wav',
-    'audio/ogg',
-    'audio/webm',
-  ]);
+const AUDIO_MIME_TYPES = new Set([
+  'audio/m4a',
+  'audio/mp4',
+  'audio/aac',
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/ogg',
+  'audio/opus',
+  'audio/webm',
+  'audio/wav',
+  'audio/x-m4a',
+  'audio/x-wav',
+]);
 
-const MIME_EXTENSION_MAP:
-  Record<string, string> = {
-    'image/jpeg': '.jpg',
-    'image/jpg': '.jpg',
-    'image/png': '.png',
-    'image/webp': '.webp',
-    'image/gif': '.gif',
-    'application/pdf': '.pdf',
-    'application/zip': '.zip',
-    'application/x-zip-compressed':
-      '.zip',
-    'application/msword': '.doc',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-      '.docx',
-    'application/vnd.ms-excel':
-      '.xls',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
-      '.xlsx',
-    'text/plain': '.txt',
-    'audio/mpeg': '.mp3',
-    'audio/mp3': '.mp3',
-    'audio/wav': '.wav',
-    'audio/x-wav': '.wav',
-    'audio/ogg': '.ogg',
-    'audio/webm': '.webm',
-  };
+const MAX_AUDIO_SIZE = 10 * 1024 * 1024;
+const FILE_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/ogg',
+  'audio/webm',
+]);
 
-type UploadFolder =
-  | 'images'
-  | 'files';
+const MIME_EXTENSION_MAP: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'application/pdf': '.pdf',
+  'application/zip': '.zip',
+  'application/x-zip-compressed': '.zip',
+  'application/msword': '.doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    '.docx',
+  'application/vnd.ms-excel': '.xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'text/plain': '.txt',
+  'audio/mpeg': '.mp3',
+  'audio/mp3': '.mp3',
+  'audio/wav': '.wav',
+  'audio/x-wav': '.wav',
+  'audio/ogg': '.ogg',
+  'audio/webm': '.webm',
+};
+
+type UploadFolder = 'images' | 'files' | 'audios';
 
 @Injectable()
 export class ChatUploadService {
-  private readonly logger =
-    new Logger(
-      ChatUploadService.name,
-    );
+  private readonly logger = new Logger(ChatUploadService.name);
 
-  constructor(
-    private readonly supabaseService: SupabaseService,
-  ) {}
+  constructor(private readonly supabaseService: SupabaseService) {}
 
-  async uploadImage(
-    file: Express.Multer.File,
-    callSessionId: string,
-  ) {
-    const normalizedCallSessionId =
-      this.normalizeCallSessionId(
-        callSessionId,
-      );
+  async uploadImage(file: Express.Multer.File, callSessionId: string) {
+    const normalizedCallSessionId = this.normalizeCallSessionId(callSessionId);
 
-    this.validateFileExists(
-      file,
-      'Image',
-    );
+    this.validateFileExists(file, 'Image');
 
     this.validateMimeType(
       file.mimetype,
@@ -107,32 +98,30 @@ export class ChatUploadService {
       'Unsupported image type',
     );
 
-    this.validateFileSize(
-      file.size,
-      MAX_IMAGE_SIZE,
-      'Image exceeds 10 MB',
-    );
+    this.validateFileSize(file.size, MAX_IMAGE_SIZE, 'Image exceeds 10 MB');
 
-    return this.upload(
-      file,
-      normalizedCallSessionId,
-      'images',
-    );
+    return this.upload(file, normalizedCallSessionId, 'images');
   }
 
-  async uploadFile(
-    file: Express.Multer.File,
-    callSessionId: string,
-  ) {
-    const normalizedCallSessionId =
-      this.normalizeCallSessionId(
-        callSessionId,
-      );
+  async uploadAudio(file: Express.Multer.File, callSessionId: string) {
+    const normalizedCallSessionId = this.normalizeCallSessionId(callSessionId);
 
-    this.validateFileExists(
-      file,
-      'File',
+    this.validateFileExists(file, 'Audio');
+
+    this.validateMimeType(
+      file.mimetype,
+      AUDIO_MIME_TYPES,
+      'Unsupported audio type',
     );
+
+    this.validateFileSize(file.size, MAX_AUDIO_SIZE, 'Audio exceeds 10 MB');
+
+    return this.upload(file, normalizedCallSessionId, 'audios');
+  }
+  async uploadFile(file: Express.Multer.File, callSessionId: string) {
+    const normalizedCallSessionId = this.normalizeCallSessionId(callSessionId);
+
+    this.validateFileExists(file, 'File');
 
     this.validateMimeType(
       file.mimetype,
@@ -140,33 +129,17 @@ export class ChatUploadService {
       'Unsupported file type',
     );
 
-    this.validateFileSize(
-      file.size,
-      MAX_FILE_SIZE,
-      'File exceeds 20 MB',
-    );
+    this.validateFileSize(file.size, MAX_FILE_SIZE, 'File exceeds 20 MB');
 
-    return this.upload(
-      file,
-      normalizedCallSessionId,
-      'files',
-    );
+    return this.upload(file, normalizedCallSessionId, 'files');
   }
 
   private validateFileExists(
-    file:
-      | Express.Multer.File
-      | undefined,
+    file: Express.Multer.File | undefined,
     label: string,
   ): asserts file is Express.Multer.File {
-    if (
-      !file ||
-      !file.buffer ||
-      file.buffer.length === 0
-    ) {
-      throw new BadRequestException(
-        `${label} is required`,
-      );
+    if (!file || !file.buffer || file.buffer.length === 0) {
+      throw new BadRequestException(`${label} is required`);
     }
   }
 
@@ -175,18 +148,10 @@ export class ChatUploadService {
     allowedMimeTypes: Set<string>,
     errorMessage: string,
   ): void {
-    const normalizedMimeType =
-      mimeType?.trim().toLowerCase();
+    const normalizedMimeType = mimeType?.trim().toLowerCase();
 
-    if (
-      !normalizedMimeType ||
-      !allowedMimeTypes.has(
-        normalizedMimeType,
-      )
-    ) {
-      throw new BadRequestException(
-        errorMessage,
-      );
+    if (!normalizedMimeType || !allowedMimeTypes.has(normalizedMimeType)) {
+      throw new BadRequestException(errorMessage);
     }
   }
 
@@ -195,85 +160,44 @@ export class ChatUploadService {
     maxSize: number,
     errorMessage: string,
   ): void {
-    if (
-      !Number.isFinite(size) ||
-      size <= 0
-    ) {
-      throw new BadRequestException(
-        'Uploaded file is empty or invalid',
-      );
+    if (!Number.isFinite(size) || size <= 0) {
+      throw new BadRequestException('Uploaded file is empty or invalid');
     }
 
     if (size > maxSize) {
-      throw new BadRequestException(
-        errorMessage,
-      );
+      throw new BadRequestException(errorMessage);
     }
   }
 
-  private normalizeCallSessionId(
-    callSessionId: string,
-  ): string {
-    const normalized =
-      callSessionId?.trim();
+  private normalizeCallSessionId(callSessionId: string): string {
+    const normalized = callSessionId?.trim();
 
     if (!normalized) {
-      throw new BadRequestException(
-        'Call session ID is required',
-      );
+      throw new BadRequestException('Call session ID is required');
     }
 
     return normalized;
   }
 
-  private getSafeExtension(
-    originalName: string,
-    mimeType: string,
-  ): string {
-    const originalExtension =
-      extname(
-        originalName ?? '',
-      )
-        .toLowerCase()
-        .replace(
-          /[^a-z0-9.]/g,
-          '',
-        );
+  private getSafeExtension(originalName: string, mimeType: string): string {
+    const originalExtension = extname(originalName ?? '')
+      .toLowerCase()
+      .replace(/[^a-z0-9.]/g, '');
 
-    if (
-      originalExtension &&
-      originalExtension.length <=
-        10
-    ) {
+    if (originalExtension && originalExtension.length <= 10) {
       return originalExtension;
     }
 
-    return (
-      MIME_EXTENSION_MAP[
-        mimeType.toLowerCase()
-      ] ?? ''
-    );
+    return MIME_EXTENSION_MAP[mimeType.toLowerCase()] ?? '';
   }
 
-  private sanitizeOriginalName(
-    originalName: string,
-  ): string {
-    const normalized =
-      originalName
-        ?.trim()
-        .replace(
-          /[^\w.\- ]+/g,
-          '',
-        )
-        .replace(
-          /\s+/g,
-          ' ',
-        );
+  private sanitizeOriginalName(originalName: string): string {
+    const normalized = originalName
+      ?.trim()
+      .replace(/[^\w.\- ]+/g, '')
+      .replace(/\s+/g, ' ');
 
-    return (
-      normalized ||
-      'attachment'
-    );
+    return normalized || 'attachment';
   }
 
   private async upload(
@@ -281,130 +205,87 @@ export class ChatUploadService {
     callSessionId: string,
     folder: UploadFolder,
   ) {
-    const normalizedMimeType =
-      file.mimetype
-        .trim()
-        .toLowerCase();
+    const normalizedMimeType = file.mimetype.trim().toLowerCase();
 
-    const extension =
-      this.getSafeExtension(
-        file.originalname,
-        normalizedMimeType,
-      );
+    const extension = this.getSafeExtension(
+      file.originalname,
+      normalizedMimeType,
+    );
 
-    const storagePath =
-      `${callSessionId}/${folder}/${randomUUID()}${extension}`;
+    const storagePath = `${callSessionId}/${folder}/${randomUUID()}${extension}`;
 
-    const client =
-      this.supabaseService.getStorageClient();
+    const client = this.supabaseService.getStorageClient();
 
     try {
-      const {
-        error: uploadError,
-      } =
-        await client.storage
-          .from(CHAT_BUCKET)
-          .upload(
-            storagePath,
-            file.buffer,
-            {
-              contentType:
-                normalizedMimeType,
+      const { error: uploadError } = await client.storage
+        .from(CHAT_BUCKET)
+        .upload(storagePath, file.buffer, {
+          contentType: normalizedMimeType,
 
-              upsert:
-                false,
+          upsert: false,
 
-              cacheControl:
-                '3600',
-            },
-          );
+          cacheControl: '3600',
+        });
 
       if (uploadError) {
-        this.logger.error(
-          `Chat upload failed: ${uploadError.message}`,
-        );
+        this.logger.error(`Chat upload failed: ${uploadError.message}`);
 
-        throw new BadRequestException(
-          uploadError.message,
-        );
+        throw new BadRequestException(uploadError.message);
       }
+      const { data: signedData, error: signedError } = await client.storage
+        .from(CHAT_BUCKET)
+        .createSignedUrl(storagePath, 60 * 10);
 
-      const {
-        data: publicData,
-      } =
-        client.storage
-          .from(CHAT_BUCKET)
-          .getPublicUrl(
-            storagePath,
-          );
-
-      const publicUrl =
-        publicData
-          ?.publicUrl
-          ?.trim();
-
-      if (!publicUrl) {
+      if (signedError || !signedData?.signedUrl?.trim()) {
         await client.storage
           .from(CHAT_BUCKET)
-          .remove([
-            storagePath,
-          ])
+          .remove([storagePath])
           .catch(() => undefined);
 
         throw new InternalServerErrorException(
-          'Unable to generate uploaded file URL',
+          'Unable to generate temporary attachment URL',
         );
       }
+
+      const signedUrl = signedData.signedUrl.trim();
 
       return {
         success: true,
 
         message:
-          folder ===
-          'images'
+          folder === 'images'
             ? 'Image uploaded successfully'
             : 'File uploaded successfully',
 
         data: {
-          url:
-            publicUrl,
+          url: signedUrl,
+          path: storagePath,
 
-          path:
-            storagePath,
+          fileName: this.sanitizeOriginalName(file.originalname),
 
-          fileName:
-            this.sanitizeOriginalName(
-              file.originalname,
-            ),
+          mimeType: normalizedMimeType,
 
-          mimeType:
-            normalizedMimeType,
-
-          size:
-            file.size,
+          size: file.size,
 
           type:
-            folder ===
-            'images'
+            folder === 'images'
               ? ('IMAGE' as const)
-              : ('FILE' as const),
+              : folder === 'audios'
+                ? ('AUDIO' as const)
+                : ('FILE' as const),
         },
       };
     } catch (error: unknown) {
       if (
-        error instanceof
-          BadRequestException ||
-        error instanceof
-          InternalServerErrorException
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
       ) {
         throw error;
       }
 
       this.logger.error(
         'Unexpected chat upload error',
-        error instanceof Error
-          ? error.stack
-          : String(error),
+        error instanceof Error ? error.stack : String(error),
       );
 
       throw new InternalServerErrorException(

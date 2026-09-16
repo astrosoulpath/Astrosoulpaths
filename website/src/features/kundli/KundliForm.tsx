@@ -1,16 +1,15 @@
 "use client";
 
-import {
-  FormEvent,
-  useMemo,
-  useState,
-} from "react";
+import { FormEvent, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
-import { KundliResult } from "./KundliResult";
 import {
   generateKundli,
+  KundliApiError,
   type KundliGeneratedData,
 } from "@/services/kundliService";
+
+import { KundliResult } from "./KundliResult";
 
 type KundliFormState = {
   name: string;
@@ -22,6 +21,10 @@ type KundliFormState = {
   lon: string;
   timezone: string;
   language: string;
+};
+
+type KundliFormProps = {
+  mode?: "customer" | "professional";
 };
 
 const initialForm: KundliFormState = {
@@ -37,47 +40,34 @@ const initialForm: KundliFormState = {
 };
 
 function isValidLatitude(value: number) {
-  return (
-    Number.isFinite(value) &&
-    value >= -90 &&
-    value <= 90
-  );
+  return Number.isFinite(value) && value >= -90 && value <= 90;
 }
 
 function isValidLongitude(value: number) {
-  return (
-    Number.isFinite(value) &&
-    value >= -180 &&
-    value <= 180
-  );
+  return Number.isFinite(value) && value >= -180 && value <= 180;
 }
 
 function isValidTimezone(value: number) {
-  return (
-    Number.isFinite(value) &&
-    value >= -12 &&
-    value <= 14
-  );
+  return Number.isFinite(value) && value >= -12 && value <= 14;
 }
 
-export function KundliForm() {
-  const [form, setForm] =
-    useState<KundliFormState>(initialForm);
+export function KundliForm({ mode = "customer" }: KundliFormProps) {
+  const router = useRouter();
+
+  const isProfessional = mode === "professional";
+
+  const [form, setForm] = useState<KundliFormState>(initialForm);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [result, setResult] =
-    useState<KundliGeneratedData | null>(null);
+  const [result, setResult] = useState<KundliGeneratedData | null>(null);
 
   const today = useMemo(() => {
     return new Date().toISOString().split("T")[0];
   }, []);
 
-  function updateField(
-    name: keyof KundliFormState,
-    value: string,
-  ) {
+  function updateField(name: keyof KundliFormState, value: string) {
     setForm((current) => ({
       ...current,
       [name]: value,
@@ -95,7 +85,9 @@ export function KundliForm() {
     const birthPlace = form.birthPlace.trim();
 
     if (!name) {
-      return "Please enter your full name.";
+      return isProfessional
+        ? "Please enter the customer’s full name."
+        : "Please enter your full name.";
     }
 
     if (name.length < 2) {
@@ -126,33 +118,22 @@ export function KundliForm() {
     const longitude = Number(form.lon);
     const timezone = Number(form.timezone);
 
-    if (
-      !form.lat.trim() ||
-      !isValidLatitude(latitude)
-    ) {
+    if (!form.lat.trim() || !isValidLatitude(latitude)) {
       return "Latitude must be between -90 and 90.";
     }
 
-    if (
-      !form.lon.trim() ||
-      !isValidLongitude(longitude)
-    ) {
+    if (!form.lon.trim() || !isValidLongitude(longitude)) {
       return "Longitude must be between -180 and 180.";
     }
 
-    if (
-      !form.timezone.trim() ||
-      !isValidTimezone(timezone)
-    ) {
+    if (!form.timezone.trim() || !isValidTimezone(timezone)) {
       return "Timezone must be between -12 and +14.";
     }
 
     return null;
   }
 
-  async function handleGenerate(
-    event: FormEvent<HTMLFormElement>,
-  ) {
+  async function handleGenerate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     setError("");
@@ -181,22 +162,55 @@ export function KundliForm() {
       });
 
       if (!response?.data?.id) {
-        throw new Error(
+        throw new KundliApiError(
+          "INVALID_KUNDLI_RESPONSE",
           "The Kundli API returned an invalid response.",
+          502,
         );
       }
 
       setResult(response.data);
 
       window.setTimeout(() => {
-        document
-          .getElementById("kundli-result")
-          ?.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-          });
+        document.getElementById("kundli-result")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
       }, 100);
     } catch (err: unknown) {
+      if (err instanceof KundliApiError) {
+        if (err.code === "LOGIN_REQUIRED") {
+          router.push(
+            `/astrologer/login?redirect=${encodeURIComponent(
+              "/astrologer/kundli",
+            )}`,
+          );
+          return;
+        }
+
+        if (err.code === "ASTROLOGER_APPROVAL_REQUIRED") {
+          router.push("/astrologer/pending");
+          return;
+        }
+
+        if (err.code === "KUNDLI_SUBSCRIPTION_REQUIRED") {
+          setError(
+            "An active Professional Kundli yearly subscription is required. Please purchase or renew the plan.",
+          );
+          return;
+        }
+
+        if (err.code === "ASTROLOGER_ACCESS_REQUIRED") {
+          setError(
+            "Professional Kundli generation is available only to verified astrologers.",
+          );
+          return;
+        }
+
+        setError(err.message);
+        return;
+      }
+
       setError(
         err instanceof Error
           ? err.message
@@ -219,29 +233,29 @@ export function KundliForm() {
         <div className="rounded-3xl bg-white p-6 shadow-lg sm:p-8 lg:p-10">
           <div className="max-w-3xl">
             <p className="font-semibold text-[#D4AF37]">
-              Free Vedic Kundli
+              {isProfessional ? "Professional Vedic Kundli" : "Vedic Kundli"}
             </p>
 
             <h1 className="mt-3 text-4xl font-bold leading-tight text-[#0B1026] sm:text-5xl">
-              Generate your personalized Kundli
+              {isProfessional
+                ? "Generate a Kundli for your customer"
+                : "Explore your Vedic birth chart"}
             </h1>
 
             <p className="mt-4 leading-7 text-gray-600">
-              Enter accurate birth details to generate your
-              Vedic Kundli. Exact birth time and location are
-              important for accurate planetary calculations.
+              {isProfessional
+                ? "Enter your customer’s accurate birth details to generate and save their professional Vedic Kundli report."
+                : "Enter accurate birth details to explore your Vedic birth chart. Exact birth time and location are important for accurate planetary calculations."}
             </p>
           </div>
 
           <div className="mt-8 rounded-2xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 p-5">
-            <p className="font-semibold text-[#0B1026]">
-              Before you begin
-            </p>
+            <p className="font-semibold text-[#0B1026]">Before you begin</p>
 
             <p className="mt-2 text-sm leading-6 text-gray-600">
-              Use the exact birth date, time and location from
-              the birth record whenever possible. For locations
-              in India, the timezone is usually +5.5.
+              Use the exact birth date, time and location from the birth record
+              whenever possible. Select the correct timezone for the birth
+              location; for example, India Standard Time is UTC +5.5.
             </p>
           </div>
 
@@ -250,9 +264,7 @@ export function KundliForm() {
               role="alert"
               className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700"
             >
-              <p className="font-semibold">
-                Unable to generate Kundli
-              </p>
+              <p className="font-semibold">Unable to generate Kundli</p>
 
               <p className="mt-1 text-sm">{error}</p>
             </div>
@@ -267,7 +279,7 @@ export function KundliForm() {
                 htmlFor="kundli-name"
                 className="mb-2 block text-sm font-semibold text-[#0B1026]"
               >
-                Full name *
+                {isProfessional ? "Customer full name *" : "Full name *"}
               </label>
 
               <input
@@ -276,13 +288,12 @@ export function KundliForm() {
                 autoComplete="name"
                 value={form.name}
                 disabled={loading}
-                onChange={(event) =>
-                  updateField(
-                    "name",
-                    event.target.value,
-                  )
+                onChange={(event) => updateField("name", event.target.value)}
+                placeholder={
+                  isProfessional
+                    ? "Enter customer’s full name"
+                    : "Enter your full name"
                 }
-                placeholder="Enter your full name"
                 className="w-full rounded-xl border border-gray-300 px-4 py-4 outline-none transition focus:border-[#D4AF37] disabled:bg-gray-100"
               />
             </div>
@@ -299,29 +310,16 @@ export function KundliForm() {
                 id="kundli-gender"
                 value={form.gender}
                 disabled={loading}
-                onChange={(event) =>
-                  updateField(
-                    "gender",
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => updateField("gender", event.target.value)}
                 className="w-full rounded-xl border border-gray-300 bg-white px-4 py-4 outline-none transition focus:border-[#D4AF37] disabled:bg-gray-100"
               >
-                <option value="">
-                  Select gender
-                </option>
+                <option value="">Select gender</option>
 
-                <option value="MALE">
-                  Male
-                </option>
+                <option value="MALE">Male</option>
 
-                <option value="FEMALE">
-                  Female
-                </option>
+                <option value="FEMALE">Female</option>
 
-                <option value="OTHER">
-                  Prefer not to specify
-                </option>
+                <option value="OTHER">Prefer not to specify</option>
               </select>
             </div>
 
@@ -339,12 +337,7 @@ export function KundliForm() {
                 max={today}
                 value={form.dob}
                 disabled={loading}
-                onChange={(event) =>
-                  updateField(
-                    "dob",
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => updateField("dob", event.target.value)}
                 className="w-full rounded-xl border border-gray-300 px-4 py-4 outline-none transition focus:border-[#D4AF37] disabled:bg-gray-100"
               />
             </div>
@@ -363,12 +356,7 @@ export function KundliForm() {
                 step={60}
                 value={form.tob}
                 disabled={loading}
-                onChange={(event) =>
-                  updateField(
-                    "tob",
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => updateField("tob", event.target.value)}
                 className="w-full rounded-xl border border-gray-300 px-4 py-4 outline-none transition focus:border-[#D4AF37] disabled:bg-gray-100"
               />
             </div>
@@ -387,18 +375,15 @@ export function KundliForm() {
                 value={form.birthPlace}
                 disabled={loading}
                 onChange={(event) =>
-                  updateField(
-                    "birthPlace",
-                    event.target.value,
-                  )
+                  updateField("birthPlace", event.target.value)
                 }
                 placeholder="For example: Ahmedabad, Gujarat, India"
                 className="w-full rounded-xl border border-gray-300 px-4 py-4 outline-none transition focus:border-[#D4AF37] disabled:bg-gray-100"
               />
 
               <p className="mt-2 text-xs text-gray-500">
-                Automatic place search and coordinates will be
-                connected with the Geo API.
+                Enter the birth location accurately. Automatic location search
+                and coordinates will be added through the Geo API.
               </p>
             </div>
 
@@ -419,12 +404,7 @@ export function KundliForm() {
                 inputMode="decimal"
                 value={form.lat}
                 disabled={loading}
-                onChange={(event) =>
-                  updateField(
-                    "lat",
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => updateField("lat", event.target.value)}
                 placeholder="For example: 23.0225"
                 className="w-full rounded-xl border border-gray-300 px-4 py-4 outline-none transition focus:border-[#D4AF37] disabled:bg-gray-100"
               />
@@ -447,12 +427,7 @@ export function KundliForm() {
                 inputMode="decimal"
                 value={form.lon}
                 disabled={loading}
-                onChange={(event) =>
-                  updateField(
-                    "lon",
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => updateField("lon", event.target.value)}
                 placeholder="For example: 72.5714"
                 className="w-full rounded-xl border border-gray-300 px-4 py-4 outline-none transition focus:border-[#D4AF37] disabled:bg-gray-100"
               />
@@ -477,10 +452,7 @@ export function KundliForm() {
                   value={form.timezone}
                   disabled={loading}
                   onChange={(event) =>
-                    updateField(
-                      "timezone",
-                      event.target.value,
-                    )
+                    updateField("timezone", event.target.value)
                   }
                   placeholder="For example: 5.5"
                   className="min-w-0 flex-1 rounded-xl border border-gray-300 px-4 py-4 outline-none transition focus:border-[#D4AF37] disabled:bg-gray-100"
@@ -510,20 +482,13 @@ export function KundliForm() {
                 value={form.language}
                 disabled={loading}
                 onChange={(event) =>
-                  updateField(
-                    "language",
-                    event.target.value,
-                  )
+                  updateField("language", event.target.value)
                 }
                 className="w-full rounded-xl border border-gray-300 bg-white px-4 py-4 outline-none transition focus:border-[#D4AF37] disabled:bg-gray-100"
               >
-                <option value="en">
-                  English
-                </option>
+                <option value="en">English</option>
 
-                <option value="hi">
-                  Hindi
-                </option>
+                <option value="hi">Hindi</option>
               </select>
             </div>
 
@@ -544,7 +509,9 @@ export function KundliForm() {
               >
                 {loading
                   ? "Generating Kundli..."
-                  : "Generate Kundli"}
+                  : isProfessional
+                    ? "Generate & Save Kundli"
+                    : "Continue"}
               </button>
             </div>
           </form>
@@ -554,17 +521,16 @@ export function KundliForm() {
           <div className="mt-8 rounded-3xl bg-white p-8 shadow-lg">
             <div className="animate-pulse">
               <div className="h-6 w-48 rounded bg-gray-200" />
+
               <div className="mt-5 h-4 w-full rounded bg-gray-200" />
+
               <div className="mt-3 h-4 w-4/5 rounded bg-gray-200" />
 
               <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
                 {Array.from({
                   length: 4,
                 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="h-28 rounded-2xl bg-gray-200"
-                  />
+                  <div key={index} className="h-28 rounded-2xl bg-gray-200" />
                 ))}
               </div>
             </div>
@@ -572,10 +538,7 @@ export function KundliForm() {
         )}
 
         {result && (
-          <div
-            id="kundli-result"
-            className="scroll-mt-28"
-          >
+          <div id="kundli-result" className="scroll-mt-28">
             <KundliResult result={result} />
           </div>
         )}

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+
 import { PaymentStatus, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -153,8 +154,7 @@ export class AdminRepository {
         totalOrders: totalPaymentOrders,
         successfulOrders: successfulPaymentSummary._count.id,
         successfulAmount: successfulPaymentSummary._sum.amount ?? 0,
-        averageSuccessfulAmount:
-          successfulPaymentSummary._avg.amount ?? 0,
+        averageSuccessfulAmount: successfulPaymentSummary._avg.amount ?? 0,
         refundedOrders: refundedPaymentSummary._count.id,
         refundedAmount: refundedPaymentSummary._sum.amount ?? 0,
       },
@@ -473,50 +473,106 @@ export class AdminRepository {
   async approveAstrologer(astrologerId: string) {
     await this.ensureAstrologerExists(astrologerId);
 
-    return this.prisma.astrologer.update({
-      where: {
-        id: astrologerId,
-      },
-      data: {
-        isApproved: true,
-        isVerified: true,
-      },
-      include: {
-        user: {
-          include: {
-            role: true,
-            userProfile: true,
+    return this.prisma.$transaction(async (tx) => {
+      const astrologerRole = await tx.role.findUnique({
+        where: {
+          name: 'astrologer',
+        },
+      });
+
+      if (!astrologerRole) {
+        throw new NotFoundException('Astrologer role configuration missing');
+      }
+
+      const astrologer = await tx.astrologer.update({
+        where: {
+          id: astrologerId,
+        },
+        data: {
+          isApproved: true,
+          isVerified: true,
+          isOnline: false,
+        },
+      });
+
+      await tx.user.update({
+        where: {
+          id: astrologer.userId,
+        },
+        data: {
+          roleId: astrologerRole.id,
+          isAstrologer: true,
+        },
+      });
+
+      return tx.astrologer.findUniqueOrThrow({
+        where: {
+          id: astrologerId,
+        },
+        include: {
+          user: {
+            include: {
+              role: true,
+              userProfile: true,
+            },
+          },
+          expertise: {
+            include: {
+              expertise: true,
+            },
           },
         },
-        expertise: {
-          include: {
-            expertise: true,
-          },
-        },
-      },
+      });
     });
   }
-
   async rejectAstrologer(astrologerId: string) {
     await this.ensureAstrologerExists(astrologerId);
 
-    return this.prisma.astrologer.update({
-      where: {
-        id: astrologerId,
-      },
-      data: {
-        isApproved: false,
-        isVerified: false,
-        isOnline: false,
-      },
-      include: {
-        user: {
-          include: {
-            role: true,
-            userProfile: true,
+    return this.prisma.$transaction(async (tx) => {
+      const userRole = await tx.role.findUnique({
+        where: {
+          name: 'user',
+        },
+      });
+
+      if (!userRole) {
+        throw new NotFoundException('User role configuration missing');
+      }
+
+      const astrologer = await tx.astrologer.update({
+        where: {
+          id: astrologerId,
+        },
+        data: {
+          isApproved: false,
+          isVerified: false,
+          isOnline: false,
+        },
+      });
+
+      await tx.user.update({
+        where: {
+          id: astrologer.userId,
+        },
+        data: {
+          roleId: userRole.id,
+          isAstrologer: false,
+        },
+      });
+
+      return tx.astrologer.findUniqueOrThrow({
+        where: {
+          id: astrologerId,
+        },
+        include: {
+          user: {
+            include: {
+              role: true,
+              userProfile: true,
+            },
           },
         },
-      },
+      });
     });
   }
 
@@ -870,5 +926,37 @@ export class AdminRepository {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async getPlatformSettings() {
+    return this.prisma.platformSettings.upsert({
+      where: {
+        id: 'default',
+      },
+      update: {},
+      create: {
+        id: 'default',
+        platformCommissionPercent: new Prisma.Decimal(30),
+      },
+    });
+  }
+
+  async updatePlatformSettings(platformCommissionPercent: number) {
+    return this.prisma.platformSettings.upsert({
+      where: {
+        id: 'default',
+      },
+      update: {
+        platformCommissionPercent: new Prisma.Decimal(
+          platformCommissionPercent,
+        ),
+      },
+      create: {
+        id: 'default',
+        platformCommissionPercent: new Prisma.Decimal(
+          platformCommissionPercent,
+        ),
+      },
+    });
   }
 }

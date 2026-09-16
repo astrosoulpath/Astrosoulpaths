@@ -8,11 +8,7 @@ import {
 } from 'class-validator';
 
 export class MarkMessageReadDto {
-  @Transform(({ value }) =>
-    typeof value === 'string'
-      ? value.trim()
-      : value,
-  )
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
   @IsUUID()

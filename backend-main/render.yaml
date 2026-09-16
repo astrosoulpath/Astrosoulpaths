@@ -1,8 +1,23 @@
 services:
+  # ============================================================
+  # REDIS / KEY VALUE
+  # ============================================================
+  - type: keyvalue
+    name: astrosoulpath-redis
+    plan: starter
+    region: singapore
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot
+
+  # ============================================================
+  # BACKEND API
+  # ============================================================
   - type: web
     name: astrosoulpath-backend
     runtime: node
     plan: starter
+    region: singapore
 
     buildCommand: pnpm install --frozen-lockfile && pnpm prisma generate && pnpm run build
     preDeployCommand: pnpm prisma migrate deploy
@@ -12,24 +27,52 @@ services:
     autoDeploy: true
 
     envVars:
+      # --------------------------------------------------------
+      # APP
+      # --------------------------------------------------------
       - key: NODE_ENV
         value: production
 
+
+      - key: NODE_VERSION
+        value: '22.22.0'
       - key: LOCAL_OTP_ENABLED
-        value: "false"
+        value: 'false'
 
       - key: FRONTEND_URL
         sync: false
 
+      # --------------------------------------------------------
+      # DATABASE
+      # --------------------------------------------------------
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: astrosoulpath-postgres
+          property: connectionString
 
       - key: DIRECT_URL
-        sync: false
+        fromDatabase:
+          name: astrosoulpath-postgres
+          property: connectionString
 
+      # --------------------------------------------------------
+      # REDIS
+      # --------------------------------------------------------
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: astrosoulpath-redis
+          property: connectionString
+
+      # --------------------------------------------------------
+      # SECURITY
+      # --------------------------------------------------------
       - key: JWT_SECRET
-        sync: false
+        generateValue: true
 
+      # --------------------------------------------------------
+      # SUPABASE
+      # --------------------------------------------------------
       - key: SUPABASE_URL
         sync: false
 
@@ -45,20 +88,11 @@ services:
       - key: SUPABASE_JWT_AUDIENCE
         sync: false
 
-      - key: REDIS_HOST
-        sync: false
-
-      - key: REDIS_PORT
-        sync: false
-
-      - key: REDIS_PASSWORD
-        sync: false
-
-      - key: REDIS_TLS
-        sync: false
-
+      # --------------------------------------------------------
+      # BULLMQ / ADMIN QUEUE UI
+      # --------------------------------------------------------
       - key: ENABLE_BULL_BOARD
-        value: "false"
+        value: 'false'
 
       - key: BULL_BOARD_USERNAME
         sync: false
@@ -66,12 +100,18 @@ services:
       - key: BULL_BOARD_PASSWORD
         sync: false
 
+      # --------------------------------------------------------
+      # RAZORPAY
+      # --------------------------------------------------------
       - key: RAZORPAY_KEY_ID
         sync: false
 
       - key: RAZORPAY_KEY_SECRET
         sync: false
 
+      # --------------------------------------------------------
+      # ASTROLOGY PROVIDERS
+      # --------------------------------------------------------
       - key: ASTRO_API_KEY
         sync: false
 
@@ -90,5 +130,74 @@ services:
       - key: ASTROLOGY_BASE_URL
         sync: false
 
+      # --------------------------------------------------------
+      # BUSINESS CONFIG
+      # --------------------------------------------------------
       - key: ASTROLOGER_PLATFORM_FEE_PERCENT
         sync: false
+
+# ==============================================================
+# POSTGRES DATABASE
+# ==============================================================
+
+      # --------------------------------------------------------
+      # PRODUCTION APPLICATION SERVICES
+      # Values are configured securely in Render dashboard.
+      # --------------------------------------------------------
+      - key: ADMIN_PHONE
+        sync: false
+      - key: AGORA_APP_CERTIFICATE
+        sync: false
+      - key: AGORA_APP_ID
+        sync: false
+      - key: AGORA_TOKEN_EXPIRY
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: GEO_BASE_URL
+        sync: false
+      - key: GEO_TIMEZONE_BASE_URL
+        sync: false
+      - key: KUNDLI_API_TIMEOUT_MS
+        sync: false
+      - key: KUNDLI_PROVIDER
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: MAIL_FROM_NAME
+        sync: false
+      - key: MARKETPLACE_INTERNATIONAL_PAYMENTS_ENABLED
+        sync: false
+      - key: OPEN_EXCHANGE_RATES_APP_ID
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SUPPORT_EMAIL
+        sync: false
+
+databases:
+  - name: astrosoulpath-postgres
+    plan: basic-256mb
+    region: singapore
+    databaseName: astrosoulpath
+    user: astrosoulpath
+    storageAutoscalingEnabled: true
+    ipAllowList: []

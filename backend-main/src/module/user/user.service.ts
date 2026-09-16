@@ -1,3 +1,4 @@
+﻿import { BadRequestException } from '@nestjs/common';
 import {
   Injectable,
   InternalServerErrorException,
@@ -21,6 +22,9 @@ type UserProfileCompletionShape = {
   fullName: string | null;
   dateOfBirth: Date | null;
   timeOfBirth: string | null;
+  birthTimeKnown: boolean;
+  city: string | null;
+  countryCode: string | null;
   latitude: number | null;
   longitude: number | null;
   timezone: number | null;
@@ -33,6 +37,96 @@ export class UserService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Resolves a Supabase auth UUID to the canonical ASP User.
+   *
+   * Explicit UserAuthIdentity mapping wins.
+   * Legacy User.supabaseId remains the fallback for accounts
+   * which have not yet been backfilled.
+   *
+   * Always returns authUserInclude so callers retain the exact
+   * relation shape they previously received.
+   */
+  private async resolveUserBySupabaseId(supabaseId: string) {
+    const normalizedSupabaseId = supabaseId?.trim();
+
+    if (!normalizedSupabaseId) {
+      return null;
+    }
+
+    const identity = await this.prisma.userAuthIdentity.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: 'supabase',
+          providerUserId: normalizedSupabaseId,
+        },
+      },
+      select: {
+        userId: true,
+      },
+    });
+
+    if (identity) {
+      return this.prisma.user.findUnique({
+        where: {
+          id: identity.userId,
+        },
+        include: authUserInclude,
+      });
+    }
+
+    return this.prisma.user.findUnique({
+      where: {
+        supabaseId: normalizedSupabaseId,
+      },
+      include: authUserInclude,
+    });
+  }
+
+  async getUserWithRelations(supabaseId: string) {
+    return this.resolveUserBySupabaseId(supabaseId);
+  }
+  private async resolveCanonicalUserId(
+    supabaseId: string,
+  ): Promise<string | null> {
+    const user = await this.resolveUserBySupabaseId(supabaseId);
+    return user?.id ?? null;
+  }
+
+  /**
+   * Store and compare phone identities in one canonical E.164-like form.
+   * Supabase may return the verified phone without the leading "+".
+   */
+  private normalizePhoneIdentity(phone?: string | null): string | null {
+    const raw = phone?.trim();
+
+    if (!raw) {
+      return null;
+    }
+
+    const digits = raw.replace(/\D/g, '');
+
+    if (!digits) {
+      return null;
+    }
+
+    return `+${digits}`;
+  }
+
+  async getUserWithRelationsByPhone(phone: string) {
+    const normalizedPhone = this.normalizePhoneIdentity(phone);
+
+    if (!normalizedPhone) {
+      return null;
+    }
+
+    return this.prisma.user.findUnique({
+      where: {
+        phone: normalizedPhone,
+      },
+      include: authUserInclude,
+    });
+  }
   private isUserProfileComplete(profile: UserProfileCompletionShape | null) {
     if (!profile) {
       return false;
@@ -41,7 +135,9 @@ export class UserService {
     return Boolean(
       profile.fullName &&
       profile.dateOfBirth &&
-      profile.timeOfBirth &&
+      (profile.birthTimeKnown === false || profile.timeOfBirth) &&
+      profile.city &&
+      profile.countryCode &&
       profile.latitude != null &&
       profile.longitude != null &&
       profile.timezone != null &&
@@ -53,6 +149,42 @@ export class UserService {
     return isProfileComplete ? 'OPEN_HOME' : 'COMPLETE_PROFILE';
   }
 
+  private normalizeLocationData(dto: any) {
+    const location =
+      typeof dto.location === 'string' ? dto.location.trim() : '';
+
+    if (!location) {
+      return {};
+    }
+
+    const parts = location
+      .split(',')
+      .map((x: string) => x.trim())
+      .filter(Boolean);
+
+    const country =
+      typeof dto.country === 'string' && dto.country.trim()
+        ? dto.country.trim()
+        : (parts[2] ?? null);
+
+    const explicitCountryCode =
+      typeof dto.countryCode === 'string' && dto.countryCode.trim()
+        ? dto.countryCode.trim().toUpperCase()
+        : null;
+
+    const isIndia =
+      country?.trim().toLowerCase() === 'india' ||
+      parts.some((part: string) => part.trim().toLowerCase() === 'india');
+
+    return {
+      city: dto.city ?? parts[0] ?? null,
+      state: dto.state ?? parts[1] ?? null,
+      country,
+      countryCode: explicitCountryCode ?? (isIndia ? 'IN' : null),
+      timezoneName: dto.timezoneName ?? (isIndia ? 'Asia/Kolkata' : null),
+    };
+  }
+
   private buildCreateUserProfileData(dto: CreateUserProfileDto) {
     return {
       fullName: dto.fullName,
@@ -60,7 +192,9 @@ export class UserService {
       email: dto.email,
       phoneNumber: dto.phoneNumber,
       dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
-      timeOfBirth: dto.timeOfBirth,
+      timeOfBirth:
+        dto.birthTimeKnown === false ? null : dto.timeOfBirth,
+      birthTimeKnown: dto.birthTimeKnown ?? true,
       latitude: dto.latitude,
       longitude: dto.longitude,
       timezone: dto.timezone,
@@ -69,9 +203,11 @@ export class UserService {
       country: dto.country,
       countryCode: dto.countryCode,
       timezoneName: dto.timezoneName,
+      ...this.normalizeLocationData(dto),
       gender: dto.gender,
       location: dto.location,
       avatarUrl: dto.avatarUrl,
+      lang: dto.lang,
     };
   }
 
@@ -82,7 +218,9 @@ export class UserService {
       email: dto.email,
       phoneNumber: dto.phoneNumber,
       dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
-      timeOfBirth: dto.timeOfBirth,
+      timeOfBirth:
+        dto.birthTimeKnown === false ? null : dto.timeOfBirth,
+      birthTimeKnown: dto.birthTimeKnown ?? true,
       latitude: dto.latitude,
       longitude: dto.longitude,
       timezone: dto.timezone,
@@ -91,23 +229,30 @@ export class UserService {
       country: dto.country,
       countryCode: dto.countryCode,
       timezoneName: dto.timezoneName,
+      ...this.normalizeLocationData(dto),
       gender: dto.gender,
       location: dto.location,
       avatarUrl: dto.avatarUrl,
+      lang: dto.lang,
     };
   }
 
-  // 🔄 Sync user from Supabase (Create or Update)
   async syncUser(data: {
     supabaseId: string;
     phone?: string | null;
     email?: string | null;
     fullName?: string | null;
+    avatarUrl?: string | null;
   }) {
     try {
-      const phone = data.phone?.trim() || null;
+      const supabaseId = data.supabaseId?.trim();
+      const phone = this.normalizePhoneIdentity(data.phone);
       const email = data.email?.trim().toLowerCase() || null;
       const fullName = data.fullName?.trim() || null;
+
+      if (!supabaseId) {
+        throw new InternalServerErrorException('Supabase user ID is required');
+      }
 
       const role = await this.prisma.role.findUnique({
         where: { name: 'user' },
@@ -127,12 +272,28 @@ export class UserService {
         );
       }
 
-      const existingUser = await this.prisma.user.findUnique({
-        where: {
-          supabaseId: data.supabaseId,
-        },
-        include: authUserInclude,
-      });
+      // 1. Strongest identity:
+      // explicit auth mapping first, legacy User.supabaseId second.
+      let existingUser = await this.resolveUserBySupabaseId(supabaseId);
+
+      // 2. Account linking:
+      // Google/Supabase can return a new auth identity for an email that
+      // already belongs to an ASP customer. Reuse that customer instead
+      // of creating a duplicate database account.
+      if (!existingUser && email) {
+        existingUser = await this.prisma.user.findUnique({
+          where: { email },
+          include: authUserInclude,
+        });
+      }
+
+      // 3. Phone is another unique verified identity used by OTP login.
+      if (!existingUser && phone) {
+        existingUser = await this.prisma.user.findUnique({
+          where: { phone },
+          include: authUserInclude,
+        });
+      }
 
       let user: Prisma.UserGetPayload<{
         include: typeof authUserInclude;
@@ -141,38 +302,113 @@ export class UserService {
       let isNewUser = false;
 
       if (existingUser) {
+        // Only an explicit provider mapping may bridge a temporary
+        // legacy duplicate. Email/name matching alone never links users.
+        const mappedIdentity = await this.prisma.userAuthIdentity.findUnique({
+          where: {
+            provider_providerUserId: {
+              provider: 'supabase',
+              providerUserId: supabaseId,
+            },
+          },
+          select: {
+            userId: true,
+          },
+        });
+
+        const isExplicitlyMapped = mappedIdentity?.userId === existingUser.id;
+
+        // Preserve collision protection for every unlinked account.
+        if (email && !isExplicitlyMapped) {
+          const emailOwner = await this.prisma.user.findUnique({
+            where: { email },
+            select: { id: true },
+          });
+
+          if (emailOwner && emailOwner.id !== existingUser.id) {
+            throw new ConflictException(
+              'This email address belongs to another account',
+            );
+          }
+        }
+
+        if (phone && !isExplicitlyMapped) {
+          const phoneOwner = await this.prisma.user.findUnique({
+            where: { phone },
+            select: { id: true },
+          });
+
+          if (phoneOwner && phoneOwner.id !== existingUser.id) {
+            throw new ConflictException(
+              'This phone number belongs to another account',
+            );
+          }
+        }
+
+        const supabaseOwner = await this.prisma.user.findUnique({
+          where: { supabaseId },
+          select: { id: true },
+        });
+
+        if (
+          supabaseOwner &&
+          supabaseOwner.id !== existingUser.id &&
+          !isExplicitlyMapped
+        ) {
+          throw new ConflictException(
+            'This authentication account is already linked to another user',
+          );
+        }
+
         const isProfileComplete = this.isUserProfileComplete(
           existingUser.userProfile,
         );
 
         user = await this.prisma.user.update({
           where: {
-            supabaseId: data.supabaseId,
+            id: existingUser.id,
           },
           data: {
-            ...(phone ? { phone } : {}),
-            ...(email ? { email } : {}),
-            ...(fullName ? { name: fullName } : {}),
+            // Preserve the canonical/primary Supabase UUID.
+            // Secondary UUIDs live in UserAuthIdentity.
+            ...(phone && !existingUser.phone ? { phone } : {}),
+
+            // Do not claim an email still owned by a temporary legacy
+            // duplicate. It will be moved only during verified FK merge.
+            ...(email && !existingUser.email && !isExplicitlyMapped
+              ? { email }
+              : {}),
+
+            ...(fullName && !existingUser.name ? { name: fullName } : {}),
             isProfileComplete,
           },
           include: authUserInclude,
         });
+
+        this.logger.log(`User account linked/synced successfully: ${user.id}`);
       } else {
         isNewUser = true;
 
         user = await this.prisma.user.create({
           data: {
-            supabaseId: data.supabaseId,
+            supabaseId,
             phone,
             email,
             name: fullName,
             roleId: role.id,
             isProfileComplete: false,
+            freeChatGrantedAt: new Date(),
+            freeChatUsedAt: null,
+            freeChatMinutes: 1,
             subscriptionPlanId: freePlan.id,
             subscriptionStatus: 'FREE',
           },
           include: authUserInclude,
         });
+
+        this.logger.log(
+          `New customer account created successfully: ${user.id}`,
+        );
       }
 
       return {
@@ -213,13 +449,8 @@ export class UserService {
       throw new InternalServerErrorException('Failed to sync user account');
     }
   }
-
-  // 👤 Get user by Supabase ID
   async findBySupabaseId(supabaseId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { supabaseId },
-      include: authUserInclude,
-    });
+    const user = await this.resolveUserBySupabaseId(supabaseId);
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -251,7 +482,11 @@ export class UserService {
 
   async getProfile(supabaseId: string) {
     const user = await this.prisma.user.findUnique({
-      where: { supabaseId },
+      where: {
+        id:
+          (await this.resolveCanonicalUserId(supabaseId)) ??
+          '__canonical_user_not_found__',
+      },
       select: {
         isProfileComplete: true,
         userProfile: true,
@@ -270,9 +505,69 @@ export class UserService {
     };
   }
 
+  private async validateProfileLanguage(
+    language?: string,
+    useDatabaseDefault = false,
+  ): Promise<string | undefined> {
+    const normalized = language?.trim().toLowerCase();
+
+    if (!normalized) {
+      if (!useDatabaseDefault) {
+        return undefined;
+      }
+
+      const defaultLanguage = await this.prisma.appLanguage.findFirst({
+        where: {
+          isActive: true,
+        },
+        orderBy: [
+          {
+            sortOrder: 'asc',
+          },
+          {
+            englishName: 'asc',
+          },
+        ],
+        select: {
+          code: true,
+        },
+      });
+
+      if (!defaultLanguage) {
+        throw new BadRequestException(
+          'No active application language is configured',
+        );
+      }
+
+      return defaultLanguage.code;
+    }
+
+    const activeLanguage = await this.prisma.appLanguage.findUnique({
+      where: {
+        code: normalized,
+      },
+      select: {
+        code: true,
+        isActive: true,
+      },
+    });
+
+    if (!activeLanguage || !activeLanguage.isActive) {
+      throw new BadRequestException('Selected language is not available');
+    }
+
+    return activeLanguage.code;
+  }
+
   async createProfile(supabaseId: string, dto: CreateUserProfileDto) {
+    dto.lang = await this.validateProfileLanguage(dto.lang, true);
+
     const user = await this.prisma.user.findUnique({
-      where: { supabaseId },
+      where: {
+        id:
+          (await this.resolveCanonicalUserId(supabaseId)) ??
+          '__canonical_user_not_found__',
+      },
       select: {
         id: true,
         userProfile: {
@@ -339,8 +634,16 @@ export class UserService {
   }
 
   async updateProfile(supabaseId: string, dto: UpdateUserProfileDto) {
+    if (dto.lang !== undefined) {
+      dto.lang = await this.validateProfileLanguage(dto.lang);
+    }
+
     const user = await this.prisma.user.findUnique({
-      where: { supabaseId },
+      where: {
+        id:
+          (await this.resolveCanonicalUserId(supabaseId)) ??
+          '__canonical_user_not_found__',
+      },
       select: {
         id: true,
         userProfile: {
@@ -404,7 +707,6 @@ export class UserService {
     }
   }
 
-  // 📄 Get all users with pagination
   async findAll(page = 1, limit = 10) {
     try {
       return await this.prisma.user.findMany({
@@ -423,7 +725,6 @@ export class UserService {
     }
   }
 
-  // 🔍 Get single user by DB ID
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -440,7 +741,6 @@ export class UserService {
     return user;
   }
 
-  // ✏️ Update user profile
   async update(
     id: string,
     data: {
@@ -467,7 +767,6 @@ export class UserService {
     }
   }
 
-  // ❌ Delete user
   async remove(id: string) {
     try {
       return await this.prisma.user.delete({
@@ -481,3 +780,7 @@ export class UserService {
     }
   }
 }
+
+
+
+

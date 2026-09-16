@@ -1,0 +1,2688 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import '../../../subscription/presentation/screens/subscription_plans_screen.dart';
+
+import '../../../../core/theme/app_theme.dart';
+import 'astrologer_profile_screen.dart';
+import 'astrologer_availability_screen.dart';
+import 'astrologer_earnings_screen.dart';
+import 'astrologer_customer_history_screen.dart';
+import 'astrologer_consultations_screen.dart';
+import '../../../auth/data/auth_session_store.dart';
+import '../../../calling/data/video_call_socket_service.dart';
+import '../../../calling/data/audio_call_socket_service.dart';
+import '../../../calling/presentation/screens/video_call_screen.dart';
+import '../../../calling/presentation/screens/audio_call_screen.dart';
+import '../../data/astrologer_consultations_api.dart';
+import '../../../auth/presentation/auth_gate.dart';
+import '../../data/astrologer_portal_api.dart';
+import '../../../live/presentation/screens/astrologer_live_screen.dart';
+import '../../../kundli/presentation/screens/astrologer_saved_kundlis_screen.dart';
+import '../../../marketplace/presentation/screens/marketplace_seller_home_screen.dart';
+import '../../../kundli/presentation/screens/astrologer_manual_kundli_reports_screen.dart';
+
+class AstrologerDashboardScreen extends StatefulWidget {
+  const AstrologerDashboardScreen({super.key});
+
+  @override
+  State<AstrologerDashboardScreen> createState() =>
+      _AstrologerDashboardScreenState();
+}
+
+class _AstrologerDashboardScreenState extends State<AstrologerDashboardScreen> {
+  Future<void> _openKundliSubscriptionGate({
+    required Widget unlockedScreen,
+  }) async {
+    try {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => unlockedScreen));
+
+      if (mounted) {
+        await _loadDashboard();
+      }
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const SubscriptionPlansScreen(
+            audience: SubscriptionAudience.astrologer,
+          ),
+        ),
+      );
+
+      if (mounted) {
+        await _loadDashboard();
+      }
+    }
+  }
+
+  final _api = AstrologerPortalApi();
+  final _sessionStore = AuthSessionStore();
+  final VideoCallSocketService _videoCallSocket = VideoCallSocketService();
+  final AudioCallSocketService _audioCallSocket = AudioCallSocketService();
+  final AstrologerConsultationsApi _videoConsultationApi =
+      AstrologerConsultationsApi();
+  bool _incomingVideoDialogOpen = false;
+  String _incomingVideoCallId = '';
+
+  final Set<String> _terminalIncomingVideoCallIds = <String>{};
+  String _callSocketUserId = '';
+
+  Timer? _dashboardPollTimer;
+  bool _dashboardPolling = false;
+  bool _loading = true;
+  bool _statusUpdating = false;
+  bool _isLoggingOut = false;
+  String _error = '';
+
+  Map<String, dynamic> _dashboard = <String, dynamic>{};
+
+  @override
+  void initState() {
+    super.initState();
+
+    _loadDashboard();
+    unawaited(_startVideoCallSocket());
+    unawaited(_startAudioCallSocket());
+
+    _dashboardPollTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _refreshDashboardSilently(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _dashboardPollTimer?.cancel();
+    _videoCallSocket.dispose();
+    _audioCallSocket.dispose();
+    _videoConsultationApi.close();
+    _api.close();
+    super.dispose();
+  }
+
+  bool _incomingAudioDialogOpen = false;
+  String _incomingAudioCallId = '';
+  // ignore: prefer_final_fields
+  String _audioSocketUserId = '';
+  final Set<String> _terminalIncomingAudioCallIds = <String>{};
+  Future<void> _startAudioCallSocket() async {
+    final session = await _sessionStore.read();
+
+    if (!mounted || session == null) {
+      return;
+    }
+
+    final user = session.user;
+
+    final userId = user['id']?.toString().trim().isNotEmpty == true
+        ? user['id'].toString().trim()
+        : user['userId']?.toString().trim() ?? '';
+
+    if (userId.isEmpty) {
+      return;
+    }
+
+    _audioCallSocket.connect(
+      userId: userId,
+      accessToken: session.accessToken,
+      onIncoming: (payload) {
+        final type =
+            payload['consultationType']?.toString().trim().toUpperCase() ?? '';
+
+        if (type != 'AUDIO') {
+          return;
+        }
+
+        debugPrint(
+          'AUDIO_INCOMING_RECEIVED '
+          'callId=${payload['callId'] ?? payload['consultationId']}',
+        );
+
+        unawaited(_showIncomingAudioCall(payload));
+      },
+      onMissed: (payload) {
+        final callId =
+            (payload['callId'] ?? payload['consultationId'])
+                ?.toString()
+                .trim() ??
+            '';
+
+        final isStillRinging =
+            callId.isNotEmpty &&
+            _incomingAudioDialogOpen &&
+            _incomingAudioCallId == callId;
+
+        if (!isStillRinging) {
+          debugPrint(
+            'AUDIO_INCOMING_MISSED_IGNORED '
+            'callId= reason=NOT_RINGING_OR_ALREADY_ACCEPTED',
+          );
+          return;
+        }
+
+        debugPrint('AUDIO_INCOMING_MISSED callId=');
+        _closeTerminalIncomingAudioCall(payload, reason: 'MISSED');
+      },
+      onCancelled: (payload) {
+        debugPrint(
+          'AUDIO_INCOMING_CANCELLED '
+          'callId=${payload['callId'] ?? payload['consultationId']}',
+        );
+        _closeTerminalIncomingAudioCall(payload, reason: 'CANCELLED');
+      },
+      onUnavailable: (payload) {
+        debugPrint(
+          'AUDIO_INCOMING_UNAVAILABLE '
+          'callId=${payload['callId'] ?? payload['consultationId']}',
+        );
+        _closeTerminalIncomingAudioCall(payload, reason: 'UNAVAILABLE');
+      },
+    );
+  }
+
+  void _closeTerminalIncomingAudioCall(
+    Map<String, dynamic> payload, {
+    required String reason,
+  }) {
+    final callId = payload['callId']?.toString().trim().isNotEmpty == true
+        ? payload['callId'].toString().trim()
+        : payload['consultationId']?.toString().trim() ?? '';
+
+    if (callId.isEmpty) {
+      return;
+    }
+
+    _terminalIncomingAudioCallIds.add(callId);
+
+    debugPrint('AUDIO_INCOMING_TERMINAL callId=$callId reason=$reason');
+
+    if (!mounted ||
+        !_incomingAudioDialogOpen ||
+        _incomingAudioCallId != callId) {
+      return;
+    }
+
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _showIncomingAudioCall(Map<String, dynamic> payload) async {
+    if (!mounted || _incomingAudioDialogOpen) {
+      return;
+    }
+
+    final callId = payload['callId']?.toString().trim().isNotEmpty == true
+        ? payload['callId'].toString().trim()
+        : payload['consultationId']?.toString().trim() ?? '';
+
+    final callerUserId =
+        payload['callerUserId']?.toString().trim().isNotEmpty == true
+        ? payload['callerUserId'].toString().trim()
+        : payload['callerId']?.toString().trim() ?? '';
+
+    final callerName =
+        payload['callerName']?.toString().trim().isNotEmpty == true
+        ? payload['callerName'].toString().trim()
+        : 'Customer';
+
+    if (callId.isEmpty || callerUserId.isEmpty || _audioSocketUserId.isEmpty) {
+      return;
+    }
+
+    if (_terminalIncomingAudioCallIds.contains(callId)) {
+      debugPrint('AUDIO_INCOMING_IGNORED_TERMINAL callId=$callId');
+      return;
+    }
+
+    _incomingAudioCallId = callId;
+    _incomingAudioDialogOpen = true;
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.call_rounded),
+            SizedBox(width: 10),
+            Expanded(child: Text('Incoming Audio Call')),
+          ],
+        ),
+        content: Text('$callerName is requesting an audio consultation.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Decline'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.call_rounded),
+            label: const Text('Accept'),
+          ),
+        ],
+      ),
+    );
+
+    _incomingAudioDialogOpen = false;
+    _incomingAudioCallId = '';
+
+    if (!mounted) {
+      return;
+    }
+
+    if (accepted == null) {
+      await _refreshDashboardSilently();
+      return;
+    }
+
+    if (accepted != true) {
+      try {
+        await _videoConsultationApi.reject(callId);
+      } catch (_) {}
+
+      _audioCallSocket.reject(
+        callId: callId,
+        callerUserId: callerUserId,
+        receiverUserId: _audioSocketUserId,
+      );
+
+      await _refreshDashboardSilently();
+      return;
+    }
+
+    if (_terminalIncomingAudioCallIds.contains(callId)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This audio call request is no longer available.'),
+        ),
+      );
+
+      await _refreshDashboardSilently();
+      return;
+    }
+
+    try {
+      final response = await _videoConsultationApi.accept(callId);
+
+      if (_terminalIncomingAudioCallIds.contains(callId)) {
+        await _refreshDashboardSilently();
+        return;
+      }
+
+      final data = response['data'];
+
+      String audioCallSessionId = callId;
+
+      if (data is Map) {
+        final result = Map<String, dynamic>.from(data);
+        final call = result['call'];
+
+        if (call is Map) {
+          final callMap = Map<String, dynamic>.from(call);
+
+          final resolved =
+              callMap['callSessionId']?.toString().trim().isNotEmpty == true
+              ? callMap['callSessionId'].toString().trim()
+              : callMap['id']?.toString().trim() ?? '';
+
+          if (resolved.isNotEmpty) {
+            audioCallSessionId = resolved;
+          }
+        }
+      }
+
+      _audioCallSocket.accept(
+        callId: callId,
+        callerUserId: callerUserId,
+        receiverUserId: _audioSocketUserId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => AudioCallScreen(
+            callId: audioCallSessionId,
+            astrologerName: callerName,
+          ),
+        ),
+      );
+
+      await _loadDashboard();
+    } on AstrologerConsultationsApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(content: Text(error.message), backgroundColor: Colors.red),
+        );
+    }
+  }
+
+  Future<void> _startVideoCallSocket() async {
+    final session = await _sessionStore.read();
+
+    if (!mounted || session == null) {
+      return;
+    }
+
+    final user = session.user;
+
+    final userId = user['id']?.toString().trim().isNotEmpty == true
+        ? user['id'].toString().trim()
+        : user['userId']?.toString().trim() ?? '';
+
+    if (userId.isEmpty) {
+      return;
+    }
+
+    _callSocketUserId = userId;
+
+    _videoCallSocket.connect(
+      userId: userId,
+      accessToken: session.accessToken,
+      onIncoming: (payload) {
+        final type =
+            payload['consultationType']?.toString().trim().toUpperCase() ?? '';
+
+        if (type != 'VIDEO') {
+          return;
+        }
+
+        unawaited(_showIncomingVideoCall(payload));
+      },
+
+      onMissed: (payload) {
+        _closeTerminalIncomingVideoCall(payload, reason: 'MISSED');
+      },
+
+      onCancelled: (payload) {
+        _closeTerminalIncomingVideoCall(payload, reason: 'CANCELLED');
+      },
+
+      onUnavailable: (payload) {
+        _closeTerminalIncomingVideoCall(payload, reason: 'UNAVAILABLE');
+      },
+    );
+  }
+
+  void _closeTerminalIncomingVideoCall(
+    Map<String, dynamic> payload, {
+    required String reason,
+  }) {
+    final callId = payload['callId']?.toString().trim().isNotEmpty == true
+        ? payload['callId'].toString().trim()
+        : payload['consultationId']?.toString().trim() ?? '';
+
+    if (callId.isEmpty) {
+      return;
+    }
+
+    _terminalIncomingVideoCallIds.add(callId);
+
+    debugPrint('VIDEO_INCOMING_TERMINAL callId=$callId reason=$reason');
+
+    if (!mounted ||
+        !_incomingVideoDialogOpen ||
+        _incomingVideoCallId != callId) {
+      return;
+    }
+
+    Navigator.of(context).pop();
+
+    debugPrint(
+      'VIDEO_INCOMING_DIALOG_AUTO_CLOSED '
+      'callId=$callId reason=$reason',
+    );
+  }
+
+  Future<void> _showIncomingVideoCall(Map<String, dynamic> payload) async {
+    if (!mounted || _incomingVideoDialogOpen) {
+      return;
+    }
+
+    final callId = payload['callId']?.toString().trim() ?? '';
+
+    final callerUserId =
+        payload['callerUserId']?.toString().trim().isNotEmpty == true
+        ? payload['callerUserId'].toString().trim()
+        : payload['callerId']?.toString().trim() ?? '';
+
+    final callerName =
+        payload['callerName']?.toString().trim().isNotEmpty == true
+        ? payload['callerName'].toString().trim()
+        : 'Customer';
+
+    if (callId.isEmpty || callerUserId.isEmpty || _callSocketUserId.isEmpty) {
+      return;
+    }
+
+    if (_terminalIncomingVideoCallIds.contains(callId)) {
+      debugPrint('VIDEO_INCOMING_IGNORED_TERMINAL callId=$callId');
+      return;
+    }
+
+    _incomingVideoCallId = callId;
+    _incomingVideoDialogOpen = true;
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.videocam_rounded),
+            SizedBox(width: 10),
+            Expanded(child: Text('Incoming Video Call')),
+          ],
+        ),
+        content: Text('$callerName is requesting a video consultation.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Decline'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.videocam_rounded),
+            label: const Text('Accept'),
+          ),
+        ],
+      ),
+    );
+
+    _incomingVideoDialogOpen = false;
+    _incomingVideoCallId = '';
+
+    if (!mounted) {
+      return;
+    }
+
+    if (accepted == null) {
+      debugPrint('VIDEO_INCOMING_SYSTEM_DISMISSED callId=$callId');
+
+      await _refreshDashboardSilently();
+      return;
+    }
+
+    if (accepted != true) {
+      try {
+        await _videoConsultationApi.reject(callId);
+      } catch (_) {}
+
+      _videoCallSocket.reject(
+        callId: callId,
+        callerUserId: callerUserId,
+        receiverUserId: _callSocketUserId,
+      );
+
+      await _refreshDashboardSilently();
+      return;
+    }
+    if (_terminalIncomingVideoCallIds.contains(callId)) {
+      debugPrint('VIDEO_LATE_ACCEPT_BLOCKED callId=$callId');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This video call request is no longer available.'),
+        ),
+      );
+
+      await _refreshDashboardSilently();
+      return;
+    }
+
+    try {
+      final response = await _videoConsultationApi.accept(callId);
+
+      if (_terminalIncomingVideoCallIds.contains(callId)) {
+        debugPrint('VIDEO_ACCEPT_RESPONSE_IGNORED_TERMINAL callId=$callId');
+
+        await _refreshDashboardSilently();
+        return;
+      }
+
+      final data = response['data'];
+
+      String videoCallSessionId = callId;
+
+      if (data is Map) {
+        final result = Map<String, dynamic>.from(data);
+        final call = result['call'];
+
+        if (call is Map) {
+          final callMap = Map<String, dynamic>.from(call);
+
+          final resolved =
+              callMap['callSessionId']?.toString().trim().isNotEmpty == true
+              ? callMap['callSessionId'].toString().trim()
+              : callMap['id']?.toString().trim() ?? '';
+
+          if (resolved.isNotEmpty) {
+            videoCallSessionId = resolved;
+          }
+        }
+      }
+
+      _videoCallSocket.accept(
+        callId: callId,
+        callerUserId: callerUserId,
+        receiverUserId: _callSocketUserId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => VideoCallScreen(
+            callId: videoCallSessionId,
+            participantName: callerName,
+          ),
+        ),
+      );
+
+      await _loadDashboard();
+    } on AstrologerConsultationsApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(error.message),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+    }
+  }
+
+  Future<String> _accessToken() async {
+    final session = await _sessionStore.read();
+    return session?.accessToken.trim() ?? '';
+  }
+
+  Map<String, dynamic> _data(Map<String, dynamic> response) {
+    final value = response['data'];
+
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+
+    return response;
+  }
+
+  List<String> _strings(dynamic source) {
+    if (source is! List) {
+      return const [];
+    }
+
+    return source
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
+
+  Future<void> _loadDashboard() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = '';
+      });
+    }
+
+    try {
+      final token = await _accessToken();
+
+      if (token.isEmpty) {
+        throw const AstrologerPortalApiException(
+          'Login session not found. Please login again.',
+        );
+      }
+
+      final response = await _api.getDashboard(accessToken: token);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _dashboard = _data(response);
+      });
+    } on AstrologerPortalApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _error = error.message;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _refreshDashboardSilently() async {
+    if (!mounted || _dashboardPolling || _statusUpdating) {
+      return;
+    }
+
+    final route = ModalRoute.of(context);
+
+    if (route != null && !route.isCurrent) {
+      return;
+    }
+
+    _dashboardPolling = true;
+
+    try {
+      final token = await _accessToken();
+
+      if (token.isEmpty) {
+        return;
+      }
+
+      final response = await _api.getDashboard(accessToken: token);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _dashboard = _data(response);
+      });
+    } on AstrologerPortalApiException {
+      // Keep the last valid dashboard state during background refresh.
+    } finally {
+      _dashboardPolling = false;
+    }
+  }
+
+  Future<void> _setOnline(bool value) async {
+    if (_statusUpdating) {
+      return;
+    }
+
+    final previous = _dashboard['isOnline'] == true;
+
+    setState(() {
+      _statusUpdating = true;
+      _dashboard = {..._dashboard, 'isOnline': value};
+    });
+
+    try {
+      final token = await _accessToken();
+
+      await _api.updateStatus(accessToken: token, isOnline: value);
+
+      await _loadDashboard();
+    } on AstrologerPortalApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _dashboard = {..._dashboard, 'isOnline': previous};
+      });
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(error.message),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _statusUpdating = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text(
+          'Are you sure you want to logout from your astrologer account?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLoggingOut = true;
+    });
+
+    _dashboardPollTimer?.cancel();
+
+    await _sessionStore.clear();
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => const AuthGate()),
+      (route) => false,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Center(child: CircularProgressIndicator(color: AppColors.gold)),
+      );
+    }
+
+    if (_error.isNotEmpty) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    color: AppColors.gold,
+                    size: 48,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _error,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: AppColors.white),
+                  ),
+                  const SizedBox(height: 18),
+                  FilledButton(
+                    onPressed: _loadDashboard,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final isOnline = _dashboard['isOnline'] == true;
+    final isApproved = _dashboard['isApproved'] == true;
+    final isVerified = _dashboard['isVerified'] == true;
+
+    final profileCompletion =
+        int.tryParse(_dashboard['profileCompletion']?.toString() ?? '') ?? 0;
+
+    final pendingConsultations =
+        int.tryParse(_dashboard['pendingConsultations']?.toString() ?? '') ?? 0;
+
+    final experience =
+        int.tryParse(_dashboard['experience']?.toString() ?? '') ?? 0;
+
+    final price =
+        double.tryParse(_dashboard['pricePerMin']?.toString() ?? '') ?? 0;
+
+    final languages = _strings(_dashboard['languages']);
+    final expertise = _strings(_dashboard['expertise']);
+
+    final astrologerName =
+        _dashboard['name']?.toString().trim().isNotEmpty == true
+        ? _dashboard['name'].toString().trim()
+        : 'Astro Soul Path Astrologer';
+
+    final avatarUrl = _dashboard['avatarUrl']?.toString().trim() ?? '';
+
+    final rating = double.tryParse(_dashboard['rating']?.toString() ?? '') ?? 0;
+
+    final earnings =
+        double.tryParse(_dashboard['earnings']?.toString() ?? '') ?? 0;
+
+    final todayCalls =
+        int.tryParse(_dashboard['todayCalls']?.toString() ?? '') ?? 0;
+
+    final todayChats =
+        int.tryParse(_dashboard['todayChats']?.toString() ?? '') ?? 0;
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.white,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Astrologer Dashboard',
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
+            Text(
+              'Professional Astrologer Partner',
+              style: TextStyle(color: AppColors.gold, fontSize: 11),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: _loadDashboard,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+          IconButton(
+            tooltip: 'Logout',
+            onPressed: _isLoggingOut ? null : _logout,
+            icon: _isLoggingOut
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.gold,
+                    ),
+                  )
+                : const Icon(Icons.logout_rounded),
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _loadDashboard,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 36),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF211307),
+                    Color(0xFF141217),
+                    Color(0xFF090A0D),
+                  ],
+                  stops: [0.0, 0.52, 1.0],
+                ),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: AppColors.gold.withValues(alpha: 0.85),
+                  width: 1.15,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.gold.withValues(alpha: 0.16),
+                    blurRadius: 24,
+                    spreadRadius: 1,
+                    offset: const Offset(0, 8),
+                  ),
+                  const BoxShadow(
+                    color: Color(0x70000000),
+                    blurRadius: 18,
+                    offset: Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 70,
+                        height: 70,
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.gold, width: 2),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x44F4C45E),
+                              blurRadius: 18,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: CircleAvatar(
+                          backgroundColor: AppColors.surfaceLight,
+                          backgroundImage: avatarUrl.isNotEmpty
+                              ? NetworkImage(avatarUrl)
+                              : null,
+                          child: avatarUrl.isEmpty
+                              ? const Icon(
+                                  Icons.person_rounded,
+                                  color: AppColors.gold,
+                                  size: 34,
+                                )
+                              : null,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    astrologerName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: AppColors.white,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                                if (isVerified) ...[
+                                  const SizedBox(width: 6),
+                                  const Icon(
+                                    Icons.verified_rounded,
+                                    color: AppColors.gold,
+                                    size: 20,
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.star_rounded,
+                                  color: AppColors.gold,
+                                  size: 17,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  rating > 0
+                                      ? rating.toStringAsFixed(1)
+                                      : 'New',
+                                  style: const TextStyle(
+                                    color: AppColors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Flexible(
+                                  child: Text(
+                                    '$experience yrs experience',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: AppColors.muted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 7),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isApproved && isVerified
+                                    ? const Color(0x5534D399)
+                                    : const Color(0x18F4C45E),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                isApproved && isVerified
+                                    ? 'Verified Astrologer'
+                                    : 'Verification Pending',
+                                style: TextStyle(
+                                  color: isApproved && isVerified
+                                      ? const Color(0xFF5CFFB8)
+                                      : AppColors.gold,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  // HERO_CELESTIAL_STRIP
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          AppColors.gold.withValues(alpha: 0.22),
+                          const Color(0xFF2C2108),
+                          const Color(0xFF101115),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: AppColors.gold.withValues(alpha: 0.58),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.gold.withValues(alpha: 0.14),
+                          blurRadius: 14,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                AppColors.gold.withValues(alpha: 0.36),
+                                const Color(0xFF362800),
+                              ],
+                            ),
+                            border: Border.all(
+                              color: AppColors.gold.withValues(alpha: 0.70),
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.nightlight_round,
+                            color: AppColors.gold,
+                            size: 25,
+                          ),
+                        ),
+                        const SizedBox(width: 11),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Astrologer Partner',
+                                style: TextStyle(
+                                  color: AppColors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              SizedBox(height: 3),
+                              Text(
+                                'Guidance \u2022 Wisdom \u2022 Growth',
+                                style: TextStyle(
+                                  color: Color(0xFFCDBD8B),
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.auto_awesome_rounded,
+                          color: AppColors.gold,
+                          size: 19,
+                        ),
+                        SizedBox(width: 8),
+                        Icon(
+                          Icons.public_rounded,
+                          color: AppColors.gold,
+                          size: 25,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      // HERO_ONLINE_STATUS_DOT
+                      Container(
+                        width: 11,
+                        height: 11,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isOnline
+                              ? const Color(0xFF00E98F)
+                              : const Color(0xFF707070),
+                          boxShadow: isOnline
+                              ? [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF00E98F,
+                                    ).withValues(alpha: 0.55),
+                                    blurRadius: 11,
+                                    spreadRadius: 1,
+                                  ),
+                                ]
+                              : null,
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          isOnline ? 'You are Online' : 'You are Offline',
+                          style: const TextStyle(
+                            color: AppColors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      if (_statusUpdating)
+                        const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.gold,
+                          ),
+                        )
+                      else
+                        Switch(
+                          value: isOnline,
+                          onChanged: isApproved && isVerified
+                              ? _setOnline
+                              : null,
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0x33F4C45E)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _MetricCard(
+                      label: 'Total Earnings',
+                      value: '\u20B9${earnings.toStringAsFixed(2)}',
+                      icon: Icons.account_balance_wallet_rounded,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _MetricCard(
+                      label: 'Audio Calls',
+                      value: '$todayCalls',
+                      icon: Icons.call_rounded,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _MetricCard(
+                      label: 'Chats',
+                      value: '$todayChats',
+                      icon: Icons.chat_bubble_rounded,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            Row(
+              children: [
+                Expanded(
+                  child: _MetricCard(
+                    label: 'Profile',
+                    value: '$profileCompletion%',
+                    icon: Icons.person_outline_rounded,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _MetricCard(
+                    label: 'Pending',
+                    value: '$pendingConsultations',
+                    icon: Icons.schedule_rounded,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            Row(
+              children: [
+                Expanded(
+                  child: _MetricCard(
+                    label: 'Experience',
+                    value: '$experience yr',
+                    icon: Icons.workspace_premium_outlined,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _MetricCard(
+                    label: 'Price',
+                    value: '\u20B9${price.toStringAsFixed(0)}/min',
+                    icon: Icons.currency_rupee_rounded,
+                  ),
+                ),
+              ],
+            ),
+
+            if (languages.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              _InfoSection(title: 'Languages', values: languages),
+            ],
+
+            if (expertise.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _InfoSection(title: 'Astrologer Type', values: expertise),
+            ],
+
+            const SizedBox(height: 24),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFFFFDB39), Color(0xFF8B6500)],
+                        ),
+                        border: Border.all(color: AppColors.gold, width: 1.1),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.gold.withValues(alpha: 0.28),
+                            blurRadius: 14,
+                            spreadRadius: 0.5,
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.dashboard_customize_rounded,
+                        color: Colors.black,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Partner tools',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.white,
+                              fontSize: 21,
+                              height: 1.05,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Manage your professional astrology practice',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Color(0xFFB5B5B5),
+                              fontSize: 10.5,
+                              height: 1.2,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        AppColors.gold.withValues(alpha: 0.20),
+                        const Color(0xFF211900),
+                        const Color(0xFF111111),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.gold.withValues(alpha: 0.48),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.gold.withValues(alpha: 0.10),
+                        blurRadius: 10,
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.auto_awesome_rounded,
+                        color: AppColors.gold,
+                        size: 14,
+                      ),
+                      SizedBox(width: 7),
+                      Text(
+                        'Serve \u2022 Guide \u2022 Grow',
+                        maxLines: 1,
+                        style: TextStyle(
+                          color: AppColors.gold,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 13),
+
+            _DashboardItem(
+              icon: Icons.chat_bubble_outline_rounded,
+              title: 'Consultations',
+              subtitle: 'Queue, chat, audio calls and chat history',
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AstrologerConsultationsScreen(),
+                  ),
+                );
+
+                if (context.mounted) {
+                  await _loadDashboard();
+                }
+              },
+            ),
+            _DashboardItem(
+              icon: Icons.person_outline_rounded,
+              title: 'Profile',
+              subtitle: 'Profile, languages and expertise',
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AstrologerProfileScreen(),
+                  ),
+                );
+
+                if (context.mounted) {
+                  await _loadDashboard();
+                }
+              },
+            ),
+            _DashboardItem(
+              icon: Icons.live_tv_rounded,
+              title: 'Go Live',
+              subtitle: isApproved && isVerified
+                  ? 'Start a live video session'
+                  : 'Approval and verification required',
+              onTap: isApproved && isVerified
+                  ? () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AstrologerLiveScreen(),
+                        ),
+                      );
+
+                      if (context.mounted) {
+                        await _loadDashboard();
+                      }
+                    }
+                  : null,
+            ),
+            _DashboardItem(
+              icon: Icons.currency_rupee_rounded,
+              title: 'Pricing',
+              subtitle: 'Manage consultation price',
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AstrologerProfileScreen(),
+                  ),
+                );
+
+                if (context.mounted) {
+                  await _loadDashboard();
+                }
+              },
+            ),
+            _DashboardItem(
+              icon: Icons.calendar_month_outlined,
+              title: 'Availability',
+              subtitle: 'Online status and availability schedule',
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AstrologerAvailabilityScreen(),
+                  ),
+                );
+
+                if (context.mounted) {
+                  await _loadDashboard();
+                }
+              },
+            ),
+            _DashboardItem(
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'Earnings',
+              subtitle: 'Income, transactions and payments',
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AstrologerEarningsScreen(),
+                  ),
+                );
+
+                if (context.mounted) {
+                  await _loadDashboard();
+                }
+              },
+            ),
+            _DashboardItem(
+              icon: Icons.people_outline_rounded,
+              title: 'Customer History',
+              subtitle: 'Previous customers and consultations',
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AstrologerCustomerHistoryScreen(),
+                  ),
+                );
+
+                if (context.mounted) {
+                  await _loadDashboard();
+                }
+              },
+            ),
+            _DashboardItem(
+              icon: Icons.auto_awesome_outlined,
+              title: 'Kundali',
+              subtitle: 'Prepare and manage professional Kundli reports',
+              onTap: () async {
+                await _openKundliSubscriptionGate(
+                  unlockedScreen: const AstrologerManualKundliReportsScreen(),
+                );
+              },
+            ),
+            _DashboardItem(
+              icon: Icons.description_outlined,
+              title: 'Reports',
+              subtitle: 'Access generated astrology reports',
+              onTap: () async {
+                await _openKundliSubscriptionGate(
+                  unlockedScreen: const AstrologerSavedKundlisScreen(),
+                );
+              },
+            ),
+            _DashboardItem(
+              icon: Icons.workspace_premium_outlined,
+              title: 'Subscription',
+              subtitle: 'Subscription and plan status',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const SubscriptionPlansScreen(
+                      audience: SubscriptionAudience.astrologer,
+                    ),
+                  ),
+                );
+              },
+            ),
+            _DashboardItem(
+              icon: Icons.storefront_outlined,
+              title: 'Soul Bazaar Seller',
+              subtitle: 'Manage your marketplace profile and products',
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const MarketplaceSellerHomeScreen(),
+                  ),
+                );
+
+                if (context.mounted) {
+                  await _loadDashboard();
+                }
+              },
+            ),
+
+            const SizedBox(height: 18),
+
+            // PREMIUM_CELESTIAL_FOOTER
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF3A2900),
+                    Color(0xFF171006),
+                    Color(0xFF08090B),
+                    Color(0xFF241900),
+                  ],
+                  stops: [0.0, 0.30, 0.68, 1.0],
+                ),
+                border: Border.all(color: AppColors.gold, width: 1.15),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.gold.withValues(alpha: 0.22),
+                    blurRadius: 22,
+                    spreadRadius: 0.5,
+                    offset: const Offset(0, 8),
+                  ),
+                  const BoxShadow(
+                    color: Color(0x99000000),
+                    blurRadius: 18,
+                    offset: Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    left: 14,
+                    top: 10,
+                    child: Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 18,
+                      color: AppColors.gold,
+                    ),
+                  ),
+                  Positioned(
+                    right: 16,
+                    top: 12,
+                    child: Icon(
+                      Icons.star_rounded,
+                      size: 17,
+                      color: AppColors.gold,
+                    ),
+                  ),
+                  Positioned(
+                    right: 8,
+                    bottom: -20,
+                    child: Icon(
+                      Icons.nightlight_round,
+                      size: 88,
+                      color: AppColors.gold.withValues(alpha: 0.07),
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              height: 1.2,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.transparent,
+                                    AppColors.gold.withValues(alpha: 0.90),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Container(
+                            width: 68,
+                            height: 68,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const RadialGradient(
+                                colors: [
+                                  Color(0xFFFFD92F),
+                                  Color(0xFF765200),
+                                  Color(0xFF111111),
+                                ],
+                                stops: [0.0, 0.46, 1.0],
+                              ),
+                              border: Border.all(
+                                color: AppColors.gold,
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.gold.withValues(alpha: 0.38),
+                                  blurRadius: 18,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                            alignment: Alignment.center,
+                            child: Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(0xE6111111),
+                                border: Border.all(
+                                  color: AppColors.gold.withValues(alpha: 0.70),
+                                ),
+                              ),
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.nightlight_round,
+                                    color: AppColors.gold,
+                                    size: 29,
+                                  ),
+                                  Positioned(
+                                    right: 8,
+                                    top: 7,
+                                    child: Icon(
+                                      Icons.auto_awesome_rounded,
+                                      color: const Color(0xFFFFF0A0),
+                                      size: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Container(
+                              height: 1.2,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppColors.gold.withValues(alpha: 0.90),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 13),
+                      const Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'GUIDE',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFFFFE17A),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              'HEAL',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFFFFD12E),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              'GROW',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFFFFE17A),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        height: 1,
+                        margin: const EdgeInsets.symmetric(horizontal: 24),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              AppColors.gold.withValues(alpha: 0.62),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 9),
+                      const Text(
+                        'ASTRO SOUL PATH  |  PROFESSIONAL PARTNER',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFFBFAF79),
+                          fontSize: 8.8,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  bool get _isProfile => label == 'Profile';
+  bool get _isPending => label == 'Pending';
+
+  int get _number {
+    final match = RegExp(r'-?\d+').firstMatch(value);
+    return int.tryParse(match?.group(0) ?? '') ?? 0;
+  }
+
+  double get _profileProgress {
+    if (!_isProfile) return 0;
+
+    return (_number.clamp(0, 100)) / 100.0;
+  }
+
+  String get _supportText {
+    switch (label) {
+      case 'Total Earnings':
+        return 'Live earnings';
+
+      case 'Audio Calls':
+        return 'Today';
+
+      case 'Chats':
+        return 'Today';
+
+      case 'Profile':
+        return _number >= 100 ? 'Complete' : 'Keep improving';
+
+      case 'Pending':
+        return _number == 0 ? 'All clear!' : 'Needs attention';
+
+      case 'Experience':
+        return _number > 0 ? 'Trusted Expert' : 'Getting started';
+
+      case 'Price':
+        return 'Per minute';
+
+      default:
+        return '';
+    }
+  }
+
+  Color get _accent {
+    switch (label) {
+      case 'Total Earnings':
+        return const Color(0xFFFFD22E);
+
+      case 'Audio Calls':
+        return const Color(0xFFFFC42D);
+
+      case 'Chats':
+        return const Color(0xFFFFD54B);
+
+      case 'Profile':
+        return const Color(0xFF4FE0A0);
+
+      case 'Pending':
+        return _number == 0 ? const Color(0xFF35E39B) : const Color(0xFFFFB739);
+
+      case 'Experience':
+        return const Color(0xFFCFA1FF);
+
+      case 'Price':
+        return const Color(0xFF77AFFF);
+
+      default:
+        return AppColors.gold;
+    }
+  }
+
+  Color get _deep {
+    switch (label) {
+      case 'Profile':
+        return const Color(0xFF073D2B);
+
+      case 'Pending':
+        return _number == 0 ? const Color(0xFF063828) : const Color(0xFF422600);
+
+      case 'Experience':
+        return const Color(0xFF2B163D);
+
+      case 'Price':
+        return const Color(0xFF102C50);
+
+      default:
+        return const Color(0xFF3C2C00);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _accent;
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 122),
+      padding: const EdgeInsets.fromLTRB(13, 13, 13, 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            _deep,
+            accent.withValues(alpha: 0.16),
+            const Color(0xFF0D0E11),
+          ],
+          stops: const [0.0, 0.48, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accent.withValues(alpha: 0.82), width: 1.15),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.15),
+            blurRadius: 17,
+            spreadRadius: 0.2,
+            offset: const Offset(0, 6),
+          ),
+          const BoxShadow(
+            color: Color(0x65000000),
+            blurRadius: 14,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: -14,
+            top: -17,
+            child: Icon(icon, size: 82, color: accent.withValues(alpha: 0.10)),
+          ),
+
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 39,
+                height: 39,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [accent.withValues(alpha: 0.42), _deep],
+                  ),
+                  border: Border.all(color: accent.withValues(alpha: 0.82)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.25),
+                      blurRadius: 11,
+                    ),
+                  ],
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, color: accent, size: 20),
+              ),
+
+              const SizedBox(height: 10),
+
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  style: const TextStyle(
+                    color: AppColors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                    letterSpacing: -0.35,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 6),
+
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFFE0E0E0),
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+
+              const SizedBox(height: 3),
+
+              if (_supportText.isNotEmpty)
+                Text(
+                  _supportText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+
+              if (_isProfile) ...[
+                const SizedBox(height: 9),
+
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: SizedBox(
+                    height: 6,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Container(color: const Color(0xFF2A2A2A)),
+
+                        FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: _profileProgress,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Color(0xFF00D98A),
+                                  Color(0xFF51E89C),
+                                  Color(0xFFFFD12D),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+
+              if (_isPending && _number == 0) ...[
+                const SizedBox(height: 6),
+
+                Row(
+                  children: [
+                    Icon(Icons.check_circle_rounded, color: accent, size: 13),
+                    const SizedBox(width: 4),
+                    Text(
+                      'No pending requests',
+                      style: TextStyle(
+                        color: accent.withValues(alpha: 0.92),
+                        fontSize: 8.8,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoSection extends StatelessWidget {
+  const _InfoSection({required this.title, required this.values});
+
+  final String title;
+  final List values;
+
+  bool get _isLanguages => title.toLowerCase().contains('language');
+
+  bool get _isAstrologerType =>
+      title.toLowerCase().contains('astrologer type') ||
+      title.toLowerCase().contains('expertise');
+
+  @override
+  Widget build(BuildContext context) {
+    final displayValues = values
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+
+    final accent = _isAstrologerType
+        ? const Color(0xFFC486FF)
+        : const Color(0xFFFFD12E);
+
+    final deep = _isAstrologerType
+        ? const Color(0xFF271338)
+        : const Color(0xFF3A2A00);
+
+    final icon = _isLanguages
+        ? Icons.language_rounded
+        : Icons.auto_awesome_rounded;
+
+    final subtitle = _isLanguages
+        ? 'Languages you can consult in'
+        : 'Your professional astrology expertise';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            deep,
+            accent.withValues(alpha: 0.15),
+            const Color(0xFF0E0F12),
+          ],
+          stops: const [0.0, 0.46, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(color: accent.withValues(alpha: 0.82), width: 1.1),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.13),
+            blurRadius: 17,
+            offset: const Offset(0, 6),
+          ),
+          const BoxShadow(
+            color: Color(0x59000000),
+            blurRadius: 14,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: -12,
+            top: -21,
+            child: Icon(icon, size: 94, color: accent.withValues(alpha: 0.085)),
+          ),
+
+          if (_isAstrologerType)
+            Positioned(
+              right: 26,
+              bottom: -13,
+              child: Icon(
+                Icons.nightlight_round,
+                size: 48,
+                color: accent.withValues(alpha: 0.07),
+              ),
+            ),
+
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [accent.withValues(alpha: 0.43), deep],
+                      ),
+                      border: Border.all(color: accent.withValues(alpha: 0.78)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.withValues(alpha: 0.22),
+                          blurRadius: 12,
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(icon, color: accent, size: 22),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            color: AppColors.white,
+                            fontSize: 17.5,
+                            fontWeight: FontWeight.w900,
+                            height: 1.1,
+                            letterSpacing: -0.15,
+                          ),
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            color: accent.withValues(alpha: 0.78),
+                            fontSize: 10.3,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  Container(
+                    width: 29,
+                    height: 29,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: accent.withValues(alpha: 0.13),
+                      border: Border.all(color: accent.withValues(alpha: 0.32)),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${displayValues.length}',
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 15),
+
+              if (displayValues.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 13,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF151515),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: accent.withValues(alpha: 0.22)),
+                  ),
+                  child: Text(
+                    _isLanguages
+                        ? 'No languages added yet'
+                        : 'No astrologer type added yet',
+                    style: const TextStyle(
+                      color: Color(0xFFA8A8A8),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 9,
+                  children: displayValues
+                      .map((value) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                accent.withValues(alpha: 0.22),
+                                deep.withValues(alpha: 0.85),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: accent.withValues(alpha: 0.66),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: accent.withValues(alpha: 0.09),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _isLanguages
+                                    ? Icons.translate_rounded
+                                    : Icons.stars_rounded,
+                                color: accent,
+                                size: 13,
+                              ),
+
+                              const SizedBox(width: 6),
+
+                              Text(
+                                value,
+                                style: const TextStyle(
+                                  color: AppColors.white,
+                                  fontSize: 11.2,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      })
+                      .toList(growable: false),
+                ),
+
+              if (displayValues.isNotEmpty) ...[
+                const SizedBox(height: 12),
+
+                Container(
+                  height: 3,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      colors: [
+                        accent,
+                        accent.withValues(alpha: 0.22),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashboardItem extends StatelessWidget {
+  const _DashboardItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+
+  Color _accentColor() {
+    switch (title) {
+      case 'Profile':
+        return const Color(0xFFBC5CFF);
+
+      case 'Go Live':
+        return const Color(0xFF00D8C5);
+
+      case 'Pricing':
+        return const Color(0xFFFFA800);
+
+      case 'Availability':
+        return const Color(0xFF459DFF);
+
+      case 'Earnings':
+        return const Color(0xFF00C98D);
+
+      case 'Customer History':
+        return const Color(0xFFC85EFF);
+
+      case 'Kundali':
+        return const Color(0xFFFFC400);
+
+      case 'Reports':
+        return const Color(0xFFFFB900);
+
+      case 'Soul Bazaar Seller':
+        return const Color(0xFFFFA000);
+
+      case 'Consultations':
+      default:
+        return const Color(0xFFFFD000);
+    }
+  }
+
+  Color _deepColor() {
+    switch (title) {
+      case 'Profile':
+        return const Color(0xFF301047);
+
+      case 'Go Live':
+        return const Color(0xFF003D3A);
+
+      case 'Pricing':
+        return const Color(0xFF4B2700);
+
+      case 'Availability':
+        return const Color(0xFF072D58);
+
+      case 'Earnings':
+        return const Color(0xFF063C2E);
+
+      case 'Customer History':
+        return const Color(0xFF351044);
+
+      case 'Kundali':
+        return const Color(0xFF3F3000);
+
+      case 'Reports':
+        return const Color(0xFF403000);
+
+      case 'Soul Bazaar Seller':
+        return const Color(0xFF442600);
+
+      case 'Consultations':
+      default:
+        return const Color(0xFF443400);
+    }
+  }
+
+  IconData _backgroundIcon() {
+    switch (title) {
+      case 'Profile':
+        return Icons.person_rounded;
+
+      case 'Go Live':
+        return Icons.live_tv_rounded;
+
+      case 'Pricing':
+        return Icons.currency_rupee_rounded;
+
+      case 'Availability':
+        return Icons.calendar_month_rounded;
+
+      case 'Earnings':
+        return Icons.bar_chart_rounded;
+
+      case 'Customer History':
+        return Icons.groups_rounded;
+
+      case 'Kundali':
+        return Icons.auto_awesome_rounded;
+
+      case 'Reports':
+        return Icons.description_rounded;
+
+      case 'Soul Bazaar Seller':
+        return Icons.storefront_rounded;
+
+      case 'Consultations':
+      default:
+        return Icons.chat_bubble_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+
+    final accent = _accentColor();
+    final deep = _deepColor();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 11),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(21),
+          child: Ink(
+            padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: enabled
+                    ? [
+                        deep,
+                        accent.withValues(alpha: 0.19),
+                        const Color(0xFF111214),
+                      ]
+                    : const [Color(0xFF171717), Color(0xFF111111)],
+                stops: enabled ? const [0.0, 0.43, 1.0] : const [0.0, 1.0],
+              ),
+              borderRadius: BorderRadius.circular(21),
+              border: Border.all(
+                color: enabled
+                    ? accent.withValues(alpha: 0.88)
+                    : AppColors.muted.withValues(alpha: 0.20),
+                width: 1.15,
+              ),
+              boxShadow: enabled
+                  ? [
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.16),
+                        blurRadius: 18,
+                        spreadRadius: 0.3,
+                        offset: const Offset(0, 5),
+                      ),
+                      const BoxShadow(
+                        color: Color(0x66000000),
+                        blurRadius: 15,
+                        offset: Offset(0, 8),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  right: 44,
+                  top: -22,
+                  child: Icon(
+                    _backgroundIcon(),
+                    size: 105,
+                    color: accent.withValues(alpha: 0.085),
+                  ),
+                ),
+
+                Row(
+                  children: [
+                    Container(
+                      width: 55,
+                      height: 55,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [accent.withValues(alpha: 0.50), deep],
+                        ),
+                        border: Border.all(
+                          color: accent.withValues(alpha: 0.90),
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withValues(alpha: 0.32),
+                            blurRadius: 15,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        icon,
+                        color: enabled ? accent : AppColors.muted,
+                        size: 25,
+                      ),
+                    ),
+
+                    const SizedBox(width: 14),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: enabled
+                                  ? AppColors.white
+                                  : AppColors.muted,
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+
+                          const SizedBox(height: 5),
+
+                          Text(
+                            subtitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: enabled
+                                  ? const Color(0xFFC9C9C9)
+                                  : AppColors.muted,
+                              fontSize: 11.2,
+                              height: 1.30,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(width: 9),
+
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accent.withValues(alpha: 0.18),
+                        border: Border.all(
+                          color: accent.withValues(alpha: 0.45),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withValues(alpha: 0.16),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.chevron_right_rounded,
+                        color: accent,
+                        size: 25,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

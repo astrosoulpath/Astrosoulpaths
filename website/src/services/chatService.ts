@@ -177,11 +177,17 @@ function getAccessToken(): string {
   }
 
   const token =
-    window.localStorage
-      .getItem(
-        "asp_access_token",
-      )
-      ?.trim();
+  (
+    window.localStorage.getItem(
+      "asp_astrologer_access_token",
+    ) ??
+    window.localStorage.getItem(
+      "asp_access_token",
+    ) ??
+    window.localStorage.getItem(
+      "access_token",
+    )
+  )?.trim();
 
   if (!token) {
     throw new Error(

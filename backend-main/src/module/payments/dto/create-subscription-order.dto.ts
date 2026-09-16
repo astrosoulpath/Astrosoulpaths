@@ -11,8 +11,7 @@ export type PaymentSubscriptionPlanName =
 export class CreateSubscriptionOrderDto {
   @IsString()
   @IsIn(PAYMENT_SUBSCRIPTION_PLAN_NAMES, {
-    message:
-      'Plan must be DAILY_HOROSCOPE_MONTHLY or ASTROLOGER_KUNDLI_YEARLY',
+    message: 'Plan must be DAILY_HOROSCOPE_MONTHLY or ASTROLOGER_KUNDLI_YEARLY',
   })
   planName!: PaymentSubscriptionPlanName;
 }

@@ -4,7 +4,7 @@ export class NumerologyMapper {
   static toApiFormat(params: NumerologyParams) {
     return {
       name: params.fullName,
-      dob: this.formatDate(params.dob), // ⭐ convert here
+      date: this.formatDate(params.dob), // ⭐ convert here
       lang: params.lang,
     };
   }

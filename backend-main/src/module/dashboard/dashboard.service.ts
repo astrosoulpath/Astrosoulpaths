@@ -4,9 +4,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 
 @Injectable()
 export class DashboardService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getPublicStats() {
     const now = new Date();
@@ -61,8 +59,7 @@ export class DashboardService {
     return {
       success: true,
 
-      message:
-        'Public platform statistics fetched successfully',
+      message: 'Public platform statistics fetched successfully',
 
       data: {
         verifiedAstrologers,
@@ -79,8 +76,7 @@ export class DashboardService {
         averageRating: null,
         totalReviews: 0,
 
-        generatedAt:
-          now.toISOString(),
+        generatedAt: now.toISOString(),
       },
     };
   }
@@ -154,8 +150,7 @@ export class DashboardService {
     return {
       success: true,
 
-      message:
-        'Dashboard statistics fetched successfully',
+      message: 'Dashboard statistics fetched successfully',
 
       data: {
         users: {
@@ -179,8 +174,7 @@ export class DashboardService {
           totalMessages,
         },
 
-        generatedAt:
-          now.toISOString(),
+        generatedAt: now.toISOString(),
       },
     };
   }

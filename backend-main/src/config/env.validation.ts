@@ -29,9 +29,10 @@ export const envValidationSchema = Joi.object({
   DATABASE_URL: Joi.string().required(),
   DIRECT_URL: Joi.string().optional(),
 
-  RAZORPAY_KEY_ID: Joi.string().optional(),
-  RAZORPAY_KEY_SECRET: Joi.string().optional(),
+  RAZORPAY_KEY_ID: Joi.string().allow('').optional(),
+  RAZORPAY_KEY_SECRET: Joi.string().allow('').optional(),
   RAZORPAY_WEBHOOK_SECRET: Joi.string().optional(),
+  RAZORPAYX_ACCOUNT_NUMBER: Joi.string().optional(),
 
   ASTRO_API_KEY: Joi.string().optional(),
   ASTRO_BASE_URL: Joi.string().optional(),

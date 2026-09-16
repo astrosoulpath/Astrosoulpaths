@@ -9,10 +9,7 @@ export class CallSocketService {
    *
    * userId -> Map<socketId, Socket>
    */
-  private readonly userSockets = new Map<
-    string,
-    Map<string, Socket>
-  >();
+  private readonly userSockets = new Map<string, Map<string, Socket>>();
 
   /**
    * socketId -> userId
@@ -32,14 +29,8 @@ export class CallSocketService {
      */
     const previousUserId = this.socketUsers.get(socket.id);
 
-    if (
-      previousUserId &&
-      previousUserId !== normalizedUserId
-    ) {
-      this.removeSocketFromUser(
-        previousUserId,
-        socket.id,
-      );
+    if (previousUserId && previousUserId !== normalizedUserId) {
+      this.removeSocketFromUser(previousUserId, socket.id);
     }
 
     let sockets = this.userSockets.get(normalizedUserId);
@@ -107,11 +98,7 @@ export class CallSocketService {
     return this.getSockets(userId).length > 0;
   }
 
-  emitToUser(
-    userId: string,
-    event: string,
-    payload: unknown,
-  ): boolean {
+  emitToUser(userId: string, event: string, payload: unknown): boolean {
     const sockets = this.getSockets(userId);
 
     if (sockets.length === 0) {
@@ -125,20 +112,14 @@ export class CallSocketService {
     return true;
   }
 
-  emitToSocket(
-    socketId: string,
-    event: string,
-    payload: unknown,
-  ): boolean {
+  emitToSocket(socketId: string, event: string, payload: unknown): boolean {
     const userId = this.socketUsers.get(socketId);
 
     if (!userId) {
       return false;
     }
 
-    const socket = this.userSockets
-      .get(userId)
-      ?.get(socketId);
+    const socket = this.userSockets.get(userId)?.get(socketId);
 
     if (!socket || !socket.connected) {
       this.unregisterSocket(socketId);
@@ -150,9 +131,7 @@ export class CallSocketService {
     return true;
   }
 
-  getUserIdBySocket(
-    socketId: string,
-  ): string | undefined {
+  getUserIdBySocket(socketId: string): string | undefined {
     return this.socketUsers.get(socketId);
   }
 
@@ -176,10 +155,7 @@ export class CallSocketService {
     return this.getSockets(userId).length;
   }
 
-  private removeSocketFromUser(
-    userId: string,
-    socketId: string,
-  ): void {
+  private removeSocketFromUser(userId: string, socketId: string): void {
     const sockets = this.userSockets.get(userId);
 
     if (sockets) {
