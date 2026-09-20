@@ -10,7 +10,9 @@ import '../../data/wallet_history_api.dart';
 import '../../data/wallet_transaction.dart';
 
 class CustomerWalletScreen extends StatefulWidget {
-  const CustomerWalletScreen({super.key});
+  const CustomerWalletScreen({super.key, this.returnAfterRecharge = false});
+
+  final bool returnAfterRecharge;
 
   @override
   State<CustomerWalletScreen> createState() => _CustomerWalletScreenState();
@@ -97,6 +99,28 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
         _loading = false;
         _error = 'Wallet could not be loaded.';
       });
+    }
+  }
+
+  Future<void> _openPremiumRecharge() async {
+    final recharged = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(builder: (_) => const RechargePackScreen()),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (recharged == true) {
+      await _loadWallet();
+
+      if (!mounted) {
+        return;
+      }
+
+      if (widget.returnAfterRecharge) {
+        Navigator.of(context).pop(true);
+      }
     }
   }
 
@@ -401,7 +425,7 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
             child: _WalletBalanceCard(
               wallet: wallet,
               onRecharge: () {
-                _startRecharge();
+                _openPremiumRecharge();
               },
             ),
           ),

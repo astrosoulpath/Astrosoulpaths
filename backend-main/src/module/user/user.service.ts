@@ -192,8 +192,7 @@ export class UserService {
       email: dto.email,
       phoneNumber: dto.phoneNumber,
       dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
-      timeOfBirth:
-        dto.birthTimeKnown === false ? null : dto.timeOfBirth,
+      timeOfBirth: dto.birthTimeKnown === false ? null : dto.timeOfBirth,
       birthTimeKnown: dto.birthTimeKnown ?? true,
       latitude: dto.latitude,
       longitude: dto.longitude,
@@ -218,8 +217,7 @@ export class UserService {
       email: dto.email,
       phoneNumber: dto.phoneNumber,
       dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
-      timeOfBirth:
-        dto.birthTimeKnown === false ? null : dto.timeOfBirth,
+      timeOfBirth: dto.birthTimeKnown === false ? null : dto.timeOfBirth,
       birthTimeKnown: dto.birthTimeKnown ?? true,
       latitude: dto.latitude,
       longitude: dto.longitude,
@@ -318,6 +316,15 @@ export class UserService {
 
         const isExplicitlyMapped = mappedIdentity?.userId === existingUser.id;
 
+        // CUSTOMER_IDENTITY_ROLE_GUARD
+        // An unrecognized customer Supabase identity must never be linked
+        // to a privileged/non-customer account through phone/email fallback.
+        if (!isExplicitlyMapped && existingUser.role?.name !== 'user') {
+          throw new ConflictException(
+            'This sign-in identity cannot be linked to this customer account',
+          );
+        }
+
         // Preserve collision protection for every unlinked account.
         if (email && !isExplicitlyMapped) {
           const emailOwner = await this.prisma.user.findUnique({
@@ -409,6 +416,37 @@ export class UserService {
         this.logger.log(
           `New customer account created successfully: ${user.id}`,
         );
+      }
+
+      // AUTH_IDENTITY_CANONICAL_SYNC
+      const existingIdentity = await this.prisma.userAuthIdentity.findUnique({
+        where: {
+          provider_providerUserId: {
+            provider: 'supabase',
+            providerUserId: supabaseId,
+          },
+        },
+        select: { userId: true },
+      });
+
+      if (existingIdentity && existingIdentity.userId !== user.id) {
+        throw new ConflictException(
+          'This authentication identity is already linked to another account',
+        );
+      }
+
+      if (!existingIdentity) {
+        await this.prisma.userAuthIdentity.create({
+          data: {
+            userId: user.id,
+            provider: 'supabase',
+            providerUserId: supabaseId,
+            identityType: phone ? 'phone' : email ? 'email' : 'supabase',
+            email,
+            phone,
+            isPrimary: true,
+          },
+        });
       }
 
       return {
@@ -780,7 +818,3 @@ export class UserService {
     }
   }
 }
-
-
-
-

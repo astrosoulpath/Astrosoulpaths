@@ -1563,23 +1563,123 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
           value: report.remedies,
           unavailableText: 'Suggested remedies are currently unavailable.',
         ),
-        _buildPredictionCard(
-          title: 'Transit Overview',
-          icon: Icons.route_outlined,
-          value: report.transit,
-          unavailableText: 'Transit analysis is currently unavailable.',
-        ),
+        _buildTransitOverviewCard(report.transit),
         const SizedBox(height: 14),
 
-        _buildPredictionCard(
-          title: 'Gemstone Suggestions',
-          icon: Icons.diamond_outlined,
-          value: report.gemSuggestion,
-          unavailableText: 'Gemstone suggestions are currently unavailable.',
-        ),
+        _buildGemstoneSuggestionCard(report.gemSuggestion),
         const SizedBox(height: 14),
         const SizedBox(height: 24),
       ],
+    );
+  }
+
+  Widget _buildGemstoneSuggestionCard(dynamic value) {
+    if (value is! Map) {
+      return _buildSection(
+        title: 'Gemstone Suggestions',
+        icon: Icons.diamond_outlined,
+        value: null,
+        unavailableText: 'Gemstone suggestions are currently unavailable.',
+      );
+    }
+
+    final gemstone = value['gemstone']?.toString().trim() ?? '';
+    final planet = value['planet']?.toString().trim() ?? '';
+    final ascendant = value['ascendantSign']?.toString().trim() ?? '';
+    final basis = value['basis']?.toString().trim() ?? '';
+    final disclaimer = value['disclaimer']?.toString().trim() ?? '';
+
+    if (gemstone.isEmpty || planet.isEmpty || ascendant.isEmpty) {
+      return _buildSection(
+        title: 'Gemstone Suggestions',
+        icon: Icons.diamond_outlined,
+        value: null,
+        unavailableText: 'Gemstone suggestions are currently unavailable.',
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0x55D7B56D)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.diamond_outlined,
+                color: AppColors.gold,
+                size: 26,
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Gemstone Suggestions',
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            gemstone,
+            style: const TextStyle(
+              color: AppColors.gold,
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Planet: $planet',
+            style: const TextStyle(
+              color: AppColors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Ascendant: $ascendant',
+            style: const TextStyle(
+              color: AppColors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (basis.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              basis,
+              style: const TextStyle(
+                color: AppColors.muted,
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+          ],
+          if (disclaimer.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              disclaimer,
+              style: const TextStyle(
+                color: AppColors.muted,
+                fontSize: 11,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -2397,7 +2497,9 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                       [
                         if (transitPhase.isNotEmpty) transitPhase,
                         if (saturnSign.isNotEmpty) saturnSign,
-                      ].join(' • '),
+                      ].join(
+                        ' ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ ',
+                      ),
                       style: const TextStyle(
                         color: AppColors.gold,
                         fontSize: 13,
@@ -2408,7 +2510,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                     if (start.isNotEmpty || end.isNotEmpty) ...[
                       const SizedBox(height: 5),
                       Text(
-                        '$start${start.isNotEmpty && end.isNotEmpty ? '  →  ' : ''}$end',
+                        '$start${start.isNotEmpty && end.isNotEmpty ? '  ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢  ' : ''}$end',
                         style: const TextStyle(
                           color: AppColors.muted,
                           fontSize: 11,
@@ -3334,6 +3436,251 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
     );
   }
 
+  Widget _buildTransitOverviewCard(dynamic value) {
+    final transit = value is Map
+        ? Map<String, dynamic>.from(value)
+        : const <String, dynamic>{};
+
+    final rawPlanets = transit['planets'];
+
+    final planets = rawPlanets is List
+        ? rawPlanets
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList()
+        : <Map<String, dynamic>>[];
+
+    if (planets.isEmpty) {
+      return _buildPredictionCard(
+        title: 'Transit Overview',
+        icon: Icons.route_outlined,
+        value: null,
+        unavailableText: 'Transit analysis is currently unavailable.',
+      );
+    }
+
+    String degreeText(dynamic value) {
+      if (value is num) {
+        return '${value.toDouble().toStringAsFixed(2)}\u00B0';
+      }
+
+      final parsed = double.tryParse(value?.toString() ?? '');
+      return parsed == null ? '\u2014' : '${parsed.toStringAsFixed(2)}\u00B0';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111214),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0x334A5568)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0x1FF4C45E),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: const Color(0x556B571A)),
+                ),
+                child: const Icon(Icons.route_outlined, color: AppColors.gold),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Transit Overview',
+                      style: TextStyle(
+                        color: AppColors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Current sidereal planetary positions',
+                      style: TextStyle(
+                        color: Color(0xFF9CA3AF),
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+            decoration: BoxDecoration(
+              color: const Color(0x171E8E6E),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0x3369D39E)),
+            ),
+            child: Text(
+              'Sidereal \u2022 Lahiri Ayanamsha \u2022 ${planets.length} planets',
+              style: const TextStyle(
+                color: Color(0xFF9BDDBD),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          ...planets.map((planet) {
+            final name = planet['name']?.toString() ?? 'Planet';
+            final sign = planet['sign']?.toString() ?? '\u2014';
+            final nakshatra = planet['nakshatra']?.toString() ?? '\u2014';
+            final pada = planet['pada']?.toString() ?? '\u2014';
+            final retrograde = planet['retrograde'] == true;
+
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF171717),
+                borderRadius: BorderRadius.circular(17),
+                border: Border.all(
+                  color: retrograde
+                      ? const Color(0x445F8E72)
+                      : const Color(0x332D3748),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0x1FF4C45E),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Text(
+                      name.isNotEmpty ? name.substring(0, 1) : '?',
+                      style: const TextStyle(
+                        color: AppColors.gold,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: const TextStyle(
+                                  color: AppColors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              retrograde ? 'Retrograde' : 'Direct',
+                              style: TextStyle(
+                                color: retrograde
+                                    ? const Color(0xFFFFC857)
+                                    : const Color(0xFF69D39E),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 7),
+
+                        Text(
+                          '$sign \u2022 ${degreeText(planet['degree'])}',
+                          style: const TextStyle(
+                            color: AppColors.gold,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        Text(
+                          '$nakshatra \u2022 Pada $pada',
+                          style: const TextStyle(
+                            color: Color(0xFFD1D5DB),
+                            fontSize: 12,
+                            height: 1.4,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+
+          const SizedBox(height: 4),
+
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+            decoration: BoxDecoration(
+              color: const Color(0x171E8E6E),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: const Color(0x4469D39E)),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.verified_rounded,
+                  size: 16,
+                  color: Color(0xFF69D39E),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Transit positions are calculated by the local Vedic astronomy engine.',
+                    style: TextStyle(
+                      color: Color(0xFF9BDDBD),
+                      fontSize: 11,
+                      height: 1.45,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDoshaCard(dynamic value) {
     final dosha = value is Map
         ? Map<String, dynamic>.from(value)
@@ -3525,11 +3872,46 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
     final current = mapOf(dasha['current']);
 
-    final currentMaha = mapOf(current?['mahaDasha']);
-
-    final currentAntar = mapOf(current?['antarDasha']);
-
     final timeline = listOfMaps(dasha['timeline']);
+
+    Map<String, dynamic>? currentMaha = mapOf(current?['mahaDasha']);
+    Map<String, dynamic>? currentAntar = mapOf(current?['antarDasha']);
+
+    DateTime? parseDashaDate(dynamic value) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isEmpty) return null;
+      return DateTime.tryParse(text);
+    }
+
+    bool isCurrentPeriod(Map<String, dynamic> period, DateTime now) {
+      final start = parseDashaDate(period['start']);
+      final end = parseDashaDate(period['end']);
+      if (start == null || end == null) return false;
+      return !now.isBefore(start) && now.isBefore(end);
+    }
+
+    if (currentMaha == null || currentAntar == null) {
+      final now = DateTime.now().toUtc();
+
+      for (final maha in timeline) {
+        if (!isCurrentPeriod(maha, now)) continue;
+
+        currentMaha ??= maha;
+
+        final antardashas = listOfMaps(
+          maha['antardasha'] ?? maha['children'] ?? maha['subPeriods'],
+        );
+
+        for (final antar in antardashas) {
+          if (isCurrentPeriod(antar, now)) {
+            currentAntar ??= antar;
+            break;
+          }
+        }
+
+        break;
+      }
+    }
 
     Widget currentPeriodCard({
       required String label,

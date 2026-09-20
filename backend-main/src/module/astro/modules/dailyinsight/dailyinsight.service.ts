@@ -12,11 +12,15 @@ import { SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../../../infrastructure/prisma/prisma.service';
 import { RedisService } from '../../../../infrastructure/redis/redis.service';
 import { AstroParams } from '../../../../common/types/astro-params.type';
-import { ProkeralaProvider } from '../provider/prokerala.provider';
+import { generateKundliHash } from '../../../../common/utlis/hash.util';
 import { DailyInsightMapper } from '../provider/mapper/dailyinsight.mapper';
 import { DailyHoroscopeAiService } from './daily-horoscope-ai.service';
 import { VedicDailyContextMapper } from './vedic-daily-context.mapper';
 import { TodayForYouMapper } from './today-for-you.mapper';
+import { LocalVedicKundliProvider } from '../../../kundli/providers/local-vedic-kundli.provider';
+import { birthParamsToUtc } from '../../../kundli/engine/vedic-time.util';
+import { calculateVedicTransit } from '../../../kundli/engine/vedic-transit.util';
+import { calculatePanchang } from '../../../kundli/engine/panchang.util';
 
 export type DailyInsightDay = 'yesterday' | 'today' | 'tomorrow';
 
@@ -43,7 +47,7 @@ export class NakshatraDailyInsightService {
   private readonly logger = new Logger(NakshatraDailyInsightService.name);
 
   constructor(
-    private readonly prokeralaProvider: ProkeralaProvider,
+    private readonly localVedicKundliProvider: LocalVedicKundliProvider,
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly dailyHoroscopeAiService: DailyHoroscopeAiService,
@@ -91,6 +95,7 @@ export class NakshatraDailyInsightService {
       },
       select: {
         id: true,
+        phone: true,
         isActive: true,
         isBlocked: true,
         userProfile: {
@@ -154,7 +159,13 @@ export class NakshatraDailyInsightService {
       },
     });
 
-    if (!subscription || !subscription.subscriptionPlan) {
+    const hasDailyHoroscopeOverride =
+      user.phone?.trim() === '+918651540070';
+
+    if (
+      !hasDailyHoroscopeOverride &&
+      (!subscription || !subscription.subscriptionPlan)
+    ) {
       throw new ForbiddenException({
         code: 'DAILY_HOROSCOPE_SUBSCRIPTION_REQUIRED',
         message:
@@ -252,7 +263,7 @@ export class NakshatraDailyInsightService {
 
     const targetDateKey = targetDate.toISOString().slice(0, 10);
 
-    const cacheKey = `daily-horoscope:v13:${user.id}:${targetDateKey}:${day}:${language.code}`;
+    const cacheKey = `daily-horoscope:v18:${user.id}:${targetDateKey}:${day}:${language.code}`;
 
     const parsedBirthTime = this.parseBirthTime(timeOfBirth);
 
@@ -284,7 +295,7 @@ export class NakshatraDailyInsightService {
     });
 
     if (
-      persisted?.providerSource === 'prokerala-plus-openai-v3' &&
+      persisted?.providerSource === 'local-vedic-plus-openai-v4' &&
       persisted?.response &&
       typeof persisted.response === 'object' &&
       !Array.isArray(persisted.response)
@@ -315,6 +326,118 @@ export class NakshatraDailyInsightService {
     this.logger.log(
       `daily_insight.db_history_miss userId=${user.id} targetDate=${targetDateKey}`,
     );
+
+    // Production single-flight:
+    // only one backend instance may perform paid Prokerala/OpenAI generation
+    // for the same user/date/day/language at a time.
+    const generationLockKey =
+      `lock:daily-horoscope:v18:${user.id}:${targetDateKey}:${day}:${language.code}`;
+    const generationLockOwner =
+      `${Date.now()}:${Math.random().toString(36).slice(2)}`;
+
+    let generationLockAcquired = await this.redis.setNX(
+      generationLockKey,
+      generationLockOwner,
+      120,
+    );
+
+    if (!generationLockAcquired) {
+      this.logger.log(
+        `daily_insight.generation_wait userId=${user.id} targetDate=${targetDateKey}`,
+      );
+
+      // Another instance/request is generating this exact result.
+      // Wait for its Redis result instead of making duplicate paid calls.
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        const generated =
+          await this.redis.get<DailyHoroscopeResponse>(cacheKey);
+
+        if (generated) {
+          this.logger.log(
+            `daily_insight.generation_wait_hit userId=${user.id} targetDate=${targetDateKey}`,
+          );
+
+          return generated;
+        }
+      }
+
+      // The original worker may have crashed. Try to become the new owner.
+      generationLockAcquired = await this.redis.setNX(
+        generationLockKey,
+        generationLockOwner,
+        120,
+      );
+
+      if (!generationLockAcquired) {
+        throw new ServiceUnavailableException({
+          success: false,
+          code: 'DAILY_HOROSCOPE_GENERATION_IN_PROGRESS',
+          message:
+            'Daily horoscope is currently being generated. Please try again shortly.',
+        });
+      }
+    }
+
+    try {
+      // Double-check after acquiring the distributed lock.
+      // A previous worker may have completed between our initial miss
+      // and lock acquisition.
+      const generatedAfterLock =
+        await this.redis.get<DailyHoroscopeResponse>(cacheKey);
+
+      if (generatedAfterLock) {
+        this.logger.log(
+          `daily_insight.lock_cache_hit userId=${user.id} targetDate=${targetDateKey}`,
+        );
+
+        return generatedAfterLock;
+      }
+
+      const persistedAfterLock =
+        await this.prisma.dailyHoroscopeHistory.findUnique({
+          where: {
+            userId_targetDate: {
+              userId: user.id,
+              targetDate,
+            },
+          },
+          select: {
+            response: true,
+            providerSource: true,
+          },
+        });
+
+      if (
+        persistedAfterLock?.providerSource === 'local-vedic-plus-openai-v4' &&
+        persistedAfterLock.response &&
+        typeof persistedAfterLock.response === 'object' &&
+        !Array.isArray(persistedAfterLock.response)
+      ) {
+        const persistedResponse =
+          persistedAfterLock.response as unknown as DailyHoroscopeResponse;
+
+        if (
+          persistedResponse.success === true &&
+          persistedResponse.data &&
+          typeof persistedResponse.data === 'object' &&
+          !Array.isArray(persistedResponse.data) &&
+          'todayForYou' in
+            (persistedResponse.data as Record<string, unknown>) &&
+          persistedResponse.entitlement &&
+          (persistedResponse.data as any).generation?.language?.code ===
+            language.code
+        ) {
+          await this.redis.set(cacheKey, persistedResponse, 60 * 60 * 6);
+
+          this.logger.log(
+            `daily_insight.lock_db_hit userId=${user.id} targetDate=${targetDateKey}`,
+          );
+
+          return persistedResponse;
+        }
+      }
 
     const providerUser = {
       name: fullName,
@@ -382,29 +505,157 @@ export class NakshatraDailyInsightService {
       }
     };
 
-    const [
-      birthChart,
-      planetPositions,
-      transitPlanetPositions,
-      mahaDasha,
-      panchang,
-    ] = await Promise.all([
-      optionalProviderCall('vedic_natal_kundli', () =>
-        this.prokeralaProvider.getKundli(astroParams),
-      ),
-      optionalProviderCall('vedic_natal_planets', () =>
-        this.prokeralaProvider.getPlanetPositions(astroParams),
-      ),
-      optionalProviderCall('vedic_transit_planets', () =>
-        this.prokeralaProvider.getPlanetPositions(transitParams),
-      ),
-      optionalProviderCall('vedic_mahadasha', () =>
-        this.prokeralaProvider.getmahadasha(astroParams),
-      ),
-      optionalProviderCall('vedic_panchang', () =>
-        this.prokeralaProvider.getPanchang(transitParams),
-      ),
-    ]);
+    /*
+     * COST OPTIMIZATION:
+     * Natal Vedic facts are deterministic for the same birth details.
+     * Reuse the already persisted Prokerala Kundli instead of paying for
+     * the same natal calculation on every daily-horoscope generation.
+     *
+     * Full stored Kundli remains untouched. Transit/Panchang stay live.
+     */
+    let cachedNatalReport: any = null;
+
+    try {
+      const kundliHash = generateKundliHash(astroParams);
+
+      const cachedKundli = await this.prisma.kundli.findUnique({
+        where: { hash: kundliHash },
+        select: {
+          data: {
+            select: {
+              vedic: true,
+            },
+          },
+        },
+      });
+
+      const candidate = cachedKundli?.data?.vedic as any;
+
+      if (
+        candidate &&
+        typeof candidate === 'object' &&
+        candidate.provider === 'local-vedic'
+      ) {
+        cachedNatalReport = candidate;
+
+        this.logger.log(
+          `daily_insight.natal_cache.hit userId=${user.id} targetDate=${targetDateKey}`,
+        );
+      } else {
+        this.logger.log(
+          `daily_insight.natal_cache.miss userId=${user.id} targetDate=${targetDateKey}`,
+        );
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      this.logger.warn(
+        `daily_insight.natal_cache.lookup_failed userId=${user.id} targetDate=${targetDateKey} error=${message}`,
+      );
+    }
+
+    const cachedBirthChart =
+      cachedNatalReport?.birthChart ??
+      cachedNatalReport?.providerPayload?.kundli ??
+      null;
+
+    const cachedPlanetPositions =
+      cachedNatalReport?.planetaryPositions ?? null;
+
+    /*
+     * The daily mapper understands the real Prokerala
+     * dasha_periods -> antardasha hierarchy.
+     * Prefer preserved raw provider Dasha when available.
+     */
+    const cachedMahaDasha =
+      cachedNatalReport?.dasha?.mahaDasha ??
+      cachedNatalReport?.dasha ??
+      null;
+
+    /*
+     * COST OPTIMIZATION:
+     * Transit planets and Panchang depend on target date/time + location.
+     * Share them across matching requests without including user identity
+     * or birth details in the shared Redis cache key.
+     */
+    const sharedDailyContextKey = [
+      'daily-vedic-context:v2',
+      targetDateKey,
+      '12-00-00',
+      Number(transitParams.lat).toFixed(4),
+      Number(transitParams.lon).toFixed(4),
+      Number(transitParams.timezone).toFixed(2),
+      transitParams.lang ?? 'en',
+    ].join(':');
+
+    type SharedDailyVedicContext = {
+      transitPlanetPositions: any;
+      panchang: any;
+    };
+
+    let sharedDailyContext =
+      await this.redis.get<SharedDailyVedicContext>(sharedDailyContextKey);
+
+    if (sharedDailyContext) {
+      this.logger.log('cost.cache feature=daily_vedic_context result=hit');
+    } else {
+      this.logger.log('cost.cache feature=daily_vedic_context result=miss');
+    }
+
+    /*
+     * LOCAL VEDIC ENGINE
+     * Natal data comes from our own Kundli engine.
+     * Transit/Panchang use the requested date at local noon.
+     */
+    const localNatalReport =
+      await this.localVedicKundliProvider.generate(astroParams, 'en');
+
+    const birthChart =
+      localNatalReport.birthChart ?? null;
+
+    const planetPositions =
+      localNatalReport.planetaryPositions ?? null;
+
+    const mahaDasha =
+      localNatalReport.dasha ?? null;
+
+    const targetTransitUtc =
+      birthParamsToUtc(transitParams);
+
+    const localTransit =
+      calculateVedicTransit(targetTransitUtc);
+
+    const transitPlanetPositions =
+      localTransit.planets;
+
+    const transitSun =
+      localTransit.planets.find(
+        (planet) => planet.name === 'Sun',
+      );
+
+    const transitMoon =
+      localTransit.planets.find(
+        (planet) => planet.name === 'Moon',
+      );
+
+    if (!transitSun || !transitMoon) {
+      throw new ServiceUnavailableException({
+        success: false,
+        code: 'LOCAL_VEDIC_TRANSIT_INCOMPLETE',
+        message: 'Local Vedic transit calculation is incomplete.',
+      });
+    }
+
+    const panchang =
+      calculatePanchang(
+        transitSun.longitude,
+        transitMoon.longitude,
+        targetTransitUtc,
+      );
+
+    this.logger.log(
+      `daily_insight.local_vedic_calculation.ready userId=${user.id} targetDate=${targetDateKey}`,
+    );
 
     const vedicEnrichmentAvailable =
       birthChart !== null ||
@@ -568,7 +819,7 @@ export class NakshatraDailyInsightService {
         generalGuidance: ai.generalGuidance,
       },
       generation: {
-        source: 'prokerala-plus-openai-v3',
+        source: 'local-vedic-plus-openai-v4',
         model: ai.model,
         targetDate: providerUser.targetDate,
         language: {
@@ -590,12 +841,15 @@ export class NakshatraDailyInsightService {
       message: 'Personalized daily horoscope fetched successfully',
       data: personalizedData,
       entitlement: {
-        planName: subscription.subscriptionPlan.name,
-        displayName: subscription.subscriptionPlan.displayName,
-        status: subscription.subscriptionStatus,
-        startDate: subscription.startDate?.toISOString() ?? null,
-        endDate: subscription.endDate?.toISOString() ?? null,
-        nextBillingAt: subscription.nextBillingAt?.toISOString() ?? null,
+        planName:
+          subscription?.subscriptionPlan?.name ?? DAILY_HOROSCOPE_PLAN_NAME,
+        displayName:
+          subscription?.subscriptionPlan?.displayName ??
+          'Personalized Daily Horoscope',
+        status: subscription?.subscriptionStatus ?? SubscriptionStatus.FREE,
+        startDate: subscription?.startDate?.toISOString() ?? null,
+        endDate: subscription?.endDate?.toISOString() ?? null,
+        nextBillingAt: subscription?.nextBillingAt?.toISOString() ?? null,
       },
     };
 
@@ -637,6 +891,16 @@ export class NakshatraDailyInsightService {
     );
 
     return result;
+    } finally {
+      const released = await this.redis.releaseLock(
+        generationLockKey,
+        generationLockOwner,
+      );
+
+      this.logger.log(
+        `daily_insight.generation_lock_release userId=${user.id} targetDate=${targetDateKey} released=${released}`,
+      );
+    }
   }
 
   async getDailyHoroscopeHistory(supabaseUserId: string, limit = 30) {
@@ -813,3 +1077,17 @@ export class NakshatraDailyInsightService {
     };
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

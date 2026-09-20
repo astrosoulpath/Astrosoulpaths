@@ -114,6 +114,29 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async releaseLock(key: string, owner: string): Promise<boolean> {
+    try {
+      const script = `
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+          return redis.call("del", KEYS[1])
+        else
+          return 0
+        end
+      `;
+
+      const result = await this.client.eval(
+        script,
+        1,
+        this.formatKey(key),
+        owner,
+      );
+
+      return Number(result) === 1;
+    } catch (error) {
+      this.logger.error('Redis RELEASE LOCK error', error);
+      return false;
+    }
+  }
   async increment(key: string): Promise<number> {
     try {
       return await this.client.incr(this.formatKey(key));
@@ -150,3 +173,4 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 }
+

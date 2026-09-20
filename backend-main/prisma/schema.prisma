@@ -45,6 +45,7 @@ model User {
   reportsReceived         UserReport[]                     @relation("UserReportsReceived")
   subscriptions           Subscription[]
   dailyHoroscopeHistory   DailyHoroscopeHistory[]
+  astrologyAnswerCaches   AstrologyQuestionAnswerCache[]
   role                    Role                             @relation(fields: [roleId], references: [id])
   subscriptionPlan        SubscriptionPlan?                @relation(fields: [subscriptionPlanId], references: [id])
   userProfile             UserProfile?
@@ -807,7 +808,8 @@ model AstrologyQuestion {
   sortOrder   Int     @default(0)
   isActive    Boolean @default(true)
 
-  category AstrologyQuestionCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category     AstrologyQuestionCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  answerCaches AstrologyQuestionAnswerCache[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2175,4 +2177,26 @@ model AstrologerKundliReportAttachment {
 
   @@index([reportId, createdAt])
   @@map("astrologer_kundli_report_attachments")
+}
+
+model AstrologyQuestionAnswerCache {
+  id                String   @id @default(cuid())
+  userId            String
+  questionId        String
+  kundliHash        String
+  language          String   @default("en")
+  model             String
+  promptVersion     String   @default("v1")
+  questionUpdatedAt DateTime
+  answer            String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question AstrologyQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId, kundliHash, language, model, promptVersion, questionUpdatedAt])
+  @@index([userId, createdAt])
+  @@index([questionId])
+  @@map("astrology_question_answer_cache")
 }

@@ -1,0 +1,2 @@
+ALTER TABLE "recharge_packs"
+ADD COLUMN "bonusAmount" DECIMAL(12,2) NOT NULL DEFAULT 0;

@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+﻿import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import OpenAI from 'openai';
 import {
   SupportAiProvider,
@@ -72,6 +72,12 @@ export class OpenAiSupportProvider implements SupportAiProvider {
       ],
     });
 
+    const usage = response.usage;
+
+    console.log(
+      `cost.openai feature=support input_tokens=${usage?.input_tokens ?? 0} output_tokens=${usage?.output_tokens ?? 0} total_tokens=${usage?.total_tokens ?? 0}`,
+    );
+
     const answer = response.output_text?.trim();
 
     if (!answer) {
@@ -87,3 +93,5 @@ export class OpenAiSupportProvider implements SupportAiProvider {
     };
   }
 }
+
+

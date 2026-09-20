@@ -533,14 +533,22 @@ class _AiAstroChatScreenState extends State<AiAstroChatScreen> {
     );
 
     if (openWallet == true && mounted) {
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => const CustomerWalletScreen()),
+      final walletResult = await Navigator.of(context).push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (_) => const CustomerWalletScreen(returnAfterRecharge: true),
+        ),
       );
 
-      if (mounted) {
-        setState(() {
-          _aiTimedSessionError = null;
-        });
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _aiTimedSessionError = null;
+      });
+
+      if (walletResult == true) {
+        await _ensureAiTimedSession();
       }
     }
   }
@@ -1269,19 +1277,30 @@ class _AiAstroChatScreenState extends State<AiAstroChatScreen> {
           _buildAiDurationPicker(),
           _buildAiTimedBillingBar(),
           Expanded(
-            child: ListView(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
+            child: Stack(
               children: [
-                _WelcomeCard(
-                  persona: widget.persona,
-                  contextText: _consultantContextText,
-                  consultantName: _consultantDisplayName,
+                const Positioned.fill(
+                  child: CustomPaint(painter: _AiWhatsAppBackgroundPainter()),
                 ),
-                const SizedBox(height: 16),
-                ..._messages.map((message) => _MessageBubble(message: message)),
-                if (_sending && !_streamStarted)
-                  _ThinkingBubble(text: _loadingText),
+                Positioned.fill(
+                  child: ListView(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      _WelcomeCard(
+                        persona: widget.persona,
+                        contextText: _consultantContextText,
+                        consultantName: _consultantDisplayName,
+                      ),
+                      const SizedBox(height: 16),
+                      ..._messages.map(
+                        (message) => _MessageBubble(message: message),
+                      ),
+                      if (_sending && !_streamStarted)
+                        _ThinkingBubble(text: _loadingText),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -1663,30 +1682,6 @@ class _MessageBubbleState extends State<_MessageBubble> {
               ],
             ],
           ),
-
-          if (message.kundliGrounded) ...[
-            const SizedBox(height: 6),
-
-            const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.verified_rounded,
-                  size: 13,
-                  color: Color(0xFF69D39E),
-                ),
-                SizedBox(width: 4),
-                Text(
-                  'Kundli-grounded',
-                  style: TextStyle(
-                    color: Color(0xFF69D39E),
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );
@@ -1769,4 +1764,105 @@ class _AiMessage {
   final bool isError;
   final bool kundliGrounded;
   final DateTime createdAt;
+}
+
+class _AiWhatsAppBackgroundPainter extends CustomPainter {
+  const _AiWhatsAppBackgroundPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final backgroundPaint = Paint()..color = const Color(0xFF071A17);
+
+    canvas.drawRect(Offset.zero & size, backgroundPaint);
+
+    final glowPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF123B31), Color(0xFF071A17), Color(0xFF061310)],
+      ).createShader(Offset.zero & size);
+
+    canvas.drawRect(Offset.zero & size, glowPaint);
+
+    final doodlePaint = Paint()
+      ..color = const Color(0xFF6B9A82).withValues(alpha: 0.10)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.15
+      ..strokeCap = StrokeCap.round;
+
+    const cellWidth = 92.0;
+    const cellHeight = 88.0;
+
+    for (double y = 18; y < size.height + cellHeight; y += cellHeight) {
+      for (double x = 12; x < size.width + cellWidth; x += cellWidth) {
+        final row = (y / cellHeight).floor();
+        final dx = row.isEven ? x : x + 38;
+
+        _drawStar(canvas, Offset(dx + 10, y + 10), doodlePaint);
+        _drawMoon(canvas, Offset(dx + 48, y + 20), doodlePaint);
+        _drawPlanet(canvas, Offset(dx + 22, y + 55), doodlePaint);
+        _drawChat(canvas, Offset(dx + 65, y + 57), doodlePaint);
+      }
+    }
+  }
+
+  void _drawStar(Canvas canvas, Offset c, Paint paint) {
+    canvas.drawLine(Offset(c.dx - 6, c.dy), Offset(c.dx + 6, c.dy), paint);
+    canvas.drawLine(Offset(c.dx, c.dy - 6), Offset(c.dx, c.dy + 6), paint);
+    canvas.drawLine(
+      Offset(c.dx - 3.5, c.dy - 3.5),
+      Offset(c.dx + 3.5, c.dy + 3.5),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(c.dx + 3.5, c.dy - 3.5),
+      Offset(c.dx - 3.5, c.dy + 3.5),
+      paint,
+    );
+  }
+
+  void _drawMoon(Canvas canvas, Offset c, Paint paint) {
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: 8),
+      -1.2,
+      4.0,
+      false,
+      paint,
+    );
+
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(c.dx + 4, c.dy - 1), radius: 7),
+      -1.2,
+      3.8,
+      false,
+      paint,
+    );
+  }
+
+  void _drawPlanet(Canvas canvas, Offset c, Paint paint) {
+    canvas.drawCircle(c, 6, paint);
+
+    canvas.drawOval(Rect.fromCenter(center: c, width: 22, height: 7), paint);
+  }
+
+  void _drawChat(Canvas canvas, Offset c, Paint paint) {
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: c, width: 19, height: 14),
+      const Radius.circular(5),
+    );
+
+    canvas.drawRRect(rect, paint);
+
+    final tail = Path()
+      ..moveTo(c.dx - 4, c.dy + 6)
+      ..lineTo(c.dx - 7, c.dy + 11)
+      ..lineTo(c.dx, c.dy + 7);
+
+    canvas.drawPath(tail, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _AiWhatsAppBackgroundPainter oldDelegate) {
+    return false;
+  }
 }

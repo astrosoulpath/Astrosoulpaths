@@ -1,12 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 
 import { DashaService } from './modules/dasha/dasha.service';
 import { DoshaService } from './modules/dosha/dosha.service';
 
 import { KundliService } from '../kundli/kundli.service';
-
-import { VedicProvider } from './modules/provider/vedic.provider';
-
 import { AstroParams } from '../../common/types/astro-params.type';
 
 @Injectable()
@@ -19,8 +16,6 @@ export class AstroService {
     private readonly doshaService: DoshaService,
 
     private readonly kundliService: KundliService,
-
-    private readonly vedicProvider: VedicProvider,
   ) {}
 
   private withTimeout<T>(promise: Promise<T>, ms = 6000): Promise<T> {
@@ -72,3 +67,4 @@ export class AstroService {
     }
   }
 }
+

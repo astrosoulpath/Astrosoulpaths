@@ -62,7 +62,7 @@ export function validateProfessionalKundliReport(
   // Provider identity/status
   // ----------------------------------------------------------
 
-  const supportedProviders = new Set(['prokerala', 'vedicastro']);
+  const supportedProviders = new Set(['prokerala', 'vedicastro', 'local-vedic']);
 
   if (
     typeof report.provider !== 'string' ||
@@ -199,3 +199,4 @@ export function validateProfessionalKundliReport(
     corePercent,
   };
 }
+

@@ -109,9 +109,9 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
     return
     // CUSTOMER_SHARED_PREMIUM_BACKGROUND
     Scaffold(
-      backgroundColor: const Color(0xFF050506),
+      backgroundColor: const Color(0xFFFFF9F1),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF050506),
+        backgroundColor: const Color(0xFFFFF9F1),
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         toolbarHeight: 82,
@@ -122,7 +122,7 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
             Text(
               'My Consultations',
               style: TextStyle(
-                color: Color(0xFFF8F5FB),
+                color: Color(0xFF14213D),
                 fontSize: 26,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -0.6,
@@ -132,7 +132,7 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
             Text(
               'Your cosmic journey, always with you',
               style: TextStyle(
-                color: Color(0xFFC7BBCF),
+                color: Color(0xFF6F7280),
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -152,7 +152,7 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
           gradient: RadialGradient(
             center: Alignment(0.65, -0.55),
             radius: 1.25,
-            colors: [Color(0xFF261036), Color(0xFF0D0714), Color(0xFF050506)],
+            colors: [Color(0xFFF5EEFF), Color(0xFFFFF9F1), Color(0xFFFFF9F1)],
             stops: [0.0, 0.45, 1.0],
           ),
         ),
@@ -187,12 +187,12 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1A0D26), Color(0xFF100817), Color(0xFF1B1026)],
+          colors: [Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFF8F3FF)],
         ),
-        border: Border.all(color: const Color(0xFFFFD34C), width: 1.2),
+        border: Border.all(color: const Color(0xFFE8BD43), width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFFC928).withValues(alpha: 0.18),
+            color: const Color(0xFFF4C542).withValues(alpha: 0.18),
             blurRadius: 25,
             spreadRadius: 1,
           ),
@@ -339,18 +339,18 @@ class _HistoryCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1C0D29), Color(0xFF100A18), Color(0xFF171021)],
+          colors: [Color(0xFFFFFFFF), Color(0xFF100A18), Color(0xFF171021)],
         ),
-        border: Border.all(color: const Color(0xFFFFD34C), width: 1.25),
+        border: Border.all(color: const Color(0xFFE8BD43), width: 1.25),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFFC928).withValues(alpha: 0.20),
+            color: const Color(0xFFF4C542).withValues(alpha: 0.20),
             blurRadius: 24,
             spreadRadius: 0.8,
             offset: const Offset(0, 8),
           ),
           BoxShadow(
-            color: const Color(0xFF9B42DD).withValues(alpha: 0.18),
+            color: const Color(0xFFCAB7F3).withValues(alpha: 0.18),
             blurRadius: 32,
             spreadRadius: 1.5,
           ),
@@ -371,13 +371,13 @@ class _HistoryCard extends StatelessWidget {
                     end: Alignment.bottomRight,
                     colors: [
                       Color(0xFFFFF1A2),
-                      Color(0xFFFFC928),
+                      Color(0xFFF4C542),
                       Color(0xFF9B4AD2),
                     ],
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFFFC928).withValues(alpha: 0.30),
+                      color: const Color(0xFFF4C542).withValues(alpha: 0.30),
                       blurRadius: 18,
                       spreadRadius: 1,
                     ),
@@ -390,12 +390,12 @@ class _HistoryCard extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(2),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF08070A),
+                    color: Color(0xFFFFFFFF),
                     shape: BoxShape.circle,
                   ),
                   child: CircleAvatar(
                     radius: 27,
-                    backgroundColor: const Color(0xFF191021),
+                    backgroundColor: const Color(0xFFF8F3FF),
                     backgroundImage: item.astrologerAvatarUrl.isNotEmpty
                         ? NetworkImage(item.astrologerAvatarUrl)
                         : null,
@@ -403,7 +403,7 @@ class _HistoryCard extends StatelessWidget {
                         ? Text(
                             initial,
                             style: const TextStyle(
-                              color: Color(0xFFFFD84A),
+                              color: Color(0xFFF4C542),
                               fontSize: 22,
                               fontWeight: FontWeight.w900,
                             ),
@@ -502,9 +502,9 @@ class _HistoryCard extends StatelessWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFFFD84A),
-                  backgroundColor: const Color(0xFF100B14),
-                  side: const BorderSide(color: Color(0xFFFFC928), width: 1.15),
+                  foregroundColor: const Color(0xFFF4C542),
+                  backgroundColor: const Color(0xFFFFFFFF),
+                  side: const BorderSide(color: Color(0xFFF4C542), width: 1.15),
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18),
@@ -536,7 +536,7 @@ class _HistoryCard extends StatelessWidget {
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFFFFD12F),
-                    foregroundColor: const Color(0xFF181008),
+                    foregroundColor: const Color(0xFF14213D),
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),

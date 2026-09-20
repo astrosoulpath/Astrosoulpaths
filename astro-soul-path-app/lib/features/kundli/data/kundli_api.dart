@@ -156,7 +156,7 @@ class KundliReport {
 
   dynamic get health => analysis?['health'];
 
-  dynamic get transit => analysis?['transit'];
+  dynamic get transit => raw['transit'] ?? analysis?['transit'];
 
   dynamic get houseAnalysis =>
       analysis?['houses'] ?? raw['houses'] ?? kp?['houses'];

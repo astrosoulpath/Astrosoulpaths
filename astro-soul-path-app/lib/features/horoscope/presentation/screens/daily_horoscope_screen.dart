@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../data/horoscope_api.dart';
@@ -309,12 +309,39 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
     final ai = _map(data['ai']);
 
     final todayForYou = parseTodayForYou(data);
-    final user = _map(data['user']);
-    final cosmic = _map(data['cosmic']);
+    final rawUser = _map(data['user']);
+    final rawCosmic = _map(data['cosmic']);
+    final vedicForCosmic = _map(data['vedic']);
+    final vedicNatalForCosmic = _map(vedicForCosmic['natal']);
+    final vedicCurrentForCosmic = _map(vedicForCosmic['currentMoon']);
+    final vedicTarabala = _map(vedicForCosmic['tarabala']);
+
+    final user = <String, dynamic>{
+      ...rawUser,
+      'natalNakshatra': vedicNatalForCosmic['nakshatra'] ?? rawUser['natalNakshatra'],
+      'currentNakshatra': vedicCurrentForCosmic['nakshatra'] ?? rawUser['currentNakshatra'],
+    };
+
+    final cosmic = <String, dynamic>{
+      ...rawCosmic,
+      'overallScore': todayForYou?.overallScore ?? rawCosmic['overallScore'],
+      'tarabala': vedicTarabala.isNotEmpty ? vedicTarabala : rawCosmic['tarabala'],
+    };
+
     final tarabala = _map(cosmic['tarabala']);
     final moon = _map(data['moon']);
-    final currentMoon = _map(moon['current']);
-    final natalMoon = _map(moon['natal']);
+    final vedicMoon = _map(data['vedic']);
+
+    final vedicCurrentMoon = _map(vedicMoon['currentMoon']);
+    final vedicNatalMoon = _map(vedicMoon['natal']);
+
+    final currentMoon = vedicCurrentMoon.isNotEmpty
+        ? vedicCurrentMoon
+        : _map(moon['current']);
+
+    final natalMoon = vedicNatalMoon.isNotEmpty
+        ? vedicNatalMoon
+        : _map(moon['natal']);
     final lucky = _map(data['lucky']);
     final dailyHighlights = _map(data['dailyHighlights']);
     final guidance = _map(data['guidance']);
@@ -393,28 +420,6 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
             ],
           ),
 
-          const SizedBox(height: 12),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _compactHighlightCard(
-                  icon: Icons.palette_outlined,
-                  title: 'Lucky Color',
-                  value: _text(ai['luckyColor'], fallback: 'Not specified'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _compactHighlightCard(
-                  icon: Icons.pin_outlined,
-                  title: 'Lucky No.',
-                  value: _text(ai['luckyNumber'], fallback: 'Not specified'),
-                ),
-              ),
-            ],
-          ),
 
           const SizedBox(height: 18),
 
@@ -1311,7 +1316,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Lord: ${_text(data['lord'], fallback: 'N/A')}',
+                'Lord: ${_text(data['nakshatraLord'] ?? data['lord'], fallback: 'N/A')}',
                 style: const TextStyle(color: AppColors.muted),
               ),
               if (includeExtra) ...[
@@ -1919,3 +1924,5 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
     );
   }
 }
+
+

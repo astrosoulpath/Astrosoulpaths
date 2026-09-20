@@ -1,1 +1,0 @@
-export * from "./zego-call-invite-service.web";

@@ -1,4 +1,4 @@
-import { AstrologersGrid } from "@/features/astrologers/AstrologersGrid";
+﻿import { AstrologersGrid } from "@/features/astrologers/AstrologersGrid";
 
 export default function AstrologersPage() {
   return (

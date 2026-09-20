@@ -1,4 +1,21 @@
-﻿export interface KundliDashaPeriod {
+﻿export type KundliPlanetaryPosition = {
+  name: string;
+  full_name?: string;
+  longitude: number;
+  absolute_degree?: number;
+  degree?: number;
+  degree_in_sign?: number;
+  sign: string;
+  zodiac?: string;
+  sign_no: number;
+  rasi_no: number;
+  nakshatra: string;
+  nakshatra_number: number;
+  nakshatra_pada: number;
+  house?: number;
+  retro?: boolean;
+};
+export interface KundliDashaPeriod {
   lord?: string | null;
   level?: string | null;
   start?: string | null;
@@ -48,7 +65,7 @@ export interface KundliReport {
   birthChart?: unknown;
   navamsaChart?: unknown;
 
-  planetaryPositions?: unknown;
+  planetaryPositions?: KundliPlanetaryPosition[] | Record<string, any>[];
   houses?: unknown;
   ascendant?: unknown;
 
@@ -94,3 +111,5 @@ export interface KundliReport {
   metadata?: unknown;
   providerPayload?: unknown;
 }
+
+

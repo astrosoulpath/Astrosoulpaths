@@ -211,13 +211,13 @@ class _AstrologerSelectionScreenState extends State<AstrologerSelectionScreen> {
               selected: _selectedCategorySlug == null,
               onSelected: (_) => _selectAskCategory(null),
               showCheckmark: true,
-              checkmarkColor: const Color(0xFF111111),
-              selectedColor: const Color(0xFFFFC928),
-              backgroundColor: const Color(0xFF1A1025),
+              checkmarkColor: const Color(0xFF14213D),
+              selectedColor: const Color(0xFFF4C542),
+              backgroundColor: const Color(0xFFF8F3FF),
               side: BorderSide(
                 color: _selectedCategorySlug == null
                     ? const Color(0xFFFFE783)
-                    : const Color(0xFF6D3D84),
+                    : const Color(0xFFD8C9EA),
                 width: 1.1,
               ),
               shape: RoundedRectangleBorder(
@@ -225,8 +225,8 @@ class _AstrologerSelectionScreenState extends State<AstrologerSelectionScreen> {
               ),
               labelStyle: TextStyle(
                 color: _selectedCategorySlug == null
-                    ? const Color(0xFF111111)
-                    : const Color(0xFFE7DDF0),
+                    ? const Color(0xFF14213D)
+                    : const Color(0xFF14213D),
                 fontWeight: FontWeight.w800,
               ),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -243,12 +243,12 @@ class _AstrologerSelectionScreenState extends State<AstrologerSelectionScreen> {
                 selected: _selectedCategorySlug == category.slug,
                 onSelected: (_) => _selectAskCategory(category.slug),
                 showCheckmark: false,
-                selectedColor: const Color(0xFFFFC928),
-                backgroundColor: const Color(0xFF1A1025),
+                selectedColor: const Color(0xFFF4C542),
+                backgroundColor: const Color(0xFFF8F3FF),
                 side: BorderSide(
                   color: _selectedCategorySlug == category.slug
                       ? const Color(0xFFFFE783)
-                      : const Color(0xFF6D3D84),
+                      : const Color(0xFFD8C9EA),
                   width: 1.1,
                 ),
                 shape: RoundedRectangleBorder(
@@ -256,8 +256,8 @@ class _AstrologerSelectionScreenState extends State<AstrologerSelectionScreen> {
                 ),
                 labelStyle: TextStyle(
                   color: _selectedCategorySlug == category.slug
-                      ? const Color(0xFF111111)
-                      : const Color(0xFFE7DDF0),
+                      ? const Color(0xFF14213D)
+                      : const Color(0xFF14213D),
                   fontWeight: FontWeight.w800,
                 ),
                 padding: const EdgeInsets.symmetric(
@@ -323,10 +323,10 @@ class _AstrologerSelectionScreenState extends State<AstrologerSelectionScreen> {
     return
     // CUSTOMER_SHARED_PREMIUM_BACKGROUND
     Scaffold(
-      backgroundColor: const Color(0xFF050506),
+      backgroundColor: const Color(0xFFFFF9F1),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: const Color(0xFF050506),
+        backgroundColor: const Color(0xFFFFF9F1),
         foregroundColor: AppColors.white,
         titleSpacing: 16,
         title: Column(
@@ -403,7 +403,7 @@ class _AstrologerSelectionScreenState extends State<AstrologerSelectionScreen> {
                                   ),
                                 ),
                           filled: true,
-                          fillColor: const Color(0xFF111014),
+                          fillColor: const Color(0xFFFFFFFF),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 15,
@@ -422,7 +422,7 @@ class _AstrologerSelectionScreenState extends State<AstrologerSelectionScreen> {
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
                             borderSide: const BorderSide(
-                              color: Color(0xFFFFD21C),
+                              color: Color(0xFFF4C542),
                               width: 1.6,
                             ),
                           ),
@@ -539,9 +539,9 @@ class _AskCosmicFooter extends StatelessWidget {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    const Color(0xFF140820).withValues(alpha: 0.30),
-                    const Color(0xFF220B38).withValues(alpha: 0.65),
-                    const Color(0xFF060308),
+                    const Color(0xFFFFF9F1).withValues(alpha: 0.30),
+                    const Color(0xFFF0E9FF).withValues(alpha: 0.65),
+                    const Color(0xFFFFF9F1),
                   ],
                   stops: const [0.0, 0.36, 0.72, 1.0],
                 ),
@@ -562,20 +562,20 @@ class _AskCosmicFooter extends StatelessWidget {
                   center: const Alignment(0, -0.72),
                   radius: 0.88,
                   colors: [
-                    const Color(0xFF9C46FF).withValues(alpha: 0.65),
+                    const Color(0xFFD8C8FF).withValues(alpha: 0.65),
                     const Color(0xFF40126F).withValues(alpha: 0.85),
-                    const Color(0xFF170622),
-                    const Color(0xFF050506),
+                    const Color(0xFFF8F3FF),
+                    const Color(0xFFFFF9F1),
                   ],
                   stops: const [0.0, 0.24, 0.58, 1.0],
                 ),
                 border: Border.all(
-                  color: const Color(0xFFB85BE5).withValues(alpha: 0.42),
+                  color: const Color(0xFFB79BEA).withValues(alpha: 0.42),
                   width: 1.1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF8B38D1).withValues(alpha: 0.35),
+                    color: const Color(0xFFCDBAF5).withValues(alpha: 0.35),
                     blurRadius: 34,
                     spreadRadius: 5,
                   ),
@@ -593,7 +593,7 @@ class _AskCosmicFooter extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(120),
                 border: Border.all(
-                  color: const Color(0xFFFFC928).withValues(alpha: 0.20),
+                  color: const Color(0xFFF4C542).withValues(alpha: 0.20),
                   width: 1,
                 ),
               ),
@@ -609,7 +609,7 @@ class _AskCosmicFooter extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(90),
                 border: Border.all(
-                  color: const Color(0xFFB85BE5).withValues(alpha: 0.24),
+                  color: const Color(0xFFB79BEA).withValues(alpha: 0.24),
                   width: 1,
                 ),
               ),
@@ -634,7 +634,7 @@ class _AskCosmicFooter extends StatelessWidget {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFFC928).withValues(alpha: 0.58),
+                    color: const Color(0xFFF4C542).withValues(alpha: 0.58),
                     blurRadius: 30,
                     spreadRadius: 7,
                   ),
@@ -654,7 +654,7 @@ class _AskCosmicFooter extends StatelessWidget {
             bottom: 84,
             child: Icon(
               Icons.nightlight_round,
-              color: Color(0xFFFFD75A),
+              color: Color(0xFFF4C542),
               size: 28,
             ),
           ),
@@ -663,12 +663,12 @@ class _AskCosmicFooter extends StatelessWidget {
           const Positioned(
             left: 76,
             bottom: 102,
-            child: Icon(Icons.auto_awesome, color: Color(0xFFFFD75A), size: 19),
+            child: Icon(Icons.auto_awesome, color: Color(0xFFF4C542), size: 19),
           ),
           const Positioned(
             right: 52,
             bottom: 128,
-            child: Icon(Icons.star_rounded, color: Color(0xFFFFD75A), size: 13),
+            child: Icon(Icons.star_rounded, color: Color(0xFFF4C542), size: 13),
           ),
           const Positioned(
             left: 45,
@@ -686,7 +686,7 @@ class _AskCosmicFooter extends StatelessWidget {
                 gradient: LinearGradient(
                   colors: [
                     Colors.transparent,
-                    const Color(0xFFFFC928).withValues(alpha: 0.75),
+                    const Color(0xFFF4C542).withValues(alpha: 0.75),
                     Colors.transparent,
                   ],
                 ),
@@ -726,22 +726,22 @@ class _ProfessionalAstrologerCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         child: Ink(
           decoration: BoxDecoration(
-            color: const Color(0xFF120A1D),
+            color: const Color(0xFFFFFFFF),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: astrologer.isOnline
-                  ? const Color(0xFFFFC928)
-                  : const Color(0xFF76518A),
+                  ? const Color(0xFFF4C542)
+                  : const Color(0xFFD8C9EA),
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFFFC928).withValues(alpha: 0.12),
+                color: const Color(0xFFF4C542).withValues(alpha: 0.12),
                 blurRadius: 18,
                 spreadRadius: 0.5,
                 offset: const Offset(0, 7),
               ),
               BoxShadow(
-                color: const Color(0xFF7B2CBF).withValues(alpha: 0.13),
+                color: const Color(0xFF7551C9).withValues(alpha: 0.13),
                 blurRadius: 24,
                 spreadRadius: 1,
               ),
@@ -761,10 +761,10 @@ class _ProfessionalAstrologerCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: const Color(0xFFFFC928),
+                          color: const Color(0xFFF4C542),
                           width: 2.2,
                         ),
-                        color: const Color(0xFF120A1D),
+                        color: const Color(0xFFFFFFFF),
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: hasAvatar
@@ -789,7 +789,7 @@ class _ProfessionalAstrologerCard extends StatelessWidget {
                               ? const Color(0xFF24D49A)
                               : const Color(0xFF7B8797),
                           border: Border.all(
-                            color: const Color(0xFF120A1D),
+                            color: const Color(0xFFFFFFFF),
                             width: 2,
                           ),
                         ),

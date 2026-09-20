@@ -236,177 +236,265 @@ export default function AdminMarketplacePage() {
   }
 
   return (
-    <main className="asp-admin-page min-h-screen bg-black px-5 py-8 text-white md:px-8">
-        <div className="mb-6 flex justify-end">
-          <a
-            href="/admin"
-            className="asp-admin-back-btn"
-          >
-            Back to Dashboard
-          </a>
-        </div>
+    <main className="asp-admin-page px-4 py-10 sm:px-6 lg:px-8">
+      <div className="asp-admin-shell">
 
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        {/* PAGE HEADER */}
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-yellow-400">
+            <p className="asp-admin-eyebrow">
               Admin Controlled
             </p>
-            <h1 className="text-3xl font-bold">Marketplace Sellers</h1>
+
+            <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-[#0B1026]">
+              Marketplace Sellers
+            </h1>
+
+            <p className="asp-admin-subtitle mt-3">
+              Review and control astrologer marketplace seller access.
+            </p>
 
             <a
               href="/admin/marketplace/categories"
-              className="mt-3 inline-flex rounded-lg border border-yellow-500 px-3 py-2 text-xs font-semibold text-yellow-400 hover:bg-yellow-500/10"
+              className="mt-5 inline-flex items-center gap-2 rounded-xl border border-[#D4AF37] bg-white px-5 py-3 text-sm font-extrabold text-[#9A7010] shadow-sm transition hover:bg-amber-50"
             >
+              <span aria-hidden="true">▣</span>
               Manage Categories
             </a>
-            <p className="mt-2 text-sm text-zinc-400">
-              Review and control astrologer marketplace seller access.
-            </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void loadSellers()}
-            className="rounded-xl border border-yellow-500/40 bg-zinc-900 px-4 py-3 text-sm font-semibold text-yellow-300 hover:bg-zinc-800"
-          >
-            Refresh
-          </button>
-        </div>
+          <div className="flex flex-col items-end gap-4">
+            <a
+              href="/admin"
+              className="asp-admin-back-btn"
+            >
+              ← Back to Dashboard
+            </a>
 
-        <div className="mb-6 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-            <p className="text-sm text-zinc-500">Total sellers</p>
-            <p className="mt-2 text-3xl font-bold">{sellers.length}</p>
-          </div>
-
-          <div className="rounded-2xl border border-yellow-500/20 bg-zinc-950 p-5">
-            <p className="text-sm text-zinc-500">Pending approval</p>
-            <p className="mt-2 text-3xl font-bold text-yellow-400">
-              {pendingCount}
-            </p>
+            <button
+              type="button"
+              onClick={() => void loadSellers()}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#0B1730] px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-[#14294A]"
+            >
+              <span className="text-lg">↻</span>
+              Refresh
+            </button>
           </div>
         </div>
 
+        {/* SUMMARY */}
+        <section className="mt-8 grid gap-5 md:grid-cols-2">
+          <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-50 text-2xl font-black text-[#0B1730]">
+              ♙
+            </div>
+
+            <div>
+              <p className="text-sm font-bold text-[#4B5C73]">
+                Total sellers
+              </p>
+              <p className="mt-1 text-3xl font-extrabold text-[#0B1730]">
+                {sellers.length}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-5 rounded-2xl border border-[#E4BF4B] bg-amber-50/60 p-6 shadow-sm">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-amber-100 text-2xl font-black text-[#A87300]">
+              ◷
+            </div>
+
+            <div>
+              <p className="text-sm font-bold text-[#4B5C73]">
+                Pending approval
+              </p>
+              <p className="mt-1 text-3xl font-extrabold text-[#A87300]">
+                {pendingCount}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ALERTS */}
         {error ? (
-          <div className="mb-5 rounded-xl border border-red-500/30 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-700">
             {error}
           </div>
         ) : null}
 
         {notice ? (
-          <div className="mb-5 rounded-xl border border-emerald-500/30 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-300">
+          <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-700">
             {notice}
           </div>
         ) : null}
 
-        {loading ? (
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-8 text-center text-zinc-400">
-            Loading sellers...
+        {/* SELLERS PANEL */}
+        <section className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+
+          <div className="border-b border-gray-200 bg-[#FAFBFC] px-6 py-4">
+            <h2 className="text-lg font-extrabold text-[#0B1730]">
+              Seller Management
+            </h2>
+
+            <p className="mt-1 text-sm text-[#65748A]">
+              Marketplace seller accounts and approval status
+            </p>
           </div>
-        ) : sellers.length === 0 ? (
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-8 text-center">
-            <p className="font-semibold">No seller profiles found.</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {sellers.map((seller) => {
-              const working = workingId === seller.id;
-              const astrologerOk =
-                seller.astrologer?.isApproved === true &&
-                seller.astrologer?.isVerified === true;
 
-              const userOk =
-                seller.astrologer?.user?.isActive !== false &&
-                seller.astrologer?.user?.isBlocked !== true;
+          {loading ? (
+            <div className="p-12 text-center text-sm font-semibold text-[#65748A]">
+              Loading sellers...
+            </div>
+          ) : sellers.length === 0 ? (
+            <div className="p-12 text-center">
+              <p className="font-extrabold text-[#0B1730]">
+                No seller profiles found.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {sellers.map((seller) => {
+                const working = workingId === seller.id;
 
-              return (
-                <article
-                  key={seller.id}
-                  className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5"
-                >
-                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <h2 className="text-xl font-bold">
-                          {seller.shopDisplayName || "Unnamed seller"}
-                        </h2>
+                const astrologerOk =
+                  seller.astrologer?.isApproved === true &&
+                  seller.astrologer?.isVerified === true;
 
-                        <span className="rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1 text-xs font-bold text-yellow-300">
-                          {seller.status}
-                        </span>
+                const userOk =
+                  seller.astrologer?.user?.isActive !== false &&
+                  seller.astrologer?.user?.isBlocked !== true;
+
+                return (
+                  <article
+                    key={seller.id}
+                    className="p-6 transition hover:bg-[#FCFCFA]"
+                  >
+                    <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_1fr_1fr_auto] lg:items-center">
+
+                      {/* SELLER */}
+                      <div className="flex min-w-0 items-start gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xl font-black text-[#9A7010]">
+                          ▣
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <h3 className="truncate text-lg font-extrabold text-[#0B1730]">
+                              {seller.shopDisplayName || "Unnamed seller"}
+                            </h3>
+
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-extrabold ${
+                                seller.status === "ACTIVE"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : seller.status === "PENDING"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-red-100 text-red-700"
+                              }`}
+                            >
+                              ● {seller.status}
+                            </span>
+                          </div>
+
+                          {seller.shopBio ? (
+                            <p className="mt-2 max-w-xl text-sm leading-6 text-[#65748A]">
+                              {seller.shopBio}
+                            </p>
+                          ) : null}
+                        </div>
                       </div>
 
-                      {seller.shopBio ? (
-                        <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
-                          {seller.shopBio}
-                        </p>
-                      ) : null}
-
-                      <div className="mt-4 grid gap-2 text-sm text-zinc-400 sm:grid-cols-2">
-                        <p>
-                          Astrologer eligibility:{" "}
-                          <span
-                            className={
-                              astrologerOk ? "text-emerald-400" : "text-red-400"
-                            }
-                          >
-                            {astrologerOk ? "Eligible" : "Not eligible"}
-                          </span>
+                      {/* ASTROLOGER */}
+                      <div>
+                        <p className="text-xs font-extrabold uppercase tracking-wide text-[#8290A3]">
+                          Astrologer
                         </p>
 
-                        <p>
-                          User status:{" "}
-                          <span
-                            className={
-                              userOk ? "text-emerald-400" : "text-red-400"
-                            }
-                          >
-                            {userOk ? "Active" : "Blocked/Inactive"}
-                          </span>
+                        <p
+                          className={`mt-2 text-sm font-extrabold ${
+                            astrologerOk
+                              ? "text-emerald-700"
+                              : "text-red-700"
+                          }`}
+                        >
+                          {astrologerOk ? "● Eligible" : "● Not eligible"}
                         </p>
                       </div>
 
-                      {seller.rejectionReason ? (
-                        <p className="mt-3 text-sm text-red-300">
-                          Rejection reason: {seller.rejectionReason}
+                      {/* USER */}
+                      <div>
+                        <p className="text-xs font-extrabold uppercase tracking-wide text-[#8290A3]">
+                          User Status
                         </p>
-                      ) : null}
+
+                        <p
+                          className={`mt-2 text-sm font-extrabold ${
+                            userOk
+                              ? "text-emerald-700"
+                              : "text-red-700"
+                          }`}
+                        >
+                          {userOk ? "● Active" : "● Blocked / Inactive"}
+                        </p>
+                      </div>
+
+                      {/* ACTIONS */}
+                      <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+
+                        {(seller.status === "PENDING" ||
+                          seller.status === "REJECTED") ? (
+                          <button
+                            type="button"
+                            disabled={working || !astrologerOk || !userOk}
+                            onClick={() => void activateSeller(seller.id)}
+                            className="rounded-xl bg-[#E9B91F] px-5 py-2.5 text-sm font-extrabold text-[#0B1730] shadow-sm transition hover:bg-[#D9A900] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {working ? "Working..." : "Activate"}
+                          </button>
+                        ) : (
+                          <span className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-extrabold text-emerald-700">
+                            ✓ Active
+                          </span>
+                        )}
+
+                        {seller.status === "PENDING" ? (
+                          <button
+                            type="button"
+                            disabled={working}
+                            onClick={() => void rejectSeller(seller.id)}
+                            className="rounded-xl border border-red-200 bg-white px-5 py-2.5 text-sm font-extrabold text-red-700 shadow-sm transition hover:bg-red-50 disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
 
-                    <div className="flex shrink-0 flex-wrap gap-3">
-                      {seller.status === "PENDING" ||
-                      seller.status === "REJECTED" ? (
-                        <button
-                          type="button"
-                          disabled={working || !astrologerOk || !userOk}
-                          onClick={() => void activateSeller(seller.id)}
-                          className="rounded-xl bg-yellow-400 px-5 py-3 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {working ? "Working..." : "Activate"}
-                        </button>
-                      ) : null}
+                    {seller.rejectionReason ? (
+                      <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                        Rejection reason: {seller.rejectionReason}
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          )}
 
-                      {seller.status === "PENDING" ? (
-                        <button
-                          type="button"
-                          disabled={working}
-                          onClick={() => void rejectSeller(seller.id)}
-                          className="rounded-xl border border-red-500/40 px-5 py-3 text-sm font-semibold text-red-300 disabled:opacity-50"
-                        >
-                          Reject
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
+          {/* FOOTER */}
+          <div className="flex flex-col gap-3 border-t border-gray-200 bg-[#FAFBFC] px-6 py-4 text-sm text-[#65748A] sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Showing <strong className="text-[#0B1730]">{sellers.length}</strong>{" "}
+              seller{sellers.length === 1 ? "" : "s"}
+            </span>
+
+            <span className="rounded-lg border border-[#D4AF37] bg-amber-50 px-4 py-2 font-extrabold text-[#9A7010]">
+              Page 1
+            </span>
           </div>
-        )}
+        </section>
       </div>
     </main>
   );
 }
-
 

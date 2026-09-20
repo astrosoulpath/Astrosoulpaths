@@ -1,4 +1,4 @@
-import { LedgerReferenceType, LedgerType, Prisma } from '@prisma/client';
+﻿import { LedgerReferenceType, LedgerType, Prisma } from '@prisma/client';
 import {
   BadRequestException,
   ConflictException,
@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
-import { VedicProvider } from '../astro/modules/provider/vedic.provider';
+import { NumerologyService } from '../astro/modules/numerology/numerology.service';
 import { KundliService } from '../kundli/kundli.service';
 
 import { AskAiAstroDto } from './dto/ask-ai-astro.dto';
@@ -30,8 +30,8 @@ export class AiAstroService {
     private readonly provider: AiAstroProvider,
 
     private readonly kundliService: KundliService,
+    private readonly numerologyService: NumerologyService,
 
-    private readonly vedicProvider: VedicProvider,
 
     private readonly prisma: PrismaService,
   ) {}
@@ -606,7 +606,7 @@ export class AiAstroService {
 
         /*
          * First minute capacity is reserved.
-         * ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¹15/min currently comes from DB.
+         * ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹15/min currently comes from DB.
          *
          * Actual settlement remains per second.
          */
@@ -861,8 +861,8 @@ export class AiAstroService {
          * Flutter will later heartbeat every ~10 sec.
          *
          * Example:
-         * 0-45 sec => ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¹15 reserved
-         * after 45 sec => reserve next ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¹15
+         * 0-45 sec => ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹15 reserved
+         * after 45 sec => reserve next ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹15
          */
         const maxSessionSeconds = session.durationMinutes * 60;
 
@@ -1468,8 +1468,34 @@ export class AiAstroService {
       if (consultantType.code === 'VEDIC_ASTROLOGER') {
         astrologyContext = {
           profile: profileContext,
+          // LOCAL_VEDIC_AI_GROUNDING
+          // Keep OpenAI grounding compact while preserving calculated facts.
+          // The full Kundli remains unchanged in the application/database.
+          kundli: {
+            provider: kundli.report.provider,
+            input: kundli.report.input,
+            ascendant: kundli.report.ascendant,
+            planetaryPositions: kundli.report.planetaryPositions,
 
-          kundli: kundli.kundli,
+            charts: {
+              birthChart:
+                kundli.report.birthChart ??
+                kundli.report.charts?.birthChart,
+              navamsaChart:
+                kundli.report.navamsaChart ??
+                kundli.report.charts?.navamsaChart,
+            },
+
+            dasha: kundli.report.dasha,
+            yogas: kundli.report.yogas,
+            dosha: kundli.report.dosha,
+
+            extended: {
+              sadeSati: kundli.report.extended?.sadeSati,
+            },
+
+            transit: kundli.report.transit,
+          },
 
           source: kundli.source,
 
@@ -1530,14 +1556,10 @@ export class AiAstroService {
 
       const dob = birthDate.toISOString().split('T')[0];
 
-      const numerologyRaw = await this.vedicProvider.getNumerology({
+      const numerologyRaw = this.numerologyService.calculate(
         fullName,
         dob,
-        lang: 'en',
-        userId: user.id,
-        requestId: dto.clientRequestId,
-        includeDetails: true,
-      });
+      );
 
       /*
        * Vedic numerology responses may wrap the real calculation
@@ -1549,7 +1571,7 @@ export class AiAstroService {
         numerologyRaw &&
         typeof numerologyRaw === 'object' &&
         !Array.isArray(numerologyRaw)
-          ? (numerologyRaw as Record<string, unknown>)
+          ? (numerologyRaw as unknown as Record<string, unknown>)
           : null;
 
       const numerology =
@@ -2157,3 +2179,10 @@ export class AiAstroService {
     };
   }
 }
+
+
+
+
+
+
+

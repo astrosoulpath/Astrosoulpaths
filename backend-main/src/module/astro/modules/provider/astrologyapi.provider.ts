@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   HttpException,
   HttpStatus,
@@ -25,7 +25,7 @@ export class AstrologyProvider {
     });
   }
 
-  // COMMON POST HANDLER (same pattern as your VedicProvider)
+  // COMMON POST HANDLER 
   private async post(endpoint: string, payload: any) {
     try {
       const response = await this.client.post(endpoint, payload);
@@ -132,3 +132,4 @@ export class AstrologyProvider {
     }
   }
 }
+

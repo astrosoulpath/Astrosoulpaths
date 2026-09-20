@@ -1,11 +1,9 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { AstrologerTable } from "./components/AstrologerTable";
-import { MarketplaceManagement } from "./marketplace/MarketplaceManagement";
-
 type DashboardStats = {
   users: {
     total: number;
@@ -109,7 +107,7 @@ const modules = [
     title: "Marketplace",
     description:
       "Manage sellers, products, categories, approvals and campaigns.",
-    href: "/admin#marketplace-management",
+    href: "/admin/marketplace",
   },
   {
     title: "Platform Settings",
@@ -344,10 +342,7 @@ export function AdminDashboard() {
           ))}
         </div>
       </section>
-
-      <MarketplaceManagement />
-
-      <section className="mt-8 rounded-[26px] border border-slate-700/70 bg-slate-900/55 p-6 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
+<section className="mt-8 rounded-[26px] border border-slate-700/70 bg-slate-900/55 p-6 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-400">
             Astrologer Management
@@ -365,3 +360,4 @@ export function AdminDashboard() {
     </section>
   );
 }
+

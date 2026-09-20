@@ -83,6 +83,71 @@ export class KundliService {
       'description' in row
     );
   }
+  private hasValidGemSuggestion(data: unknown): boolean {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return false;
+    }
+
+    const report = data as Record<string, any>;
+    const gem = report.extended?.gemSuggestion;
+
+    if (!gem || typeof gem !== 'object' || Array.isArray(gem)) {
+      return false;
+    }
+
+    return (
+      typeof gem.gemstone === 'string' &&
+      gem.gemstone.trim().length > 0 &&
+      typeof gem.planet === 'string' &&
+      gem.planet.trim().length > 0 &&
+      typeof gem.ascendantSign === 'string' &&
+      Number.isInteger(gem.ascendantSignNo) &&
+      gem.ascendantSignNo >= 1 &&
+      gem.ascendantSignNo <= 12 &&
+      gem.calculation === 'lagna-lord-primary-gemstone'
+    );
+  }
+  private hasValidTransit(data: unknown): boolean {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return false;
+    }
+
+    const report = data as Record<string, any>;
+    const transit = report.transit;
+
+    if (!transit || typeof transit !== 'object' || Array.isArray(transit)) {
+      return false;
+    }
+
+    const planets = Array.isArray(transit.planets)
+      ? transit.planets
+      : [];
+
+    const requiredPlanets = [
+      'Sun',
+      'Moon',
+      'Mercury',
+      'Venus',
+      'Mars',
+      'Jupiter',
+      'Saturn',
+      'Rahu',
+      'Ketu',
+    ];
+
+    return (
+      transit.calculation === 'local-astronomy-engine-lahiri-transit' &&
+      typeof transit.calculatedAt === 'string' &&
+      planets.length === 9 &&
+      requiredPlanets.every((name) =>
+        planets.some(
+          (planet: any) =>
+            planet?.name === name &&
+            Number.isFinite(planet?.longitude),
+        ),
+      )
+    );
+  }
   private hasValidImportantYogas(data: unknown): boolean {
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
       return false;
@@ -497,19 +562,21 @@ export class KundliService {
     const cachedReport = cached?.vedic as any;
 
     /*
-     * Customer AI Kundli now uses Prokerala as the factual source.
-     * Never serve a historical VedicAstro calculation as the current
+     * Customer AI Kundli uses the self-hosted Local Vedic engine as the factual source.
+     * Never serve a historical external-provider calculation as the current
      * production Kundli merely because it passes completeness validation.
      */
-    const isCurrentProkeralaCache =
-      cachedReport?.provider === 'prokerala' &&
+    const isCurrentLocalVedicCache =
+      cachedReport?.provider === 'local-vedic' &&
       this.isCompleteVedicReport(cachedReport) &&
       this.hasValidPlanetaryHouses(cachedReport) &&
       this.hasValidPlanetaryNakshatras(cachedReport) &&
       this.hasValidImportantYogas(cachedReport) &&
-      this.hasValidSadeSati(cachedReport);
+      this.hasValidSadeSati(cachedReport) &&
+      this.hasValidTransit(cachedReport) &&
+      this.hasValidGemSuggestion(cachedReport);
 
-    if (!options?.forceRefresh && isCurrentProkeralaCache) {
+    if (!options?.forceRefresh && isCurrentLocalVedicCache) {
       this.logger.log(`kundli.cache.hit kundliId=${kundli.id} lang=${lang}`);
 
       const report = cached?.vedic as any;
@@ -680,7 +747,9 @@ export class KundliService {
     return {
       ...aiResponse,
       kundliId: result.kundli.id,
-      source: 'PROKERALA_KUNDLI',
+      source: 'LOCAL_VEDIC_KUNDLI',
     };
   }
 }
+
+

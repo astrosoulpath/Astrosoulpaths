@@ -1,4 +1,4 @@
-import {
+﻿import {
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
@@ -6,13 +6,16 @@ import {
 import OpenAI from 'openai';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { RedisService } from '../../infrastructure/redis/redis.service';
 import { KundliService } from '../kundli/kundli.service';
+import { serializeAiAstrologyContext } from '../../common/utils/ai-context.util';
 
 @Injectable()
 export class AstrologyAiService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly kundliService: KundliService,
+    private readonly redis: RedisService,
   ) {}
 
   async generateAnswer(
@@ -48,6 +51,157 @@ export class AstrologyAiService {
 
     const report = kundliResult.report as Record<string, unknown>;
 
+    const language = 'en';
+    const model = process.env.OPENAI_MODEL?.trim() || 'gpt-5';
+    const promptVersion = 'v1';
+    const kundliHash = kundliResult.kundli?.hash;
+
+    if (!kundliHash) {
+      throw new ServiceUnavailableException(
+        'Unable to identify the customer Kundli for astrology guidance.',
+      );
+    }
+
+    const cachedAnswer =
+      await this.prisma.astrologyQuestionAnswerCache.findFirst({
+        where: {
+          userId: kundliResult.userId,
+          questionId: question.id,
+          kundliHash,
+          language,
+          model,
+          promptVersion,
+          questionUpdatedAt: question.updatedAt,
+        },
+        select: {
+          answer: true,
+        },
+      });
+
+    if (cachedAnswer?.answer?.trim()) {
+      console.log('cost.cache feature=astrology_questions result=hit');
+
+      return {
+        success: true,
+        configured: true,
+        data: {
+          questionId: question.id,
+          question: question.text,
+          category: {
+            slug: question.category.slug,
+            name: question.category.name,
+          },
+          answer: cachedAnswer.answer,
+          model,
+          personalized: true,
+          kundliSource: 'customer-profile',
+        },
+      };
+    }
+
+    console.log('cost.cache feature=astrology_questions result=miss');
+
+    const lockKey =
+      `lock:astrology-question:${kundliResult.userId}:${question.id}:${kundliHash}:${language}:${model}:${promptVersion}:${question.updatedAt.getTime()}`;
+
+    const lockOwner =
+      `${Date.now()}:${Math.random().toString(36).slice(2)}`;
+
+    let lockAcquired = await this.redis.setNX(lockKey, lockOwner, 120);
+
+    if (!lockAcquired) {
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        const generated =
+          await this.prisma.astrologyQuestionAnswerCache.findFirst({
+            where: {
+              userId: kundliResult.userId,
+              questionId: question.id,
+              kundliHash,
+              language,
+              model,
+              promptVersion,
+              questionUpdatedAt: question.updatedAt,
+            },
+            select: {
+              answer: true,
+            },
+          });
+
+        if (generated?.answer?.trim()) {
+          console.log(
+            'cost.cache feature=astrology_questions result=single_flight_hit',
+          );
+
+          return {
+            success: true,
+            configured: true,
+            data: {
+              questionId: question.id,
+              question: question.text,
+              category: {
+                slug: question.category.slug,
+                name: question.category.name,
+              },
+              answer: generated.answer,
+              model,
+              personalized: true,
+              kundliSource: 'customer-profile',
+            },
+          };
+        }
+      }
+
+      lockAcquired = await this.redis.setNX(lockKey, lockOwner, 120);
+
+      if (!lockAcquired) {
+        throw new ServiceUnavailableException(
+          'Astrology guidance is currently being generated. Please try again shortly.',
+        );
+      }
+    }
+
+    try {
+      const generatedAfterLock =
+        await this.prisma.astrologyQuestionAnswerCache.findFirst({
+          where: {
+            userId: kundliResult.userId,
+            questionId: question.id,
+            kundliHash,
+            language,
+            model,
+            promptVersion,
+            questionUpdatedAt: question.updatedAt,
+          },
+          select: {
+            answer: true,
+          },
+        });
+
+      if (generatedAfterLock?.answer?.trim()) {
+        console.log(
+          'cost.cache feature=astrology_questions result=after_lock_hit',
+        );
+
+        return {
+          success: true,
+          configured: true,
+          data: {
+            questionId: question.id,
+            question: question.text,
+            category: {
+              slug: question.category.slug,
+              name: question.category.name,
+            },
+            answer: generatedAfterLock.answer,
+            model,
+            personalized: true,
+            kundliSource: 'customer-profile',
+          },
+        };
+      }
+
     const kundliContext = {
       profile: {
         name: kundliResult.profile.name,
@@ -70,10 +224,12 @@ export class AstrologyAiService {
       analysis: report.analysis ?? null,
     };
 
-    const serializedKundliContext = JSON.stringify(kundliContext);
+    const serializedKundliContext = serializeAiAstrologyContext(
+      kundliContext,
+      30000,
+    );
 
     const apiKey = process.env.OPENAI_API_KEY?.trim() ?? '';
-    const model = process.env.OPENAI_MODEL?.trim() || 'gpt-5';
 
     if (!apiKey) {
       return {
@@ -125,6 +281,12 @@ export class AstrologyAiService {
         ].join('\n'),
       });
 
+      const usage = response.usage;
+
+      console.log(
+        `cost.openai feature=astrology_questions input_tokens=${usage?.input_tokens ?? 0} output_tokens=${usage?.output_tokens ?? 0} total_tokens=${usage?.total_tokens ?? 0}`,
+      );
+
       const answer = response.output_text.trim();
 
       if (!answer) {
@@ -132,6 +294,34 @@ export class AstrologyAiService {
           'AI service returned an empty response.',
         );
       }
+
+      await this.prisma.astrologyQuestionAnswerCache.upsert({
+        where: {
+          userId_questionId_kundliHash_language_model_promptVersion_questionUpdatedAt:
+            {
+              userId: kundliResult.userId,
+              questionId: question.id,
+              kundliHash,
+              language,
+              model,
+              promptVersion,
+              questionUpdatedAt: question.updatedAt,
+            },
+        },
+        update: {
+          answer,
+        },
+        create: {
+          userId: kundliResult.userId,
+          questionId: question.id,
+          kundliHash,
+          language,
+          model,
+          promptVersion,
+          questionUpdatedAt: question.updatedAt,
+          answer,
+        },
+      });
 
       return {
         success: true,
@@ -149,6 +339,9 @@ export class AstrologyAiService {
           kundliSource: 'customer-profile',
         },
       };
+    } finally {
+      await this.redis.releaseLock(lockKey, lockOwner);
+    }
     } catch (error) {
       if (error instanceof ServiceUnavailableException) {
         throw error;
@@ -160,3 +353,5 @@ export class AstrologyAiService {
     }
   }
 }
+
+

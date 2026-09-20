@@ -1,15 +1,16 @@
-import { Module } from '@nestjs/common';
+﻿import { forwardRef, Module } from '@nestjs/common';
 import { MatchController } from './match.controller';
 import { ProfileModule } from '../../../profile/profile.module';
+import { KundliModule } from '../../../kundli/kundli.module';
 import { MatchService } from './match.service';
-import { VedicProvider } from '../provider/vedic.provider';
-
 @Module({
   imports: [
-    ProfileModule, // ⭐ gives ProfileService
+    ProfileModule,
+    forwardRef(() => KundliModule),
   ],
-  providers: [MatchService, VedicProvider],
+  providers: [MatchService],
   controllers: [MatchController],
   exports: [MatchService],
 })
 export class MatchModule {}
+

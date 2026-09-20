@@ -1,0 +1,2 @@
+ALTER TABLE "Astrologer"
+ADD COLUMN IF NOT EXISTS "consultationCategories" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

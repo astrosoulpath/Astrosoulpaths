@@ -1,21 +1,32 @@
-﻿import { Injectable } from '@nestjs/common';
+﻿import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { AstroParams } from '../../../../common/types/astro-params.type';
-import { ProkeralaProvider } from '../provider/prokerala.provider';
+import { LocalVedicKundliProvider } from '../../../kundli/providers/local-vedic-kundli.provider';
 
 @Injectable()
 export class DashaService {
-  constructor(private readonly provider: ProkeralaProvider) {}
+  constructor(
+    private readonly localVedicKundliProvider: LocalVedicKundliProvider,
+  ) {}
 
   async generate(params: AstroParams) {
-    const data = await this.provider.getDashaPeriods(params);
+    const report = await this.localVedicKundliProvider.generate(
+      params,
+      params.lang ?? 'en',
+    );
 
-    return this.transform(data);
-  }
+    if (!report.dasha) {
+      throw new ServiceUnavailableException({
+        code: 'LOCAL_VIMSHOTTARI_DASHA_UNAVAILABLE',
+        message: 'Local Vimshottari Dasha calculation is unavailable.',
+      });
+    }
 
-  private transform(data: any) {
     return {
-      raw: data,
-      timeline: data?.dasha ?? data?.data?.dasha ?? data?.data ?? [],
+      raw: report.dasha,
+      timeline: report.dasha.timeline ?? [],
+      antarDasha: report.dasha.antarDasha ?? null,
+      current: report.dasha.current ?? null,
+      source: 'local-vedic',
     };
   }
 }

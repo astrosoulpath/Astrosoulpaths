@@ -1,0 +1,5 @@
+ALTER TABLE "ai_astro_pricing"
+ADD COLUMN IF NOT EXISTS "pricingMode" TEXT NOT NULL DEFAULT 'PER_MINUTE';
+
+ALTER TABLE "ai_astro_pricing"
+ADD COLUMN IF NOT EXISTS "pricePerMinute" DECIMAL(12,2);

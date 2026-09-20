@@ -1,30 +1,43 @@
-﻿import { Injectable } from '@nestjs/common';
+﻿import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { AstroParams } from '../../../../common/types/astro-params.type';
-import { ProkeralaProvider } from '../provider/prokerala.provider';
+import { LocalVedicKundliProvider } from '../../../kundli/providers/local-vedic-kundli.provider';
 
 @Injectable()
 export class DoshaService {
-  constructor(private readonly provider: ProkeralaProvider) {}
+  constructor(
+    private readonly localVedicKundliProvider: LocalVedicKundliProvider,
+  ) {}
+
+  private async getLocalMangal(params: AstroParams) {
+    const report = await this.localVedicKundliProvider.generate(
+      params,
+      params.lang ?? 'en',
+    );
+
+    const mangal = report.dosha?.mangal ?? null;
+
+    if (!mangal) {
+      throw new ServiceUnavailableException({
+        code: 'LOCAL_MANGAL_DOSHA_UNAVAILABLE',
+        message: 'Local Mangal Dosha calculation is unavailable.',
+      });
+    }
+
+    return mangal;
+  }
 
   async getMangal(params: AstroParams) {
-    return this.provider.getMangalDosha(params);
+    return this.getLocalMangal(params);
   }
 
   async getManglik(params: AstroParams) {
-    return this.provider.getAdvancedMangalDosha(params);
+    return this.getLocalMangal(params);
   }
 
-  async getKaalsarp(params: AstroParams) {
-    return this.provider.getKaalSarpDosha(params);
+  async getKaalsarp(_params: AstroParams) {
+    return null;
   }
 
-  /*
-   * Production rule:
-   * Never fall back to Vedic/AstrologyAPI.
-   *
-   * These sections stay unavailable until a verified
-   * Prokerala endpoint is wired.
-   */
   async getPitra(_params: AstroParams) {
     return null;
   }
@@ -34,26 +47,15 @@ export class DoshaService {
   }
 
   async generate(params: AstroParams) {
-    const tasks = [
-      { key: 'mangal', fn: this.getMangal.bind(this) },
-      { key: 'manglik', fn: this.getManglik.bind(this) },
-      { key: 'kaalsarp', fn: this.getKaalsarp.bind(this) },
-      { key: 'pitra', fn: this.getPitra.bind(this) },
-      { key: 'papasamaya', fn: this.getPapasamaya.bind(this) },
-    ];
+    const mangal = await this.getLocalMangal(params);
 
-    const results = await Promise.allSettled(
-      tasks.map((task) => task.fn(params)),
-    );
-
-    return tasks.reduce(
-      (acc, task, index) => {
-        acc[task.key] =
-          results[index].status === 'fulfilled' ? results[index].value : null;
-
-        return acc;
-      },
-      {} as Record<string, unknown>,
-    );
+    return {
+      mangal,
+      manglik: mangal,
+      kaalsarp: null,
+      pitra: null,
+      papasamaya: null,
+      source: 'local-vedic',
+    };
   }
 }

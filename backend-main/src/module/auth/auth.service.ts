@@ -314,6 +314,8 @@ export class AuthService {
           email: null,
           fullName: null,
         });
+        // Customer portal access is identity-based.
+        // Permanent account role (admin/user) remains unchanged.
 
         return {
           success: true,
@@ -416,6 +418,9 @@ export class AuthService {
           authUser.user_metadata?.name ??
           null,
       });
+        // Customer portal access is identity-based.
+        // Permanent account role (admin/user) remains unchanged.
+
       const sessionPayload = this.buildSessionPayload(session);
 
       return {
@@ -939,6 +944,8 @@ export class AuthService {
         code: 'ACCOUNT_UNAVAILABLE',
       });
     }
+        // Customer portal access is identity-based.
+        // Permanent account role (admin/user) remains unchanged.
 
     return {
       success: true,
@@ -1043,6 +1050,9 @@ export class AuthService {
       // ----------------------------------------------------
 
       if (portal === 'customer') {
+        // Customer portal access is identity-based.
+        // Permanent account role (admin/user) remains unchanged.
+
         return {
           success: true,
           message: 'Google login successful',
@@ -1166,3 +1176,4 @@ export class AuthService {
     }
   }
 }
+

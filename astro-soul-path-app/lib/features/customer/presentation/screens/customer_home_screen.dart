@@ -2292,90 +2292,226 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 ),
               ),
             ),
-            // FIRST CHAT FREE - BACKEND-AUTHORITATIVE FLOW
-            // =================================================
+            // FIRST CHAT FREE - PREMIUM VEDIC / BACKEND-AUTHORITATIVE
+            // =========================================================
             if (_canShowFirstFreeChat)
               SliverToBoxAdapter(
-                child: Container(
-                  margin: const EdgeInsets.fromLTRB(16, 7, 16, 10),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 15,
-                    vertical: 13,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF7B1717),
-                        Color(0xFFB61C14),
-                        Color(0xFF7D1212),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(17),
-                    border: Border.all(color: const Color(0x55FFD166)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: const BoxDecoration(
-                          color: Color(0x22FFD166),
-                          shape: BoxShape.circle,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(22),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(22),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const AstrologerSelectionScreen(
+                              screenTitle: 'Choose Your Vedic Astrologer',
+                            ),
+                          ),
+                        );
+                      },
+                      child: Ink(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(22),
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFF17090D),
+                              Color(0xFF421014),
+                              Color(0xFF761A16),
+                            ],
+                          ),
+                          border: Border.all(
+                            color: const Color(0xB3FFD166),
+                            width: 1.15,
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x407A1515),
+                              blurRadius: 18,
+                              offset: Offset(0, 8),
+                            ),
+                          ],
                         ),
-                        child: const Icon(
-                          Icons.chat_bubble_rounded,
-                          color: AppColors.gold,
-                        ),
-                      ),
-                      const SizedBox(width: 11),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Stack(
                           children: [
-                            Text(
-                              'First Chat FREE',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w900,
+                            Positioned(
+                              right: -30,
+                              top: -45,
+                              child: Container(
+                                width: 145,
+                                height: 145,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: RadialGradient(
+                                    colors: [
+                                      Color(0x40FFD166),
+                                      Color(0x00FFD166),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Start with a verified astrologer',
-                              style: TextStyle(
-                                color: Color(0xFFD8D8D8),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
+                            Positioned(
+                              right: 18,
+                              bottom: -17,
+                              child: Icon(
+                                Icons.auto_awesome_rounded,
+                                size: 82,
+                                color: const Color(
+                                  0xFFFFD166,
+                                ).withValues(alpha: 0.07),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                17,
+                                15,
+                                14,
+                                15,
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 58,
+                                    height: 58,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: const LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          Color(0xFFFFE49A),
+                                          Color(0xFFD99B25),
+                                        ],
+                                      ),
+                                      border: Border.all(
+                                        color: const Color(0xFFFFE9A9),
+                                      ),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Color(0x55FFD166),
+                                          blurRadius: 13,
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Icon(
+                                      Icons.temple_hindu_rounded,
+                                      color: Color(0xFF50120F),
+                                      size: 30,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 13),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0x24FFD166),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(0x66FFD166),
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'EXCLUSIVE WELCOME OFFER',
+                                            style: TextStyle(
+                                              color: Color(0xFFFFD978),
+                                              fontSize: 8.5,
+                                              letterSpacing: .7,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Your First $_backendFreeChatMinutes Min Chat is FREE',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16.5,
+                                            height: 1.05,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 5),
+                                        const Text(
+                                          'Connect with a verified Vedic astrologer',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: Color(0xFFE4CBC3),
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 9),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 9,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Color(0xFFFFE08A),
+                                          Color(0xFFFFBC42),
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Color(0x44FFD166),
+                                          blurRadius: 9,
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'START',
+                                          style: TextStyle(
+                                            color: Color(0xFF3A0D0B),
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                        SizedBox(width: 3),
+                                        Icon(
+                                          Icons.arrow_forward_rounded,
+                                          color: Color(0xFF3A0D0B),
+                                          size: 14,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.gold,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Text(
-                          'Chat Now',
-                          style: TextStyle(
-                            color: AppColors.surface,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            // =================================================
-            // =================================================
+            // =========================================================
             // AI ASTROLOGERS - BACKEND CATALOG
             // =================================================
             const SliverToBoxAdapter(child: _AiAstrologersHomeSection()),

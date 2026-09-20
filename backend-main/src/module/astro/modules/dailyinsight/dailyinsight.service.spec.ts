@@ -4,18 +4,15 @@ import { SubscriptionStatus } from '@prisma/client';
 
 import { PrismaService } from '../../../../infrastructure/prisma/prisma.service';
 import { RedisService } from '../../../../infrastructure/redis/redis.service';
-import { ProkeralaProvider } from '../provider/prokerala.provider';
+import { LocalVedicKundliProvider } from '../../../kundli/providers/local-vedic-kundli.provider';
 import { DailyHoroscopeAiService } from './daily-horoscope-ai.service';
 import { NakshatraDailyInsightService } from './dailyinsight.service';
 
 describe('NakshatraDailyInsightService', () => {
   let service: NakshatraDailyInsightService;
 
-  const prokeralaProviderMock = {
-    getKundli: jest.fn(),
-    getPlanetPositions: jest.fn(),
-    getmahadasha: jest.fn(),
-    getPanchang: jest.fn(),
+  const localVedicKundliProviderMock = {
+    generate: jest.fn(),
   };
 
   const redisMock = {
@@ -61,20 +58,7 @@ describe('NakshatraDailyInsightService', () => {
       englishName: 'English',
       nativeName: 'English',
     });
-
-    prokeralaProviderMock.getKundli.mockResolvedValue({
-      source: 'test-birth-chart',
-    });
-
-    prokeralaProviderMock.getPlanetPositions.mockResolvedValue({
-      source: 'test-planet-positions',
-    });
-
-    prokeralaProviderMock.getmahadasha.mockResolvedValue({
-      source: 'test-mahadasha',
-    });
-
-    dailyHoroscopeAiServiceMock.generate.mockResolvedValue({
+dailyHoroscopeAiServiceMock.generate.mockResolvedValue({
       shortReading: 'Test personalized reading',
       dailyAdvice: 'Test daily advice',
       mood: 'Balanced',
@@ -98,8 +82,8 @@ describe('NakshatraDailyInsightService', () => {
       providers: [
         NakshatraDailyInsightService,
         {
-          provide: ProkeralaProvider,
-          useValue: prokeralaProviderMock,
+          provide: LocalVedicKundliProvider,
+          useValue: localVedicKundliProviderMock,
         },
         {
           provide: PrismaService,
@@ -258,6 +242,7 @@ describe('NakshatraDailyInsightService', () => {
     expect(result.entitlement.planName).toBe('DAILY_HOROSCOPE_MONTHLY');
   });
 });
+
 
 
 

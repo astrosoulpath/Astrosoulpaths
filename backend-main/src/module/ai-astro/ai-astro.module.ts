@@ -1,8 +1,9 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 
 import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
 import { AstroModule } from '../astro/astro.module';
 import { KundliModule } from '../kundli/kundli.module';
+import { NumerologyModule } from '../astro/modules/numerology/numerology.module';
 
 import { AiAstroAdminController } from './ai-astro-admin.controller';
 import { AiAstroController } from './ai-astro.controller';
@@ -12,7 +13,7 @@ import { AI_ASTRO_PROVIDER } from './providers/ai-astro-provider.interface';
 import { OpenAiAstroProvider } from './providers/openai-astro.provider';
 
 @Module({
-  imports: [PrismaModule, KundliModule, AstroModule],
+  imports: [PrismaModule, KundliModule, AstroModule, NumerologyModule],
   controllers: [AiAstroController, AiAstroAdminController],
   providers: [
     AiAstroService,
@@ -26,3 +27,4 @@ import { OpenAiAstroProvider } from './providers/openai-astro.provider';
   exports: [AiAstroService],
 })
 export class AiAstroModule {}
+

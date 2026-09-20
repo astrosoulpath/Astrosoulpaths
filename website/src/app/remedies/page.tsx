@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -51,8 +51,8 @@ const remedyMethods = [
 
 export default function RemediesPage() {
   return (
-    <main className="min-h-screen bg-slate-50">
-      <section className="border-b border-slate-200 bg-white">
+    <main className="asp-premium-page min-h-screen">
+      <section className="border-b border-[#D4AF37]/20 bg-white/80 backdrop-blur-sm">
         <div className="mx-auto max-w-7xl px-4 py-16 text-center sm:px-6 lg:px-8">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#B58D16]">
             Vedic Guidance
@@ -70,14 +70,14 @@ export default function RemediesPage() {
           <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link
               href="/astrologers"
-              className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#B58D16] px-6 py-3 font-semibold text-white transition hover:bg-[#967311]"
+              className="inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-[#C89513] via-[#DDB32A] to-[#C89513] shadow-[0_8px_22px_rgba(181,141,22,0.22)] px-6 py-3 font-semibold text-white transition hover:bg-[#967311]"
             >
               Consult an Astrologer
             </Link>
 
             <Link
               href="/kundli"
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3 font-semibold text-[#0B1026] transition hover:bg-slate-100"
+              className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#D4AF37]/35 bg-white/90 shadow-sm backdrop-blur-sm px-6 py-3 font-semibold text-[#0B1026] transition hover:bg-slate-100"
             >
               Explore Kundli Services
             </Link>
@@ -90,9 +90,9 @@ export default function RemediesPage() {
           {remedyCategories.map((category) => (
             <article
               key={category.title}
-              className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+              className="rounded-3xl border border-[#D4AF37]/25 bg-white/90 p-6 shadow-[0_16px_45px_rgba(11,16,38,0.08)] backdrop-blur-md transition duration-300 hover:-translate-y-1 hover:border-[#D4AF37]/50 hover:shadow-[0_22px_55px_rgba(181,141,22,0.16)]"
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#D4AF37]/10 text-lg font-bold text-[#B58D16]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#D4AF37]/20 bg-gradient-to-br from-[#FFF8DF] to-[#F8E7A7]/60 shadow-sm text-lg font-bold text-[#B58D16]">
                 {category.title.charAt(0)}
               </div>
 
@@ -108,7 +108,7 @@ export default function RemediesPage() {
         </div>
       </section>
 
-      <section className="border-y border-slate-200 bg-white">
+      <section className="border-y border-[#D4AF37]/20 bg-white/80 backdrop-blur-sm">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#B58D16]">
@@ -143,7 +143,7 @@ export default function RemediesPage() {
                     aria-hidden="true"
                     className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#D4AF37] text-xs font-bold text-[#0B1026]"
                   >
-                    ✓
+                    âœ“
                   </span>
 
                   <span>{method}</span>
@@ -167,7 +167,7 @@ export default function RemediesPage() {
 
         <Link
           href="/astrologers"
-          className="mt-8 inline-flex min-h-12 items-center justify-center rounded-full bg-[#B58D16] px-7 py-3 font-semibold text-white transition hover:bg-[#967311]"
+          className="mt-8 inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-[#C89513] via-[#DDB32A] to-[#C89513] shadow-[0_8px_22px_rgba(181,141,22,0.22)] px-7 py-3 font-semibold text-white transition hover:bg-[#967311]"
         >
           Find an Astrologer
         </Link>

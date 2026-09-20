@@ -1,7 +1,8 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+﻿import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import OpenAI from 'openai';
 
 import { buildAiConsultantInstructions } from '../domain/ai-consultant-instructions';
+import { serializeAiAstrologyContext } from '../../../common/utils/ai-context.util';
 
 import {
   AiAstroProvider,
@@ -14,44 +15,9 @@ import {
 export class OpenAiAstroProvider implements AiAstroProvider {
   private serializeContextForInstructions(
     value: unknown,
-    maxChars = 180_000,
+    maxChars = 30000,
   ): string {
-    const serialized = JSON.stringify(value ?? {});
-
-    if (serialized.length <= maxChars) {
-      return serialized;
-    }
-
-    if (value == null || typeof value !== 'object' || Array.isArray(value)) {
-      return JSON.stringify({
-        truncated: true,
-        reason: 'CONTEXT_SIZE_LIMIT',
-      });
-    }
-
-    const compact: Record<string, unknown> = {};
-    const source = value as Record<string, unknown>;
-
-    for (const [key, item] of Object.entries(source)) {
-      if (
-        key === 'report' ||
-        key === 'raw' ||
-        key === 'rawData' ||
-        key === 'rawResponse'
-      ) {
-        continue;
-      }
-
-      compact[key] = item;
-
-      const candidate = JSON.stringify(compact);
-
-      if (candidate.length > maxChars) {
-        delete compact[key];
-      }
-    }
-
-    return JSON.stringify(compact);
+    return serializeAiAstrologyContext(value, maxChars);
   }
 
   private readonly apiKey = process.env.OPENAI_API_KEY?.trim() ?? '';
@@ -79,11 +45,11 @@ export class OpenAiAstroProvider implements AiAstroProvider {
 
     const consultantContext = this.serializeContextForInstructions(
       input.consultantContext,
-      80_000,
+      30_000,
     );
 
     const previousConversation = (input.conversation ?? [])
-      .slice(-2)
+      .slice(-3)
       .map((message) => ({
         role: message.role,
         content: message.content,
@@ -104,106 +70,91 @@ export class OpenAiAstroProvider implements AiAstroProvider {
 
     const instructions = [
       ...specialistInstructions,
-
       `Current user topic category: ${input.category}.`,
-
       "Prioritize the user's latest question over the selected topic category when they differ.",
-
       isAstrologyConsultant
-        ? 'SUPPLIED_KUNDLI_IS_AUTHORITATIVE: If supplied astrology context contains saved birth profile or calculated Kundli data, use it directly. Do not ask the user to share Kundli or repeat birth details that are already present. Ask only for a field that is genuinely absent from supplied context.'
+        ? 'SUPPLIED_KUNDLI_IS_AUTHORITATIVE: Use supplied calculated astrology data as the factual source. Never invent missing chart calculations.'
         : '',
-
       input.personaId
         ? `Selected AI persona reference: ${input.personaId}.`
         : '',
-
       isAstrologyConsultant
         ? `Supplied astrology context:\n${astrologyContext}`
-        : [
-            'Do not make astrology, Kundli, planetary, house, dasha, yoga, nakshatra, or KP claims merely because legacy astrology context exists in the request pipeline.',
-            input.consultantContext
-              ? `Supplied specialist context:\n${consultantContext}`
-              : '',
-          ]
-            .filter(Boolean)
-            .join('\n'),
+        : input.consultantContext
+          ? `Supplied specialist context:\n${consultantContext}`
+          : '',
     ]
       .filter(Boolean)
       .join('\n');
 
-    const responseStyleInstructions = `
-RESPONSE STYLE — MUST FOLLOW:
-
-1. Match the language of the user's latest message.
-   - English => English.
-   - Devanagari Hindi => Hindi.
-   - Roman Hindi / Hinglish => natural Roman Hinglish.
-
-2. Reply like a fast mobile chat consultation.
-   - Treat the latest customer message as the primary intent.
-   - Begin the useful answer immediately; do not wait for unnecessary details.
-   - Give the useful answer immediately.
-   - Usually 25-60 words.
-   - Maximum 2 short paragraphs.
-   - No long introduction.
-   - No large checklist.
-   - Ask maximum 1 short follow-up question.
-
-3. Preserve the selected consultant's specialist identity, but never leave a normal customer question unanswered.
-   - If the latest question belongs to this specialist's domain, answer as that specialist.
-   - If the latest question is outside the specialist domain, still give a concise, useful general-guidance response.
-   - Clearly avoid pretending that general guidance is a specialist calculation or prediction.
-   - Never force the customer to restart the chat merely because the topic changed.
-   - The latest customer message is authoritative for conversational intent.
-
-4. Never invent planets, houses, dashas, exact dates, salary,
-   birth details, directions, room placements or calculations.
-
-5. Avoid headings and bullets unless absolutely necessary.
-`;
-
     const stream = await this.client.responses.create({
       model: this.model,
-      max_output_tokens: 240,
-      instructions: instructions + '\n\n' + responseStyleInstructions,
+      max_output_tokens: 800,
+      stream: true,
+      instructions,
       input: [
-        ...previousConversation,
+        ...previousConversation.slice(-2),
         {
           role: 'user',
           content: input.question,
         },
       ],
-      stream: true,
     });
 
     let answer = '';
+    let completedResponse: any = null;
 
     for await (const event of stream) {
-      if (event.type !== 'response.output_text.delta') {
-        continue;
+      console.log(`AI_ASTRO_OPENAI_STREAM_EVENT type=${event.type}`);
+
+      if (event.type === 'response.completed') {
+        const response: any = event.response;
+        console.log(
+          `AI_ASTRO_OPENAI_COMPLETED status=${response?.status ?? 'unknown'} output_items=${Array.isArray(response?.output) ? response.output.length : 0} output_text_chars=${typeof response?.output_text === 'string' ? response.output_text.length : 0}`,
+        );
       }
 
-      const chunk = event.delta;
-
-      if (!chunk) {
-        continue;
+      if (
+        event.type === 'response.failed' ||
+        event.type === 'response.incomplete' ||
+        event.type === 'error'
+      ) {
+        console.error(
+          'AI_ASTRO_OPENAI_STREAM_TERMINAL_EVENT',
+          JSON.stringify(event),
+        );
       }
 
-      answer += chunk;
+      if (event.type === 'response.output_text.delta') {
+        const delta = event.delta;
 
-      await onChunk(chunk);
+        if (delta) {
+          answer += delta;
+          await onChunk(delta);
+        }
+      }
+
+      if (event.type === 'response.completed') {
+        completedResponse = event.response;
+      }
     }
 
-    const finalAnswer = answer.trim();
+    answer = answer.trim();
 
-    if (!finalAnswer) {
+    if (!answer) {
       throw new ServiceUnavailableException(
-        'AI provider returned an empty streamed response',
+        'AI provider returned an empty response',
       );
     }
 
+    const usage = completedResponse?.usage;
+
+    console.log(
+      `cost.openai feature=ai_astro_stream input_tokens=${usage?.input_tokens ?? 0} output_tokens=${usage?.output_tokens ?? 0} total_tokens=${usage?.total_tokens ?? 0}`,
+    );
+
     return {
-      answer: finalAnswer,
+      answer,
       provider: 'openai',
       model: this.model,
     };
@@ -229,11 +180,11 @@ RESPONSE STYLE — MUST FOLLOW:
 
     const consultantContext = this.serializeContextForInstructions(
       input.consultantContext,
-      80_000,
+      30_000,
     );
 
     const previousConversation = (input.conversation ?? [])
-      .slice(-12)
+      .slice(-3)
       .map((message) => ({
         role: message.role,
         content: message.content,
@@ -284,7 +235,7 @@ ${consultantContext}`
 
     // ASTRO_SOUL_PATH_RESPONSE_STYLE_V2
     const responseStyleInstructions = `
-RESPONSE STYLE — MUST FOLLOW:
+RESPONSE STYLE â€” MUST FOLLOW:
 
 1. Match the language of the user's latest message.
    - English question => reply in natural professional English.
@@ -334,7 +285,7 @@ RESPONSE STYLE — MUST FOLLOW:
 `;
     const response = await this.client.responses.create({
       model: this.model,
-      max_output_tokens: 120,
+      max_output_tokens: 800,
       instructions: instructions + '\n\n' + responseStyleInstructions,
       input: [
         ...previousConversation.slice(-2),
@@ -344,6 +295,12 @@ RESPONSE STYLE — MUST FOLLOW:
         },
       ],
     });
+
+    const usage = response.usage;
+
+    console.log(
+      `cost.openai feature=ai_astro input_tokens=${usage?.input_tokens ?? 0} output_tokens=${usage?.output_tokens ?? 0} total_tokens=${usage?.total_tokens ?? 0}`,
+    );
 
     const answer = response.output_text?.trim();
 
@@ -360,3 +317,10 @@ RESPONSE STYLE — MUST FOLLOW:
     };
   }
 }
+
+
+
+
+
+
+

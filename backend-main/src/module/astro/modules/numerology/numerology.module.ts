@@ -1,9 +1,11 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { NumerologyService } from './numerology.service';
 import { NumerologyController } from './numerology.controller';
 
 @Module({
   providers: [NumerologyService],
   controllers: [NumerologyController],
+  exports: [NumerologyService],
 })
 export class NumerologyModule {}
+

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Injectable,
   Logger,
   ServiceUnavailableException,
@@ -6,6 +6,7 @@ import {
 import OpenAI from 'openai';
 
 import type { KundliReport } from './types/kundli-report.type';
+import { serializeAiAstrologyContext } from '../../common/utils/ai-context.util';
 
 export interface KundliAiAnalysis {
   d1Explanation: string;
@@ -115,7 +116,7 @@ export class KundliAiService {
         input: [
           'Interpret the following verified Vedic Kundli data.',
           '',
-          JSON.stringify(factualInput),
+          serializeAiAstrologyContext(factualInput, 30000),
         ].join('\n'),
 
         text: {
@@ -175,6 +176,12 @@ export class KundliAiService {
 
         max_output_tokens: 2200,
       });
+
+      const usage = response.usage;
+
+      this.logger.log(
+        `cost.openai feature=kundli_analysis input_tokens=${usage?.input_tokens ?? 0} output_tokens=${usage?.output_tokens ?? 0} total_tokens=${usage?.total_tokens ?? 0}`,
+      );
 
       const text = response.output_text?.trim();
 
@@ -491,7 +498,7 @@ export class KundliAiService {
         question,
         '',
         'VERIFIED KUNDLI DATA:',
-        JSON.stringify(factualInput),
+        serializeAiAstrologyContext(factualInput, 30000),
       ].join('\n');
 
       const response = await client.responses.create({
@@ -508,6 +515,12 @@ export class KundliAiService {
         ],
         max_output_tokens: 1200,
       });
+
+      const categoryUsage = response.usage;
+
+      this.logger.log(
+        `cost.openai feature=kundli_category input_tokens=${categoryUsage?.input_tokens ?? 0} output_tokens=${categoryUsage?.output_tokens ?? 0} total_tokens=${categoryUsage?.total_tokens ?? 0}`,
+      );
 
       const answer = response.output_text?.trim();
 
@@ -544,3 +557,5 @@ export class KundliAiService {
     }
   }
 }
+
+

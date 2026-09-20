@@ -4,6 +4,7 @@
   ServiceUnavailableException,
 } from '@nestjs/common';
 import OpenAI from 'openai';
+import { serializeAiAstrologyContext } from '../../../../common/utils/ai-context.util';
 
 type DailyHoroscopeAiInput = {
   name: string;
@@ -78,7 +79,11 @@ export class DailyHoroscopeAiService {
       maxRetries,
     });
 
-    const vedicJson = JSON.stringify(input.vedicData);
+    const vedicJson = serializeAiAstrologyContext(input.vedicData, 30000);
+
+    this.logger.log(
+      `daily_horoscope.ai_context chars=${vedicJson.length} model=${model}`,
+    );
 
     let response: Awaited<ReturnType<typeof openai.responses.create>>;
 
@@ -140,6 +145,12 @@ export class DailyHoroscopeAiService {
         'Daily horoscope AI interpretation is temporarily unavailable',
       );
     }
+
+    const usage = response.usage;
+
+    this.logger.log(
+      `cost.openai feature=daily_horoscope input_tokens=${usage?.input_tokens ?? 0} output_tokens=${usage?.output_tokens ?? 0} total_tokens=${usage?.total_tokens ?? 0}`,
+    );
 
     const output = response.output_text?.trim();
 
@@ -235,3 +246,5 @@ export class DailyHoroscopeAiService {
     return result;
   }
 }
+
+

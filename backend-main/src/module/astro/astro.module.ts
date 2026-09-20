@@ -17,8 +17,6 @@ import { DailyinsightModule } from './modules/dailyinsight/dailyinsight.module';
 
 import { GeoModule } from './modules/geo/geo.module';
 
-import { VedicProvider } from './modules/provider/vedic.provider';
-import { ProkeralaProvider } from './modules/provider/prokerala.provider';
 
 @Module({
   imports: [
@@ -39,8 +37,9 @@ import { ProkeralaProvider } from './modules/provider/prokerala.provider';
 
   controllers: [AstroController, DoshaController],
 
-  providers: [AstroService, VedicProvider, ProkeralaProvider],
+  providers: [AstroService],
 
-  exports: [AstroService, VedicProvider, ProkeralaProvider],
+  exports: [AstroService],
 })
 export class AstroModule {}
+

@@ -1,0 +1,1 @@
+ALTER TABLE "UserProfile" ADD COLUMN "birthTimeKnown" BOOLEAN NOT NULL DEFAULT true;

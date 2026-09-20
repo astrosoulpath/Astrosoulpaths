@@ -215,10 +215,10 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     return
     // CUSTOMER_SHARED_PREMIUM_BACKGROUND
     Scaffold(
-      backgroundColor: const Color(0xFF050506),
+      backgroundColor: const Color(0xFFFFF9F1),
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        backgroundColor: const Color(0xFF050506),
+        backgroundColor: const Color(0xFFFFF9F1),
         elevation: 0,
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -227,7 +227,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             Text(
               'My Profile',
               style: TextStyle(
-                color: Color(0xFFF8F5FB),
+                color: Color(0xFF14213D),
                 fontSize: 25,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -0.5,
@@ -237,7 +237,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             Text(
               'Your cosmic identity',
               style: TextStyle(
-                color: Color(0xFFBFA4E9),
+                color: Color(0xFF7551C9),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -252,12 +252,12 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: const RadialGradient(
-                colors: [Color(0xFF332007), Color(0xFF160E18)],
+                colors: [Color(0xFFFFF3C4), Color(0xFFFFF3C4)],
               ),
-              border: Border.all(color: const Color(0xFFFFC928), width: 1.1),
+              border: Border.all(color: const Color(0xFFF4C542), width: 1.1),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFFFC928).withValues(alpha: 0.22),
+                  color: const Color(0xFFF4C542).withValues(alpha: 0.22),
                   blurRadius: 17,
                 ),
               ],
@@ -268,7 +268,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
               tooltip: 'Edit profile',
               icon: const Icon(
                 Icons.edit_rounded,
-                color: Color(0xFFFFD84A),
+                color: Color(0xFFF4C542),
                 size: 21,
               ),
             ),
@@ -280,14 +280,14 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: const RadialGradient(
-                colors: [Color(0xFF291539), Color(0xFF100817)],
+                colors: [Color(0xFFF0E9FF), Color(0xFFFFFFFF)],
               ),
               border: Border.all(
-                color: const Color(0xFFFFC928).withValues(alpha: 0.75),
+                color: const Color(0xFFF4C542).withValues(alpha: 0.75),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF9B42DD).withValues(alpha: 0.22),
+                  color: const Color(0xFFCAB7F3).withValues(alpha: 0.22),
                   blurRadius: 18,
                 ),
               ],
@@ -300,7 +300,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
               tooltip: 'Refresh profile',
               icon: const Icon(
                 Icons.refresh_rounded,
-                color: Color(0xFFFFD84A),
+                color: Color(0xFFF4C542),
                 size: 21,
               ),
             ),
@@ -373,7 +373,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             )
           : RefreshIndicator(
               color: AppColors.gold,
-              backgroundColor: const Color(0xFF0D0A16),
+              backgroundColor: const Color(0xFFFFFFFF),
               onRefresh: _loadProfile,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -389,22 +389,22 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Color(0xFF100716),
-                          Color(0xFF1D0A2D),
-                          Color(0xFF0B0710),
-                          Color(0xFF170922),
+                          Color(0xFFFFF9F1),
+                          Color(0xFFF5EEFF),
+                          Color(0xFFFFF9F1),
+                          Color(0xFFF8F3FF),
                         ],
                         stops: [0.0, 0.34, 0.67, 1.0],
                       ),
                       borderRadius: BorderRadius.circular(30),
                       border: Border.all(
-                        color: const Color(0xFFFFD34C),
+                        color: const Color(0xFFE8BD43),
                         width: 1.25,
                       ),
                       boxShadow: [
                         BoxShadow(
                           color: const Color(
-                            0xFFFFC928,
+                            0xFFF4C542,
                           ).withValues(alpha: 0.18),
                           blurRadius: 28,
                           offset: const Offset(0, 10),
@@ -418,20 +418,20 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: const Color(0xFFFFD34C),
+                              color: const Color(0xFFE8BD43),
                               width: 2.4,
                             ),
                             boxShadow: [
                               BoxShadow(
                                 color: const Color(
-                                  0xFFFFC928,
+                                  0xFFF4C542,
                                 ).withValues(alpha: 0.34),
                                 blurRadius: 22,
                                 spreadRadius: 2,
                               ),
                               BoxShadow(
                                 color: const Color(
-                                  0xFF9B42DD,
+                                  0xFFCAB7F3,
                                 ).withValues(alpha: 0.24),
                                 blurRadius: 28,
                                 spreadRadius: 1,
@@ -495,9 +495,9 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF211225),
+                            color: const Color(0xFFF8F3FF),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: const Color(0xFFFFD34C)),
+                            border: Border.all(color: const Color(0xFFE8BD43)),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
@@ -679,7 +679,7 @@ class _ProfileCosmicArtwork extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(120),
               border: Border.all(
-                color: const Color(0xFFFFC928).withValues(alpha: 0.24),
+                color: const Color(0xFFF4C542).withValues(alpha: 0.24),
                 width: 1,
               ),
             ),
@@ -692,7 +692,7 @@ class _ProfileCosmicArtwork extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(90),
               border: Border.all(
-                color: const Color(0xFFB85BE5).withValues(alpha: 0.27),
+                color: const Color(0xFFB79BEA).withValues(alpha: 0.27),
                 width: 1,
               ),
             ),
@@ -710,13 +710,13 @@ class _ProfileCosmicArtwork extends StatelessWidget {
                 gradient: const RadialGradient(
                   colors: [
                     Color(0xFFFFF3A8),
-                    Color(0xFFFFC928),
+                    Color(0xFFF4C542),
                     Color(0xFF8B4D00),
                   ],
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFFC928).withValues(alpha: 0.42),
+                    color: const Color(0xFFF4C542).withValues(alpha: 0.42),
                     blurRadius: 24,
                     spreadRadius: 3,
                   ),
@@ -749,7 +749,7 @@ class _ProfileCosmicArtwork extends StatelessWidget {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF9B42DD).withValues(alpha: 0.28),
+                    color: const Color(0xFFCAB7F3).withValues(alpha: 0.28),
                     blurRadius: 21,
                   ),
                 ],
@@ -766,14 +766,14 @@ class _ProfileCosmicArtwork extends StatelessWidget {
               gradient: RadialGradient(
                 colors: [
                   const Color(0xFF8E3AC8).withValues(alpha: 0.35),
-                  const Color(0xFF291039).withValues(alpha: 0.10),
+                  const Color(0xFFF5EEFF).withValues(alpha: 0.10),
                   Colors.transparent,
                 ],
               ),
             ),
             child: const Icon(
               Icons.auto_awesome_rounded,
-              color: Color(0xFFFFD84A),
+              color: Color(0xFFF4C542),
               size: 28,
             ),
           ),
@@ -781,7 +781,7 @@ class _ProfileCosmicArtwork extends StatelessWidget {
           const Positioned(
             left: 96,
             top: 15,
-            child: Icon(Icons.star_rounded, color: Color(0xFFFFD84A), size: 13),
+            child: Icon(Icons.star_rounded, color: Color(0xFFF4C542), size: 13),
           ),
 
           const Positioned(
@@ -815,10 +815,10 @@ class _ProfileSectionTitle extends StatelessWidget {
           width: 34,
           height: 34,
           decoration: BoxDecoration(
-            color: const Color(0xFF28142F),
+            color: const Color(0xFFF0E9FF),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, size: 18, color: const Color(0xFFFFD84A)),
+          child: Icon(icon, size: 18, color: const Color(0xFFF4C542)),
         ),
         const SizedBox(width: 10),
         Text(
@@ -846,17 +846,17 @@ class _ProfileInfoCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF14091D), Color(0xFF0D0712), Color(0xFF190C24)],
+          colors: [Color(0xFFFFFFFF), Color(0xFFFFF9F1), Color(0xFFF8F3FF)],
         ),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFFFD34C), width: 1.0),
+        border: Border.all(color: const Color(0xFFE8BD43), width: 1.0),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFFC928).withValues(alpha: 0.10),
+            color: const Color(0xFFF4C542).withValues(alpha: 0.10),
             blurRadius: 18,
           ),
           BoxShadow(
-            color: const Color(0xFF9B42DD).withValues(alpha: 0.11),
+            color: const Color(0xFFCAB7F3).withValues(alpha: 0.11),
             blurRadius: 25,
           ),
         ],
@@ -895,10 +895,10 @@ class _ProfileInfoRow extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF251329),
+                  color: const Color(0xFFF5EEFF),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, size: 20, color: const Color(0xFFFFD84A)),
+                child: Icon(icon, size: 20, color: const Color(0xFFF4C542)),
               ),
               const SizedBox(width: 13),
               Expanded(

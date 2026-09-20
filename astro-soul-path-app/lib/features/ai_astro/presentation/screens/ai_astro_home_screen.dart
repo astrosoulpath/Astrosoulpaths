@@ -157,7 +157,7 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
     Scaffold(
       appBar: widget.showBackButton
           ? AppBar(
-              backgroundColor: const Color(0xFF08070D),
+              backgroundColor: const Color(0xFFFFF9F1),
               surfaceTintColor: Colors.transparent,
               elevation: 0,
               scrolledUnderElevation: 0,
@@ -166,7 +166,7 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
               leading: Padding(
                 padding: const EdgeInsets.only(left: 16),
                 child: Material(
-                  color: const Color(0xFF171717),
+                  color: const Color(0xFFFFFFFF),
                   shape: const CircleBorder(),
                   child: InkWell(
                     customBorder: const CircleBorder(),
@@ -177,7 +177,7 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
                       height: 44,
                       child: Icon(
                         Icons.arrow_back_rounded,
-                        color: Color(0xFFFFD21C),
+                        color: Color(0xFFF4C542),
                         size: 25,
                       ),
                     ),
@@ -194,7 +194,7 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
               ),
             )
           : null,
-      backgroundColor: const Color(0xFF050506),
+      backgroundColor: const Color(0xFFFFF9F1),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
@@ -237,7 +237,7 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
                           const Text(
                             'Choose your specialist',
                             style: TextStyle(
-                              color: Color(0xFFB9B9C9),
+                              color: Color(0xFF6F7280),
                               fontSize: 13,
                             ),
                           ),
@@ -271,8 +271,8 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(18),
                                       color: selected
-                                          ? const Color(0xFFFFD52E)
-                                          : const Color(0xFF23132E),
+                                          ? const Color(0xFFF4C542)
+                                          : const Color(0xFFF0E9FF),
                                       border: Border.all(
                                         color: selected
                                             ? const Color(0xFFFFEDA2)
@@ -289,7 +289,7 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
                                               Icons.auto_awesome_rounded,
                                               size: 20,
                                               color: selected
-                                                  ? const Color(0xFF071936)
+                                                  ? const Color(0xFF14213D)
                                                   : const Color(0xFFC9B8FF),
                                             ),
                                             const SizedBox(width: 8),
@@ -302,7 +302,7 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
                                                   fontSize: 14,
                                                   fontWeight: FontWeight.w800,
                                                   color: selected
-                                                      ? const Color(0xFF071936)
+                                                      ? const Color(0xFF14213D)
                                                       : Colors.white,
                                                 ),
                                               ),
@@ -320,7 +320,7 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
                                               fontSize: 11.5,
                                               color: selected
                                                   ? const Color(0xFF34415C)
-                                                  : const Color(0xFFB9B9C9),
+                                                  : const Color(0xFF6F7280),
                                             ),
                                           ),
                                         ),
@@ -466,12 +466,12 @@ class _HeaderCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(26),
         border: Border.all(
-          color: const Color(0xFFFFD21C).withValues(alpha: 0.92),
+          color: const Color(0xFFF4C542).withValues(alpha: 0.92),
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFFC928).withValues(alpha: 0.20),
+            color: const Color(0xFFF4C542).withValues(alpha: 0.20),
             blurRadius: 28,
             spreadRadius: 1,
             offset: const Offset(0, 12),
@@ -485,9 +485,9 @@ class _HeaderCard extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    Color(0xFF351B02),
-                    Color(0xFF24103D),
-                    Color(0xFF10061C),
+                    Color(0xFFFFF1C7),
+                    Color(0xFFEFE5FF),
+                    Color(0xFFF8F3FF),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -506,8 +506,8 @@ class _HeaderCard extends StatelessWidget {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    const Color(0xFFFFC928).withValues(alpha: 0.18),
-                    const Color(0xFF8B38D1).withValues(alpha: 0.16),
+                    const Color(0xFFF4C542).withValues(alpha: 0.18),
+                    const Color(0xFFCDBAF5).withValues(alpha: 0.16),
                     Colors.transparent,
                   ],
                 ),
@@ -574,7 +574,7 @@ class _HeaderCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: const LinearGradient(
-                          colors: [Color(0xFFFFD66D), Color(0xFFF0B846)],
+                          colors: [Color(0xFFFFD86B), Color(0xFFE5B63D)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -615,7 +615,7 @@ class _HeaderCard extends StatelessWidget {
                         color: const Color(0xFF33220A).withValues(alpha: 0.88),
                         border: Border.all(
                           color: const Color(
-                            0xFFFFD21C,
+                            0xFFF4C542,
                           ).withValues(alpha: 0.72),
                         ),
                       ),
@@ -625,13 +625,13 @@ class _HeaderCard extends StatelessWidget {
                           Icon(
                             Icons.auto_awesome,
                             size: 13,
-                            color: Color(0xFFFFD66D),
+                            color: Color(0xFFFFD86B),
                           ),
                           SizedBox(width: 5),
                           Text(
                             'Personalized',
                             style: TextStyle(
-                              color: Color(0xFFE1D6F5),
+                              color: Color(0xFF555B70),
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                             ),
@@ -647,7 +647,7 @@ class _HeaderCard extends StatelessWidget {
                   child: Text(
                     _heroDescription,
                     style: TextStyle(
-                      color: Color(0xFFF0EBF7),
+                      color: Color(0xFF14213D),
                       height: 1.48,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -679,7 +679,7 @@ class _HeaderCard extends StatelessWidget {
                         child: Text(
                           _personalizationNote,
                           style: TextStyle(
-                            color: Color(0xFFC2B4D7),
+                            color: Color(0xFF6F7280),
                             height: 1.35,
                             fontSize: 11.5,
                           ),
@@ -727,11 +727,11 @@ class _PersonaCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
         gradient: const LinearGradient(
-          colors: [Color(0xFF090B17), Color(0xFF18112D), Color(0xFF07172C)],
+          colors: [Color(0xFFFFFFFF), Color(0xFFF3ECFF), Color(0xFFFFF8E8)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(color: const Color(0xFFB85BE5), width: 1.1),
+        border: Border.all(color: const Color(0xFFB79BEA), width: 1.1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.22),
@@ -757,13 +757,13 @@ class _PersonaCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: const LinearGradient(
-                      colors: [Color(0xFFFFD21C), Color(0xFFD26AFF)],
+                      colors: [Color(0xFFF4C542), Color(0xFFD26AFF)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFFFD21C).withValues(alpha: 0.20),
+                        color: const Color(0xFFF4C542).withValues(alpha: 0.20),
                         blurRadius: 14,
                       ),
                     ],
@@ -875,12 +875,12 @@ class _PersonaCard extends StatelessWidget {
                 Container(
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFFFFE36D), Color(0xFFFFB915)],
+                      colors: [Color(0xFFFFD86B), Color(0xFFF4C542)],
                     ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFFFC928).withValues(alpha: 0.20),
+                        color: const Color(0xFFF4C542).withValues(alpha: 0.20),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -939,7 +939,7 @@ class _PremiumAvatarFallback extends StatelessWidget {
       alignment: Alignment.center,
       decoration: const BoxDecoration(
         gradient: RadialGradient(
-          colors: [Color(0xFF392D68), Color(0xFF151633)],
+          colors: [Color(0xFFE9DEFF), Color(0xFFF8F3FF)],
         ),
       ),
       child: Stack(
@@ -980,7 +980,7 @@ class _ErrorState extends StatelessWidget {
           children: [
             const Icon(
               Icons.cloud_off_rounded,
-              color: Color(0xFFFFC928),
+              color: Color(0xFFF4C542),
               size: 42,
             ),
             const SizedBox(height: 12),

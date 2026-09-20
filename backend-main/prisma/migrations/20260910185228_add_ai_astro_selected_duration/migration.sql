@@ -1,0 +1,1 @@
+ALTER TABLE "ai_astro_sessions" ADD COLUMN IF NOT EXISTS "durationMinutes" INTEGER NOT NULL DEFAULT 1;

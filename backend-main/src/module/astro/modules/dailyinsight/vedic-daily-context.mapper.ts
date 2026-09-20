@@ -1,4 +1,6 @@
-﻿export type NormalizedVedicPlanet = {
+﻿import { getNakshatraMetadata } from '../../../kundli/engine/nakshatra-metadata.util';
+import { calculateDailyLuckyGuidance } from '../../../kundli/engine/daily-lucky-guidance.util';
+export type NormalizedVedicPlanet = {
   name: string | null;
   shortName: string | null;
   sign: string | null;
@@ -174,7 +176,7 @@ export class VedicDailyContextMapper {
           ? planet.house
           : null,
 
-      retrograde: Boolean(planet.is_retrograde ?? planet.retro),
+      retrograde: Boolean(planet.is_retrograde ?? planet.retro ?? planet.retrograde),
 
       nakshatra:
         typeof (planet.nakshatra ?? planet.nakshatra_name) === 'string'
@@ -330,6 +332,87 @@ export class VedicDailyContextMapper {
 
     const data = unwrapped as Record<string, any>;
 
+    /*
+     * Local Vedic engine format:
+     * timeline[] -> antardasha[]
+     */
+    if (Array.isArray(data.timeline)) {
+      const targetDate = this.parseDashaDate(requestedDate) ?? new Date();
+
+      const activeMahadasha =
+        data.timeline.find((period: any) => {
+          const start = this.parseDashaDate(period?.start);
+          const end = this.parseDashaDate(period?.end);
+
+          return (
+            start !== null &&
+            end !== null &&
+            targetDate.getTime() >= start.getTime() &&
+            targetDate.getTime() < end.getTime()
+          );
+        }) ?? null;
+
+      const activeAntardasha =
+        activeMahadasha && Array.isArray(activeMahadasha.antardasha)
+          ? activeMahadasha.antardasha.find((period: any) => {
+              const start = this.parseDashaDate(period?.start);
+              const end = this.parseDashaDate(period?.end);
+
+              return (
+                start !== null &&
+                end !== null &&
+                targetDate.getTime() >= start.getTime() &&
+                targetDate.getTime() < end.getTime()
+              );
+            }) ?? null
+          : null;
+
+      return {
+        currentMahadasha: activeMahadasha
+          ? {
+              lord:
+                typeof activeMahadasha.lord === 'string'
+                  ? activeMahadasha.lord
+                  : null,
+              level: 'Mahadasha' as const,
+              start:
+                typeof activeMahadasha.start === 'string'
+                  ? activeMahadasha.start
+                  : null,
+              end:
+                typeof activeMahadasha.end === 'string'
+                  ? activeMahadasha.end
+                  : null,
+            }
+          : null,
+
+        currentAntardasha: activeAntardasha
+          ? {
+              lord:
+                typeof activeAntardasha.lord === 'string'
+                  ? activeAntardasha.lord
+                  : null,
+              level: 'Antardasha' as const,
+              start:
+                typeof activeAntardasha.start === 'string'
+                  ? activeAntardasha.start
+                  : null,
+              end:
+                typeof activeAntardasha.end === 'string'
+                  ? activeAntardasha.end
+                  : null,
+            }
+          : null,
+
+        dashaStartDate:
+          typeof data.timeline[0]?.start === 'string'
+            ? data.timeline[0].start
+            : null,
+
+        remainingAtBirth:
+          data.birth?.remainingAtBirth ?? null,
+      };
+    }
     /*
      * Prokerala returns the real Vimshottari hierarchy:
      *
@@ -595,6 +678,81 @@ export class VedicDailyContextMapper {
         ? (panchangRaw as Record<string, any>)
         : {};
 
+    /*
+     * LOCAL VEDIC ENGINE COMPATIBILITY
+     *
+     * Local natal planets contain Moon nakshatra_number (1..27).
+     * Local Panchang contains nakshatra as a single object:
+     * { name, number, pada }.
+     */
+    const normalizedNatalPlanets =
+      this.normalizePlanets(input.natalPlanetPositions);
+
+    const rawNatalPlanets =
+      Array.isArray(this.unwrap(input.natalPlanetPositions))
+        ? (this.unwrap(input.natalPlanetPositions) as Record<string, any>[])
+        : [];
+
+    const localNatalMoon =
+      rawNatalPlanets.find(
+        (planet) =>
+          String(planet?.name ?? planet?.full_name ?? '').toLowerCase() ===
+          'moon',
+      ) ?? null;
+
+    const localPanchangNakshatra =
+      panchang.nakshatra &&
+      typeof panchang.nakshatra === 'object' &&
+      !Array.isArray(panchang.nakshatra)
+        ? (panchang.nakshatra as Record<string, any>)
+        : null;
+
+    const localNatalNakshatraNumber =
+      this.numberOrNull(localNatalMoon?.nakshatra_number);
+
+    const localCurrentNakshatraNumber =
+      this.numberOrNull(localPanchangNakshatra?.number);
+
+    /*
+     * calculateTarabala currently consumes zero-based IDs.
+     * Local engine numbers are one-based (1..27), therefore normalize
+     * only local values here. No astrology value is fabricated.
+     */
+    const localNatalNakshatraMetadata =
+      localNatalNakshatraNumber !== null &&
+      Number.isInteger(localNatalNakshatraNumber) &&
+      localNatalNakshatraNumber >= 1 &&
+      localNatalNakshatraNumber <= 27
+        ? getNakshatraMetadata(localNatalNakshatraNumber)
+        : null;
+
+    const localCurrentNakshatraMetadata =
+      localCurrentNakshatraNumber !== null &&
+      Number.isInteger(localCurrentNakshatraNumber) &&
+      localCurrentNakshatraNumber >= 1 &&
+      localCurrentNakshatraNumber <= 27
+        ? getNakshatraMetadata(localCurrentNakshatraNumber)
+        : null;
+    const localLuckyGuidance =
+      localCurrentNakshatraNumber !== null &&
+      Number.isInteger(localCurrentNakshatraNumber) &&
+      localCurrentNakshatraNumber >= 1 &&
+      localCurrentNakshatraNumber <= 27
+        ? calculateDailyLuckyGuidance(localCurrentNakshatraNumber)
+        : null;
+    const localNatalTarabalaId =
+      localNatalNakshatraNumber !== null &&
+      localNatalNakshatraNumber >= 1 &&
+      localNatalNakshatraNumber <= 27
+        ? localNatalNakshatraNumber - 1
+        : null;
+
+    const localCurrentTarabalaId =
+      localCurrentNakshatraNumber !== null &&
+      localCurrentNakshatraNumber >= 1 &&
+      localCurrentNakshatraNumber <= 27
+        ? localCurrentNakshatraNumber - 1
+        : null;
     const timezone = Number(input.transitSnapshot.timezone);
     const sign = timezone >= 0 ? '+' : '-';
     const absoluteTimezone = Math.abs(timezone);
@@ -655,21 +813,22 @@ export class VedicDailyContextMapper {
       requestedDay: input.requestedDay,
 
       natal: {
-        nakshatra: this.stringOrNull(natalNakshatra.name) ?? this.stringOrNull(daily?.natal_moon?.nakshatra),
-        nakshatraNumber: this.numberOrNull(natalNakshatra.id) ?? this.numberOrNull(daily?.natal_moon?.nakshatra_number),
-        nakshatraLord: this.stringOrNull(natalLord.name) ?? this.stringOrNull(daily?.natal_moon?.nakshatra_lord),
-        planets: this.normalizePlanets(input.natalPlanetPositions),
+        nakshatra: this.stringOrNull(localNatalMoon?.nakshatra) ?? this.stringOrNull(natalNakshatra.name) ?? this.stringOrNull(daily?.natal_moon?.nakshatra),
+        nakshatraNumber: localNatalNakshatraNumber ?? this.numberOrNull(natalNakshatra.id) ?? this.numberOrNull(daily?.natal_moon?.nakshatra_number),
+        nakshatraLord: localNatalNakshatraMetadata?.lord ?? this.stringOrNull(natalLord.name) ?? this.stringOrNull(daily?.natal_moon?.nakshatra_lord),
+        planets: normalizedNatalPlanets,
         birthChart: this.unwrap(input.birthChart),
       },
 
       currentMoon: {
-        nakshatra: this.stringOrNull(activeNakshatra?.name) ?? this.stringOrNull(daily?.current_moon?.nakshatra),
+        nakshatra: this.stringOrNull(localPanchangNakshatra?.name) ?? this.stringOrNull(activeNakshatra?.name) ?? this.stringOrNull(daily?.current_moon?.nakshatra),
         nakshatraNumber:
+          localCurrentNakshatraNumber ??
           this.numberOrNull(activeNakshatra?.id) ??
           this.numberOrNull(daily?.current_moon?.nakshatra_number),
-        nakshatraLord: this.stringOrNull(activeLord.name) ?? this.stringOrNull(daily?.current_moon?.nakshatra_lord),
-        deity: this.stringOrNull(daily?.current_moon?.nakshatra_deity),
-        pada: this.numberOrNull(daily?.current_moon?.pada),
+        nakshatraLord: localCurrentNakshatraMetadata?.lord ?? this.stringOrNull(activeLord.name) ?? this.stringOrNull(daily?.current_moon?.nakshatra_lord),
+        deity: localCurrentNakshatraMetadata?.deity ?? this.stringOrNull(daily?.current_moon?.nakshatra_deity),
+        pada: this.numberOrNull(localPanchangNakshatra?.pada) ?? this.numberOrNull(daily?.current_moon?.pada),
       },
 
       transit: {
@@ -688,9 +847,11 @@ export class VedicDailyContextMapper {
       },
 
       tarabala: this.calculateTarabala(
-        this.numberOrNull(natalNakshatra.id) ??
+        localNatalTarabalaId ??
+          this.numberOrNull(natalNakshatra.id) ??
           this.numberOrNull(daily?.natal_moon?.nakshatra_number),
-        this.numberOrNull(activeNakshatra?.id) ??
+        localCurrentTarabalaId ??
+          this.numberOrNull(activeNakshatra?.id) ??
           this.numberOrNull(daily?.current_moon?.nakshatra_number),
       ),
 
@@ -703,8 +864,8 @@ export class VedicDailyContextMapper {
       },
 
       providerGuidance: {
-        luckyColors: this.stringArray(daily?.guidance?.lucky_colors),
-        luckyNumbers: this.numberArray(daily?.guidance?.lucky_numbers),
+        luckyColors: localLuckyGuidance ? [localLuckyGuidance.color] : this.stringArray(daily?.guidance?.lucky_colors),
+        luckyNumbers: localLuckyGuidance ? [localLuckyGuidance.number] : this.numberArray(daily?.guidance?.lucky_numbers),
         favorableActivities: this.stringArray(
           daily?.guidance?.favorable_activities,
         ),
@@ -790,6 +951,12 @@ export class VedicDailyContextMapper {
       effect: tara.effect,
     };
   }}
+
+
+
+
+
+
 
 
 
