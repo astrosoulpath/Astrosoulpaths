@@ -1,4 +1,4 @@
-﻿import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 
 import { Public } from '../../common/decorators/public.decorator';
 import { MarketplaceService } from './marketplace.service';
@@ -19,6 +19,7 @@ export class MarketplaceController {
     @Query('search') search?: string,
     @Query('categoryId') categoryId?: string,
     @Query('featured') featured?: string,
+    @Query('countryCode') countryCode?: string,
   ) {
     const featuredValue =
       featured === undefined ? undefined : featured === 'true';
@@ -27,13 +28,17 @@ export class MarketplaceController {
       search,
       categoryId,
       featuredValue,
+      countryCode,
     );
   }
 
   @Public()
   @Get('products/:id')
-  getProduct(@Param('id') id: string) {
-    return this.marketplaceService.getPublicProductById(id);
+  getProduct(
+    @Param('id') id: string,
+    @Query('countryCode') countryCode?: string,
+  ) {
+    return this.marketplaceService.getPublicProductById(id, countryCode);
   }
 
   @Public()

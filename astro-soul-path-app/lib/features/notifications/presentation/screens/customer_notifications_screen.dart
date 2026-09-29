@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../astrology_questions/presentation/screens/astrology_questions_screen.dart';
+import '../../../ai_astro/presentation/screens/ai_astro_home_screen.dart';
 import '../../../category_ai/presentation/screens/category_ai_chat_screen.dart';
 import '../../../chat/presentation/screens/chat_screen.dart';
 import '../../../consultations/presentation/screens/consultation_history_screen.dart';
@@ -177,11 +178,16 @@ class _CustomerNotificationsScreenState
         return;
 
       case 'finance':
-      case 'astrology_question':
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => const AstrologyQuestionsScreen(),
           ),
+        );
+        return;
+
+      case 'astrology_question':
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const AiAstroHomeScreen()),
         );
         return;
 

@@ -1,4 +1,4 @@
-﻿import {
+import {
   Injectable,
   Logger,
   ServiceUnavailableException,
@@ -90,12 +90,89 @@ export class DailyHoroscopeAiService {
     try {
       response = await openai.responses.create({
         model,
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'daily_horoscope',
+            strict: true,
+            schema: {
+              type: 'object',
+              additionalProperties: false,
+              required: [
+                'notificationTitle',
+                'shortReading',
+                'dailyAdvice',
+                'mood',
+                'focusArea',
+                'luckyColor',
+                'luckyNumber',
+                'favorableActivities',
+                'cautionActivities',
+                'generalGuidance',
+                'lifeAreas',
+              ],
+              properties: {
+                notificationTitle: { type: 'string', minLength: 1 },
+                shortReading: { type: 'string', minLength: 1 },
+                dailyAdvice: { type: 'string', minLength: 1 },
+                mood: { type: 'string' },
+                focusArea: { type: 'string' },
+                luckyColor: { type: 'string' },
+                luckyNumber: { type: ['number', 'null'] },
+                favorableActivities: {
+                  type: 'array',
+                  items: { type: 'string' },
+                },
+                cautionActivities: {
+                  type: 'array',
+                  items: { type: 'string' },
+                },
+                generalGuidance: { type: 'string', minLength: 1 },
+                lifeAreas: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: [
+                    'general',
+                    'career',
+                    'relationships',
+                    'health',
+                    'finance',
+                  ],
+                  properties: {
+                    general: { type: 'string', minLength: 1 },
+                    career: { type: 'string', minLength: 1 },
+                    relationships: { type: 'string', minLength: 1 },
+                    health: { type: 'string', minLength: 1 },
+                    finance: { type: 'string', minLength: 1 },
+                  },
+                },
+              },
+            },
+          },
+        },
         instructions: [
           'You are the personalized daily horoscope interpretation layer for Astro Soul Path.',
           'Use only the supplied real Vedic astrology calculation data.',
           'Do not generate Western zodiac-sign horoscope content.',
           'Do not invent planetary positions, dashas, transits, nakshatras, yogas, lucky values, or events.',
           'Convert technical Vedic astrology into simple, warm, practical language for a normal customer.',
+          'GLOBAL CUSTOMER LANGUAGE POLICY:',
+          'Use Vedic astrology calculations internally, but explain the result in simple everyday language.',
+          'The customer does not need to understand astrology terminology to understand the prediction.',
+          'Do not expose Nakshatra names, Tarabala, Mahadasha, Antardasha, Dasha, Tithi, Yoga, Karana, planetary lords, houses, or similar technical Vedic terminology in normal customer-facing text.',
+          'Do not explain planet mechanics such as Jupiter transit, Saturn influence, Rahu to Mercury, favorable house, planetary positioning, or chart mechanics.',
+          'Translate all such evidence into its practical everyday meaning.',
+          'Write like a modern daily horoscope: clear, friendly, direct, useful, and easy to understand internationally.',
+          'shortReading must directly explain how the requested day is likely to go.',
+          'Use 3 to 5 short natural sentences for shortReading.',
+          'Cover the most relevant everyday themes such as work, relationships, communication, money, wellbeing, decisions, opportunities, energy, or caution.',
+          'dailyAdvice must be one simple practical action for that day.',
+          'Avoid complicated, mystical, overly poetic, or academic wording.',
+          'The prediction must still be derived from the supplied Vedic calculations and the exact requested calendar date.',
+          'Never replace personalization with a generic random horoscope.',
+          'notificationTitle and notification text must be especially short, simple, useful, and understandable from a phone lock screen.',
+          'Never include technical Vedic or planetary terminology in notificationTitle, shortReading, dailyAdvice, generalGuidance, favorableActivities, cautionActivities, mood, focusArea, or lifeAreas.',
+          ,
           'Avoid deterministic guarantees, fear-based predictions, medical claims, legal claims, and financial certainty.',
           'Return JSON only.',
           'The JSON must contain exactly these keys:',
@@ -113,6 +190,8 @@ export class DailyHoroscopeAiService {
           'luckyNumber should be a number only if supported by supplied Vedic data; otherwise null.',
           'favorableActivities and cautionActivities must be arrays of short practical strings.',
           'generalGuidance should summarize the day in clear language.',
+          'The temporal perspective of every customer-facing sentence must exactly match requestedDay: yesterday describes the requested previous day, today describes the requested current day, and tomorrow describes the requested next day.',
+          'Never describe requestedDay=today as tomorrow or yesterday, never describe requestedDay=tomorrow as today or yesterday, and never describe requestedDay=yesterday as today or tomorrow. Express the correct temporal perspective naturally in the requested language.',
           'lifeAreas must be an object with exactly these keys: general, career, relationships, health, finance.',
           'Each lifeAreas value must be an interpretation grounded only in the supplied real Vedic astrology provider data.',
           'Do not invent or recalculate planetary positions, houses, dashas, transits, nakshatras, yogas, doshas, scores, lucky values, or astrological events.',
@@ -246,5 +325,3 @@ export class DailyHoroscopeAiService {
     return result;
   }
 }
-
-

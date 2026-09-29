@@ -450,9 +450,17 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
     return Scaffold(
       backgroundColor: _background,
       appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Back',
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+        ),
         backgroundColor: _background,
         foregroundColor: Colors.white,
-        title: const Text('Your Cart'),
+        title: const Text(
+          'Your Cart',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
       ),
       body: _buildBody(),
     );

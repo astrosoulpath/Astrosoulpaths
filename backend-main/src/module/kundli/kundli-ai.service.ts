@@ -1,4 +1,4 @@
-﻿import {
+import {
   Injectable,
   Logger,
   ServiceUnavailableException,
@@ -102,6 +102,13 @@ export class KundliAiService {
           'If verified D1 data is insufficient, d1Explanation must say that a detailed D1 interpretation is unavailable from the verified chart data.',
           'If verified D9 data is insufficient, d9Explanation must say that a detailed D9 interpretation is unavailable from the verified chart data.',
           'Base every interpretation only on the supplied factual astrology data.',
+          'For character, career, finance, marriage and health, write for an international customer who has no astrology knowledge.',
+          'Keep Vedic astrology calculations and technical chart facts as internal evidence, but explain their meaning in simple, natural everyday English.',
+          'In character, career, finance, marriage and health, do not expose technical astrology jargon such as house numbers, planet-in-house wording, Ascendant or Lagna, zodiac placements, nakshatra names, yoga names, dosha names, Mahadasha or Antardasha.',
+          'Do not write phrases such as "Ketu in the 3rd house", "Sun in the 10th house", "Scorpio Ascendant", "Budha-Aditya Yoga", "Rahu Mahadasha" or "Mercury Antardasha" in those customer-facing readings.',
+          'Translate technical evidence into its practical meaning. For example, say "You may prefer purposeful, independent communication" rather than naming Ketu or a house.',
+          'For career, describe practical themes such as leadership, communication, planning, learning, teamwork, responsibility or decision-making without exposing the technical chart placement behind them.',
+          'Use friendly headings and concise guidance focused on personality, work, money habits, relationships and wellbeing. Keep all claims grounded in the supplied verified Kundli evidence.',
           'If the supplied data is insufficient for a claim, say that the indication is limited instead of inventing facts.',
           'Treat astrology as interpretive guidance, not scientific certainty.',
           'Do not make guaranteed predictions.',
@@ -116,7 +123,7 @@ export class KundliAiService {
         input: [
           'Interpret the following verified Vedic Kundli data.',
           '',
-          serializeAiAstrologyContext(factualInput, 30000),
+          serializeAiAstrologyContext(factualInput, 40000),
         ].join('\n'),
 
         text: {
@@ -459,6 +466,28 @@ export class KundliAiService {
         'Return readable plain text. Do not use Markdown bold markers such as **text**, heading markers such as ##, or other raw Markdown decoration.',
         'If the available Kundli data cannot support a precise prediction, clearly and naturally say that the indication is broad rather than inventing precision.',
         '',
+        'FINAL ANSWER RULE - HIGHEST PRIORITY FOR PRESENTATION:',
+        'For a normal customer question, the final answer MUST contain only the practical interpretation, not the technical chart evidence used to reach it.',
+        'Treat planet names, signs, houses, house lords, Lagna, Ascendant, Navamsa, nakshatra, yoga, dosha, dasha, antardasha and transit placements as hidden reasoning evidence.',
+        'Do not reveal technical evidence merely to justify or prove the answer. The customer does not need to see the chart calculation behind each conclusion.',
+        'Before returning the final answer, silently rewrite any sentence that contains a house number, house lord, planet placement, Lagna, Ascendant, Navamsa, nakshatra, yoga, dosha, Mahadasha, Antardasha or technical transit reference into plain everyday English.',
+        'Example: rewrite "Sun and Mercury in the 10th house support leadership" as "Your strengths support leadership, communication and confident decision-making."',
+        'Example: rewrite "Moon in the 7th house shows emotional security needs" as "You are likely to value emotional security, loyalty and stability in relationships."',
+        'Example: rewrite "Rahu-Mercury Antardasha supports networking" as "This current phase may be useful for communication, networking and building professional connections."',
+        'The final answer should sound like practical personal guidance for an international customer, not like an astrology report.',
+        'Only if the customer explicitly asks to see the technical astrology, chart placements, houses, planets, dashas or the astrological reason behind the answer may those technical details be shown.',
+        '',
+        'CUSTOMER-FACING LANGUAGE:',
+        'The verified Vedic Kundli data below is internal evidence for your reasoning. Do not expose raw technical astrology terminology to the customer unless the customer explicitly asks for technical chart details.',
+        'For normal customer questions, answer in simple, natural, internationally understandable English for someone with no astrology knowledge.',
+        'Translate chart evidence into practical meaning instead of naming the technical placement behind it.',
+        'Do not normally mention house numbers, planet-in-house wording, lord terminology, Lagna, Ascendant, Navamsa, nakshatra names, yoga names, dosha names, Mahadasha, Antardasha, or transit-house terminology.',
+        'Do not write phrases such as "10th lord Sun", "Sun in the 10th house", "Moon in the 7th house", "Scorpio Lagna", "Budha-Aditya Yoga", "Rahu Mahadasha", "Mercury Antardasha", or "Jupiter transiting the 9th house" in a normal customer answer.',
+        'Instead explain the practical meaning directly, using themes such as leadership, communication, emotional security, relationships, patience, learning, responsibility, planning, confidence, or career growth when those themes are supported by the verified chart.',
+        'Dates or time windows may be stated when supported by the verified Kundli, but describe them as a current, upcoming, or supportive period rather than exposing technical dasha or transit names.',
+        'Keep the answer warm, clear and useful. Prefer short readable paragraphs over dense technical explanations.',
+        'Never invent a conclusion while simplifying. Every customer-facing statement must remain grounded in the supplied verified Kundli evidence.',
+        '',
         'CATEGORY SCOPE:',
         config.scope,
         '',
@@ -557,5 +586,3 @@ export class KundliAiService {
     }
   }
 }
-
-

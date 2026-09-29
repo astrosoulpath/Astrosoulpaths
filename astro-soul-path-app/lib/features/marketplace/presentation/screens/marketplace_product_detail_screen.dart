@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/marketplace_customer_api.dart';
 import '../../data/marketplace_public_api.dart';
+import '../../../profile/data/profile_api.dart';
 import 'marketplace_cart_screen.dart';
 
 class MarketplaceProductDetailScreen extends StatefulWidget {
@@ -23,7 +24,9 @@ class _MarketplaceProductDetailScreenState
 
   final MarketplacePublicApi _publicApi = MarketplacePublicApi();
   final MarketplaceCustomerApi _customerApi = MarketplaceCustomerApi();
+  final ProfileApi _profileApi = ProfileApi();
 
+  String? _countryCode;
   Map<String, dynamic>? _product;
   bool _loading = true;
   bool _adding = false;
@@ -50,7 +53,20 @@ class _MarketplaceProductDetailScreenState
     });
 
     try {
-      final product = await _publicApi.getProduct(widget.productId);
+      try {
+        final profiles = await _profileApi.getProfiles();
+        if (profiles.isNotEmpty) {
+          final code = profiles.first.countryCode?.trim().toUpperCase() ?? '';
+          _countryCode = code.isEmpty ? null : code;
+        }
+      } catch (_) {
+        // Product remains available; backend safely falls back to INR.
+      }
+
+      final product = await _publicApi.getProduct(
+        widget.productId,
+        countryCode: _countryCode,
+      );
 
       if (!mounted) return;
 
@@ -177,12 +193,17 @@ class _MarketplaceProductDetailScreenState
         ? _text(product['description'])
         : _text(product['shortDescription']);
 
-    final currency = _text(product['currency']).isEmpty
-        ? 'INR'
-        : _text(product['currency']);
+    final displayCurrency = _text(product['displayCurrency']);
+    final baseCurrency = _text(product['currency']);
 
-    final sellingPrice = _money(product['sellingPrice']);
-    final mrp = _money(product['mrp']);
+    final currency = displayCurrency.isNotEmpty
+        ? displayCurrency
+        : (baseCurrency.isEmpty ? 'INR' : baseCurrency);
+
+    final sellingPrice = _money(
+      product['displaySellingPrice'] ?? product['sellingPrice'],
+    );
+    final mrp = _money(product['displayMrp'] ?? product['mrp']);
     final shipping = _money(product['shippingCharge']);
     final stock = _int(product['stock']);
 
@@ -418,13 +439,13 @@ class _MarketplaceProductDetailScreenState
   String _symbol(String currency) {
     switch (currency.toUpperCase()) {
       case 'INR':
-        return '₹';
+        return 'â‚¹';
       case 'USD':
         return r'$';
       case 'EUR':
-        return '€';
+        return 'â‚¬';
       case 'GBP':
-        return '£';
+        return 'Â£';
       default:
         return '$currency ';
     }

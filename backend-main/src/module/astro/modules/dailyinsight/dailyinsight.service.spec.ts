@@ -1,4 +1,4 @@
-﻿import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SubscriptionStatus } from '@prisma/client';
 
@@ -19,6 +19,8 @@ describe('NakshatraDailyInsightService', () => {
     get: jest.fn(),
     set: jest.fn(),
     del: jest.fn(),
+    setNX: jest.fn(),
+    releaseLock: jest.fn(),
   };
 
   const dailyHoroscopeAiServiceMock = {
@@ -52,13 +54,23 @@ describe('NakshatraDailyInsightService', () => {
     redisMock.get.mockResolvedValue(null);
     redisMock.set.mockResolvedValue(undefined);
     redisMock.del.mockResolvedValue(undefined);
+    redisMock.setNX.mockResolvedValue(true);
+    redisMock.releaseLock.mockResolvedValue(true);
+
+    // TEST-ONLY provider response.
+    // Production continues to use LocalVedicKundliProvider.generate().
+    localVedicKundliProviderMock.generate.mockResolvedValue({
+      birthChart: null,
+      planetaryPositions: null,
+      dasha: null,
+    });
 
     prismaMock.appLanguage.findFirst.mockResolvedValue({
       code: 'en',
       englishName: 'English',
       nativeName: 'English',
     });
-dailyHoroscopeAiServiceMock.generate.mockResolvedValue({
+    dailyHoroscopeAiServiceMock.generate.mockResolvedValue({
       shortReading: 'Test personalized reading',
       dailyAdvice: 'Test daily advice',
       mood: 'Balanced',
@@ -242,11 +254,3 @@ dailyHoroscopeAiServiceMock.generate.mockResolvedValue({
     expect(result.entitlement.planName).toBe('DAILY_HOROSCOPE_MONTHLY');
   });
 });
-
-
-
-
-
-
-
-

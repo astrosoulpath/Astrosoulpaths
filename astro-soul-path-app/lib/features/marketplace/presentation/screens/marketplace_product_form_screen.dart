@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../../core/theme/app_theme.dart';
 import '../../data/marketplace_seller_api.dart';
 
 class MarketplaceProductFormScreen extends StatefulWidget {
@@ -448,10 +447,23 @@ class _MarketplaceProductFormScreenState
         );
 
     return Scaffold(
-      backgroundColor: const Color(0xFF090909),
+      backgroundColor: const Color(0xFFFFF8EE),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF090909),
-        foregroundColor: AppColors.white,
+        backgroundColor: const Color(0xFFFFF8EE),
+        foregroundColor: Color(0xFF17213C),
+        flexibleSpace: const IgnorePointer(
+          child: Align(
+            alignment: Alignment.topRight,
+            child: Padding(
+              padding: EdgeInsets.only(top: 4, right: 14),
+              child: Icon(
+                Icons.nightlight_round,
+                color: Color(0x33F0C24B),
+                size: 46,
+              ),
+            ),
+          ),
+        ),
         title: Text(
           widget.isEditing ? 'Edit Product' : 'Create Product',
           style: const TextStyle(fontWeight: FontWeight.w800),
@@ -465,9 +477,11 @@ class _MarketplaceProductFormScreenState
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF151515),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                border: Border.all(
+                  color: const Color(0xFFF0C24B).withValues(alpha: 0.46),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -475,7 +489,7 @@ class _MarketplaceProductFormScreenState
                   const Text(
                     'Product Photos',
                     style: TextStyle(
-                      color: AppColors.white,
+                      color: Color(0xFF17213C),
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),
@@ -484,7 +498,7 @@ class _MarketplaceProductFormScreenState
                   Text(
                     'Add real photos from gallery or camera. Maximum 8 images.',
                     style: TextStyle(
-                      color: AppColors.white.withValues(alpha: 0.65),
+                      color: Color(0xFF17213C).withValues(alpha: 0.65),
                       fontSize: 13,
                       height: 1.35,
                     ),
@@ -496,7 +510,7 @@ class _MarketplaceProductFormScreenState
                     const Text(
                       'Uploaded photos',
                       style: TextStyle(
-                        color: AppColors.white,
+                        color: Color(0xFF17213C),
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -525,20 +539,20 @@ class _MarketplaceProductFormScreenState
                               height: 92,
                               child: imageUrl.isEmpty
                                   ? Container(
-                                      color: const Color(0xFF222222),
+                                      color: const Color(0xFFFFF1D8),
                                       child: const Icon(
                                         Icons.image_not_supported_outlined,
-                                        color: Colors.white54,
+                                        color: Color(0xFF667085),
                                       ),
                                     )
                                   : Image.network(
                                       imageUrl,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, _, _) => Container(
-                                        color: const Color(0xFF222222),
+                                        color: const Color(0xFFFFF1D8),
                                         child: const Icon(
                                           Icons.broken_image_outlined,
-                                          color: Colors.white54,
+                                          color: Color(0xFF667085),
                                         ),
                                       ),
                                     ),
@@ -554,7 +568,7 @@ class _MarketplaceProductFormScreenState
                     const Text(
                       'New photos',
                       style: TextStyle(
-                        color: AppColors.white,
+                        color: Color(0xFF17213C),
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -638,7 +652,7 @@ class _MarketplaceProductFormScreenState
                   Text(
                     '${_existingImageCount + _selectedImages.length}/8 images selected',
                     style: TextStyle(
-                      color: AppColors.white.withValues(alpha: 0.55),
+                      color: Color(0xFF17213C).withValues(alpha: 0.55),
                       fontSize: 12,
                     ),
                   ),
@@ -653,20 +667,21 @@ class _MarketplaceProductFormScreenState
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF151515),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Text(
                   'No active marketplace categories are available. Please contact admin.',
-                  style: TextStyle(color: AppColors.white, height: 1.4),
+                  style: TextStyle(color: Color(0xFF17213C), height: 1.4),
                 ),
               )
             else
               DropdownButtonFormField<String>(
+                style: const TextStyle(color: Color(0xFF17213C)),
                 initialValue: validSelectedCategory
                     ? _selectedCategoryId
                     : null,
-                dropdownColor: const Color(0xFF151515),
+                dropdownColor: Colors.white,
                 decoration: const InputDecoration(labelText: 'Category'),
                 items: _categories
                     .map(
@@ -685,23 +700,27 @@ class _MarketplaceProductFormScreenState
             const SizedBox(height: 14),
             TextFormField(
               controller: _nameController,
+              style: const TextStyle(color: Color(0xFF17213C)),
               validator: _requiredText,
               maxLength: 200,
               decoration: const InputDecoration(labelText: 'Product name'),
             ),
             TextFormField(
               controller: _skuController,
+              style: const TextStyle(color: Color(0xFF17213C)),
               validator: _requiredText,
               maxLength: 100,
               decoration: const InputDecoration(labelText: 'SKU'),
             ),
             TextFormField(
               controller: _shortDescriptionController,
+              style: const TextStyle(color: Color(0xFF17213C)),
               maxLength: 500,
               decoration: const InputDecoration(labelText: 'Short description'),
             ),
             TextFormField(
               controller: _descriptionController,
+              style: const TextStyle(color: Color(0xFF17213C)),
               maxLines: 5,
               decoration: const InputDecoration(
                 labelText: 'Description',
@@ -711,6 +730,7 @@ class _MarketplaceProductFormScreenState
             const SizedBox(height: 10),
             TextFormField(
               controller: _mrpController,
+              style: const TextStyle(color: Color(0xFF17213C)),
               validator: _requiredText,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
@@ -719,6 +739,7 @@ class _MarketplaceProductFormScreenState
             ),
             TextFormField(
               controller: _sellingPriceController,
+              style: const TextStyle(color: Color(0xFF17213C)),
               validator: _requiredText,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
@@ -727,12 +748,14 @@ class _MarketplaceProductFormScreenState
             ),
             TextFormField(
               controller: _stockController,
+              style: const TextStyle(color: Color(0xFF17213C)),
               validator: _requiredText,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Stock'),
             ),
             TextFormField(
               controller: _lowStockController,
+              style: const TextStyle(color: Color(0xFF17213C)),
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: 'Low stock threshold',
@@ -740,6 +763,7 @@ class _MarketplaceProductFormScreenState
             ),
             TextFormField(
               controller: _shippingController,
+              style: const TextStyle(color: Color(0xFF17213C)),
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
@@ -747,6 +771,7 @@ class _MarketplaceProductFormScreenState
             ),
             TextFormField(
               controller: _weightController,
+              style: const TextStyle(color: Color(0xFF17213C)),
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Weight in grams'),
             ),

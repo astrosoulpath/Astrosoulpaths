@@ -236,10 +236,10 @@ class _MarketplaceSellerHomeScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF090909),
+      backgroundColor: const Color(0xFFFFF8EE),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF090909),
-        foregroundColor: AppColors.white,
+        backgroundColor: const Color(0xFFFFF8EE),
+        foregroundColor: Color(0xFF17213C),
         title: const Text(
           'Soul Bazaar Seller',
           style: TextStyle(fontWeight: FontWeight.w800),
@@ -259,7 +259,12 @@ class _MarketplaceSellerHomeScreenState
               label: const Text('Add Product'),
             )
           : null,
-      body: RefreshIndicator(onRefresh: _load, child: _buildBody()),
+      body: Stack(
+        children: [
+          const Positioned.fill(child: _MarketplaceCelestialBackground()),
+          RefreshIndicator(onRefresh: _load, child: _buildBody()),
+        ],
+      ),
     );
   }
 
@@ -289,7 +294,7 @@ class _MarketplaceSellerHomeScreenState
           Text(
             _error!,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.white, height: 1.4),
+            style: const TextStyle(color: Color(0xFF17213C), height: 1.4),
           ),
           const SizedBox(height: 20),
           Center(
@@ -315,7 +320,7 @@ class _MarketplaceSellerHomeScreenState
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF151515),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: AppColors.gold.withValues(alpha: 0.22)),
             ),
@@ -350,7 +355,7 @@ class _MarketplaceSellerHomeScreenState
                           Text(
                             'Seller Orders',
                             style: TextStyle(
-                              color: AppColors.white,
+                              color: Color(0xFF17213C),
                               fontSize: 16,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 0.1,
@@ -362,7 +367,7 @@ class _MarketplaceSellerHomeScreenState
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: Color(0xFF9D9D9D),
+                              color: Color(0xFF667085),
                               fontSize: 11.5,
                               height: 1.35,
                               fontWeight: FontWeight.w500,
@@ -385,7 +390,7 @@ class _MarketplaceSellerHomeScreenState
                           onPressed: _openOrders,
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.gold,
-                            foregroundColor: Colors.black,
+                            foregroundColor: const Color(0xFF17213C),
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             shape: RoundedRectangleBorder(
@@ -450,7 +455,7 @@ class _MarketplaceSellerHomeScreenState
           Text(
             '${_products.length} product${_products.length == 1 ? '' : 's'}',
             style: const TextStyle(
-              color: AppColors.white,
+              color: Color(0xFF17213C),
               fontSize: 18,
               fontWeight: FontWeight.w900,
             ),
@@ -469,7 +474,7 @@ class _MarketplaceSellerHomeScreenState
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF151515),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.25)),
       ),
@@ -484,7 +489,7 @@ class _MarketplaceSellerHomeScreenState
                 child: Text(
                   shopName.isEmpty ? 'Seller Profile' : shopName,
                   style: const TextStyle(
-                    color: AppColors.white,
+                    color: Color(0xFF17213C),
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
                   ),
@@ -549,13 +554,13 @@ class _MarketplaceSellerHomeScreenState
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: const Color(0xFF151515),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Text(
         message,
         textAlign: TextAlign.center,
-        style: const TextStyle(color: AppColors.white, height: 1.5),
+        style: const TextStyle(color: Color(0xFF17213C), height: 1.5),
       ),
     );
   }
@@ -564,7 +569,7 @@ class _MarketplaceSellerHomeScreenState
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: const Color(0xFF151515),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(18),
       ),
       child: const Column(
@@ -574,7 +579,7 @@ class _MarketplaceSellerHomeScreenState
           Text(
             'No products yet',
             style: TextStyle(
-              color: AppColors.white,
+              color: Color(0xFF17213C),
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -582,7 +587,7 @@ class _MarketplaceSellerHomeScreenState
           Text(
             'Create your first product draft using Add Product.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF9A9A9A)),
+            style: TextStyle(color: Color(0xFF667085)),
           ),
         ],
       ),
@@ -605,9 +610,11 @@ class _MarketplaceSellerHomeScreenState
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF151515),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(
+          color: const Color(0xFFF0C24B).withValues(alpha: 0.42),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -617,7 +624,7 @@ class _MarketplaceSellerHomeScreenState
                 ? 'Unnamed product'
                 : _text(product['name']),
             style: const TextStyle(
-              color: AppColors.white,
+              color: Color(0xFF17213C),
               fontSize: 16,
               fontWeight: FontWeight.w900,
             ),
@@ -635,7 +642,9 @@ class _MarketplaceSellerHomeScreenState
             const SizedBox(height: 7),
             Text(
               categoryName,
-              style: TextStyle(color: AppColors.white.withValues(alpha: 0.65)),
+              style: TextStyle(
+                color: Color(0xFF17213C).withValues(alpha: 0.65),
+              ),
             ),
           ],
           const SizedBox(height: 8),
@@ -644,7 +653,7 @@ class _MarketplaceSellerHomeScreenState
               if (sellingPrice.isNotEmpty) 'INR $sellingPrice',
               if (stock.isNotEmpty) 'Stock $stock',
             ].join('  |  '),
-            style: TextStyle(color: AppColors.white.withValues(alpha: 0.65)),
+            style: TextStyle(color: Color(0xFF17213C).withValues(alpha: 0.65)),
           ),
           if (_text(product['rejectionReason']).isNotEmpty) ...[
             const SizedBox(height: 9),
@@ -677,6 +686,56 @@ class _MarketplaceSellerHomeScreenState
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MarketplaceCelestialBackground extends StatelessWidget {
+  const _MarketplaceCelestialBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(
+        children: [
+          Positioned(
+            top: 14,
+            right: 22,
+            child: Icon(
+              Icons.nightlight_round,
+              size: 58,
+              color: AppColors.gold.withValues(alpha: 0.13),
+            ),
+          ),
+          Positioned(
+            top: 82,
+            left: 22,
+            child: Icon(
+              Icons.auto_awesome_rounded,
+              size: 22,
+              color: AppColors.gold.withValues(alpha: 0.34),
+            ),
+          ),
+          Positioned(
+            bottom: 90,
+            right: 20,
+            child: Icon(
+              Icons.star_rounded,
+              size: 30,
+              color: AppColors.gold.withValues(alpha: 0.20),
+            ),
+          ),
+          Positioned(
+            bottom: 150,
+            left: 14,
+            child: Icon(
+              Icons.star_outline_rounded,
+              size: 24,
+              color: AppColors.gold.withValues(alpha: 0.24),
+            ),
+          ),
         ],
       ),
     );

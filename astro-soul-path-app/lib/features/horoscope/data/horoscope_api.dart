@@ -23,15 +23,20 @@ class HoroscopeApi {
   final http.Client _client;
   final AuthSessionStore _sessionStore;
 
-  Future<Map<String, dynamic>> getDailyHoroscope({String day = 'today'}) async {
+  Future<Map<String, dynamic>> getDailyHoroscope({
+    String day = 'today',
+    String languageCode = 'en',
+  }) async {
     final normalizedDay = day.trim().toLowerCase();
+    final normalizedLanguage = languageCode.trim().toLowerCase();
 
     if (!const ['yesterday', 'today', 'tomorrow'].contains(normalizedDay)) {
       throw const HoroscopeApiException('Invalid horoscope day selected.');
     }
 
     final body = await _request(
-      path: '/dailyinsight?day=$normalizedDay',
+      path:
+          '/dailyinsight?day=$normalizedDay&language=${Uri.encodeQueryComponent(normalizedLanguage.isEmpty ? 'en' : normalizedLanguage)}',
       fallbackError: 'Unable to load daily horoscope.',
     );
 

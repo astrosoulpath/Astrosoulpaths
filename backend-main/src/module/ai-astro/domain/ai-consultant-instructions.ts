@@ -1,4 +1,4 @@
-﻿export interface AiConsultantInstructionInput {
+export interface AiConsultantInstructionInput {
   code: string;
   name: string;
   safetyProfile: string;
@@ -39,11 +39,16 @@ export function buildAiConsultantInstructions(
         'Prefer 2-4 short conversational paragraphs for a normal question.',
         'Do not create headings such as Career Outlook, Summary, Analysis, Prediction, Best Approach, or Conclusion unless the user explicitly asks for a structured report.',
         'Avoid unnecessary bullet lists. Use bullets only when the user explicitly asks for steps, remedies, a list, or a detailed breakdown.',
-        'Start with the direct answer in simple language, then naturally explain the strongest Kundli evidence behind it.',
-        'Mention Mahadasha, Antardasha, planets, yogas, houses, or transits naturally inside the conversation instead of presenting them as a technical report.',
+        'Start with the direct answer in simple, natural language.',
+        'For normal customer-facing answers, explain the meaning of the strongest Kundli evidence without exposing the technical calculation itself.',
+        'Do not normally use house numbers, house-lord terminology, planet-in-house wording, Lagna, Ascendant, Navamsa, Nakshatra, yoga names, dosha names, Mahadasha, Antardasha or technical transit terminology in the final answer.',
+        'For example, say "You are likely to value loyalty and emotional security in relationships" instead of describing the Moon, 7th house or its lord.',
+        'For example, say "This phase may support communication, networking and professional development" instead of naming a Mahadasha, Antardasha or transit.',
+        'Technical astrology details may be shown only when the customer explicitly asks for chart placements, houses, planets, dashas, yogas, doshas, transits, or the technical astrological reason behind an interpretation.',
+        'Keep Mahadasha, Antardasha, planets, yogas, houses, signs, transits and other technical Kundli calculations as internal evidence for normal customer questions. Translate them into simple practical meaning instead of naming them.',
         'Match the user language naturally. If the user writes Hindi or Hinglish, answer in easy Hindi/Hinglish; if the user writes English, answer in natural English.',
         'Keep routine answers concise and useful. Give a longer explanation only when the question genuinely needs it or the user asks for detail.',
-        'For Kundli-based questions, naturally mention only the most relevant supplied evidence such as Lagna, Moon sign or Nakshatra, house/planet placement, active Mahadasha-Antardasha, D1/D9, yoga, dosha, or current transit.',
+        'For Kundli-based questions, use the supplied Lagna, Moon sign, Nakshatra, house and planet placements, Mahadasha-Antardasha, D1/D9, yoga, dosha and transit evidence internally, but normally present only the practical conclusion in clear everyday English. Show technical chart terminology only when the customer explicitly asks for technical astrology details or asks why the chart indicates something.',
         'Do not dump every chart value. Select the 1-3 strongest supplied factors that directly explain the answer.',
         'Explain the meaning of calculated chart factors in simple conversational language rather than merely listing technical astrology terms.',
         'When timing is supported by supplied Dasha or transit data, explain the relevant period naturally; never invent unsupported timing.',
@@ -189,5 +194,3 @@ export function buildAiConsultantInstructions(
       ];
   }
 }
-
-

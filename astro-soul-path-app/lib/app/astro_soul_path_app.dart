@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +10,7 @@ import '../core/localization/app_strings.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/app_theme_controller.dart';
 import '../features/astrology_questions/presentation/screens/astrology_questions_screen.dart';
+import '../features/ai_astro/presentation/screens/ai_astro_home_screen.dart';
 import '../features/astrologers/presentation/screens/astrologer_detail_screen.dart';
 import '../features/category_ai/presentation/screens/category_ai_chat_screen.dart';
 import '../features/auth/presentation/auth_gate.dart';
@@ -88,8 +89,7 @@ class _AstroSoulPathAppState extends State<AstroSoulPathApp> {
 
     switch (type) {
       case 'astrologer_online':
-        final astrologerId =
-            payload['astrologerId']?.toString().trim() ?? '';
+        final astrologerId = payload['astrologerId']?.toString().trim() ?? '';
 
         if (astrologerId.isEmpty) {
           if (kDebugMode) {
@@ -102,8 +102,7 @@ class _AstroSoulPathAppState extends State<AstroSoulPathApp> {
 
         navigator.push(
           MaterialPageRoute<void>(
-            builder: (_) =>
-                AstrologerDetailScreen(astrologerId: astrologerId),
+            builder: (_) => AstrologerDetailScreen(astrologerId: astrologerId),
           ),
         );
         break;
@@ -239,11 +238,16 @@ class _AstroSoulPathAppState extends State<AstroSoulPathApp> {
         break;
 
       case 'finance':
-      case 'astrology_question':
         navigator.push(
           MaterialPageRoute<void>(
             builder: (_) => const AstrologyQuestionsScreen(),
           ),
+        );
+        break;
+
+      case 'astrology_question':
+        navigator.push(
+          MaterialPageRoute<void>(builder: (_) => const AiAstroHomeScreen()),
         );
         break;
 
@@ -467,4 +471,3 @@ class _AstroSoulPathAppState extends State<AstroSoulPathApp> {
     );
   }
 }
-

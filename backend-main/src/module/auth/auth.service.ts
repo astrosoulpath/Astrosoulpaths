@@ -1,4 +1,4 @@
-﻿import {
+import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
@@ -418,8 +418,8 @@ export class AuthService {
           authUser.user_metadata?.name ??
           null,
       });
-        // Customer portal access is identity-based.
-        // Permanent account role (admin/user) remains unchanged.
+      // Customer portal access is identity-based.
+      // Permanent account role (admin/user) remains unchanged.
 
       const sessionPayload = this.buildSessionPayload(session);
 
@@ -944,8 +944,8 @@ export class AuthService {
         code: 'ACCOUNT_UNAVAILABLE',
       });
     }
-        // Customer portal access is identity-based.
-        // Permanent account role (admin/user) remains unchanged.
+    // Customer portal access is identity-based.
+    // Permanent account role (admin/user) remains unchanged.
 
     return {
       success: true,
@@ -961,6 +961,107 @@ export class AuthService {
         expiresAt: session.expires_at ?? null,
         tokenType: session.token_type ?? 'bearer',
       },
+      nextStep: this.getCustomerNextStep(user),
+    };
+  }
+  async loginWithEmail(email: string, password: string) {
+    const normalizedEmail = email?.trim().toLowerCase();
+
+    if (!normalizedEmail || !password) {
+      throw new BadRequestException({
+        success: false,
+        message: 'Email and password are required',
+        code: 'MISSING_CREDENTIALS',
+      });
+    }
+
+    let authResult: Awaited<ReturnType<SupabaseService['signInWithEmail']>>;
+
+    try {
+      authResult = await this.supabaseService.signInWithEmail(
+        normalizedEmail,
+        password,
+      );
+    } catch (error: unknown) {
+      const errorMessage = this.getErrorMessage(error).toLowerCase();
+
+      this.logger.warn(`Email/password login failed: ${errorMessage}`);
+
+      if (
+        errorMessage.includes('invalid login credentials') ||
+        errorMessage.includes('invalid credentials')
+      ) {
+        throw new UnauthorizedException({
+          success: false,
+          message: 'Invalid email or password',
+          code: 'INVALID_EMAIL_PASSWORD',
+        });
+      }
+
+      if (errorMessage.includes('email not confirmed')) {
+        throw new UnauthorizedException({
+          success: false,
+          message: 'Please verify your email before signing in',
+          code: 'EMAIL_NOT_VERIFIED',
+        });
+      }
+
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Unable to sign in with email and password',
+        code: 'EMAIL_LOGIN_FAILED',
+      });
+    }
+
+    const authUser = authResult.user;
+    const session = authResult.session;
+
+    if (!authUser || !session) {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Authentication session could not be created',
+        code: 'SESSION_MISSING',
+      });
+    }
+
+    const verifiedEmail = authUser.email?.trim().toLowerCase() ?? '';
+
+    if (!verifiedEmail || verifiedEmail !== normalizedEmail) {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Authenticated email does not match',
+        code: 'EMAIL_MISMATCH',
+      });
+    }
+
+    const fullName =
+      authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? null;
+
+    const { user, isNewUser } = await this.userService.syncUser({
+      supabaseId: authUser.id,
+      phone: authUser.phone ?? null,
+      email: verifiedEmail,
+      fullName,
+    });
+
+    if (!user.isActive || user.isBlocked) {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Account is inactive or blocked',
+        code: 'ACCOUNT_UNAVAILABLE',
+      });
+    }
+
+    const sessionPayload = this.buildSessionPayload(session);
+
+    return {
+      success: true,
+      message: 'Email login successful',
+      portal: 'customer',
+      role: 'CUSTOMER',
+      accessToken: sessionPayload.accessToken,
+      user: this.buildCustomerUserPayload(user, isNewUser),
+      session: sessionPayload,
       nextStep: this.getCustomerNextStep(user),
     };
   }
@@ -1176,4 +1277,3 @@ export class AuthService {
     }
   }
 }
-

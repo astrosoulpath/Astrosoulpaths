@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../data/live_api.dart';
 import '../../data/live_models.dart';
 import '../../data/live_rtc_service.dart';
+import '../../data/live_socket_service.dart';
 
 class CustomerLiveViewerScreen extends StatefulWidget {
   const CustomerLiveViewerScreen({super.key, required this.liveSession});
@@ -20,6 +21,13 @@ class CustomerLiveViewerScreen extends StatefulWidget {
 class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
   final LiveApi _api = LiveApi();
   final LiveRtcService _rtc = LiveRtcService();
+  final LiveSocketService _chat = LiveSocketService();
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _messageScrollController = ScrollController();
+
+  final List<Map<String, dynamic>> _liveMessages = <Map<String, dynamic>>[];
+
+  bool _chatJoined = false;
 
   late LiveSession _session;
 
@@ -38,6 +46,44 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
     _rtc.onChanged = _handleRtcChanged;
     _rtc.onError = _handleRtcError;
     _rtc.onTokenRenewalRequested = _renewAudienceToken;
+
+    _chat.onJoined = () {
+      if (!mounted || _disposed) {
+        return;
+      }
+
+      setState(() {
+        _chatJoined = true;
+      });
+    };
+
+    _chat.onMessage = (message) {
+      if (!mounted || _disposed) {
+        return;
+      }
+
+      setState(() {
+        _liveMessages.add(message);
+      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_messageScrollController.hasClients) {
+          _messageScrollController.animateTo(
+            _messageScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    };
+
+    _chat.onError = (message) {
+      if (!mounted || _disposed) {
+        return;
+      }
+
+      _showError(message);
+    };
 
     _joinLive();
   }
@@ -71,6 +117,8 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
       _session = result.session;
 
       await _rtc.connect(credentials: result.rtc, role: LiveRtcRole.audience);
+
+      await _chat.connect(_session.id);
     } catch (error) {
       if (mounted && !_disposed) {
         setState(() {
@@ -84,6 +132,36 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
         });
       }
     }
+  }
+
+  void _sendLiveMessage() {
+    final message = _messageController.text.trim();
+
+    if (message.isEmpty) {
+      return;
+    }
+
+    if (!_chatJoined) {
+      _showError('Live chat is still connecting.');
+      return;
+    }
+
+    _chat.sendMessage(message);
+    _messageController.clear();
+  }
+
+  String _senderName(Map<String, dynamic> item) {
+    final sender = item['sender'];
+
+    if (sender is Map) {
+      final name = sender['name']?.toString().trim();
+
+      if (name != null && name.isNotEmpty) {
+        return name;
+      }
+    }
+
+    return 'Viewer';
   }
 
   Future<String?> _renewAudienceToken() async {
@@ -184,7 +262,10 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
       controller: VideoViewController.remote(
         rtcEngine: engine,
         canvas: VideoCanvas(uid: uid),
-        connection: RtcConnection(channelId: credentials.channelName),
+        connection: RtcConnection(
+          channelId: credentials.channelName,
+          localUid: credentials.uid,
+        ),
       ),
     );
   }
@@ -282,6 +363,104 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
                 ),
 
               Positioned(
+                left: 14,
+                right: 14,
+                bottom: 76,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_liveMessages.isNotEmpty)
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 190),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.58),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: ListView.builder(
+                          controller: _messageScrollController,
+                          shrinkWrap: true,
+                          itemCount: _liveMessages.length,
+                          itemBuilder: (context, index) {
+                            final item = _liveMessages[index];
+                            final sender = _senderName(item);
+                            final message =
+                                item['message']?.toString().trim() ?? '';
+
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 3),
+                              child: Text.rich(
+                                TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text: '$sender: ',
+                                      style: const TextStyle(
+                                        color: Colors.amber,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: message,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _messageController,
+                            enabled: !_leaving,
+                            maxLength: 500,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _sendLiveMessage(),
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              counterText: '',
+                              hintText: _chatJoined
+                                  ? 'Ask a question...'
+                                  : 'Connecting chat...',
+                              hintStyle: const TextStyle(color: Colors.white70),
+                              filled: true,
+                              fillColor: Colors.black.withValues(alpha: 0.68),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filled(
+                          onPressed: _chatJoined && !_leaving
+                              ? _sendLiveMessage
+                              : null,
+                          icon: const Icon(Icons.send_rounded),
+                          tooltip: 'Send question',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              Positioned(
                 right: 18,
                 bottom: 22,
                 child: FilledButton.icon(
@@ -307,6 +486,10 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
     _rtc.onTokenRenewalRequested = null;
 
     unawaited(_rtc.dispose());
+    unawaited(_chat.dispose());
+
+    _messageController.dispose();
+    _messageScrollController.dispose();
 
     _api.close();
 

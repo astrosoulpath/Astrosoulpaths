@@ -1,3 +1,4 @@
+import '../../../ai_astro/presentation/widgets/ai_astro_avatar.dart';
 import '../../../marketplace/presentation/screens/marketplace_home_screen.dart';
 import 'dart:async';
 
@@ -20,6 +21,8 @@ import '../../../astrologers/data/public_astrologer.dart';
 import '../../../astrologers/presentation/screens/astrologer_detail_screen.dart';
 import '../../../astrologers/presentation/screens/astrologer_selection_screen.dart';
 import '../../../horoscope/presentation/screens/daily_horoscope_screen.dart';
+import '../../../horoscope/presentation/screens/general_horoscope_screen.dart';
+import '../../../predictions/presentation/screens/predictions_screen.dart';
 import '../../../subscription/presentation/screens/subscription_plans_screen.dart';
 import '../../../support/presentation/screens/support_home_screen.dart';
 import '../../../kundli/presentation/screens/customer_kundli_screen.dart';
@@ -35,6 +38,8 @@ import '../../../notifications/data/notifications_api.dart';
 import '../../../notifications/presentation/screens/customer_notifications_screen.dart';
 import '../../../wallet/data/wallet_api.dart';
 import '../../../wallet/presentation/screens/customer_wallet_screen.dart';
+import '../../../videos/presentation/widgets/astrology_videos_home_section.dart';
+import '../../../articles/presentation/widgets/astrology_articles_home_section.dart';
 
 import '../../../share_app/services/share_app_service.dart';
 
@@ -104,7 +109,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
     final freeChat = _backendFreeChatState;
 
-    return freeChat['eligible'] == true &&
+    return !_hideFirstFreeChatCard &&
+        freeChat['eligible'] == true &&
         freeChat['used'] != true &&
         _backendFreeChatMinutes > 0;
   }
@@ -113,6 +119,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   bool _drawerProfileLoading = false;
 
   String _walletBalanceLabel = '\u20B90';
+  bool _hideFirstFreeChatCard = false;
   Timer? _walletHeaderRefreshTimer;
   int _notificationUnreadCount = 0;
 
@@ -332,10 +339,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           backgroundColor: AppColors.surfaceLight,
           title: const Text(
             'Logout?',
-            style: TextStyle(
-              color: AppColors.white,
-              fontWeight: FontWeight.w900,
-            ),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
           ),
           content: const Text(
             'Are you sure you want to logout from Astro Soul Path?',
@@ -860,7 +864,106 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             );
           },
         ),
-        backgroundColor: const Color(0xFF08070D),
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF08070D),
+                Color(0xFF1A0B28),
+                Color(0xFF35133B),
+                Color(0xFF120819),
+              ],
+              stops: [0.0, 0.38, 0.72, 1.0],
+            ),
+            border: Border(
+              bottom: BorderSide(color: Color(0xFFD9A928), width: 1.15),
+            ),
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Premium curved purple header panels.
+              Positioned(
+                left: 40,
+                top: -46,
+                child: Transform.rotate(
+                  angle: 0.11,
+                  child: Container(
+                    width: 195,
+                    height: 142,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF321047),
+                          Color(0xFF651D73),
+                          Color(0xFF3D1253),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(58),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: -36,
+                top: -50,
+                child: Transform.rotate(
+                  angle: -0.13,
+                  child: Container(
+                    width: 178,
+                    height: 145,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF57175F),
+                          Color(0xFF351047),
+                          Color(0xFF190A24),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(62),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 72,
+                top: -32,
+                child: Icon(
+                  Icons.brightness_2_outlined,
+                  size: 92,
+                  color: Color(0x18F7C843),
+                ),
+              ),
+              Positioned(
+                right: 24,
+                top: 8,
+                child: Icon(
+                  Icons.auto_awesome,
+                  size: 22,
+                  color: Color(0x22F7C843),
+                ),
+              ),
+              Positioned(
+                left: 112,
+                bottom: -30,
+                child: Icon(
+                  Icons.wb_sunny_outlined,
+                  size: 76,
+                  color: Color(0x10F7C843),
+                ),
+              ),
+            ],
+          ),
+        ),
         elevation: 0,
         titleSpacing: 18,
         title: Column(
@@ -869,7 +972,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             Text(
               'Astro Soul Path',
               style: TextStyle(
-                color: AppColors.white,
+                color: Color(0xFFFFE3A1),
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
               ),
@@ -882,7 +985,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 hi: '\u0935\u093f\u0936\u094d\u0935\u0938\u0928\u0940\u092f \u0935\u0948\u0926\u093f\u0915 \u092e\u093e\u0930\u094d\u0917\u0926\u0930\u094d\u0936\u0928',
               ),
               style: TextStyle(
-                color: AppColors.muted,
+                color: Color(0xFFF4DFC0),
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
               ),
@@ -893,8 +996,12 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Material(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(13),
+              color: const Color(0xFFFFF3D8),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(13),
+                side: const BorderSide(color: Color(0xFFD9A928), width: 1.1),
+              ),
               child: InkWell(
                 onTap: _openWallet,
                 borderRadius: BorderRadius.circular(13),
@@ -915,7 +1022,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       Text(
                         _walletBalanceLabel,
                         style: const TextStyle(
-                          color: AppColors.white,
+                          color: Color(0xFF2A1235),
                           fontSize: 12,
                           fontWeight: FontWeight.w900,
                         ),
@@ -994,7 +1101,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [AppColors.surfaceLight, AppColors.background],
+                    colors: [Color(0xFF111111), Color(0xFF08070D)],
                   ),
                 ),
                 child: Row(
@@ -1034,7 +1141,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: AppColors.white,
+                              color: Colors.white,
                               fontSize: 17,
                               fontWeight: FontWeight.w900,
                             ),
@@ -1051,7 +1158,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: AppColors.muted,
+                              color: Color(0xFFDCE8F8),
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1073,7 +1180,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       tooltip: 'Close menu',
                       onPressed: () => Navigator.of(context).pop(),
                       style: IconButton.styleFrom(
-                        foregroundColor: AppColors.white,
+                        foregroundColor: Color(0xFFF7F8FC),
                         backgroundColor: const Color(0x1AFFFFFF),
                         minimumSize: const Size(40, 40),
                         padding: EdgeInsets.zero,
@@ -1139,10 +1246,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                               gradient: const LinearGradient(
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
-                                colors: [
-                                  AppColors.surfaceLight,
-                                  AppColors.surfaceLight,
-                                ],
+                                colors: [Color(0xFFFFFCF4), Color(0xFFFFFFFF)],
                               ),
                               borderRadius: BorderRadius.circular(18),
                               border: Border.all(
@@ -1162,9 +1266,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                   width: 46,
                                   height: 46,
                                   decoration: BoxDecoration(
-                                    color: AppColors.gold.withValues(
-                                      alpha: 0.14,
-                                    ),
+                                    color: Color(0xFFFFF2C8),
                                     shape: BoxShape.circle,
                                     border: Border.all(
                                       color: AppColors.gold.withValues(
@@ -1189,7 +1291,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                           Text(
                                             '24\u00D77 Support',
                                             style: TextStyle(
-                                              color: Colors.white,
+                                              color: Color(0xFF15172A),
                                               fontSize: 15,
                                               fontWeight: FontWeight.w800,
                                             ),
@@ -1197,7 +1299,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                           SizedBox(width: 7),
                                           DecoratedBox(
                                             decoration: BoxDecoration(
-                                              color: Color(0x3327C38A),
+                                              color: Color(0xFFE2F8EA),
                                               borderRadius: BorderRadius.all(
                                                 Radius.circular(20),
                                               ),
@@ -1210,7 +1312,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                               child: Text(
                                                 'ONLINE',
                                                 style: TextStyle(
-                                                  color: Color(0xFFFFC857),
+                                                  color: Color(0xFF087D45),
                                                   fontSize: 8,
                                                   fontWeight: FontWeight.w900,
                                                 ),
@@ -1223,7 +1325,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                       Text(
                                         'AI Assistant & Human Support',
                                         style: TextStyle(
-                                          color: Color(0xFF9FB1CA),
+                                          color: Color(0xFF596579),
                                           fontSize: 12,
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -1333,18 +1435,55 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
-                child: Text(
-                  AppStrings.text(
-                    context,
-                    en: 'Trusted Vedic guidance',
-                    hi: '\u0935\u093f\u0936\u094d\u0935\u0938\u0928\u0940\u092f \u0935\u0948\u0926\u093f\u0915 \u092e\u093e\u0930\u094d\u0917\u0926\u0930\u094d\u0936\u0928',
-                  ),
-                  style: TextStyle(
-                    color: AppColors.muted.withValues(alpha: 0.75),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 1,
+                            color: AppColors.muted.withValues(alpha: 0.28),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Icon(
+                          Icons.spa_outlined,
+                          size: 22,
+                          color: AppColors.gold,
+                        ),
+                        const SizedBox(width: 7),
+                        Text(
+                          'Astro Soul Path',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Container(
+                            height: 1,
+                            color: AppColors.muted.withValues(alpha: 0.28),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Your Guide to a Brighter Tomorrow',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.muted.withValues(alpha: 0.72),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.15,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1384,10 +1523,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                         gradient: const LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [Color(0xFF29230F), Color(0xFF17140C)],
+                          colors: [Color(0xFFFFF8E8), Color(0xFFFFF1C7)],
                         ),
                         borderRadius: BorderRadius.circular(22),
-                        border: Border.all(color: const Color(0x66F2C94C)),
+                        border: Border.all(color: const Color(0x55E5B63D)),
                       ),
                       child: Row(
                         children: [
@@ -1395,15 +1534,15 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                             width: 54,
                             height: 54,
                             decoration: BoxDecoration(
-                              color: const Color(0x1FF2C94C),
+                              color: const Color(0x22F4C542),
                               borderRadius: BorderRadius.circular(17),
                               border: Border.all(
-                                color: const Color(0x55F2C94C),
+                                color: const Color(0x44F4C542),
                               ),
                             ),
                             child: const Icon(
                               Icons.shopping_bag_outlined,
-                              color: Color(0xFFF2C94C),
+                              color: Color(0xFFF4C542),
                               size: 27,
                             ),
                           ),
@@ -1420,7 +1559,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          color: Colors.white,
+                                          color: Color(0xFF17213D),
                                           fontSize: 17,
                                           fontWeight: FontWeight.w900,
                                         ),
@@ -1429,7 +1568,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                     SizedBox(width: 7),
                                     DecoratedBox(
                                       decoration: BoxDecoration(
-                                        color: Color(0x1FF2C94C),
+                                        color: Color(0x22F4C542),
                                         borderRadius: BorderRadius.all(
                                           Radius.circular(20),
                                         ),
@@ -1442,7 +1581,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                         child: Text(
                                           'NEW',
                                           style: TextStyle(
-                                            color: Color(0xFFF2C94C),
+                                            color: Color(0xFFF4C542),
                                             fontSize: 9,
                                             fontWeight: FontWeight.w900,
                                           ),
@@ -1457,7 +1596,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: Color(0xFFB7B1A4),
+                                    color: Color(0xFF6F7280),
                                     fontSize: 12,
                                     height: 1.35,
                                     fontWeight: FontWeight.w500,
@@ -1471,12 +1610,12 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                             width: 34,
                             height: 34,
                             decoration: const BoxDecoration(
-                              color: Color(0x16F2C94C),
+                              color: Color(0x18F4C542),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
                               Icons.arrow_forward_ios_rounded,
-                              color: Color(0xFFF2C94C),
+                              color: Color(0xFFF4C542),
                               size: 15,
                             ),
                           ),
@@ -1535,16 +1674,16 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                     colors: [
-                                      Color(0xFF3B2100),
-                                      Color(0xFF17122F),
-                                      Color(0xFF080A14),
-                                      Color(0xFF1C0B2F),
-                                      Color(0xFF3B2500),
+                                      Color(0xFF3A2700),
+                                      Color(0xFF24104A),
+                                      Color(0xFF11184A),
+                                      Color(0xFF35124F),
+                                      Color(0xFF4A3000),
                                     ],
                                     stops: [0.0, 0.25, 0.52, 0.78, 1.0],
                                   ),
                                   border: Border.all(
-                                    color: Color(0xFFFFD33D),
+                                    color: Color(0xFFF4C542),
                                     width: 1.55,
                                   ),
                                   boxShadow: [
@@ -1706,7 +1845,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                       top: 5,
                                       child: Icon(
                                         Icons.nightlight_round,
-                                        color: const Color(0xFFFFE061),
+                                        color: const Color(0xFFFFD86B),
                                         size: 38,
                                         shadows: [
                                           Shadow(
@@ -1725,7 +1864,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                       top: 15,
                                       child: const Icon(
                                         Icons.auto_awesome_rounded,
-                                        color: Color(0xFFFFE88B),
+                                        color: Color(0xFFFFE29A),
                                         size: 18,
                                       ),
                                     ),
@@ -1735,7 +1874,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                       bottom: 15,
                                       child: const Icon(
                                         Icons.auto_awesome_rounded,
-                                        color: Color(0xFFFFD133),
+                                        color: Color(0xFFF4C542),
                                         size: 22,
                                       ),
                                     ),
@@ -1964,7 +2103,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                           AppColors.gold.withValues(
                                             alpha: 0.36,
                                           ),
-                                          const Color(0xFF3A2A00),
+                                          const Color(0xFFFFF3C4),
                                         ],
                                       ),
                                       border: Border.all(
@@ -1993,7 +2132,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                     child: Text(
                                       'Explore astrology',
                                       style: TextStyle(
-                                        color: AppColors.white,
+                                        color: Color(0xFF17213D),
                                         fontSize: 25,
                                         height: 1,
                                         fontWeight: FontWeight.w900,
@@ -2017,8 +2156,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                 shape: BoxShape.circle,
                                 gradient: const RadialGradient(
                                   colors: [
-                                    Color(0xFF3B3214),
-                                    Color(0xFF19170F),
+                                    Color(0xFFFFE58A),
+                                    Color(0xFFF4C542),
                                   ],
                                   stops: [0.0, 1.0],
                                 ),
@@ -2044,7 +2183,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                               child: Text(
                                 '$onlineCount',
                                 style: const TextStyle(
-                                  color: Color(0xFFFFE77A),
+                                  color: Colors.black,
                                   fontSize: 19,
                                   height: 1,
                                   fontWeight: FontWeight.w900,
@@ -2109,7 +2248,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                             onTap: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute<void>(
-                                  builder: (_) => const DailyHoroscopeScreen(),
+                                  builder: (_) =>
+                                      const GeneralHoroscopeScreen(),
                                 ),
                               );
                             },
@@ -2129,6 +2269,20 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                             },
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _HomeAstrologyAction(
+                            icon: Icons.insights_rounded,
+                            label: 'Predictions',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const PredictionsScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                       ],
                     ),
 
@@ -2143,14 +2297,14 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       },
                       textInputAction: TextInputAction.search,
                       style: const TextStyle(
-                        color: AppColors.white,
+                        color: Colors.white,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
                       decoration: InputDecoration(
                         hintText: _currentSearchHint,
                         hintStyle: const TextStyle(
-                          color: AppColors.muted,
+                          color: Color(0xFF000000),
                           fontSize: 11,
                         ),
                         prefixIcon: const Icon(
@@ -2169,7 +2323,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                 },
                                 icon: const Icon(
                                   Icons.close_rounded,
-                                  color: AppColors.muted,
+                                  color: Color(0xFFDCE8F8),
                                 ),
                               ),
                         filled: true,
@@ -2220,8 +2374,17 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
-                              builder: (_) => const CategoryAiChatScreen(
+                              builder: (_) => CategoryAiChatScreen(
                                 category: AspAiCategory.career,
+                                showFreeChatSticker: _canShowFirstFreeChat,
+                                freeChatMinutes: _backendFreeChatMinutes,
+                                onFreeChatStarted: () {
+                                  if (mounted) {
+                                    setState(() {
+                                      _hideFirstFreeChatCard = true;
+                                    });
+                                  }
+                                },
                               ),
                             ),
                           );
@@ -2235,8 +2398,17 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
-                              builder: (_) => const CategoryAiChatScreen(
+                              builder: (_) => CategoryAiChatScreen(
                                 category: AspAiCategory.marriage,
+                                showFreeChatSticker: _canShowFirstFreeChat,
+                                freeChatMinutes: _backendFreeChatMinutes,
+                                onFreeChatStarted: () {
+                                  if (mounted) {
+                                    setState(() {
+                                      _hideFirstFreeChatCard = true;
+                                    });
+                                  }
+                                },
                               ),
                             ),
                           );
@@ -2280,8 +2452,17 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
-                              builder: (_) => const CategoryAiChatScreen(
+                              builder: (_) => CategoryAiChatScreen(
                                 category: AspAiCategory.business,
+                                showFreeChatSticker: _canShowFirstFreeChat,
+                                freeChatMinutes: _backendFreeChatMinutes,
+                                onFreeChatStarted: () {
+                                  if (mounted) {
+                                    setState(() {
+                                      _hideFirstFreeChatCard = true;
+                                    });
+                                  }
+                                },
                               ),
                             ),
                           );
@@ -2303,14 +2484,31 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     borderRadius: BorderRadius.circular(22),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(22),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const AstrologerSelectionScreen(
-                              screenTitle: 'Choose Your Vedic Astrologer',
-                            ),
-                          ),
-                        );
+                      onTap: () async {
+                        // The server atomically consumes this one-time offer when
+                        // the real free consultation request is created.
+                        setState(() {
+                          _hideFirstFreeChatCard = true;
+                        });
+
+                        final freeChatStarted = await Navigator.of(context)
+                            .push<bool>(
+                              MaterialPageRoute<bool>(
+                                builder: (_) => AstrologerSelectionScreen(
+                                  screenTitle: 'Choose Your Vedic Astrologer',
+                                  isFreeChatIntent: true,
+                                  freeChatMinutes: _backendFreeChatMinutes,
+                                ),
+                              ),
+                            );
+
+                        if (!mounted || freeChatStarted != true) {
+                          return;
+                        }
+
+                        setState(() {
+                          _hideFirstFreeChatCard = true;
+                        });
                       },
                       child: Ink(
                         decoration: BoxDecoration(
@@ -2515,6 +2713,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             // AI ASTROLOGERS - BACKEND CATALOG
             // =================================================
             const SliverToBoxAdapter(child: _AiAstrologersHomeSection()),
+            const SliverToBoxAdapter(child: AstrologyVideosHomeSection()),
             // ORGANIZED ASTROLOGER EXPERT SECTIONS
             // =================================================
             if (_isLoading)
@@ -2620,9 +2819,41 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       const Text(
                         'Live',
                         style: TextStyle(
-                          color: AppColors.white,
+                          color: Colors.white,
                           fontSize: 21,
                           fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFE7E7),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFFF5A5F)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.videocam_rounded,
+                              size: 13,
+                              color: Color(0xFFE53935),
+                            ),
+                            SizedBox(width: 3),
+                            Text(
+                              'LIVE',
+                              style: TextStyle(
+                                color: Color(0xFFE53935),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -2717,7 +2948,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                 overflow: TextOverflow.ellipsis,
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
-                                  color: AppColors.white,
+                                  color: Color(0xFF14213D),
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -2740,6 +2971,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               ),
             ],
 
+            const SliverToBoxAdapter(child: AstrologyArticlesHomeSection()),
             const SliverToBoxAdapter(child: SizedBox(height: 18)),
           ],
         ),
@@ -2750,8 +2982,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
 // CUSTOMER_STICKER_PHASE2_COMPLETE
 class _HomeAstrologyAction extends StatelessWidget {
-  // CUSTOMER_STICKER_ACTION_PHASE2
-
   const _HomeAstrologyAction({
     required this.icon,
     required this.label,
@@ -2762,133 +2992,49 @@ class _HomeAstrologyAction extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  Color get _accent {
+  String? get _assetPath {
     switch (label) {
       case 'Kundli AI':
-        return const Color(0xFFC877FF);
+        return 'assets/stickers/home_astrology/kundli_ai.png';
       case 'Horoscope':
-        return const Color(0xFFFFD748);
+        return 'assets/stickers/home_astrology/horoscope.png';
       case 'AI Astro':
-        return const Color(0xFFB969FF);
+        return 'assets/stickers/home_astrology/ai_astro.png';
+      case 'Predictions':
+        return 'assets/stickers/home_astrology/predictions.png';
       default:
-        return AppColors.gold;
-    }
-  }
-
-  Color get _deep {
-    switch (label) {
-      case 'Kundli AI':
-        return const Color(0xFF211044);
-      case 'Horoscope':
-        return const Color(0xFF332300);
-      case 'AI Astro':
-        return const Color(0xFF25103A);
-      default:
-        return const Color(0xFF141414);
+        return null;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final accent = _accent;
+    final assetPath = _assetPath;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 118),
-          padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                _deep,
-                accent.withValues(alpha: 0.18),
-                const Color(0xFF080A11),
-              ],
-              stops: const [0.0, 0.52, 1.0],
-            ),
-            border: Border.all(
-              color: accent.withValues(alpha: 0.86),
-              width: 1.15,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withValues(alpha: 0.24),
-                blurRadius: 18,
-                spreadRadius: 0.4,
-                offset: const Offset(0, 7),
-              ),
-              BoxShadow(
-                color: AppColors.gold.withValues(alpha: 0.08),
-                blurRadius: 14,
-              ),
-              const BoxShadow(
-                color: Color(0x66000000),
-                blurRadius: 12,
-                offset: Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: [
-              Positioned(
-                right: -7,
-                top: -8,
-                child: Icon(
-                  Icons.auto_awesome_rounded,
-                  size: 42,
-                  color: accent.withValues(alpha: 0.09),
-                ),
-              ),
-
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(19),
-                      gradient: RadialGradient(
-                        colors: [accent.withValues(alpha: 0.50), _deep],
-                      ),
-                      border: Border.all(color: accent.withValues(alpha: 0.84)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.withValues(alpha: 0.35),
-                          blurRadius: 14,
-                          spreadRadius: 0.3,
-                        ),
-                      ],
+    return Semantics(
+      label: label,
+      button: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: SizedBox(
+            height: 118,
+            child: Center(
+              child: assetPath == null
+                  ? Icon(icon, size: 42, color: AppColors.gold)
+                  : Image.asset(
+                      assetPath,
+                      width: 108,
+                      height: 108,
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(icon, size: 42, color: AppColors.gold);
+                      },
                     ),
-                    alignment: Alignment.center,
-                    child: Icon(icon, color: accent, size: 28),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11.2,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.1,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -2896,10 +3042,7 @@ class _HomeAstrologyAction extends StatelessWidget {
   }
 }
 
-// CUSTOMER_STICKER_PHASE3_COMPLETE
 class _HomeAstrologyTopic extends StatelessWidget {
-  // CUSTOMER_STICKER_TOPIC_PHASE3
-
   const _HomeAstrologyTopic({
     required this.icon,
     required this.label,
@@ -2910,146 +3053,52 @@ class _HomeAstrologyTopic extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  Color get _accent {
+  String? get _assetPath {
     switch (label) {
       case 'Career':
-        return const Color(0xFFFFD84D);
-
+        return 'assets/stickers/home_astrology/career.png';
       case 'Marriage':
-        return const Color(0xFFFF76C8);
-
+        return 'assets/stickers/home_astrology/marriage.png';
       case 'Stock Market':
-        return const Color(0xFF8DB5FF);
-
+        return 'assets/stickers/home_astrology/stock_market.png';
       case 'Today':
-        return const Color(0xFFFFD347);
-
+        return 'assets/stickers/home_astrology/today.png';
       case 'Business':
-        return const Color(0xFFC783FF);
-
+        return 'assets/stickers/home_astrology/business.png';
       default:
-        return AppColors.gold;
-    }
-  }
-
-  Color get _deep {
-    switch (label) {
-      case 'Career':
-        return const Color(0xFF3A2700);
-
-      case 'Marriage':
-        return const Color(0xFF401331);
-
-      case 'Stock Market':
-        return const Color(0xFF132C4A);
-
-      case 'Today':
-        return const Color(0xFF352600);
-
-      case 'Business':
-        return const Color(0xFF2B1742);
-
-      default:
-        return const Color(0xFF1A150B);
+        return null;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final accent = _accent;
+    final assetPath = _assetPath;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 82, maxHeight: 88),
-          width: 68,
-          padding: const EdgeInsets.fromLTRB(7, 10, 7, 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                _deep,
-                accent.withValues(alpha: 0.16),
-                const Color(0xFF080A10),
-              ],
-              stops: const [0.0, 0.52, 1.0],
-            ),
-            border: Border.all(
-              color: accent.withValues(alpha: 0.84),
-              width: 1.05,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withValues(alpha: 0.22),
-                blurRadius: 15,
-                spreadRadius: 0.2,
-                offset: const Offset(0, 6),
-              ),
-              const BoxShadow(
-                color: Color(0x55000000),
-                blurRadius: 11,
-                offset: Offset(0, 7),
-              ),
-            ],
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Positioned(
-                right: -4,
-                top: -4,
-                child: Icon(
-                  Icons.auto_awesome_rounded,
-                  color: accent.withValues(alpha: 0.10),
-                  size: 22,
-                ),
-              ),
-
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [accent.withValues(alpha: 0.48), _deep],
-                      ),
-                      border: Border.all(color: accent.withValues(alpha: 0.88)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.withValues(alpha: 0.32),
-                          blurRadius: 13,
-                        ),
-                      ],
+    return Semantics(
+      label: label,
+      button: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox(
+            width: 68,
+            height: 88,
+            child: Center(
+              child: assetPath == null
+                  ? Icon(icon, size: 30, color: AppColors.gold)
+                  : Image.asset(
+                      assetPath,
+                      width: 66,
+                      height: 82,
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(icon, size: 30, color: AppColors.gold);
+                      },
                     ),
-                    alignment: Alignment.center,
-                    child: Icon(icon, color: accent, size: 23),
-                  ),
-
-                  const SizedBox(height: 3),
-
-                  Text(
-                    label,
-                    maxLines: 1,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 8.8,
-                      height: 1.0,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -3192,7 +3241,7 @@ class _AiAstrologersHomeSectionState extends State<_AiAstrologersHomeSection> {
                 child: Text(
                   'AI Astrologers are temporarily unavailable.',
                   style: TextStyle(
-                    color: AppColors.white,
+                    color: Colors.white,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
@@ -3264,7 +3313,7 @@ class _AiAstrologersHomeSectionState extends State<_AiAstrologersHomeSection> {
                             hi: '\u090f\u0906\u0908 \u091c\u094d\u092f\u094b\u0924\u093f\u0937\u0940',
                           ),
                           style: TextStyle(
-                            color: AppColors.white,
+                            color: Color(0xFF17213D),
                             fontSize: 23,
                             fontWeight: FontWeight.w900,
                           ),
@@ -3275,7 +3324,7 @@ class _AiAstrologersHomeSectionState extends State<_AiAstrologersHomeSection> {
                     Text(
                       'Personalized AI guidance with your Kundli',
                       style: TextStyle(
-                        color: AppColors.muted,
+                        color: const Color(0xFF685675),
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                       ),
@@ -3325,7 +3374,7 @@ class _AiAstrologersHomeSectionState extends State<_AiAstrologersHomeSection> {
           ),
         ),
         SizedBox(
-          height: 202,
+          height: 208,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
@@ -3350,123 +3399,288 @@ class _AiAstrologersHomeSectionState extends State<_AiAstrologersHomeSection> {
   }
 }
 
+class _AiSectionWavePainter extends CustomPainter {
+  const _AiSectionWavePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fillPaint = Paint()
+      ..color = const Color(0xFFFFFBF3)
+      ..style = PaintingStyle.fill;
+
+    final goldPaint = Paint()
+      ..color = const Color(0xFFE6B83B)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+
+    final path = Path()
+      ..moveTo(0, 25)
+      ..cubicTo(
+        size.width * 0.18,
+        2,
+        size.width * 0.34,
+        10,
+        size.width * 0.50,
+        24,
+      )
+      ..cubicTo(size.width * 0.68, 40, size.width * 0.84, 39, size.width, 17)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    canvas.drawPath(path, fillPaint);
+
+    final edge = Path()
+      ..moveTo(0, 25)
+      ..cubicTo(
+        size.width * 0.18,
+        2,
+        size.width * 0.34,
+        10,
+        size.width * 0.50,
+        24,
+      )
+      ..cubicTo(size.width * 0.68, 40, size.width * 0.84, 39, size.width, 17);
+
+    canvas.drawPath(edge, goldPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _AiSectionWavePainter oldDelegate) => false;
+}
+
 // CUSTOMER_ASTRO_SECTIONS_FINAL_PREMIUM
 // CUSTOMER_ACTUAL_CARD_REBUILD
 // CUSTOMER_REFERENCE_PREMIUM_PHASE1
-class _AiDashboardPersonaCard extends StatelessWidget {
-  // CUSTOMER_PREMIUM_PHASE4_COMPLETE
-  // CUSTOMER_PHASE3_AI_CARD
-  const _AiDashboardPersonaCard({required this.persona});
+class _TicketStickerShell extends StatelessWidget {
+  const _TicketStickerShell({required this.child, required this.padding});
 
+  final Widget child;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF12091B),
+                Color(0xFF26113A),
+                Color(0xFF3A1850),
+                Color(0xFF170B22),
+              ],
+              stops: [0.0, 0.34, 0.72, 1.0],
+            ),
+            borderRadius: BorderRadius.circular(25),
+            border: Border.all(color: const Color(0xFFE6B83B), width: 1.35),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2A1235).withValues(alpha: 0.30),
+                blurRadius: 18,
+                offset: const Offset(0, 9),
+              ),
+              BoxShadow(
+                color: const Color(0xFFE6B83B).withValues(alpha: 0.10),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              const Positioned(
+                right: -15,
+                top: -20,
+                child: Icon(
+                  Icons.brightness_2_outlined,
+                  size: 72,
+                  color: Color(0x20FFD45A),
+                ),
+              ),
+              const Positioned(
+                left: 6,
+                top: 8,
+                child: Icon(
+                  Icons.auto_awesome,
+                  size: 17,
+                  color: Color(0x35FFD45A),
+                ),
+              ),
+              const Positioned(
+                right: 9,
+                bottom: 36,
+                child: Icon(
+                  Icons.star_rounded,
+                  size: 13,
+                  color: Color(0x45FFD45A),
+                ),
+              ),
+              child,
+            ],
+          ),
+        ),
+
+        // Premium gold top ticket accent.
+        Positioned(
+          left: 15,
+          right: 15,
+          top: 7,
+          child: Container(
+            height: 7,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF8F6110),
+                  Color(0xFFFFD95A),
+                  Color(0xFFB47A13),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFFD95A).withValues(alpha: 0.20),
+                  blurRadius: 7,
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const Positioned(left: 6, top: 42, bottom: 34, child: _TicketDots()),
+        const Positioned(right: 6, top: 42, bottom: 34, child: _TicketDots()),
+      ],
+    );
+  }
+}
+
+class _TicketDots extends StatelessWidget {
+  const _TicketDots();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: List.generate(
+        10,
+        (_) => Container(
+          width: 3,
+          height: 3,
+          decoration: const BoxDecoration(
+            color: Color(0xFFC99528),
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VerifiedChip extends StatelessWidget {
+  const _VerifiedChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFE9A8),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.verified_rounded, color: Color(0xFFB77700), size: 12),
+          SizedBox(width: 3),
+          Text(
+            'Verified',
+            style: TextStyle(
+              color: Color(0xFF8B5A00),
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiDashboardPersonaCard extends StatelessWidget {
+  const _AiDashboardPersonaCard({required this.persona});
   final AiAstroPersona persona;
 
   @override
   Widget build(BuildContext context) {
     final avatar = persona.avatarUrl?.trim() ?? '';
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 11, 8, 10),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF36175A),
-            Color(0xFF151D3C),
-            Color(0xFF080B16),
-            Color(0xFF25113C),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: persona.available
-              ? const Color(0xFF31F59B)
-              : const Color(0xFFB88CFF),
-        ),
-        boxShadow: [
-          // ACTUAL_AI_CARD_GLOW
-          BoxShadow(
-            color: const Color(0xFF9F63FF).withValues(alpha: 0.38),
-            blurRadius: 24,
-            spreadRadius: 0.5,
-            offset: const Offset(0, 8),
-          ),
-          BoxShadow(
-            color: AppColors.gold.withValues(alpha: 0.30),
-            blurRadius: 18,
-            spreadRadius: 0.2,
-          ),
-          const BoxShadow(
-            color: Color(0x88000000),
-            blurRadius: 18,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
+    return _TicketStickerShell(
+      padding: const EdgeInsets.fromLTRB(9, 18, 9, 7),
       child: Column(
         children: [
           Stack(
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 72,
-                height: 72,
-                padding: const EdgeInsets.all(2.5),
+                width: 62,
+                height: 62,
+                padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: const Color(0xFFFFD83D),
-                    width: 2.2,
+                    color: const Color(0xFFE6B83B),
+                    width: 2.3,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFB56CFF).withValues(alpha: 0.42),
-                      blurRadius: 26,
-                    ),
-                  ],
                 ),
                 child: ClipOval(
                   child: avatar.isNotEmpty
                       ? Image.network(
                           avatar,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) {
-                            return _AiDashboardAvatarFallback(
-                              initials: persona.initials,
-                            );
-                          },
+                          errorBuilder: (_, _, _) => _AiDashboardAvatarFallback(
+                            initials: persona.initials,
+                          ),
                         )
-                      : _AiDashboardAvatarFallback(initials: persona.initials),
+                      : AiAstroAvatar(
+                          personaName: persona.name,
+                          initials: persona.initials,
+                        ),
                 ),
               ),
               Positioned(
                 right: 0,
-                bottom: 4,
+                bottom: 1,
                 child: Container(
-                  width: 14,
-                  height: 14,
+                  width: 13,
+                  height: 13,
                   decoration: BoxDecoration(
                     color: persona.available
                         ? const Color(0xFF28D982)
-                        : const Color(0xFF718096),
+                        : const Color(0xFFB1A894),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFF111722),
-                      width: 2,
+                      color: const Color(0xFFFFFCF5),
+                      width: 2.4,
                     ),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 9),
+          const SizedBox(height: 5),
+          const _VerifiedChip(),
+          const SizedBox(height: 5),
           Text(
             persona.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
             style: const TextStyle(
-              color: AppColors.white,
+              color: Color(0xFFFFF4DC),
               fontSize: 13,
               fontWeight: FontWeight.w900,
             ),
@@ -3476,42 +3690,16 @@ class _AiDashboardPersonaCard extends StatelessWidget {
             persona.subtitle.isEmpty ? 'AI Astrologer' : persona.subtitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
             style: const TextStyle(
-              color: AppColors.gold,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
+              color: Color(0xFFFFD66B),
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
             ),
           ),
           const Spacer(),
-          Row(
-            children: [
-              const Icon(Icons.star_rounded, size: 14, color: AppColors.gold),
-              const SizedBox(width: 2),
-              Text(
-                persona.rating.toStringAsFixed(1),
-                style: const TextStyle(
-                  color: AppColors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const Spacer(),
-              Flexible(
-                child: Text(
-                  persona.aiPricing.displayLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: persona.aiPricing.isFree
-                        ? const Color(0xFF40D98A)
-                        : AppColors.gold,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
+          _TicketPriceRow(
+            rating: persona.rating.toStringAsFixed(1),
+            price: persona.aiPricing.displayLabel,
           ),
         ],
       ),
@@ -3542,9 +3730,7 @@ class _AiDashboardAvatarFallback extends StatelessWidget {
 }
 
 class _CompactAstrologerCard extends StatelessWidget {
-  // CUSTOMER_PHASE3_REAL_CARD
   const _CompactAstrologerCard({required this.astrologer});
-
   final PublicAstrologer astrologer;
 
   @override
@@ -3554,61 +3740,22 @@ class _CompactAstrologerCard extends StatelessWidget {
         ? 'A'
         : astrologer.name.trim()[0].toUpperCase();
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 11, 10, 10),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF132A3B),
-            Color(0xFF11162D),
-            Color(0xFF160D26),
-            Color(0xFF080A0F),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: astrologer.isOnline
-              ? const Color(0xFF35F58A)
-              : const Color(0xFFFFB83D),
-          width: 1.15,
-        ),
-        boxShadow: [
-          // ACTUAL_REAL_CARD_GLOW
-          BoxShadow(
-            color: astrologer.isOnline
-                ? const Color(0xFF35F58A).withValues(alpha: 0.22)
-                : AppColors.gold.withValues(alpha: 0.24),
-            blurRadius: 24,
-            spreadRadius: 0.5,
-            offset: const Offset(0, 8),
-          ),
-          BoxShadow(
-            color: const Color(0xFF8D52FF).withValues(alpha: 0.22),
-            blurRadius: 18,
-          ),
-          const BoxShadow(
-            color: Color(0x88000000),
-            blurRadius: 18,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
+    return _TicketStickerShell(
+      padding: const EdgeInsets.fromLTRB(11, 18, 11, 5),
       child: Column(
         children: [
           Stack(
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 72,
-                height: 72,
-                padding: const EdgeInsets.all(2),
+                width: 62,
+                height: 62,
+                padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: const Color(0xFFFFD83D),
-                    width: 2.2,
+                    color: const Color(0xFFE6B83B),
+                    width: 2.4,
                   ),
                 ),
                 child: ClipOval(
@@ -3616,26 +3763,25 @@ class _CompactAstrologerCard extends StatelessWidget {
                       ? Image.network(
                           avatar,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) {
-                            return _CompactAvatarFallback(initial: initial);
-                          },
+                          errorBuilder: (_, _, _) =>
+                              _CompactAvatarFallback(initial: initial),
                         )
                       : _CompactAvatarFallback(initial: initial),
                 ),
               ),
               Positioned(
-                right: 1,
-                bottom: 3,
+                right: 0,
+                bottom: 1,
                 child: Container(
-                  width: 13,
-                  height: 13,
+                  width: 14,
+                  height: 14,
                   decoration: BoxDecoration(
                     color: astrologer.isOnline
                         ? const Color(0xFF35F58A)
-                        : const Color(0xFF9A8A68),
+                        : const Color(0xFFB1A894),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFF10131F),
+                      color: const Color(0xFFFFFCF5),
                       width: 2.5,
                     ),
                   ),
@@ -3643,27 +3789,29 @@ class _CompactAstrologerCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
+          const _VerifiedChip(),
+          const SizedBox(height: 5),
           Text(
             astrologer.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: AppColors.white,
+              color: Color(0xFFFFF4DC),
               fontSize: 13,
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 4),
           Text(
             astrologer.primaryExpertise,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: AppColors.gold,
-              fontSize: 10,
+              color: Color(0xFFFFD66B),
+              fontSize: 9,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -3673,38 +3821,62 @@ class _CompactAstrologerCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: AppColors.muted,
+              color: Color(0xFFE8D9F0),
               fontSize: 9,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const Spacer(),
-          Row(
-            children: [
-              const Icon(Icons.star_rounded, size: 14, color: AppColors.gold),
-              const SizedBox(width: 2),
-              Text(
-                astrologer.rating.toStringAsFixed(1),
-                style: const TextStyle(
-                  color: AppColors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                ),
+          _TicketPriceRow(
+            rating: astrologer.ratingLabel,
+            price: astrologer.priceLabel,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TicketPriceRow extends StatelessWidget {
+  const _TicketPriceRow({required this.rating, required this.price});
+  final String rating;
+  final String price;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF24112F),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFB98A2E), width: 0.9),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.star_rounded, size: 13, color: Color(0xFFE1A80B)),
+          const SizedBox(width: 2),
+          Text(
+            rating,
+            style: const TextStyle(
+              color: Color(0xFFFFF4DC),
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const Spacer(),
+          Flexible(
+            child: Text(
+              price,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+              style: const TextStyle(
+                color: Color(0xFFFFD66B),
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
               ),
-              const Spacer(),
-              Flexible(
-                child: Text(
-                  astrologer.priceLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.gold,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
@@ -3834,14 +4006,14 @@ class _DrawerMenuTile extends StatelessWidget {
       title: Text(
         title,
         style: const TextStyle(
-          color: AppColors.white,
+          color: Colors.white,
           fontSize: 15,
           fontWeight: FontWeight.w700,
         ),
       ),
       trailing: const Icon(
         Icons.chevron_right_rounded,
-        color: AppColors.muted,
+        color: Color(0xFFDCE8F8),
         size: 20,
       ),
     );

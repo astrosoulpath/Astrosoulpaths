@@ -150,3 +150,34 @@ userFrontend-main/
 userFrontend-src-app-backup/
 astrologerapp-main/
 
+
+# ============================================================
+# Local development / recovery artifacts — never deploy
+# ============================================================
+*.bak
+*.bak-*
+*_backup*
+backup_*/
+backup_*/**
+_corrupt*
+*runtime-proof*/
+*runtime-proof/**
+*.damaged-*
+*.bak-smart-*
+*.bak-freechat-*
+*.bak-premium-*
+
+# Local inspection/output artifacts
+final_auth_runtime_log.txt
+ASP_KUNDLI_STEP6_FINAL_25_FILES.txt
+admin-reports-phase50.txt
+admin-reports-phase75.txt
+
+# Local database safety snapshots
+backend-main/database-safety-*/
+backend-main/data-consolidation-safety-*/
+backend-main-retired-seeds-*/
+
+# Python cache
+__pycache__/
+*.pyc

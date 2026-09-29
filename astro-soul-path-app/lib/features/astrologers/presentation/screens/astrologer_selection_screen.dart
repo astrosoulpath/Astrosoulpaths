@@ -292,9 +292,9 @@ class _AstrologerSelectionScreenState extends State<AstrologerSelectionScreen> {
         .toList(growable: false);
   }
 
-  void _openAstrologer(PublicAstrologer astrologer) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
+  Future<void> _openAstrologer(PublicAstrologer astrologer) async {
+    final freeChatStarted = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
         builder: (_) => AstrologerDetailScreen(
           astrologerId: astrologer.id,
           astrologyQuestionId: widget.astrologyQuestionId,
@@ -305,6 +305,10 @@ class _AstrologerSelectionScreenState extends State<AstrologerSelectionScreen> {
         ),
       ),
     );
+
+    if (mounted && freeChatStarted == true) {
+      Navigator.of(context).pop(true);
+    }
   }
 
   @override

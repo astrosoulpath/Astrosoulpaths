@@ -90,21 +90,103 @@ class _BootstrapAppState extends State<_BootstrapApp> {
   }
 }
 
-class _StartupLoadingScreen extends StatelessWidget {
+class _StartupLoadingScreen extends StatefulWidget {
   const _StartupLoadingScreen();
 
   @override
+  State<_StartupLoadingScreen> createState() => _StartupLoadingScreenState();
+}
+
+class _StartupLoadingScreenState extends State<_StartupLoadingScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<Offset> _slideAnimation;
+  late final Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 950),
+    );
+
+    _fadeAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.0, 0.75, curve: Curves.easeOut),
+    );
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.28),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+
+    _scaleAnimation = Tween<double>(
+      begin: 0.94,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFF020B18),
-      body: SizedBox.expand(
-        child: Image(
-          image: AssetImage(
-            'assets/branding/astro_soul_path_premium_splash.png',
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Center(
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: ScaleTransition(
+                scale: _scaleAnimation,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset(
+                      'assets/branding/AstroSoulPathEmblem.png',
+                      width: 148,
+                      height: 148,
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                    ),
+                    const SizedBox(height: 22),
+                    const Text(
+                      'Astro Soul Path',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF111827),
+                        fontSize: 34,
+                        height: 1.05,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'DISCOVER  •  ALIGN  •  TRANSFORM',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFFB78628),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 2.1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          fit: BoxFit.cover,
-          alignment: Alignment.center,
-          filterQuality: FilterQuality.high,
         ),
       ),
     );

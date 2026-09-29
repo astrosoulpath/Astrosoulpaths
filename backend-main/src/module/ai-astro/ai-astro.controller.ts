@@ -41,6 +41,12 @@ export class AiAstroController {
   ) {
     const supabaseUserId = typeof user?.sub === 'string' ? user.sub.trim() : '';
 
+    console.log('[AI_AUTH_DEBUG]', {
+      sub: user?.sub ?? null,
+      email: typeof user?.email === 'string' ? user.email : null,
+      phone: typeof user?.phone === 'string' ? user.phone : null,
+    });
+
     if (!supabaseUserId) {
       throw new UnauthorizedException('Authenticated customer is required');
     }
@@ -54,6 +60,12 @@ export class AiAstroController {
     @Body() dto: StartAiAstroSessionDto,
   ) {
     const supabaseUserId = typeof user?.sub === 'string' ? user.sub.trim() : '';
+
+    console.log('[AI_AUTH_DEBUG]', {
+      sub: user?.sub ?? null,
+      email: typeof user?.email === 'string' ? user.email : null,
+      phone: typeof user?.phone === 'string' ? user.phone : null,
+    });
 
     if (!supabaseUserId) {
       throw new UnauthorizedException('Authenticated customer is required');
@@ -69,6 +81,12 @@ export class AiAstroController {
   ) {
     const supabaseUserId = typeof user?.sub === 'string' ? user.sub.trim() : '';
 
+    console.log('[AI_AUTH_DEBUG]', {
+      sub: user?.sub ?? null,
+      email: typeof user?.email === 'string' ? user.email : null,
+      phone: typeof user?.phone === 'string' ? user.phone : null,
+    });
+
     if (!supabaseUserId) {
       throw new UnauthorizedException('Authenticated customer is required');
     }
@@ -82,6 +100,12 @@ export class AiAstroController {
     @Body() dto: AiAstroSessionActionDto,
   ) {
     const supabaseUserId = typeof user?.sub === 'string' ? user.sub.trim() : '';
+
+    console.log('[AI_AUTH_DEBUG]', {
+      sub: user?.sub ?? null,
+      email: typeof user?.email === 'string' ? user.email : null,
+      phone: typeof user?.phone === 'string' ? user.phone : null,
+    });
 
     if (!supabaseUserId) {
       throw new UnauthorizedException('Authenticated customer is required');
@@ -98,6 +122,12 @@ export class AiAstroController {
   ) {
     const supabaseUserId = typeof user?.sub === 'string' ? user.sub.trim() : '';
 
+    console.log('[AI_AUTH_DEBUG]', {
+      sub: user?.sub ?? null,
+      email: typeof user?.email === 'string' ? user.email : null,
+      phone: typeof user?.phone === 'string' ? user.phone : null,
+    });
+
     if (!supabaseUserId) {
       throw new UnauthorizedException('Authenticated customer is required');
     }
@@ -112,6 +142,12 @@ export class AiAstroController {
     @Res() response: Response,
   ) {
     const supabaseUserId = typeof user?.sub === 'string' ? user.sub.trim() : '';
+
+    console.log('[AI_AUTH_DEBUG]', {
+      sub: user?.sub ?? null,
+      email: typeof user?.email === 'string' ? user.email : null,
+      phone: typeof user?.phone === 'string' ? user.phone : null,
+    });
 
     if (!supabaseUserId) {
       throw new UnauthorizedException('Authenticated customer is required');
@@ -189,6 +225,12 @@ export class AiAstroController {
   @UseGuards(SupabaseAuthGuard)
   async ask(@CurrentUser() user: JWTPayload, @Body() dto: AskAiAstroDto) {
     const supabaseUserId = typeof user?.sub === 'string' ? user.sub.trim() : '';
+
+    console.log('[AI_AUTH_DEBUG]', {
+      sub: user?.sub ?? null,
+      email: typeof user?.email === 'string' ? user.email : null,
+      phone: typeof user?.phone === 'string' ? user.phone : null,
+    });
 
     if (!supabaseUserId) {
       throw new UnauthorizedException('Authenticated customer is required');

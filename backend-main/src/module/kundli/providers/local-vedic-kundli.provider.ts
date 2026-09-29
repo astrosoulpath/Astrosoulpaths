@@ -21,27 +21,25 @@ import { calculateNatalYogas } from '../engine/natal-yoga.util';
 import { calculateSadeSati } from '../engine/sade-sati.util';
 import { calculateVedicTransit } from '../engine/vedic-transit.util';
 import { calculateGemstoneSuggestion } from '../engine/gemstone-suggestion.util';
+import {
+  calculateKpHouseCusps,
+  calculateKpStarSubLord,
+} from '../engine/kp-engine.util';
 
 @Injectable()
 export class LocalVedicKundliProvider implements IKundliProvider {
-  async generate(
-    params: AstroParams,
-    lang = 'en',
-  ): Promise<KundliReport> {
+  async generate(params: AstroParams, lang = 'en'): Promise<KundliReport> {
     const utcDate = birthParamsToUtc(params);
 
-    const ascendantLongitude =
-      calculateSiderealAscendant(
-        utcDate,
-        params.lat,
-        params.lon,
-      );
+    const ascendantLongitude = calculateSiderealAscendant(
+      utcDate,
+      params.lat,
+      params.lon,
+    );
 
-    const ascendant =
-      mapSiderealLongitude(ascendantLongitude);
+    const ascendant = mapSiderealLongitude(ascendantLongitude);
 
-    const calculatedPlanets =
-      calculatePlanetPositions(utcDate);
+    const calculatedPlanets = calculatePlanetPositions(utcDate);
 
     const bodyMap: Record<string, Astronomy.Body> = {
       Sun: Astronomy.Body.Sun,
@@ -54,17 +52,12 @@ export class LocalVedicKundliProvider implements IKundliProvider {
     };
 
     const planets = calculatedPlanets.map((planet) => {
-      const vedic =
-        mapSiderealLongitude(
-          planet.siderealLongitude,
-        );
+      const vedic = mapSiderealLongitude(planet.siderealLongitude);
 
       const body = bodyMap[planet.name];
 
       if (!body) {
-        throw new Error(
-          `Unsupported local planet: ${planet.name}`,
-        );
+        throw new Error(`Unsupported local planet: ${planet.name}`);
       }
 
       return {
@@ -79,79 +72,111 @@ export class LocalVedicKundliProvider implements IKundliProvider {
         sign_no: vedic.sign_no,
         rasi_no: vedic.rasi_no,
         nakshatra: vedic.nakshatra,
-        nakshatra_number:
-          vedic.nakshatra_number,
-        nakshatra_pada:
-          vedic.nakshatra_pada,
-        house: calculateWholeSignHouse(
-          vedic.longitude,
-          ascendantLongitude,
-        ),
-        retro:
-          isPlanetRetrograde(
-            body,
-            utcDate,
-          ),
+        nakshatra_number: vedic.nakshatra_number,
+        nakshatra_pada: vedic.nakshatra_pada,
+        house: calculateWholeSignHouse(vedic.longitude, ascendantLongitude),
+        retro: isPlanetRetrograde(body, utcDate),
       };
     });
 
-    const moon = planets.find(
-      (planet) => planet.name === 'Moon',
-    );
+    const moon = planets.find((planet) => planet.name === 'Moon');
 
     if (!moon) {
-      throw new Error(
-        'Moon position unavailable for local Vimshottari Dasha.',
-      );
+      throw new Error('Moon position unavailable for local Vimshottari Dasha.');
     }
 
-    
-const dasha = calculateVimshottariDasha(
-      moon.longitude,
-      utcDate,
-    );
+    const dasha = calculateVimshottariDasha(moon.longitude, utcDate);
 
-        const gemSuggestion = calculateGemstoneSuggestion(
+    const gemSuggestion = calculateGemstoneSuggestion(
       ascendant.sign,
       ascendant.sign_no,
     );
-const transitDate = new Date();
+    const transitDate = new Date();
 
-    const sadeSati = calculateSadeSati(
-      moon.longitude,
-      transitDate,
-    );
+    const sadeSati = calculateSadeSati(moon.longitude, transitDate);
 
-    const transit = calculateVedicTransit(
-      transitDate,
-    );
+    const transit = calculateVedicTransit(transitDate);
 
-    const sun = planets.find(
-      (planet) => planet.name === 'Sun',
-    );
+    const sun = planets.find((planet) => planet.name === 'Sun');
 
     if (!sun) {
-      throw new Error(
-        'Sun position unavailable for Panchang calculation.',
-      );
+      throw new Error('Sun position unavailable for Panchang calculation.');
     }
 
-    const panchang = calculatePanchang(
+    const basePanchang = calculatePanchang(
       sun.longitude,
       moon.longitude,
       utcDate,
     );
 
-            const natalYogas = calculateNatalYogas(
+    const observer = new Astronomy.Observer(params.lat, params.lon, 0);
+
+    const [birthYear, birthMonth, birthDay] = params.dob.split('-').map(Number);
+
+    const localBirthMidnightAsUtc = Date.UTC(
+      birthYear,
+      birthMonth - 1,
+      birthDay,
+      0,
+      0,
+      0,
+    );
+
+    const searchStart = new Date(
+      localBirthMidnightAsUtc - params.timezone * 60 * 60 * 1000,
+    );
+
+    const sunriseEvent = Astronomy.SearchRiseSet(
+      Astronomy.Body.Sun,
+      observer,
+      +1,
+      searchStart,
+      2,
+    );
+
+    const sunsetEvent = Astronomy.SearchRiseSet(
+      Astronomy.Body.Sun,
+      observer,
+      -1,
+      searchStart,
+      2,
+    );
+
+    const formatLocalSolarTime = (
+      event: Astronomy.AstroTime | null,
+    ): string | null => {
+      if (!event) {
+        return null;
+      }
+
+      const localMs = event.date.getTime() + params.timezone * 60 * 60 * 1000;
+      const localDate = new Date(localMs);
+
+      const hours = localDate.getUTCHours();
+      const minutes = localDate.getUTCMinutes();
+
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const displayHour = hours % 12 || 12;
+
+      return `${displayHour.toString().padStart(2, '0')}:${minutes
+        .toString()
+        .padStart(2, '0')} ${period}`;
+    };
+
+    const panchang = {
+      ...basePanchang,
+      sunrise: formatLocalSolarTime(sunriseEvent),
+      sunset: formatLocalSolarTime(sunsetEvent),
+    };
+
+    const natalYogas = calculateNatalYogas(
       planets.map((planet) => ({
         name: planet.name,
         sign_no: planet.sign_no,
         house: planet.house,
       })),
     );
-const mars = planets.find(
-      (planet) => planet.name === 'Mars',
-    );
+    const mars = planets.find((planet) => planet.name === 'Mars');
 
     if (!mars) {
       throw new Error(
@@ -159,19 +184,14 @@ const mars = planets.find(
       );
     }
 
-    const mangalDosha = calculateMangalDosha(
-      mars.house,
-    );
+    const mangalDosha = calculateMangalDosha(mars.house);
     const nodes = calculateLunarNodes(utcDate);
 
-    for (
-      const [name, longitude] of [
-        ['Rahu', nodes.rahu],
-        ['Ketu', nodes.ketu],
-      ] as const
-    ) {
-      const vedic =
-        mapSiderealLongitude(longitude);
+    for (const [name, longitude] of [
+      ['Rahu', nodes.rahu],
+      ['Ketu', nodes.ketu],
+    ] as const) {
+      const vedic = mapSiderealLongitude(longitude);
 
       planets.push({
         name,
@@ -185,14 +205,9 @@ const mars = planets.find(
         sign_no: vedic.sign_no,
         rasi_no: vedic.rasi_no,
         nakshatra: vedic.nakshatra,
-        nakshatra_number:
-          vedic.nakshatra_number,
-        nakshatra_pada:
-          vedic.nakshatra_pada,
-        house: calculateWholeSignHouse(
-          vedic.longitude,
-          ascendantLongitude,
-        ),
+        nakshatra_number: vedic.nakshatra_number,
+        nakshatra_pada: vedic.nakshatra_pada,
+        house: calculateWholeSignHouse(vedic.longitude, ascendantLongitude),
         retro: true,
       });
     }
@@ -215,17 +230,13 @@ const mars = planets.find(
     const birthChart: Record<string, unknown> = {};
 
     d1Bodies.forEach((body, index) => {
-      const vedic =
-        mapSiderealLongitude(body.longitude);
+      const vedic = mapSiderealLongitude(body.longitude);
 
       birthChart[String(index)] = {
         name: body.name,
         zodiac: vedic.sign,
         rasi_no: vedic.rasi_no,
-        house: calculateWholeSignHouse(
-          body.longitude,
-          ascendantLongitude,
-        ),
+        house: calculateWholeSignHouse(body.longitude, ascendantLongitude),
         retro: body.retro,
         full_name: body.full_name,
         local_degree: vedic.degree_in_sign,
@@ -235,27 +246,18 @@ const mars = planets.find(
     birthChart.chart = 'D1';
     birthChart.chart_name = 'Lagna';
 
-    const ascendantD9 =
-      calculateNavamsaPosition(
-        ascendantLongitude,
-      );
+    const ascendantD9 = calculateNavamsaPosition(ascendantLongitude);
 
     const navamsaChart: Record<string, unknown> = {};
 
     d1Bodies.forEach((body, index) => {
-      const d9 =
-        calculateNavamsaPosition(
-          body.longitude,
-        );
+      const d9 = calculateNavamsaPosition(body.longitude);
 
       navamsaChart[String(index)] = {
         name: body.name,
         zodiac: d9.sign,
         rasi_no: d9.sign_no,
-        house: calculateWholeSignHouse(
-          d9.longitude,
-          ascendantD9.longitude,
-        ),
+        house: calculateWholeSignHouse(d9.longitude, ascendantD9.longitude),
         retro: body.retro,
         full_name: body.full_name,
         local_degree: d9.degree,
@@ -295,6 +297,44 @@ const mars = planets.find(
       },
     ]);
 
+    // KP uses real Placidus cusps. Never substitute whole-sign D1 houses.
+    const kpHouseCusps = calculateKpHouseCusps(utcDate, params.lat, params.lon);
+
+    const kpHouses = kpHouseCusps.siderealCusps.map((longitude, index) => {
+      const position = mapSiderealLongitude(longitude);
+      const lords = calculateKpStarSubLord(longitude);
+
+      return {
+        house: index + 1,
+        longitude,
+        sign: position.sign,
+        signNo: position.sign_no,
+        degreeInSign: position.degree_in_sign,
+        starLord: lords.starLord,
+        subLord: lords.subLord,
+      };
+    });
+
+    const kpPlanets = planets.map((planet) => {
+      const lords = calculateKpStarSubLord(planet.longitude);
+
+      return {
+        name: planet.name,
+        longitude: planet.longitude,
+        sign: planet.sign,
+        signNo: planet.sign_no,
+        degreeInSign: planet.degree_in_sign,
+        starLord: lords.starLord,
+        subLord: lords.subLord,
+        retrograde: planet.retro,
+      };
+    });
+
+    const kp = {
+      system: 'KP' as const,
+      houses: kpHouses,
+      planets: kpPlanets,
+    };
     return {
       provider: 'local-vedic',
       language: lang,
@@ -333,10 +373,8 @@ const mars = planets.find(
         rasi_no: ascendant.rasi_no,
         degree: ascendant.degree_in_sign,
         nakshatra: ascendant.nakshatra,
-        nakshatra_number:
-          ascendant.nakshatra_number,
-        nakshatra_pada:
-          ascendant.nakshatra_pada,
+        nakshatra_number: ascendant.nakshatra_number,
+        nakshatra_pada: ascendant.nakshatra_pada,
         house: 1,
       },
 
@@ -345,6 +383,7 @@ const mars = planets.find(
       panchang,
       shadbala: null,
       ashtakavarga,
+      kp,
       dosha: {
         mangal: mangalDosha,
         manglik: mangalDosha,
@@ -364,21 +403,9 @@ const mars = planets.find(
         zodiac: 'sidereal',
         ayanamsha: 'lahiri',
         houseSystem: 'whole-sign',
-        calculatedUtc:
-          utcDate.toISOString(),
+        calculatedUtc: utcDate.toISOString(),
         generatedCharts: ['D1', 'D9'],
       },
     };
   }
 }
-
-
-
-
-
-
-
-
-
-
-

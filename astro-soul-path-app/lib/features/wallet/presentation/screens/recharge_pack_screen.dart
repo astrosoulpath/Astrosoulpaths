@@ -333,7 +333,7 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            '₹${updatedWallet.availableBalance.toStringAsFixed(2)}',
+                            'â‚¹${updatedWallet.availableBalance.toStringAsFixed(2)}',
                             style: const TextStyle(
                               color: AppColors.gold,
                               fontSize: 26,
@@ -484,7 +484,7 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                       child: Text(
                         'Enter your amount',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: Colors.black,
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                         ),

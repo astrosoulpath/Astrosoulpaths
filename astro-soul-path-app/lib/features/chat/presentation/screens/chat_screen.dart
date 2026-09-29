@@ -968,7 +968,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: AppColors.white,
+                  color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                 ),
@@ -980,7 +980,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: AppColors.muted,
+                    color: Colors.white70,
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
                   ),
@@ -1001,7 +1001,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     Text(
                       room.astrologer.rating!.toStringAsFixed(1),
                       style: const TextStyle(
-                        color: AppColors.white,
+                        color: Colors.white,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1010,7 +1010,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       Text(
                         ' (${room.astrologer.totalReviews})',
                         style: const TextStyle(
-                          color: AppColors.muted,
+                          color: Colors.white70,
                           fontSize: 9.5,
                         ),
                       ),
@@ -1023,7 +1023,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       shape: BoxShape.circle,
                       color: _otherParticipantOnline
                           ? Colors.green
-                          : AppColors.muted,
+                          : Colors.white60,
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -1032,7 +1032,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     style: TextStyle(
                       color: _otherParticipantOnline
                           ? Colors.green
-                          : AppColors.muted,
+                          : Colors.white60,
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1137,6 +1137,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           foregroundColor: Colors.white,
           elevation: 0,
           scrolledUnderElevation: 0,
+          leading: IconButton(
+            tooltip: 'Back to consultations',
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
           titleSpacing: 0,
           title: Row(
             mainAxisSize: MainAxisSize.min,
@@ -3837,7 +3846,7 @@ class _MessageBubble extends StatelessWidget {
                     content.isEmpty ? 'Consultation updated' : content,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: AppColors.muted,
+                      color: Colors.white70,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -3908,7 +3917,7 @@ class _MessageBubble extends StatelessWidget {
               Text(
                 '',
                 style: TextStyle(
-                  color: AppColors.white,
+                  color: Colors.white,
                   fontSize: 14,
                   fontStyle: FontStyle.italic,
                 ),
@@ -3918,10 +3927,10 @@ class _MessageBubble extends StatelessWidget {
               if (isImage || isFile || isAudio) const SizedBox(height: 8),
               Text(
                 content,
-                style: TextStyle(color: AppColors.white, fontSize: 15),
+                style: TextStyle(color: Colors.white, fontSize: 15),
               ),
             ] else if (!isImage && !isFile) ...[
-              Text('', style: TextStyle(color: AppColors.white, fontSize: 15)),
+              Text('', style: TextStyle(color: Colors.white, fontSize: 15)),
             ],
 
             const SizedBox(height: 5),
@@ -3937,7 +3946,7 @@ class _MessageBubble extends StatelessWidget {
                     child: Icon(
                       Icons.reply_rounded,
                       size: 14,
-                      color: isMine ? const Color(0xFF8696A0) : AppColors.muted,
+                      color: Colors.white70,
                     ),
                   ),
                 ),
@@ -3962,10 +3971,7 @@ class _MessageBubble extends StatelessWidget {
                 if (createdAt != null)
                   Text(
                     _formatMessageTime(createdAt),
-                    style: TextStyle(
-                      color: isMine ? const Color(0xFF8696A0) : AppColors.muted,
-                      fontSize: 10,
-                    ),
+                    style: TextStyle(color: Colors.white70, fontSize: 10),
                   ),
                 if (isMine) ...[
                   const SizedBox(width: 5),

@@ -1,3 +1,4 @@
+import { FollowModule } from './module/follow/follow.module';
 import { AiReceptionistModule } from './module/ai-receptionist/ai-receptionist.module';
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
@@ -48,8 +49,11 @@ import { SupportModule } from './module/support/support.module';
 import { AiAstroModule } from './module/ai-astro/ai-astro.module';
 
 import { AppConfigModule } from './module/app-config/app-config.module';
+import { AstrologyVideosModule } from './module/astrology-videos/astrology-videos.module';
+import { ArticlesModule } from './module/articles/articles.module';
 @Module({
   imports: [
+    FollowModule,
     AppConfigModule,
     AiAstroModule,
     AiReceptionistModule,
@@ -97,6 +101,7 @@ import { AppConfigModule } from './module/app-config/app-config.module';
     FeedbackModule,
     AvailabilityModule,
     SupportModule,
+    ArticlesModule,
   ],
 
   controllers: [AppController],

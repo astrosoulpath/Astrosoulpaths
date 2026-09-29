@@ -11,6 +11,7 @@ import {
   StreamableFile,
   UnauthorizedException,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { Gender } from '@prisma/client';
 import type { Request, Response } from 'express';
@@ -54,16 +55,105 @@ export class KundliController {
   ) {}
 
   @Get('my-kundli')
-  async getMyKundli(@CurrentUser() user: JWTPayload) {
+  async getMyKundli(
+    @CurrentUser() user: JWTPayload,
+    @Query('lang') requestedLanguage = 'en',
+    @Query('tob') requestedTob?: string,
+    @Query('lat') requestedLat?: string,
+    @Query('lon') requestedLon?: string,
+    @Query('timezone') requestedTimezone?: string,
+    @Query('place') requestedPlace?: string,
+  ) {
     const supabaseUserId = typeof user?.sub === 'string' ? user.sub.trim() : '';
 
     if (!supabaseUserId) {
       throw new UnauthorizedException('Authenticated customer is required');
     }
 
+    const supportedLanguages = new Set([
+      'en',
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'es',
+      'fr',
+      'de',
+      'pt',
+      'it',
+      'ja',
+      'ko',
+      'zh',
+      'ar',
+      'ru',
+    ]);
+
+    const normalizedLanguage =
+      typeof requestedLanguage === 'string'
+        ? requestedLanguage.trim().toLowerCase()
+        : 'en';
+
+    const language = supportedLanguages.has(normalizedLanguage)
+      ? normalizedLanguage
+      : 'en';
+
+    const parseOptionalNumber = (
+      value: string | undefined,
+      min: number,
+      max: number,
+      field: string,
+    ): number | undefined => {
+      if (value == null || value.trim() === '') {
+        return undefined;
+      }
+
+      const parsed = Number(value);
+
+      if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+        throw new BadRequestException(`${field} is invalid`);
+      }
+
+      return parsed;
+    };
+
+    const tob =
+      typeof requestedTob === 'string' && requestedTob.trim()
+        ? requestedTob.trim()
+        : undefined;
+
+    if (tob && !/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(tob)) {
+      throw new BadRequestException('tob must use HH:mm or HH:mm:ss');
+    }
+
+    const place =
+      typeof requestedPlace === 'string' && requestedPlace.trim()
+        ? requestedPlace.trim()
+        : undefined;
+
+    if (place && place.length > 200) {
+      throw new BadRequestException('place is too long');
+    }
+
     const result = await this.kundliService.generateMyKundli(
       supabaseUserId,
-      'en',
+      language,
+      {
+        tob,
+        lat: parseOptionalNumber(requestedLat, -90, 90, 'lat'),
+        lon: parseOptionalNumber(requestedLon, -180, 180, 'lon'),
+        timezone: parseOptionalNumber(
+          requestedTimezone,
+          -12,
+          14,
+          'timezone',
+        ),
+        place,
+      },
     );
 
     return {

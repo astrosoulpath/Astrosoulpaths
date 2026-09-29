@@ -89,11 +89,16 @@ class _MarketplaceOrdersScreenState extends State<MarketplaceOrdersScreen> {
     return Scaffold(
       backgroundColor: _background,
       appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Back',
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+        ),
         backgroundColor: _background,
         foregroundColor: Colors.white,
         title: const Text(
           'My Orders',
-          style: TextStyle(fontWeight: FontWeight.w800),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
         actions: [
           IconButton(

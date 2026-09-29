@@ -1,4 +1,4 @@
-﻿<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Astro Soul Path RTC audio calling -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -10,7 +10,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <application
-        android:label="astro_soul_path"
+        android:label="Astro Soul Path"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

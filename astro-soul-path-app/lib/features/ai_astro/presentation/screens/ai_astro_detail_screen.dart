@@ -1,9 +1,12 @@
+import '../widgets/ai_astro_avatar.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../data/ai_astro_api.dart';
 import '../../data/ai_astro_models.dart';
 import 'ai_astro_chat_screen.dart';
+
+import '../../../follow/data/follow_api.dart';
 
 class AiAstroDetailScreen extends StatefulWidget {
   const AiAstroDetailScreen({
@@ -22,6 +25,12 @@ class AiAstroDetailScreen extends StatefulWidget {
 }
 
 class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
+  final _followApi = FollowApi();
+
+  bool _isFollowing = false;
+  bool _followLoading = true;
+  bool _followActionLoading = false;
+  int _followerCount = 0;
   final AiAstroApi _api = AiAstroApi();
 
   AiAstroReviewsResult? _reviews;
@@ -31,6 +40,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _loadFollowStatus();
     _loadReviews();
   }
 
@@ -57,6 +67,141 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
         });
       }
     }
+  }
+
+  Future<void> _loadFollowStatus() async {
+    if (mounted) {
+      setState(() {
+        _followLoading = true;
+      });
+    }
+
+    try {
+      final status = await _followApi.getAiStatus(widget.persona.id);
+
+      if (!mounted) return;
+
+      setState(() {
+        _isFollowing = status.isFollowing;
+        _followerCount = status.followerCount;
+      });
+    } on FollowApiException {
+      // Keep the AI profile usable if follow status cannot be loaded.
+    } finally {
+      if (mounted) {
+        setState(() {
+          _followLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    if (_followLoading || _followActionLoading) return;
+
+    setState(() {
+      _followActionLoading = true;
+    });
+
+    try {
+      final status = _isFollowing
+          ? await _followApi.unfollowAi(widget.persona.id)
+          : await _followApi.followAi(widget.persona.id);
+
+      if (!mounted) return;
+
+      setState(() {
+        _isFollowing = status.isFollowing;
+        _followerCount = status.followerCount;
+      });
+    } on FollowApiException catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _followActionLoading = false;
+        });
+      }
+    }
+  }
+
+  String _followersLabel(int count) {
+    if (count >= 1000000) {
+      final value = count / 1000000;
+
+      return '${value.toStringAsFixed(value >= 10 ? 0 : 1)}M followers';
+    }
+
+    if (count >= 1000) {
+      final value = count / 1000;
+
+      return '${value.toStringAsFixed(value >= 10 ? 0 : 1)}K followers';
+    }
+
+    return '$count ${count == 1 ? 'follower' : 'followers'}';
+  }
+
+  Widget _buildFollowRow() {
+    final busy = _followLoading || _followActionLoading;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          OutlinedButton.icon(
+            onPressed: busy ? null : _toggleFollow,
+            icon: _followActionLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(
+                    _isFollowing
+                        ? Icons.check_rounded
+                        : Icons.person_add_alt_1_rounded,
+                    size: 18,
+                  ),
+            label: Text(
+              _followLoading
+                  ? 'Loading...'
+                  : (_isFollowing ? 'Following' : 'Follow'),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _isFollowing
+                  ? const Color(0xFF6B4E8A)
+                  : const Color(0xFF7B3FF2),
+              side: BorderSide(
+                color: _isFollowing
+                    ? const Color(0xFFCDBBE1)
+                    : const Color(0xFF9B6BFF),
+              ),
+              backgroundColor: _isFollowing
+                  ? const Color(0xFFF5EFFA)
+                  : const Color(0xFFFFF9F1),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            _followLoading ? 'â€” followers' : _followersLabel(_followerCount),
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF6F6478),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _openChat(BuildContext context) {
@@ -86,11 +231,11 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
         : persona.expertise.join(', ');
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xFFFFF9F1),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.white,
+        backgroundColor: const Color(0xFFFFF9F1),
+        foregroundColor: const Color(0xFF14213D),
         title: const Text(
           'AI Astrologer Details',
           style: TextStyle(fontWeight: FontWeight.w900),
@@ -108,12 +253,12 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Color(0xFF1B1B1B),
-                  Color(0xFF121212),
-                  Color(0xFF090909),
+                  Color(0xFFFFFCF5),
+                  Color(0xFFFFF9EB),
+                  Color(0xFFFFF2CF),
                 ],
               ),
-              border: Border.all(color: const Color(0x66F4C45E)),
+              border: Border.all(color: Color(0x99EFC35A)),
             ),
             child: Column(
               children: [
@@ -143,10 +288,15 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
                             ? Image.network(
                                 avatar,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) =>
-                                    _AvatarFallback(initials: persona.initials),
+                                errorBuilder: (_, _, _) => AiAstroAvatar(
+                                  personaName: persona.name,
+                                  initials: persona.initials,
+                                ),
                               )
-                            : _AvatarFallback(initials: persona.initials),
+                            : AiAstroAvatar(
+                                personaName: persona.name,
+                                initials: persona.initials,
+                              ),
                       ),
                     ),
                     Positioned(
@@ -161,7 +311,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
                               ? const Color(0xFF25D978)
                               : const Color(0xFF707070),
                           border: Border.all(
-                            color: AppColors.background,
+                            color: Color(0xFFFFF9F1),
                             width: 3,
                           ),
                         ),
@@ -176,7 +326,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
                   persona.name,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    color: AppColors.white,
+                    color: Color(0xFF14213D),
                     fontSize: 25,
                     fontWeight: FontWeight.w900,
                   ),
@@ -195,6 +345,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
                 ),
 
                 const SizedBox(height: 18),
+                _buildFollowRow(),
 
                 Wrap(
                   alignment: WrapAlignment.center,
@@ -260,7 +411,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
                   ? 'Profile description has not been added yet.'
                   : persona.description.trim(),
               style: const TextStyle(
-                color: Color(0xFFD8D8D8),
+                color: Color(0xFF465069),
                 height: 1.55,
                 fontSize: 14,
               ),
@@ -309,9 +460,9 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
                           vertical: 7,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0x14F4C45E),
+                          color: Color(0x26F4C45E),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0x44F4C45E)),
+                          border: Border.all(color: Color(0x99EFC35A)),
                         ),
                         child: Text(
                           item,
@@ -342,7 +493,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
                       const Expanded(
                         child: Text(
                           'Reviews could not be loaded.',
-                          style: TextStyle(color: Color(0xFFBEBEBE)),
+                          style: TextStyle(color: Color(0xFF69738B)),
                         ),
                       ),
                       TextButton(
@@ -360,7 +511,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
                 : (_reviews?.reviews.isEmpty ?? true)
                 ? const Text(
                     'No customer reviews yet.',
-                    style: TextStyle(color: Color(0xFFBEBEBE), fontSize: 13),
+                    style: TextStyle(color: Color(0xFF69738B), fontSize: 13),
                   )
                 : Column(
                     children: [
@@ -375,7 +526,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
                           Text(
                             (_reviews?.averageRating ?? 0).toStringAsFixed(1),
                             style: const TextStyle(
-                              color: AppColors.white,
+                              color: Color(0xFF14213D),
                               fontSize: 18,
                               fontWeight: FontWeight.w900,
                             ),
@@ -384,7 +535,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
                           Text(
                             '(${_reviews?.totalReviews ?? 0} reviews)',
                             style: const TextStyle(
-                              color: Color(0xFF999999),
+                              color: Color(0xFF69738B),
                               fontSize: 12,
                             ),
                           ),
@@ -402,7 +553,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
             child: Text(
               'Your saved birth profile and calculated Kundli are used by the AI astrology system for personalized guidance when available.',
               style: TextStyle(
-                color: Color(0xFFBEBEBE),
+                color: Color(0xFF69738B),
                 height: 1.5,
                 fontSize: 13,
               ),
@@ -415,7 +566,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
           decoration: const BoxDecoration(
-            color: AppColors.background,
+            color: Color(0xFFFFF9F1),
             border: Border(top: BorderSide(color: Color(0x335E5E5E))),
           ),
           child: SizedBox(
@@ -427,7 +578,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.gold,
                 foregroundColor: Colors.black,
-                disabledBackgroundColor: const Color(0xFF444444),
+                disabledBackgroundColor: const Color(0xFFE7D6A9),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),
                 ),
@@ -458,9 +609,9 @@ class _AiVerifiedBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0x18F4C45E),
+        color: Color(0x33F4C45E),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0x55F4C45E)),
+        border: Border.all(color: Color(0x99EFC35A)),
       ),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
@@ -482,28 +633,6 @@ class _AiVerifiedBadge extends StatelessWidget {
   }
 }
 
-class _AvatarFallback extends StatelessWidget {
-  const _AvatarFallback({required this.initials});
-
-  final String initials;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF1A1A1A),
-      alignment: Alignment.center,
-      child: Text(
-        initials.isEmpty ? 'AI' : initials,
-        style: const TextStyle(
-          color: AppColors.gold,
-          fontSize: 36,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-  }
-}
-
 class _InfoChip extends StatelessWidget {
   const _InfoChip({required this.icon, required this.text});
 
@@ -515,9 +644,9 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: Color(0xFFFFF6E2),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: Color(0xFFEFCB72)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -527,7 +656,7 @@ class _InfoChip extends StatelessWidget {
           Text(
             text,
             style: const TextStyle(
-              color: AppColors.white,
+              color: Color(0xFF14213D),
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -550,9 +679,9 @@ class _SectionCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF151515),
+        color: Color(0xFFFFFDF8),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFF292929)),
+        border: Border.all(color: Color(0xFFEFCB72)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -560,7 +689,7 @@ class _SectionCard extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-              color: AppColors.white,
+              color: Color(0xFF14213D),
               fontSize: 17,
               fontWeight: FontWeight.w900,
             ),
@@ -598,7 +727,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               label,
               style: const TextStyle(
-                color: Color(0xFF999999),
+                color: Color(0xFF69738B),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -608,7 +737,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               value,
               style: const TextStyle(
-                color: AppColors.white,
+                color: Color(0xFF14213D),
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
               ),
@@ -640,9 +769,9 @@ class _AiReviewTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: const Color(0xFF101010),
+        color: Color(0xFFFFFAF0),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF292929)),
+        border: Border.all(color: Color(0xFFEFCB72)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -655,7 +784,7 @@ class _AiReviewTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: AppColors.white,
+                    color: Color(0xFF14213D),
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                   ),
@@ -665,7 +794,7 @@ class _AiReviewTile extends StatelessWidget {
                 Text(
                   dateLabel,
                   style: const TextStyle(
-                    color: Color(0xFF777777),
+                    color: Color(0xFF7A8499),
                     fontSize: 10,
                   ),
                 ),
@@ -689,7 +818,7 @@ class _AiReviewTile extends StatelessWidget {
             Text(
               review.review.trim(),
               style: const TextStyle(
-                color: Color(0xFFD0D0D0),
+                color: Color(0xFF35415A),
                 fontSize: 12,
                 height: 1.45,
               ),

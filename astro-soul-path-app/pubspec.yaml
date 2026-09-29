@@ -67,6 +67,7 @@ dependencies:
   flutter_tts: ^4.2.5
   record: ^7.1.1
   just_audio: ^0.10.6
+  youtube_player_iframe: ^6.0.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -89,8 +90,12 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
+    - assets/images/horoscope/
+    - assets/images/horoscope/zodiac/
+    - assets/images/free_chat_stickers/
     - assets/branding/
     - assets/stickers/
+    - assets/stickers/home_astrology/
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
@@ -121,3 +126,4 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+

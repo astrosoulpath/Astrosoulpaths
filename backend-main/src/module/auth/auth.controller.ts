@@ -1,17 +1,22 @@
-﻿import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Headers, Post } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { SmsRoutingService } from './sms-routing.service';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { RefreshSessionDto } from './dto/refresh-session.dto';
 import { SendEmailOtpDto } from './dto/send-email-otp.dto';
 import { VerifyEmailOtpDto } from './dto/verify-email-otp.dto';
+import { EmailLoginDto } from './dto/email-login.dto';
 import { Public } from '../../common/decorators/public.decorator';
 
 @Public()
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly smsRoutingService: SmsRoutingService,
+  ) {}
 
   // Endpoint to send OTP
   @Post('send-otp')
@@ -71,6 +76,11 @@ export class AuthController {
   @Post('email/verify-otp')
   async verifyEmailOtp(@Body() dto: VerifyEmailOtpDto) {
     return this.authService.verifyEmailOtp(dto.email, dto.token);
+  }
+
+  @Post('email/login')
+  async loginWithEmail(@Body() dto: EmailLoginDto) {
+    return this.authService.loginWithEmail(dto.email, dto.password);
   }
   @Post('refresh')
   async refreshSession(@Body() dto: RefreshSessionDto) {

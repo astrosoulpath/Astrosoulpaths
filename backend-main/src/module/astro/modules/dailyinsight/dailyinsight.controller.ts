@@ -42,7 +42,11 @@ export class DailyinsightController {
     );
   }
   @Get()
-  getDailyInsight(@CurrentUser() user: JWTPayload, @Query('day') day?: string) {
+  getDailyInsight(
+    @CurrentUser() user: JWTPayload,
+    @Query('day') day?: string,
+    @Query('language') language?: string,
+  ) {
     const normalizedDay = (day ?? 'today').trim().toLowerCase();
 
     if (!['yesterday', 'today', 'tomorrow'].includes(normalizedDay)) {
@@ -54,6 +58,7 @@ export class DailyinsightController {
     return this.dailyInsightService.getNakshatraDailyInsight(
       user.sub as string,
       normalizedDay as DailyInsightDay,
+      language,
     );
   }
 }

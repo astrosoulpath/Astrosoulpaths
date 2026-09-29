@@ -1,0 +1,98 @@
+{
+  "project_info": {
+    "project_number": "155926082630",
+    "project_id": "astrosoulpath-95242",
+    "storage_bucket": "astrosoulpath-95242.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:155926082630:android:f40aaef9e9fa670b338647",
+        "android_client_info": {
+          "package_name": "com.astrosoulpath.astro_soul_path"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "155926082630-g6tm47qqkqdsofanumfe3uq6mdaqn0j2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.astrosoulpath.astro_soul_path",
+            "certificate_hash": "cf215eaca8230c17643dce284fd7783a9d0ee368"
+          }
+        },
+        {
+          "client_id": "155926082630-tj25e6nfmemqh25qqnnviq15moooqt5n.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCecBoX5WHXMiPrnxIoo7hfptr6eE02MEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "155926082630-tj25e6nfmemqh25qqnnviq15moooqt5n.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "155926082630-r1jck8ajnm53pp7umhoogms2v9dcf48d.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.astrosoulpath.astroSoulPath"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:155926082630:android:3e3874e030d3e6cb338647",
+        "android_client_info": {
+          "package_name": "com.dimple.android_project"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "155926082630-akh2elb2i9lvngps9llmodi12bgishc1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dimple.android_project",
+            "certificate_hash": "e31c70fa077585a530eff4bc6626922f91eae334"
+          }
+        },
+        {
+          "client_id": "155926082630-tj25e6nfmemqh25qqnnviq15moooqt5n.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCecBoX5WHXMiPrnxIoo7hfptr6eE02MEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "155926082630-tj25e6nfmemqh25qqnnviq15moooqt5n.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "155926082630-r1jck8ajnm53pp7umhoogms2v9dcf48d.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.astrosoulpath.astroSoulPath"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

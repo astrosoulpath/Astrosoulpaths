@@ -1,8 +1,8 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
 
     <style name="LaunchTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowSplashScreenBackground">#020B18</item>
+        <item name="android:windowSplashScreenBackground">#FFFFFF</item>
 
         <item name="android:windowSplashScreenAnimatedIcon">
             @drawable/splash_transparent
@@ -18,7 +18,7 @@
     </style>
 
     <style name="NormalTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">#020B18</item>
+        <item name="android:windowBackground">#FFFFFF</item>
     </style>
 
 </resources>

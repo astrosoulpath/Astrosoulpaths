@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../data/live_api.dart';
 import '../../data/live_models.dart';
 import '../../data/live_rtc_service.dart';
+import '../../data/live_socket_service.dart';
 
 class AstrologerLiveScreen extends StatefulWidget {
   const AstrologerLiveScreen({super.key, this.initialTitle});
@@ -19,12 +20,19 @@ class AstrologerLiveScreen extends StatefulWidget {
 class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
   final LiveApi _api = LiveApi();
   final LiveRtcService _rtc = LiveRtcService();
+  final LiveSocketService _chat = LiveSocketService();
+  final ScrollController _liveMessageScrollController = ScrollController();
+
+  final List<Map<String, dynamic>> _liveMessages = <Map<String, dynamic>>[];
 
   LiveSession? _session;
 
   bool _starting = true;
   bool _ending = false;
   bool _disposed = false;
+
+  Timer? _viewerCountTimer;
+  bool _refreshingViewerCount = false;
 
   String? _error;
 
@@ -35,6 +43,36 @@ class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
     _rtc.onChanged = _handleRtcChanged;
     _rtc.onError = _handleRtcError;
     _rtc.onTokenRenewalRequested = _renewPublisherToken;
+
+    _chat.onMessage = (message) {
+      if (!mounted || _disposed) {
+        return;
+      }
+
+      setState(() {
+        _liveMessages.add(message);
+      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_liveMessageScrollController.hasClients) {
+          _liveMessageScrollController.animateTo(
+            _liveMessageScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    };
+
+    _chat.onError = (message) {
+      if (!mounted || _disposed) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    };
 
     _startLive();
   }
@@ -57,6 +95,54 @@ class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
     });
   }
 
+  void _startViewerCountPolling() {
+    _viewerCountTimer?.cancel();
+
+    unawaited(_refreshViewerCount());
+
+    _viewerCountTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => unawaited(_refreshViewerCount()),
+    );
+  }
+
+  Future<void> _refreshViewerCount() async {
+    if (_refreshingViewerCount || _disposed) {
+      return;
+    }
+
+    final current = _session;
+
+    if (current == null) {
+      return;
+    }
+
+    _refreshingViewerCount = true;
+
+    try {
+      final sessions = await _api.getLiveSessions();
+
+      LiveSession? updated;
+
+      for (final session in sessions) {
+        if (session.id == current.id) {
+          updated = session;
+          break;
+        }
+      }
+
+      if (updated != null && mounted && !_disposed) {
+        setState(() {
+          _session = updated;
+        });
+      }
+    } catch (_) {
+      // Keep LIVE running even if one viewer-count refresh fails.
+    } finally {
+      _refreshingViewerCount = false;
+    }
+  }
+
   Future<void> _startLive() async {
     try {
       final result = await _api.startLive(title: widget.initialTitle);
@@ -71,6 +157,11 @@ class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
         credentials: result.rtc,
         role: LiveRtcRole.broadcaster,
       );
+
+      if (_session != null) {
+        await _chat.connect(_session!.id);
+        _startViewerCountPolling();
+      }
     } catch (error) {
       if (mounted && !_disposed) {
         setState(() {
@@ -208,6 +299,20 @@ class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
     );
   }
 
+  String _liveSenderName(Map<String, dynamic> item) {
+    final sender = item['sender'];
+
+    if (sender is Map) {
+      final name = sender['name']?.toString().trim();
+
+      if (name != null && name.isNotEmpty) {
+        return name;
+      }
+    }
+
+    return 'Viewer';
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -293,6 +398,79 @@ class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
                   ),
                 ),
 
+              if (_liveMessages.isNotEmpty)
+                Positioned(
+                  left: 14,
+                  right: 14,
+                  bottom: 105,
+                  child: Container(
+                    constraints: const BoxConstraints(maxHeight: 190),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.62),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 6),
+                          child: Text(
+                            'LIVE QUESTIONS',
+                            style: TextStyle(
+                              color: Colors.amber,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                        Flexible(
+                          child: ListView.builder(
+                            controller: _liveMessageScrollController,
+                            shrinkWrap: true,
+                            itemCount: _liveMessages.length,
+                            itemBuilder: (context, index) {
+                              final item = _liveMessages[index];
+                              final sender = _liveSenderName(item);
+                              final message =
+                                  item['message']?.toString().trim() ?? '';
+
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 3,
+                                ),
+                                child: Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: '$sender: ',
+                                        style: const TextStyle(
+                                          color: Colors.amber,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: message,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               Positioned(
                 left: 12,
                 right: 12,
@@ -344,6 +522,8 @@ class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
     _rtc.onTokenRenewalRequested = null;
 
     unawaited(_rtc.dispose());
+    unawaited(_chat.dispose());
+    _liveMessageScrollController.dispose();
 
     _api.close();
 

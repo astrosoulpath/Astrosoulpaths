@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -13,11 +13,15 @@ class AstrologerDetailExtras extends StatefulWidget {
   const AstrologerDetailExtras({
     required this.astrologer,
     required this.onAstrologerTap,
+    this.showReviews = true,
+    this.showSimilar = true,
     super.key,
   });
 
   final PublicAstrologer astrologer;
   final ValueChanged<String> onAstrologerTap;
+  final bool showReviews;
+  final bool showSimilar;
 
   @override
   State<AstrologerDetailExtras> createState() => _AstrologerDetailExtrasState();
@@ -442,6 +446,7 @@ class _ReviewCard extends StatelessWidget {
       code.codeUnits.map((char) => 0x1F1E6 + char - 65),
     );
   }
+
   String get _consultationLabel {
     final mode = review.consultationType.toLowerCase();
     if (mode == 'chat') return 'Chat';
@@ -462,8 +467,18 @@ class _ReviewCard extends StatelessWidget {
     if (date == null) return '';
 
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
 
     return '${date.day} ${months[date.month - 1]} ${date.year}';
@@ -549,10 +564,7 @@ class _ReviewCard extends StatelessWidget {
               if (_dateLabel.isNotEmpty)
                 Text(
                   _dateLabel,
-                  style: const TextStyle(
-                    color: AppColors.muted,
-                    fontSize: 11,
-                  ),
+                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
                 ),
             ],
           ),
@@ -560,10 +572,7 @@ class _ReviewCard extends StatelessWidget {
           const SizedBox(height: 12),
 
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 6,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(20),
@@ -572,11 +581,7 @@ class _ReviewCard extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  _consultationIcon,
-                  size: 14,
-                  color: AppColors.gold,
-                ),
+                Icon(_consultationIcon, size: 14, color: AppColors.gold),
                 const SizedBox(width: 6),
                 Text(
                   _consultationLabel,
@@ -606,6 +611,7 @@ class _ReviewCard extends StatelessWidget {
     );
   }
 }
+
 class _SimilarAstrologerCard extends StatelessWidget {
   const _SimilarAstrologerCard({required this.astrologer, required this.onTap});
 
@@ -696,5 +702,3 @@ class _SimilarAstrologerCard extends StatelessWidget {
     );
   }
 }
-
-

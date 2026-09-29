@@ -1,3 +1,4 @@
+import '../widgets/ai_astro_avatar.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/ai_astro_api.dart';
@@ -166,7 +167,7 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
               leading: Padding(
                 padding: const EdgeInsets.only(left: 16),
                 child: Material(
-                  color: const Color(0xFFFFFFFF),
+                  color: const Color(0xFF14213D),
                   shape: const CircleBorder(),
                   child: InkWell(
                     customBorder: const CircleBorder(),
@@ -187,7 +188,7 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
               title: const Text(
                 'AI Astro',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFF14213D),
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
                 ),
@@ -228,7 +229,7 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
                           const Text(
                             'Choose your AI Specialist',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: Color(0xFF14213D),
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
                             ),
@@ -290,7 +291,7 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
                                               size: 20,
                                               color: selected
                                                   ? const Color(0xFF14213D)
-                                                  : const Color(0xFFC9B8FF),
+                                                  : const Color(0xFF7551C9),
                                             ),
                                             const SizedBox(width: 8),
                                             Expanded(
@@ -303,7 +304,7 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
                                                   fontWeight: FontWeight.w800,
                                                   color: selected
                                                       ? const Color(0xFF14213D)
-                                                      : Colors.white,
+                                                      : const Color(0xFF14213D),
                                                 ),
                                               ),
                                             ),
@@ -353,6 +354,8 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
                     },
                   ),
                 ),
+
+                const SliverToBoxAdapter(child: _AiAstroGuidanceFooter()),
               ],
             ],
           ),
@@ -536,7 +539,7 @@ class _HeaderCard extends StatelessWidget {
                     Icon(
                       Icons.auto_awesome_rounded,
                       size: 52,
-                      color: Color(0xFFE9C3FF),
+                      color: Color(0xFF7551C9),
                     ),
                     Positioned(
                       top: 14,
@@ -552,7 +555,7 @@ class _HeaderCard extends StatelessWidget {
                       child: Icon(
                         Icons.star_border_rounded,
                         size: 17,
-                        color: Color(0xFFE9C3FF),
+                        color: Color(0xFF7551C9),
                       ),
                     ),
                   ],
@@ -598,7 +601,7 @@ class _HeaderCard extends StatelessWidget {
                       child: Text(
                         'AI Astro',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: Color(0xFF14213D),
                           fontSize: 27,
                           letterSpacing: -0.4,
                           fontWeight: FontWeight.w900,
@@ -672,7 +675,7 @@ class _HeaderCard extends StatelessWidget {
                       Icon(
                         Icons.stars_rounded,
                         size: 16,
-                        color: Color(0xFFD09AF1),
+                        color: Color(0xFF7551C9),
                       ),
                       SizedBox(width: 8),
                       Expanded(
@@ -781,7 +784,10 @@ class _PersonaCard extends StatelessWidget {
                               );
                             },
                           )
-                        : _PremiumAvatarFallback(initials: persona.initials),
+                        : AiAstroAvatar(
+                            personaName: persona.name,
+                            initials: persona.initials,
+                          ),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -794,7 +800,7 @@ class _PersonaCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: Color(0xFF14213D),
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
                         ),
@@ -805,7 +811,7 @@ class _PersonaCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFFC092E8),
+                          color: Color(0xFF7551C9),
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -828,7 +834,7 @@ class _PersonaCard extends StatelessWidget {
                               Text(
                                 persona.rating.toStringAsFixed(1),
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: Color(0xFF14213D),
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -838,7 +844,7 @@ class _PersonaCard extends StatelessWidget {
                           Text(
                             '${persona.experience} yr exp',
                             style: const TextStyle(
-                              color: Color(0xFFAAA6BE),
+                              color: Color(0xFF6F7280),
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),
@@ -851,7 +857,7 @@ class _PersonaCard extends StatelessWidget {
                                 size: 8,
                                 color: persona.available
                                     ? const Color(0xFF54D99B)
-                                    : const Color(0xFF777F96),
+                                    : const Color(0xFF6F7280),
                               ),
                               const SizedBox(width: 5),
                               Text(
@@ -859,7 +865,7 @@ class _PersonaCard extends StatelessWidget {
                                 style: TextStyle(
                                   color: persona.available
                                       ? const Color(0xFF54D99B)
-                                      : const Color(0xFF9297A8),
+                                      : const Color(0xFF6F7280),
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -953,9 +959,139 @@ class _PremiumAvatarFallback extends StatelessWidget {
           Text(
             initials,
             style: const TextStyle(
-              color: Colors.white,
+              color: Color(0xFF14213D),
               fontSize: 18,
               fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiAstroGuidanceFooter extends StatelessWidget {
+  const _AiAstroGuidanceFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 30, 20, 34),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 96,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 230,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(
+                      color: const Color(0xFFF4C542).withValues(alpha: 0.30),
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 150,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(
+                      color: const Color(0xFFF4C542).withValues(alpha: 0.45),
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFFFFDE78), Color(0xFFF4B92F)],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFF4C542).withValues(alpha: 0.20),
+                        blurRadius: 18,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.wb_sunny_rounded,
+                    color: Color(0xFFFFFFFF),
+                    size: 27,
+                  ),
+                ),
+                const Positioned(
+                  left: 28,
+                  top: 47,
+                  child: Icon(
+                    Icons.nightlight_round,
+                    color: Color(0xFFF4C542),
+                    size: 24,
+                  ),
+                ),
+                const Positioned(
+                  right: 30,
+                  top: 17,
+                  child: Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Color(0xFFF4C542),
+                    size: 18,
+                  ),
+                ),
+                const Positioned(
+                  right: 52,
+                  bottom: 8,
+                  child: Icon(
+                    Icons.star_rounded,
+                    color: Color(0xFFFFD86B),
+                    size: 14,
+                  ),
+                ),
+                const Positioned(
+                  left: 58,
+                  top: 8,
+                  child: Icon(
+                    Icons.star_rounded,
+                    color: Color(0xFFFFD86B),
+                    size: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Guidance for a brighter you',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0xFF14213D),
+              fontSize: 18,
+              height: 1.2,
+              fontWeight: FontWeight.w600,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: 76,
+            height: 2,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(99),
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0x00F4C542),
+                  Color(0xFFF4C542),
+                  Color(0x00F4C542),
+                ],
+              ),
             ),
           ),
         ],

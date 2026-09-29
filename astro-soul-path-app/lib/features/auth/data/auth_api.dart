@@ -167,6 +167,51 @@ class AuthApi {
     );
   }
 
+  Future<VerifyOtpResult> emailPasswordLogin({
+    required String email,
+    required String password,
+  }) async {
+    final body = await _post(
+      endpoint: '/auth/email/login',
+      payload: {'email': email.trim().toLowerCase(), 'password': password},
+      fallbackError: 'Email login failed.',
+    );
+
+    final user = _readMap(body['user']);
+    final session = _readMap(body['session']);
+
+    final accessToken =
+        body['accessToken']?.toString() ??
+        session['accessToken']?.toString() ??
+        '';
+
+    final role = body['role']?.toString() ?? user['role']?.toString() ?? '';
+
+    final responsePortal =
+        body['portal']?.toString() ?? user['portal']?.toString() ?? '';
+
+    final nextStep = body['nextStep']?.toString() ?? '';
+
+    if (accessToken.isEmpty ||
+        role.isEmpty ||
+        responsePortal.isEmpty ||
+        nextStep.isEmpty) {
+      throw const AuthApiException(
+        'The server returned an incomplete email login response.',
+      );
+    }
+
+    return VerifyOtpResult(
+      message: _readMessage(body, fallback: 'Email login successful.'),
+      portal: responsePortal,
+      role: role,
+      accessToken: accessToken,
+      user: user,
+      session: session,
+      nextStep: nextStep,
+    );
+  }
+
   Future<VerifyOtpResult> googleLogin({
     required String accessToken,
     required String refreshToken,

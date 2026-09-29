@@ -7,6 +7,7 @@ import {
   updateAstrologerStatus,
 } from "@/services/astrologerDashboardService";
 import { KundliToolsPanel } from "./KundliToolsPanel";
+import { AstrologerArticlesPanel } from "./AstrologerArticlesPanel";
 
 export function AstrologerDashboard() {
   const [dashboard, setDashboard] = useState<AstrologerDashboardData | null>(null);
@@ -92,7 +93,7 @@ export function AstrologerDashboard() {
             <div className="mt-8 grid gap-6 md:grid-cols-4">
               <div className="rounded-2xl bg-white p-6 shadow">
                 <h3>Total Earnings</h3>
-                <p className="mt-3 text-3xl font-bold">₹{dashboard.earnings}</p>
+                <p className="mt-3 text-3xl font-bold">â‚¹{dashboard.earnings}</p>
               </div>
 
               <div className="rounded-2xl bg-white p-6 shadow">
@@ -107,7 +108,7 @@ export function AstrologerDashboard() {
 
               <div className="rounded-2xl bg-white p-6 shadow">
                 <h3>Rating</h3>
-                <p className="mt-3 text-3xl font-bold">{dashboard.rating} ⭐</p>
+                <p className="mt-3 text-3xl font-bold">{dashboard.rating} â­</p>
               </div>
             </div>
 
@@ -142,7 +143,7 @@ export function AstrologerDashboard() {
 
                 <div className="rounded-xl border p-4">
                   <p className="font-semibold">Pricing</p>
-                  <p className="text-gray-600">₹{dashboard.pricePerMin}/min</p>
+                  <p className="text-gray-600">â‚¹{dashboard.pricePerMin}/min</p>
                 </div>
 
                 <div className="rounded-xl border p-4">
@@ -175,7 +176,7 @@ export function AstrologerDashboard() {
               </div>
 
               <div className="rounded-2xl bg-white p-8 shadow">
-                <h2 className="text-2xl font-bold">Today’s Schedule</h2>
+                <h2 className="text-2xl font-bold">Todayâ€™s Schedule</h2>
                 <p className="mt-4 text-gray-500">
                   {dashboard.todaySchedule.length === 0
                     ? "No scheduled sessions yet."
@@ -183,6 +184,8 @@ export function AstrologerDashboard() {
                 </p>
               </div>
             </div>
+
+            <AstrologerArticlesPanel />
 
             <KundliToolsPanel />
           </>

@@ -32,11 +32,17 @@ class MarketplacePublicApi {
     String? search,
     String? categoryId,
     bool featuredOnly = false,
+    String? countryCode,
   }) async {
     final query = <String, String>{};
 
     final normalizedSearch = search?.trim() ?? '';
     final normalizedCategoryId = categoryId?.trim() ?? '';
+    final normalizedCountryCode = countryCode?.trim().toUpperCase() ?? '';
+
+    if (normalizedCountryCode.isNotEmpty) {
+      query['countryCode'] = normalizedCountryCode;
+    }
 
     if (normalizedSearch.isNotEmpty) {
       query['search'] = normalizedSearch;
@@ -58,8 +64,12 @@ class MarketplacePublicApi {
     return _extractList(body);
   }
 
-  Future<Map<String, dynamic>> getProduct(String id) async {
+  Future<Map<String, dynamic>> getProduct(
+    String id, {
+    String? countryCode,
+  }) async {
     final normalizedId = id.trim();
+    final normalizedCountryCode = countryCode?.trim().toUpperCase() ?? '';
 
     if (normalizedId.isEmpty) {
       throw const MarketplacePublicApiException(
@@ -67,10 +77,13 @@ class MarketplacePublicApi {
       );
     }
 
-    final body = await _get(
-      '/marketplace/products/$normalizedId',
-      const <String, String>{},
-    );
+    final query = <String, String>{};
+
+    if (normalizedCountryCode.isNotEmpty) {
+      query['countryCode'] = normalizedCountryCode;
+    }
+
+    final body = await _get('/marketplace/products/$normalizedId', query);
 
     final data = body['data'];
 

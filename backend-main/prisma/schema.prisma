@@ -9,6 +9,8 @@ datasource db {
 }
 
 model User {
+  astrologerFollows       AstrologerFollow[]               @relation("UserAstrologerFollows")
+  aiAstroFollows          AiAstroFollow[]                  @relation("UserAiAstroFollows")
   id                      String                           @id @default(uuid())
   supabaseId              String                           @unique
   phone                   String?                          @unique
@@ -57,6 +59,7 @@ model User {
   qualificationAttempts   AstrologerQualificationAttempt[]
   e2eeDevices             ChatEncryptionDevice[]
   liveViews               LiveViewer[]
+  liveMessages            LiveMessage[]
   aiAstroUsages           AiAstroUsage[]
   aiAstroConversations    AiAstroConversation[]
   appNotifications        AppNotification[]
@@ -111,6 +114,7 @@ model UserAuthIdentity {
 }
 
 model Astrologer {
+  followers                AstrologerFollow[]         @relation("AstrologerFollowers")
   availabilities           AstrologerAvailability[]
   id                       String                     @id @default(uuid())
   userId                   String                     @unique
@@ -1049,20 +1053,35 @@ model AiReceptionistMessage {
 }
 
 model LiveSession {
-  id           String       @id @default(cuid())
+  id           String        @id @default(cuid())
   astrologerId String
-  channelName  String       @unique
+  channelName  String        @unique
   title        String?
-  status       String       @default("LIVE")
-  startedAt    DateTime     @default(now())
+  status       String        @default("LIVE")
+  startedAt    DateTime      @default(now())
   endedAt      DateTime?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  astrologer   Astrologer   @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  astrologer   Astrologer    @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
   viewers      LiveViewer[]
+  messages     LiveMessage[]
 
   @@index([astrologerId, status])
   @@index([status, startedAt])
+}
+
+model LiveMessage {
+  id            String   @id @default(cuid())
+  liveSessionId String
+  userId        String
+  message       String
+  createdAt     DateTime @default(now())
+
+  liveSession LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([liveSessionId, createdAt])
+  @@index([userId])
 }
 
 model LiveViewer {
@@ -1114,6 +1133,7 @@ model AiAstroUsage {
 
   userId             String
   astrologerId       String?
+  personaId          String?
   clientRequestId    String
   category           String
   consultantTypeCode String?
@@ -1145,6 +1165,7 @@ model AiAstroConversation {
 
   userId             String
   astrologerId       String?
+  personaId          String?
   consultantTypeCode String?
 
   startingCategory String
@@ -2054,6 +2075,44 @@ model AppTranslation {
 // Backend-authoritative catalog for AI consultation specialties.
 // Do not hardcode consultant catalog in mobile/web clients.
 // ============================================================
+
+// ============================================================
+// DEDICATED AI ASTRO PERSONA MASTER
+// Independent from real human Astrologer accounts.
+// ============================================================
+model AiAstroPersona {
+  followers   AiAstroFollow[] @relation("AiAstroPersonaFollowers")
+  id          String          @id @default(cuid())
+  code        String          @unique
+  name        String
+  subtitle    String
+  description String          @db.Text
+  avatarUrl   String?
+  initials    String?
+
+  categories String[]
+  languages  String[] @default(["English", "Hindi"])
+  expertise  String[] @default([])
+
+  rating       Float @default(5)
+  totalReviews Int   @default(0)
+  experience   Int   @default(0)
+
+  isEnabled Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  pricingMode    String   @default("PER_MINUTE")
+  isFree         Boolean  @default(false)
+  pricePerMinute Decimal? @db.Decimal(12, 2)
+  currency       String   @default("INR")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isEnabled, sortOrder])
+  @@map("ai_astro_personas")
+}
+
 model AiConsultantType {
   code           String   @id
   name           String
@@ -2077,6 +2136,7 @@ model AiAstroSession {
 
   userId             String
   astrologerId       String?
+  personaId          String?
   consultantTypeCode String
 
   pricingMode   String  @default("PER_MINUTE")
@@ -2199,4 +2259,131 @@ model AstrologyQuestionAnswerCache {
   @@index([userId, createdAt])
   @@index([questionId])
   @@map("astrology_question_answer_cache")
+}
+
+model AstrologyVideo {
+  id                  String                      @id @default(uuid())
+  youtubeUrl          String
+  youtubeVideoId      String                      @unique
+  thumbnailUrl        String?
+  category            String                      @default("ASTROLOGY_LESSONS")
+  defaultLocale       String                      @default("en")
+  visibilityCountries String[]                    @default([])
+  isFeatured          Boolean                     @default(false)
+  isPublished         Boolean                     @default(false)
+  sortOrder           Int                         @default(0)
+  createdByAdminId    String?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  translations        AstrologyVideoTranslation[]
+
+  @@index([isPublished, sortOrder])
+  @@index([category, isPublished])
+}
+
+model AstrologyVideoTranslation {
+  id               String         @id @default(uuid())
+  videoId          String
+  locale           String
+  title            String
+  shortDescription String?
+  description      String?        @db.Text
+  captionUrl       String?
+  audioLocale      String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  video            AstrologyVideo @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([videoId, locale])
+  @@index([locale])
+}
+
+model AstrologyArticle {
+  id                  String    @id @default(uuid())
+  slug                String    @unique
+  coverImageUrl       String?
+  category            String    @default("ASTROLOGY")
+  festivalTags        String[]  @default([])
+  defaultLocale       String    @default("en")
+  visibilityCountries String[]  @default([])
+  isFeatured          Boolean   @default(false)
+  isPublished         Boolean   @default(false)
+  sortOrder           Int       @default(0)
+  publishedAt         DateTime?
+  createdByAdminId    String?
+
+  authorType              ArticleAuthorType             @default(ADMIN)
+  status                  ArticlePublicationStatus      @default(DRAFT)
+  submittedByAstrologerId String?
+  submittedAt             DateTime?
+  reviewedByAdminId       String?
+  reviewedAt              DateTime?
+  reviewNote              String?                       @db.Text
+  createdAt               DateTime                      @default(now())
+  updatedAt               DateTime                      @updatedAt
+  translations            AstrologyArticleTranslation[]
+
+  @@index([isPublished, sortOrder])
+  @@index([category, isPublished])
+  @@index([status, sortOrder])
+  @@index([publishedAt])
+}
+
+model AstrologyArticleTranslation {
+  id              String           @id @default(uuid())
+  articleId       String
+  locale          String
+  title           String
+  excerpt         String?          @db.Text
+  contentMarkdown String           @db.Text
+  authorName      String?
+  readingMinutes  Int              @default(3)
+  seoTitle        String?
+  seoDescription  String?          @db.Text
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  article         AstrologyArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, locale])
+  @@index([locale])
+}
+
+enum ArticlePublicationStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+}
+
+enum ArticleAuthorType {
+  ADMIN
+  ASTROLOGER
+}
+
+model AstrologerFollow {
+  id           String   @id @default(uuid())
+  followerId   String
+  astrologerId String
+  createdAt    DateTime @default(now())
+
+  follower   User       @relation("UserAstrologerFollows", fields: [followerId], references: [id], onDelete: Cascade)
+  astrologer Astrologer @relation("AstrologerFollowers", fields: [astrologerId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, astrologerId])
+  @@index([followerId])
+  @@index([astrologerId])
+}
+
+model AiAstroFollow {
+  id         String   @id @default(uuid())
+  followerId String
+  personaId  String
+  createdAt  DateTime @default(now())
+
+  follower User           @relation("UserAiAstroFollows", fields: [followerId], references: [id], onDelete: Cascade)
+  persona  AiAstroPersona @relation("AiAstroPersonaFollowers", fields: [personaId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, personaId])
+  @@index([followerId])
+  @@index([personaId])
 }

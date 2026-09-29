@@ -642,365 +642,373 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
   }
 
   Widget _buildKundliEntryForm() {
-    return Form(
-      key: _formKey,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 36),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.background, AppColors.surfaceLight],
-              ),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0x55F4C45E)),
-            ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.auto_awesome_rounded,
-                  color: AppColors.gold,
-                  size: 34,
+    return Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/stickers/kundli_ai_bg.png'),
+          fit: BoxFit.cover,
+          alignment: Alignment.topCenter,
+        ),
+      ),
+      child: Container(
+        decoration: const BoxDecoration(color: Color(0x08FFF8EE)),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 36),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppColors.background, AppColors.surfaceLight],
+                  ),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: const Color(0x55F4C45E)),
                 ),
-                SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Kundli AI',
-                        style: TextStyle(
-                          color: AppColors.white,
-                          fontSize: 23,
-                          fontWeight: FontWeight.w900,
-                        ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      color: AppColors.gold,
+                      size: 34,
+                    ),
+                    SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Kundli AI',
+                            style: TextStyle(
+                              color: AppColors.white,
+                              fontSize: 23,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Enter accurate birth details to generate your Vedic Kundli and AI-guided interpretation.',
+                            style: TextStyle(
+                              color: AppColors.muted,
+                              height: 1.45,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 6),
-                      Text(
-                        'Enter accurate birth details to generate your Vedic Kundli and AI-guided interpretation.',
-                        style: TextStyle(
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              TextFormField(
+                controller: _nameController,
+                textCapitalization: TextCapitalization.words,
+                decoration: _kundliFieldDecoration(
+                  label: 'Name',
+                  icon: Icons.person_outline_rounded,
+                  hint: 'Enter your full name',
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Name is required';
+                  }
+
+                  return null;
+                },
+              ),
+
+              const SizedBox(height: 14),
+
+              DropdownButtonFormField<String>(
+                initialValue: _gender,
+                dropdownColor: AppColors.surface,
+                style: const TextStyle(
+                  color: AppColors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+                decoration: _kundliFieldDecoration(
+                  label: 'Gender',
+                  icon: Icons.wc_rounded,
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'MALE', child: Text('Male')),
+                  DropdownMenuItem(value: 'FEMALE', child: Text('Female')),
+                  DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                ],
+                onChanged: _isGenerating
+                    ? null
+                    : (value) {
+                        if (value == null) {
+                          return;
+                        }
+
+                        setState(() {
+                          _gender = value;
+                        });
+                      },
+              ),
+
+              const SizedBox(height: 14),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _dobController,
+                      readOnly: true,
+                      onTap: _isGenerating ? null : _pickDate,
+                      decoration: _kundliFieldDecoration(
+                        label: 'Date of Birth',
+                        icon: Icons.calendar_today_outlined,
+                        hint: 'YYYY-MM-DD',
+                      ),
+                      validator: (value) {
+                        if (value == null ||
+                            DateTime.tryParse(value.trim()) == null) {
+                          return 'DOB required';
+                        }
+
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _tobController,
+                      readOnly: true,
+                      onTap: _isGenerating ? null : _pickTime,
+                      decoration: _kundliFieldDecoration(
+                        label: 'Time of Birth',
+                        icon: Icons.schedule_outlined,
+                        hint: 'HH:mm',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'TOB required';
+                        }
+
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              TextFormField(
+                controller: _placeController,
+                enabled: !_isGenerating,
+                onChanged: _onPlaceChanged,
+                decoration: _kundliFieldDecoration(
+                  label: 'Place of Birth',
+                  icon: Icons.location_on_outlined,
+                  hint: 'Type your birth city',
+                  suffixIcon: _isSearchingPlace
+                      ? const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.gold,
+                            ),
+                          ),
+                        )
+                      : _locationResolved
+                      ? const Icon(
+                          Icons.verified_rounded,
+                          color: AppColors.gold,
+                        )
+                      : const Icon(
+                          Icons.search_rounded,
                           color: AppColors.muted,
-                          height: 1.45,
-                          fontSize: 12.5,
+                        ),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Birth place is required';
+                  }
+
+                  return null;
+                },
+              ),
+
+              if (_geoSuggestions.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: AppColors.gold.withValues(alpha: 0.18),
+                    ),
+                  ),
+                  child: Column(
+                    children: _geoSuggestions.map((suggestion) {
+                      return InkWell(
+                        onTap: () => _selectGeoSuggestion(suggestion),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.location_on_rounded,
+                                color: AppColors.gold,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      suggestion.fullName,
+                                      style: const TextStyle(
+                                        color: AppColors.white,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${suggestion.countryCode}  |  '
+                                      '${suggestion.timezoneName}',
+                                      style: const TextStyle(
+                                        color: AppColors.muted,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.chevron_right_rounded,
+                                color: AppColors.muted,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+
+              if (_locationResolved) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.gold.withValues(alpha: 0.15),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.verified_user_outlined,
+                        color: AppColors.gold,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Verified location  |  '
+                          '$_timezoneName  |  '
+                          '${_latitude.toStringAsFixed(4)}, '
+                          '${_longitude.toStringAsFixed(4)}',
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 11.5,
+                            height: 1.4,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
               ],
-            ),
-          ),
 
-          const SizedBox(height: 20),
+              const SizedBox(height: 14),
 
-          TextFormField(
-            controller: _nameController,
-            textCapitalization: TextCapitalization.words,
-            decoration: _kundliFieldDecoration(
-              label: 'Name',
-              icon: Icons.person_outline_rounded,
-              hint: 'Enter your full name',
-            ),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Name is required';
-              }
-
-              return null;
-            },
-          ),
-
-          const SizedBox(height: 14),
-
-          DropdownButtonFormField<String>(
-            initialValue: _gender,
-            dropdownColor: AppColors.surface,
-            style: const TextStyle(
-              color: AppColors.white,
-              fontWeight: FontWeight.w700,
-            ),
-            decoration: _kundliFieldDecoration(
-              label: 'Gender',
-              icon: Icons.wc_rounded,
-            ),
-            items: const [
-              DropdownMenuItem(value: 'MALE', child: Text('Male')),
-              DropdownMenuItem(value: 'FEMALE', child: Text('Female')),
-              DropdownMenuItem(value: 'OTHER', child: Text('Other')),
-            ],
-            onChanged: _isGenerating
-                ? null
-                : (value) {
-                    if (value == null) {
-                      return;
-                    }
-
-                    setState(() {
-                      _gender = value;
-                    });
-                  },
-          ),
-
-          const SizedBox(height: 14),
-
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: _dobController,
-                  readOnly: true,
-                  onTap: _isGenerating ? null : _pickDate,
-                  decoration: _kundliFieldDecoration(
-                    label: 'Date of Birth',
-                    icon: Icons.calendar_today_outlined,
-                    hint: 'YYYY-MM-DD',
-                  ),
-                  validator: (value) {
-                    if (value == null ||
-                        DateTime.tryParse(value.trim()) == null) {
-                      return 'DOB required';
-                    }
-
-                    return null;
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextFormField(
-                  controller: _tobController,
-                  readOnly: true,
-                  onTap: _isGenerating ? null : _pickTime,
-                  decoration: _kundliFieldDecoration(
-                    label: 'Time of Birth',
-                    icon: Icons.schedule_outlined,
-                    hint: 'HH:mm',
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'TOB required';
-                    }
-
-                    return null;
-                  },
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 14),
-
-          TextFormField(
-            controller: _placeController,
-            enabled: !_isGenerating,
-            onChanged: _onPlaceChanged,
-            decoration: _kundliFieldDecoration(
-              label: 'Place of Birth',
-              icon: Icons.location_on_outlined,
-              hint: 'Type your birth city',
-              suffixIcon: _isSearchingPlace
-                  ? const Padding(
-                      padding: EdgeInsets.all(14),
-                      child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.gold,
-                        ),
-                      ),
-                    )
-                  : _locationResolved
-                  ? const Icon(Icons.verified_rounded, color: AppColors.gold)
-                  : const Icon(Icons.search_rounded, color: AppColors.muted),
-            ),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Birth place is required';
-              }
-
-              return null;
-            },
-          ),
-
-          if (_geoSuggestions.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: AppColors.gold.withValues(alpha: 0.18),
-                ),
-              ),
-              child: Column(
-                children: _geoSuggestions.map((suggestion) {
-                  return InkWell(
-                    onTap: () => _selectGeoSuggestion(suggestion),
-                    borderRadius: BorderRadius.circular(16),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.location_on_rounded,
-                            color: AppColors.gold,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  suggestion.fullName,
-                                  style: const TextStyle(
-                                    color: AppColors.white,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${suggestion.countryCode}  |  '
-                                  '${suggestion.timezoneName}',
-                                  style: const TextStyle(
-                                    color: AppColors.muted,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Icon(
-                            Icons.chevron_right_rounded,
-                            color: AppColors.muted,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-
-          if (_locationResolved) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: AppColors.gold.withValues(alpha: 0.15),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.verified_user_outlined,
-                    color: AppColors.gold,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Verified location  |  '
-                      '$_timezoneName  |  '
-                      '${_latitude.toStringAsFixed(4)}, '
-                      '${_longitude.toStringAsFixed(4)}',
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 11.5,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          const SizedBox(height: 14),
-
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.gold.withValues(alpha: 0.15)),
-            ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.lock_outline_rounded, color: AppColors.gold),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Verified birth details are saved to your profile before calculation so your Vedic Kundli, AI interpretation and PDF always use the same accurate data.',
-                    style: TextStyle(
-                      color: AppColors.muted,
-                      fontSize: 11.5,
-                      height: 1.45,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 18),
-
-          SizedBox(
-            height: 54,
-            child: FilledButton(
-              onPressed: _isGenerating ? null : _saveAndShowKundli,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.gold,
-                foregroundColor: AppColors.background,
-                shape: RoundedRectangleBorder(
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppColors.gold.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.lock_outline_rounded, color: AppColors.gold),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Verified birth details are saved to your profile before calculation so your Vedic Kundli, AI interpretation and PDF always use the same accurate data.',
+                        style: TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 11.5,
+                          height: 1.45,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: _isGenerating
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.4,
-                        color: AppColors.background,
-                      ),
-                    )
-                  : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.auto_awesome_rounded),
-                        SizedBox(width: 9),
-                        Text(
-                          'SHOW KUNDLI',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ],
+
+              const SizedBox(height: 18),
+
+              SizedBox(
+                height: 54,
+                child: FilledButton(
+                  onPressed: _isGenerating ? null : _saveAndShowKundli,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.gold,
+                    foregroundColor: AppColors.background,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
-            ),
+                  ),
+                  child: _isGenerating
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            color: AppColors.background,
+                          ),
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.auto_awesome_rounded),
+                            SizedBox(width: 9),
+                            Text(
+                              'SHOW KUNDLI',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ],
           ),
-
-          const SizedBox(height: 12),
-
-          const Text(
-            'Planetary calculations are generated by the configured Vedic astrology provider. AI is used for grounded interpretation, not for inventing planetary positions.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.muted,
-              height: 1.45,
-              fontSize: 10.8,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1403,7 +1411,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                       Text(
                         block,
                         style: const TextStyle(
-                          color: AppColors.white,
+                          color: Colors.white,
                           fontSize: 14,
                           height: 1.62,
                           fontWeight: FontWeight.w500,
@@ -1471,13 +1479,6 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
         const SizedBox(height: 12),
 
-        _buildVerifiedChartExplanation(
-          title: 'D1 Rasi Explanation',
-          subtitle:
-              'Birth-chart foundation based only on verified backend chart fields.',
-          explanation: report.d1Explanation,
-        ),
-
         const SizedBox(height: 18),
 
         _buildChartCard(
@@ -1489,13 +1490,6 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
         ),
 
         const SizedBox(height: 12),
-
-        _buildVerifiedChartExplanation(
-          title: 'D9 Navamsa Explanation',
-          subtitle:
-              'Navamsa summary based only on verified backend chart fields.',
-          explanation: report.d9Explanation,
-        ),
 
         const SizedBox(height: 24),
       ],
@@ -1795,6 +1789,148 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
     );
   }
 
+  String _compactChartPlanetName(dynamic value) {
+    final raw = _kundliText(value).trim();
+    if (raw == '-' || raw.isEmpty) return '';
+
+    final normalized = raw.toLowerCase();
+
+    const abbreviations = <String, String>{
+      'ascendant': 'Asc',
+      'lagna': 'Asc',
+      'sun': 'Su',
+      'moon': 'Mo',
+      'mars': 'Ma',
+      'mercury': 'Me',
+      'jupiter': 'Ju',
+      'venus': 'Ve',
+      'saturn': 'Sa',
+      'rahu': 'Ra',
+      'ketu': 'Ke',
+    };
+
+    return abbreviations[normalized] ?? raw;
+  }
+
+  String _compactChartSignName(
+    Map<String, dynamic> planet,
+    Map<int, String> rasiNames,
+  ) {
+    final direct = _kundliText(planet['rasi'] ?? planet['sign']).trim();
+
+    if (direct.isNotEmpty && direct != '-') {
+      return direct;
+    }
+
+    final rawNumber = planet['rasi_no'] ?? planet['sign_no'];
+    final number = rawNumber is num
+        ? rawNumber.toInt()
+        : int.tryParse(rawNumber?.toString() ?? '');
+
+    if (number == null) return '';
+
+    return rasiNames[number] ?? '';
+  }
+
+  Map<String, List<String>> _compactChartGroups(
+    List<Map<String, dynamic>> placements,
+    Map<int, String> rasiNames,
+  ) {
+    final groups = <String, List<String>>{};
+
+    for (final planet in placements) {
+      final name = _compactChartPlanetName(
+        planet['full_name'] ?? planet['planet_name'] ?? planet['name'],
+      );
+
+      final sign = _compactChartSignName(planet, rasiNames);
+
+      if (name.isEmpty || sign.isEmpty) continue;
+
+      groups.putIfAbsent(sign, () => <String>[]);
+
+      if (!groups[sign]!.contains(name)) {
+        groups[sign]!.add(name);
+      }
+    }
+
+    return groups;
+  }
+
+  String _compactChartLine(String sign, List<String> planets) {
+    if (planets.isEmpty) {
+      return '[$sign]';
+    }
+
+    return '[$sign: ${planets.join(' ')}]';
+  }
+
+  Widget _buildCompactChartPlacements(
+    List<Map<String, dynamic>> placements,
+    Map<int, String> rasiNames,
+  ) {
+    final groups = _compactChartGroups(placements, rasiNames);
+
+    if (groups.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    const zodiacOrder = <String>[
+      'Aries',
+      'Taurus',
+      'Gemini',
+      'Cancer',
+      'Leo',
+      'Virgo',
+      'Libra',
+      'Scorpio',
+      'Sagittarius',
+      'Capricorn',
+      'Aquarius',
+      'Pisces',
+    ];
+
+    final orderedSigns = <String>[
+      ...zodiacOrder.where(groups.containsKey),
+      ...groups.keys.where((sign) => !zodiacOrder.contains(sign)),
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.24)),
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: orderedSigns.map((sign) {
+          final planets = groups[sign] ?? const <String>[];
+
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.18)),
+            ),
+            child: Text(
+              _compactChartLine(sign, planets),
+              style: const TextStyle(
+                color: AppColors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                height: 1.25,
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   Widget _buildChartCard({
     required String title,
     required IconData icon,
@@ -2009,119 +2145,10 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
           const SizedBox(height: 16),
 
-          if (explicitHouses.isNotEmpty)
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: explicitHouses.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: 1.65,
-              ),
-              itemBuilder: (context, index) {
-                final house = explicitHouses[index];
-
-                final houseNumber = house['house'] ?? house['house_no'];
-
-                final rasiNoRaw = house['rasi_no'] ?? house['sign_no'];
-
-                final rasiNo = rasiNoRaw is num
-                    ? rasiNoRaw.toInt()
-                    : int.tryParse(rasiNoRaw?.toString() ?? '');
-
-                final sign = _kundliText(house['sign']) != '-'
-                    ? _kundliText(house['sign'])
-                    : (rasiNo == null ? '-' : (rasiNames[rasiNo] ?? '-'));
-
-                final housePlanets = visiblePlacements
-                    .where((planet) => planet['house'] == houseNumber)
-                    .map(
-                      (planet) =>
-                          _kundliText(planet['full_name'] ?? planet['name']),
-                    )
-                    .where((name) => name != '-')
-                    .join(', ');
-
-                return _buildKundliPlacementTile(
-                  heading: 'House ${_kundliText(houseNumber)}',
-                  sign: sign,
-                  planets: housePlanets,
-                );
-              },
-            )
-          else
-            ...visiblePlacements.map((planet) {
-              final planetName = _kundliText(
-                planet['full_name'] ?? planet['planet_name'] ?? planet['name'],
-              );
-
-              final house = _kundliText(planet['house']);
-
-              final rasiRaw = planet['rasi_no'] ?? planet['sign_no'];
-
-              final rasiNo = rasiRaw is num
-                  ? rasiRaw.toInt()
-                  : int.tryParse(rasiRaw?.toString() ?? '');
-
-              final signName =
-                  _kundliText(planet['rasi'] ?? planet['sign']) != '-'
-                  ? _kundliText(planet['rasi'] ?? planet['sign'])
-                  : (rasiNo == null ? '-' : (rasiNames[rasiNo] ?? '-'));
-
-              final nakshatra = _kundliText(planet['nakshatra']);
-
-              return Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0x334F6FA8)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      planetName,
-                      style: const TextStyle(
-                        color: AppColors.gold,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'House: $house',
-                      style: const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Sign: $signName',
-                      style: const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 12,
-                      ),
-                    ),
-                    if (nakshatra != '-') ...[
-                      const SizedBox(height: 3),
-                      Text(
-                        'Nakshatra: $nakshatra',
-                        style: const TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              );
-            }),
+          if (visiblePlacements.isNotEmpty) ...[
+            _buildCompactChartPlacements(visiblePlacements, rasiNames),
+            const SizedBox(height: 14),
+          ],
         ],
       ),
     );
@@ -2376,8 +2403,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
     final statusText = isInSadeSati == null
         ? 'Status unavailable'
         : isInSadeSati
-        ? 'Currently in Sade Sati'
-        : 'Not currently in Sade Sati';
+        ? 'Active'
+        : 'Not Active';
 
     return Container(
       width: double.infinity,
@@ -2497,9 +2524,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                       [
                         if (transitPhase.isNotEmpty) transitPhase,
                         if (saturnSign.isNotEmpty) saturnSign,
-                      ].join(
-                        ' ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ ',
-                      ),
+                      ].join(' - '),
                       style: const TextStyle(
                         color: AppColors.gold,
                         fontSize: 13,
@@ -2510,7 +2535,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                     if (start.isNotEmpty || end.isNotEmpty) ...[
                       const SizedBox(height: 5),
                       Text(
-                        '$start${start.isNotEmpty && end.isNotEmpty ? '  ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢  ' : ''}$end',
+                        '$start${start.isNotEmpty && end.isNotEmpty ? ' - ' : ''}$end',
                         style: const TextStyle(
                           color: AppColors.muted,
                           fontSize: 11,
@@ -2648,7 +2673,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
             ),
             SizedBox(height: 10),
             Text(
-              'No active important Yoga was reported in your Prokerala Kundli result.',
+              'No active important Yoga was reported in your birth chart.',
               style: TextStyle(
                 color: AppColors.muted,
                 fontSize: 13,
@@ -3384,7 +3409,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                     Text(
                       block,
                       style: const TextStyle(
-                        color: AppColors.white,
+                        color: Colors.white,
                         fontSize: 14,
                         height: 1.6,
                         fontWeight: FontWeight.w500,
@@ -3681,16 +3706,357 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
     );
   }
 
+  String _kundliFriendlyDate(dynamic value) {
+    final raw = value?.toString().trim() ?? '';
+    if (raw.isEmpty) return '';
+
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw;
+
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+
+    return '${months[parsed.month - 1]} ${parsed.year}';
+  }
+
+  String _kundliFriendlyPeriod(dynamic start, dynamic end) {
+    final from = _kundliFriendlyDate(start);
+    final to = _kundliFriendlyDate(end);
+
+    if (from.isEmpty && to.isEmpty) return '';
+    if (from.isEmpty) return 'Until $to';
+    if (to.isEmpty) return 'From $from';
+
+    return '$from - $to';
+  }
+
+  String _kundliFriendlyLabel(dynamic key) {
+    final raw = key?.toString().trim() ?? '';
+    if (raw.isEmpty) return '';
+
+    final normalized = raw
+        .replaceAll('_', ' ')
+        .replaceAllMapped(
+          RegExp(r'([a-z])([A-Z])'),
+          (match) => '${match.group(1)} ${match.group(2)}',
+        )
+        .trim();
+
+    return normalized
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .map(
+          (part) =>
+              '${part.substring(0, 1).toUpperCase()}${part.substring(1).toLowerCase()}',
+        )
+        .join(' ');
+  }
+
+  bool _kundliIsTechnicalField(dynamic key) {
+    final normalized =
+        key
+            ?.toString()
+            .trim()
+            .toLowerCase()
+            .replaceAll('_', '')
+            .replaceAll(' ', '') ??
+        '';
+
+    return <String>{
+      'calculation',
+      'reference',
+      'raw',
+      'debug',
+      'source',
+      'provider',
+      'rule',
+      'id',
+    }.contains(normalized);
+  }
+
+  String _kundliFriendlyStatus(dynamic value) {
+    if (value is bool) {
+      return value ? 'Present' : 'Not present';
+    }
+
+    final raw = value?.toString().trim() ?? '';
+    final normalized = raw.toLowerCase();
+
+    if (normalized == 'true') return 'Present';
+    if (normalized == 'false') return 'Not present';
+
+    return raw;
+  }
+
+  String _kundliFriendlyDoshaName(dynamic key) {
+    final raw = key?.toString().trim() ?? '';
+    final normalized = raw
+        .toLowerCase()
+        .replaceAll('_', '')
+        .replaceAll(' ', '');
+
+    switch (normalized) {
+      case 'mangal':
+      case 'manglik':
+      case 'mangaldosha':
+      case 'manglikdosha':
+        return 'Manglik Dosha';
+
+      case 'kaalsarp':
+      case 'kaalsarpdosha':
+      case 'kalsarp':
+      case 'kalsarpdosha':
+        return 'Kaal Sarp Dosha';
+
+      default:
+        final label = _kundliFriendlyLabel(raw);
+        return label.toLowerCase().endsWith('dosha') ? label : '$label Dosha';
+    }
+  }
+
+  String _kundliSimpleDoshaMeaning(String name, bool present) {
+    if (!present) {
+      return 'No active $name indication was found in this birth chart.';
+    }
+
+    final normalized = name.toLowerCase();
+
+    if (normalized.contains('manglik') || normalized.contains('mangal')) {
+      return 'This chart shows a Manglik influence. In Vedic astrology, '
+          'it is traditionally considered when reviewing relationship '
+          'and marriage compatibility.';
+    }
+
+    if (normalized.contains('kaal') && normalized.contains('sarp')) {
+      return 'This chart shows a Kaal Sarp indication according to the '
+          'available birth-chart calculation.';
+    }
+
+    return 'This influence is present according to the available '
+        'birth-chart calculation.';
+  }
+
+  String _kundliReadableDashaPeriod(Map<String, dynamic> period) {
+    final start =
+        period['start'] ??
+        period['startDate'] ??
+        period['start_date'] ??
+        period['from'];
+
+    final end =
+        period['end'] ??
+        period['endDate'] ??
+        period['end_date'] ??
+        period['to'];
+
+    return _kundliFriendlyPeriod(start, end);
+  }
+
+  String _kundliSimpleDashaMeaning(String lord) {
+    switch (lord.trim().toLowerCase()) {
+      case 'sun':
+        return 'A period traditionally associated with confidence, '
+            'leadership, identity and personal direction.';
+      case 'moon':
+        return 'A period traditionally associated with emotions, home, '
+            'family and inner well-being.';
+      case 'mars':
+        return 'A period traditionally associated with action, courage, '
+            'drive and decisive effort.';
+      case 'mercury':
+        return 'A period traditionally associated with learning, '
+            'communication, business and practical decisions.';
+      case 'jupiter':
+        return 'A period traditionally associated with growth, knowledge, '
+            'guidance and long-term opportunities.';
+      case 'venus':
+        return 'A period traditionally associated with relationships, '
+            'creativity, comfort and personal values.';
+      case 'saturn':
+        return 'A period traditionally associated with responsibility, '
+            'discipline, patience and long-term development.';
+      case 'rahu':
+        return 'A period traditionally associated with ambition, change, '
+            'unconventional opportunities and new experiences.';
+      case 'ketu':
+        return 'A period traditionally associated with introspection, '
+            'detachment, spirituality and inner development.';
+      default:
+        return 'This planetary period describes a major phase in the '
+            'Vimshottari Dasha timeline.';
+    }
+  }
+
+  String _kundliSimpleAntardashaMeaning(String lord) {
+    switch (lord.trim().toLowerCase()) {
+      case 'sun':
+        return 'Focus on confidence, responsibility and personal goals.';
+      case 'moon':
+        return 'Focus on emotions, family, comfort and inner balance.';
+      case 'mars':
+        return 'Focus on action, courage, energy and practical effort.';
+      case 'rahu':
+        return 'Focus on ambition, change and new experiences.';
+      case 'jupiter':
+        return 'Focus on growth, knowledge, guidance and opportunities.';
+      case 'saturn':
+        return 'Focus on discipline, patience and steady progress.';
+      case 'mercury':
+        return 'Focus on learning, communication and practical decisions.';
+      case 'ketu':
+        return 'Focus on reflection, simplicity and inner understanding.';
+      case 'venus':
+        return 'Focus on relationships, creativity, comfort and harmony.';
+      default:
+        return 'A shorter planetary period within this Mahadasha.';
+    }
+  }
+
+  String _kundliSimpleSadeSatiMeaning(bool? active) {
+    if (active == true) {
+      return 'Sade Sati is currently active according to the available '
+          'Saturn and Moon calculation.';
+    }
+
+    if (active == false) {
+      return 'Saturn is not currently transiting the natal Moon sign or '
+          'the immediately adjacent signs used for Sade Sati.';
+    }
+
+    return 'A clear Sade Sati status was not available in this chart.';
+  }
+
   Widget _buildDoshaCard(dynamic value) {
     final dosha = value is Map
         ? Map<String, dynamic>.from(value)
         : const <String, dynamic>{};
 
-    final entries = dosha.entries
-        .where((entry) => _hasValue(entry.value))
-        .toList(growable: false);
+    bool? readPresence(dynamic raw) {
+      if (raw is bool) return raw;
 
-    if (entries.isEmpty) {
+      if (raw is Map) {
+        final map = Map<String, dynamic>.from(raw);
+
+        for (final key in const [
+          'present',
+          'isPresent',
+          'is_present',
+          'isManglik',
+          'is_manglik',
+          'hasDosha',
+          'has_dosha',
+        ]) {
+          final candidate = map[key];
+
+          if (candidate is bool) {
+            return candidate;
+          }
+
+          final text = candidate?.toString().trim().toLowerCase() ?? '';
+
+          if (text == 'true' || text == 'present' || text == 'active') {
+            return true;
+          }
+
+          if (text == 'false' ||
+              text == 'absent' ||
+              text == 'not_present' ||
+              text == 'not present' ||
+              text == 'inactive') {
+            return false;
+          }
+        }
+
+        final severity = map['severity']?.toString().trim().toLowerCase() ?? '';
+
+        if (severity == 'present' ||
+            severity == 'active' ||
+            severity == 'mild' ||
+            severity == 'moderate' ||
+            severity == 'strong' ||
+            severity == 'high') {
+          return true;
+        }
+
+        if (severity == 'absent' ||
+            severity == 'none' ||
+            severity == 'not_present' ||
+            severity == 'not present') {
+          return false;
+        }
+      }
+
+      final text = raw?.toString().trim().toLowerCase() ?? '';
+
+      if (text == 'true' || text == 'present' || text == 'active') {
+        return true;
+      }
+
+      if (text == 'false' ||
+          text == 'absent' ||
+          text == 'not_present' ||
+          text == 'not present' ||
+          text == 'inactive') {
+        return false;
+      }
+
+      return null;
+    }
+
+    final readable = <Map<String, dynamic>>[];
+    final seen = <String>{};
+
+    for (final entry in dosha.entries) {
+      if (!_hasValue(entry.value)) {
+        continue;
+      }
+
+      if (_kundliIsTechnicalField(entry.key)) {
+        continue;
+      }
+
+      final name = _kundliFriendlyDoshaName(entry.key);
+
+      final normalized = name.toLowerCase().replaceAll(
+        RegExp(r'[^a-z0-9]'),
+        '',
+      );
+
+      // Mangal / Manglik can describe the same backend finding.
+      final canonical =
+          normalized.contains('mangal') || normalized.contains('manglik')
+          ? 'manglikdosha'
+          : normalized;
+
+      if (seen.contains(canonical)) {
+        continue;
+      }
+
+      final present = readPresence(entry.value);
+
+      // Never fabricate a status.
+      if (present == null) {
+        continue;
+      }
+
+      seen.add(canonical);
+
+      readable.add({'name': name, 'present': present});
+    }
+
+    if (readable.isEmpty) {
       return _buildSection(
         title: 'Dosha Analysis',
         icon: Icons.warning_amber_rounded,
@@ -3700,6 +4066,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
     }
 
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -3713,18 +4080,29 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
             children: [
               Icon(Icons.warning_amber_rounded, color: AppColors.gold),
               SizedBox(width: 10),
-              Text(
-                'Dosha Analysis',
-                style: TextStyle(
-                  color: AppColors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
+              Expanded(
+                child: Text(
+                  'Dosha Analysis',
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 6),
+          const Text(
+            'A simple summary based on your calculated birth chart.',
+            style: TextStyle(color: AppColors.muted, fontSize: 12, height: 1.4),
+          ),
           const SizedBox(height: 14),
-          ...entries.map((entry) {
+
+          ...readable.map((item) {
+            final name = item['name'] as String;
+            final present = item['present'] as bool;
+
             return Container(
               width: double.infinity,
               margin: const EdgeInsets.only(bottom: 10),
@@ -3732,21 +4110,41 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0x334F6FA8)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    _prettyKundliKey(entry.key),
-                    style: const TextStyle(
-                      color: AppColors.gold,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: const TextStyle(
+                            color: AppColors.gold,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        present ? 'Present' : 'Not present',
+                        style: const TextStyle(
+                          color: AppColors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 7),
                   Text(
-                    _readableKundliValue(entry.value),
-                    style: const TextStyle(color: AppColors.white, height: 1.4),
+                    _kundliSimpleDoshaMeaning(name, present),
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 11,
+                      height: 1.45,
+                    ),
                   ),
                 ],
               ),
@@ -3857,17 +4255,10 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
     String periodText(Map<String, dynamic>? period) {
       if (period == null) {
-        return 'Unavailable';
-      }
-
-      final start = textOf(period['start']);
-      final end = textOf(period['end']);
-
-      if (start == '-' && end == '-') {
         return 'Dates unavailable';
       }
 
-      return '$start - $end';
+      return _kundliReadableDashaPeriod(period);
     }
 
     final current = mapOf(dasha['current']);
@@ -3972,6 +4363,17 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                       height: 1.35,
                     ),
                   ),
+                  if (period != null && lord != 'Unavailable') ...[
+                    const SizedBox(height: 7),
+                    Text(
+                      _kundliSimpleDashaMeaning(lord),
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 11,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -4054,7 +4456,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
               final lord = textOf(maha['lord']);
 
               final children = listOfMaps(
-                maha['children'] ?? maha['subPeriods'],
+                maha['antardasha'] ?? maha['children'] ?? maha['subPeriods'],
               );
 
               final isCurrent =
@@ -4130,7 +4532,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                       const Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          'Antardasha periods unavailable.',
+                          'Detailed sub-period timing is not available for this chart.',
                           style: TextStyle(
                             color: AppColors.muted,
                             fontSize: 11,
@@ -4187,7 +4589,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
-                                      periodText(antar),
+                                      '${periodText(antar)}\n${_kundliSimpleAntardashaMeaning(antarLord)}',
                                       style: const TextStyle(
                                         color: AppColors.muted,
                                         fontSize: 10,
@@ -4216,6 +4618,49 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
         ],
       ),
     );
+  }
+
+  String _formatPanchangDisplayValue(String label, dynamic value) {
+    if (value == null) return '';
+
+    if (value is Map) {
+      final data = Map<String, dynamic>.from(value);
+
+      String read(String key) {
+        return data[key]?.toString().trim() ?? '';
+      }
+
+      final name = read('name');
+      final type = read('type');
+
+      if (label == 'Tithi') {
+        if (type.isNotEmpty && name.isNotEmpty) {
+          return '$type $name';
+        }
+        if (name.isNotEmpty) return name;
+      }
+
+      if (label == 'Nakshatra' || label == 'Yoga' || label == 'Karana') {
+        if (name.isNotEmpty) return name;
+      }
+
+      if (name.isNotEmpty) return name;
+
+      for (final key in const ['value', 'display', 'label', 'text']) {
+        final text = read(key);
+        if (text.isNotEmpty) return text;
+      }
+
+      return '';
+    }
+
+    final text = value.toString().trim();
+
+    if (text.isEmpty || text.toLowerCase() == 'null') {
+      return '';
+    }
+
+    return text;
   }
 
   Widget _buildPanchangCard(dynamic value) {
@@ -4260,6 +4705,19 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 firstValue(['karana', 'karana_name', 'karanaName']),
               ),
               MapEntry(
+                'Sunrise',
+                firstValue([
+                  'sunrise',
+                  'sun_rise',
+                  'sunrise_time',
+                  'sunriseTime',
+                ]),
+              ),
+              MapEntry(
+                'Sunset',
+                firstValue(['sunset', 'sun_set', 'sunset_time', 'sunsetTime']),
+              ),
+              MapEntry(
                 'Ayanamsa',
                 firstValue([
                   'ayanamsa',
@@ -4269,10 +4727,9 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 ]),
               ),
               MapEntry('Month Type', _selectedMonthTypeLabel),
-              MapEntry('Chart Style', _selectedChartStyleLabel),
             ]
             .where((entry) {
-              final text = entry.value?.toString().trim() ?? '';
+              final text = _formatPanchangDisplayValue(entry.key, entry.value);
               return text.isNotEmpty;
             })
             .toList(growable: false);
@@ -4329,7 +4786,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                   ),
                   Expanded(
                     child: Text(
-                      _kundliText(entry.value),
+                      _formatPanchangDisplayValue(entry.key, entry.value),
                       style: const TextStyle(
                         color: AppColors.white,
                         fontWeight: FontWeight.w700,

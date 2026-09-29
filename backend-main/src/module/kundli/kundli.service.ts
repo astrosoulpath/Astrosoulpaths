@@ -119,9 +119,7 @@ export class KundliService {
       return false;
     }
 
-    const planets = Array.isArray(transit.planets)
-      ? transit.planets
-      : [];
+    const planets = Array.isArray(transit.planets) ? transit.planets : [];
 
     const requiredPlanets = [
       'Sun',
@@ -142,8 +140,7 @@ export class KundliService {
       requiredPlanets.every((name) =>
         planets.some(
           (planet: any) =>
-            planet?.name === name &&
-            Number.isFinite(planet?.longitude),
+            planet?.name === name && Number.isFinite(planet?.longitude),
         ),
       )
     );
@@ -369,7 +366,17 @@ export class KundliService {
     return this.repo.saveKundliData(kundli.id, lang, data);
   }
 
-  async generateMyKundli(supabaseUserId: string, lang = 'en') {
+  async generateMyKundli(
+    supabaseUserId: string,
+    lang = 'en',
+    overrides: {
+      tob?: string;
+      lat?: number;
+      lon?: number;
+      timezone?: number;
+      place?: string;
+    } = {},
+  ) {
     const normalizedSupabaseId = supabaseUserId?.trim();
 
     if (!normalizedSupabaseId) {
@@ -504,16 +511,18 @@ export class KundliService {
 
     const params: AstroParams = {
       dob: birthDate.toISOString().split('T')[0],
-      tob: timeOfBirth,
-      lat: profile.latitude,
-      lon: profile.longitude,
-      timezone: profile.timezone,
+      tob: overrides.tob ?? timeOfBirth,
+      lat: overrides.lat ?? profile.latitude,
+      lon: overrides.lon ?? profile.longitude,
+      timezone: overrides.timezone ?? profile.timezone,
       lang: normalizedLang,
       name: fullName,
       gender: profile.gender.toLowerCase() as 'male' | 'female' | 'other',
-      place: [profile.city, profile.state, profile.country]
-        .filter(Boolean)
-        .join(', '),
+      place:
+        overrides.place ??
+        [profile.city, profile.state, profile.country]
+          .filter(Boolean)
+          .join(', '),
       userId: user.id,
     };
 
@@ -574,7 +583,11 @@ export class KundliService {
       this.hasValidImportantYogas(cachedReport) &&
       this.hasValidSadeSati(cachedReport) &&
       this.hasValidTransit(cachedReport) &&
-      this.hasValidGemSuggestion(cachedReport);
+      this.hasValidGemSuggestion(cachedReport) &&
+      typeof cachedReport?.panchang?.sunrise === 'string' &&
+      cachedReport.panchang.sunrise.trim().length > 0 &&
+      typeof cachedReport?.panchang?.sunset === 'string' &&
+      cachedReport.panchang.sunset.trim().length > 0;
 
     if (!options?.forceRefresh && isCurrentLocalVedicCache) {
       this.logger.log(`kundli.cache.hit kundliId=${kundli.id} lang=${lang}`);
@@ -585,8 +598,36 @@ export class KundliService {
        * AI interpretation is enrichment only.
        * It never replaces astrology calculations.
        */
+      const cachedCustomerPredictionText = [
+        report.analysis?.character,
+        report.analysis?.career,
+        report.analysis?.finance,
+        report.analysis?.marriage,
+        report.analysis?.health,
+      ]
+        .map((value) => {
+          try {
+            return JSON.stringify(value ?? '');
+          } catch {
+            return '';
+          }
+        })
+        .join(' ');
+
+      const cachedAnalysisUsesTechnicalJargon =
+        /\b(?:\d{1,2}(?:st|nd|rd|th)[-\s]+house|ascendant|lagna|nakshatra|mahadasha|antardasha|budha-aditya\s+yoga)\b/i.test(
+          cachedCustomerPredictionText,
+        );
+
       const needsAiAnalysis =
+        cachedAnalysisUsesTechnicalJargon ||
         !report.analysis?.character ||
+        !report.analysis?.career ||
+        !report.analysis?.finance ||
+        !report.analysis?.marriage ||
+        !report.analysis?.health ||
+        !Array.isArray(report.analysis?.remedies) ||
+        report.analysis.remedies.length === 0 ||
         !report.analysis?.d1Explanation ||
         !report.analysis?.d9Explanation;
 
@@ -751,5 +792,3 @@ export class KundliService {
     };
   }
 }
-
-

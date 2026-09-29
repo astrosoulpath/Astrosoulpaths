@@ -328,6 +328,10 @@ class _HistoryCard extends StatelessWidget {
     final session = item.session;
     final status = session.status.toUpperCase();
     final statusColor = _statusColor(status);
+    final isCompleted = status == 'COMPLETED';
+    final canViewChat =
+        session.mode.toLowerCase() == 'chat' &&
+        (status == 'COMPLETED' || status == 'ACTIVE');
     final initial = item.astrologerName.isEmpty
         ? 'A'
         : item.astrologerName[0].toUpperCase();
@@ -339,20 +343,18 @@ class _HistoryCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFFFFFFF), Color(0xFF100A18), Color(0xFF171021)],
+          colors: [Color(0xFF3D394B), Color(0xFF171022), Color(0xFF210721)],
         ),
         border: Border.all(color: const Color(0xFFE8BD43), width: 1.25),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFF4C542).withValues(alpha: 0.20),
-            blurRadius: 24,
-            spreadRadius: 0.8,
+            color: const Color(0xFF3E214E).withValues(alpha: 0.22),
+            blurRadius: 18,
             offset: const Offset(0, 8),
           ),
           BoxShadow(
-            color: const Color(0xFFCAB7F3).withValues(alpha: 0.18),
-            blurRadius: 32,
-            spreadRadius: 1.5,
+            color: const Color(0xFFF4C542).withValues(alpha: 0.14),
+            blurRadius: 22,
           ),
         ],
       ),
@@ -367,30 +369,17 @@ class _HistoryCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
                     colors: [
                       Color(0xFFFFF1A2),
                       Color(0xFFF4C542),
                       Color(0xFF9B4AD2),
                     ],
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFF4C542).withValues(alpha: 0.30),
-                      blurRadius: 18,
-                      spreadRadius: 1,
-                    ),
-                    BoxShadow(
-                      color: const Color(0xFF9B4AD2).withValues(alpha: 0.18),
-                      blurRadius: 24,
-                    ),
-                  ],
                 ),
                 child: Container(
                   padding: const EdgeInsets.all(2),
                   decoration: const BoxDecoration(
-                    color: Color(0xFFFFFFFF),
+                    color: Colors.white,
                     shape: BoxShape.circle,
                   ),
                   child: CircleAvatar(
@@ -419,36 +408,46 @@ class _HistoryCard extends StatelessWidget {
                   children: [
                     Text(
                       item.astrologerName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: AppColors.white,
+                        color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: -0.25,
                       ),
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      _date(session.startedAt),
-                      style: const TextStyle(color: AppColors.muted),
+                      _date(
+                        session.startedAt,
+                      ).replaceAll(RegExp(r'[^\x20-\x7E]'), ''),
+                      style: const TextStyle(
+                        color: Color(0xFFC9C4D2),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
-                  vertical: 6,
+                  vertical: 7,
                 ),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.13),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.7)),
+                  border: Border.all(
+                    color: statusColor.withValues(alpha: 0.78),
+                  ),
                 ),
                 child: Text(
                   status,
                   style: TextStyle(
                     color: statusColor,
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -456,7 +455,7 @@ class _HistoryCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 15),
-          const Divider(color: Colors.white12, height: 1),
+          Divider(color: Colors.white.withValues(alpha: 0.16), height: 1),
           const SizedBox(height: 14),
           Row(
             children: [
@@ -470,12 +469,22 @@ class _HistoryCard extends StatelessWidget {
                       : 'Chat',
                 ),
               ),
+              Container(
+                width: 1,
+                height: 22,
+                color: Colors.white.withValues(alpha: 0.16),
+              ),
               Expanded(
                 child: _Detail(
                   icon: Icons.timer_outlined,
                   text:
                       '${session.purchasedMinutes + session.extendedMinutes} min',
                 ),
+              ),
+              Container(
+                width: 1,
+                height: 22,
+                color: Colors.white.withValues(alpha: 0.16),
               ),
               Expanded(
                 child: _Detail(
@@ -486,8 +495,8 @@ class _HistoryCard extends StatelessWidget {
               ),
             ],
           ),
-          if (status == 'COMPLETED') ...[
-            const SizedBox(height: 14),
+          if (isCompleted) ...[
+            const SizedBox(height: 16),
             RateReviewButton(
               callSessionId: session.callSessionId.isNotEmpty
                   ? session.callSessionId
@@ -495,23 +504,22 @@ class _HistoryCard extends StatelessWidget {
               astrologerName: item.astrologerName,
             ),
           ],
-          if (session.mode.toLowerCase() == 'chat' &&
-              (status == 'COMPLETED' || status == 'ACTIVE')) ...[
-            const SizedBox(height: 14),
+          if (canViewChat) ...[
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFF4C542),
-                  backgroundColor: const Color(0xFFFFFFFF),
-                  side: const BorderSide(color: Color(0xFFF4C542), width: 1.15),
+                  foregroundColor: const Color(0xFFE6A90D),
+                  backgroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFFF4C542), width: 1.25),
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18),
                   ),
                   textStyle: const TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
                 onPressed: () {
@@ -529,37 +537,37 @@ class _HistoryCard extends StatelessWidget {
                 label: Text(status == 'ACTIVE' ? 'Open Chat' : 'View Chat'),
               ),
             ),
-            if (status == 'COMPLETED' && session.astrologerId.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFD12F),
-                    foregroundColor: const Color(0xFF14213D),
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    textStyle: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                    ),
+          ],
+          if (isCompleted && session.astrologerId.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFD12F),
+                  foregroundColor: const Color(0xFF14213D),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
                   ),
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => AstrologerDetailScreen(
-                          astrologerId: session.astrologerId,
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.replay_rounded),
-                  label: const Text('Consult Again'),
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => AstrologerDetailScreen(
+                        astrologerId: session.astrologerId,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.replay_rounded),
+                label: const Text('Consult Again'),
               ),
-            ],
+            ),
           ],
         ],
       ),
@@ -576,24 +584,18 @@ class _HistoryCard extends StatelessWidget {
     };
   }
 
+  static String _date(DateTime? value) {
+    if (value == null) return 'Date unavailable';
+    final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
+    final minute = value.minute.toString().padLeft(2, '0');
+    final period = value.hour >= 12 ? 'PM' : 'AM';
+    return '${value.day}/${value.month}/${value.year} ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€š |  $hour:$minute $period';
+  }
+
   static String _money(double value) {
     return value == value.roundToDouble()
         ? value.toInt().toString()
         : value.toStringAsFixed(2);
-  }
-
-  static String _date(DateTime? source) {
-    if (source == null) {
-      return 'Date unavailable';
-    }
-
-    final date = source.toLocal();
-    final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
-    final minute = date.minute.toString().padLeft(2, '0');
-    final period = date.hour >= 12 ? 'PM' : 'AM';
-
-    return '${date.day}/${date.month}/${date.year}'
-        ' \u2022 $hour:$minute $period';
   }
 }
 
@@ -615,49 +617,19 @@ class _Detail extends StatelessWidget {
           ? MainAxisAlignment.end
           : MainAxisAlignment.start,
       children: [
-        Icon(icon, size: 17, color: AppColors.gold),
-        const SizedBox(width: 6),
+        Icon(icon, size: 18, color: const Color(0xFFF4C542)),
+        const SizedBox(width: 7),
         Flexible(
           child: Text(
             text,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: AppColors.white,
+              color: Color(0xFFF8F5FF),
+              fontSize: 13,
               fontWeight: FontWeight.w800,
             ),
           ),
         ),
-      ],
-    );
-  }
-}
-
-class _SummaryItem extends StatelessWidget {
-  const _SummaryItem({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, color: AppColors.gold),
-        const SizedBox(height: 7),
-        Text(
-          value,
-          style: const TextStyle(
-            color: AppColors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(label, style: const TextStyle(color: AppColors.muted)),
       ],
     );
   }
@@ -713,6 +685,46 @@ class _MessageState extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SummaryItem extends StatelessWidget {
+  const _SummaryItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: const Color(0xFFF4C542), size: 25),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Color(0xFF14213D),
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF777887),
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }

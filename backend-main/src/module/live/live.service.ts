@@ -23,14 +23,53 @@ export class LiveService {
       throw new BadRequestException('Authenticated user is required');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { supabaseId: normalized },
-      include: {
-        astrologer: true,
+    /*
+     * Canonical production identity:
+     *
+     * Supabase JWT subject
+     *        ->
+     * UserAuthIdentity(provider = supabase)
+     *        ->
+     * canonical User.id
+     *
+     * Keep User.supabaseId as a legacy fallback so existing accounts
+     * continue to work without changing any other authentication flow.
+     */
+    const identity = await this.prisma.userAuthIdentity.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: 'supabase',
+          providerUserId: normalized,
+        },
+      },
+      select: {
+        userId: true,
       },
     });
 
-    if (!user || !user.isActive || user.isBlocked) {
+    const user = identity?.userId
+      ? await this.prisma.user.findUnique({
+          where: {
+            id: identity.userId,
+          },
+          include: {
+            astrologer: true,
+          },
+        })
+      : await this.prisma.user.findUnique({
+          where: {
+            supabaseId: normalized,
+          },
+          include: {
+            astrologer: true,
+          },
+        });
+
+    if (!user) {
+      throw new ForbiddenException('User account is not allowed');
+    }
+
+    if (!user.isActive || user.isBlocked) {
       throw new ForbiddenException('User account is not allowed');
     }
 
@@ -282,6 +321,90 @@ export class LiveService {
     };
   }
 
+  async joinLiveChat(supabaseId: string, liveSessionId: string) {
+    const user = await this.getUserBySupabaseId(supabaseId);
+
+    const session = await this.prisma.liveSession.findFirst({
+      where: {
+        id: liveSessionId,
+        status: 'LIVE',
+        endedAt: null,
+      },
+      include: {
+        astrologer: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Live session not found');
+    }
+
+    const isHost = session.astrologer.userId === user.id;
+
+    if (!isHost) {
+      const viewer = await this.prisma.liveViewer.findFirst({
+        where: {
+          liveSessionId,
+          userId: user.id,
+          leftAt: null,
+        },
+      });
+
+      if (!viewer) {
+        throw new ForbiddenException(
+          'Join live session before using live chat',
+        );
+      }
+    }
+
+    return {
+      liveSessionId,
+      user: {
+        id: user.id,
+        name: user.name ?? 'User',
+        avatarUrl: user.avatarUrl ?? null,
+        isAstrologer: isHost,
+      },
+    };
+  }
+
+  async sendLiveMessage(
+    supabaseId: string,
+    liveSessionId: string,
+    rawMessage: string,
+  ) {
+    const access = await this.joinLiveChat(supabaseId, liveSessionId);
+
+    const message = String(rawMessage ?? '').trim();
+
+    if (!message) {
+      throw new BadRequestException('Message is required');
+    }
+
+    if (message.length > 500) {
+      throw new BadRequestException('Message is too long');
+    }
+
+    const created = await this.prisma.liveMessage.create({
+      data: {
+        liveSessionId,
+        userId: access.user.id,
+        message,
+      },
+    });
+
+    return {
+      id: created.id,
+      liveSessionId: created.liveSessionId,
+      message: created.message,
+      createdAt: created.createdAt,
+      sender: access.user,
+    };
+  }
   async leaveLive(supabaseId: string, liveSessionId: string) {
     const user = await this.getUserBySupabaseId(supabaseId);
 

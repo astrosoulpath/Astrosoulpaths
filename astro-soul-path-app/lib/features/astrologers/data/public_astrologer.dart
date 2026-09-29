@@ -12,6 +12,7 @@ class PublicAstrologer {
     required this.rating,
     required this.isOnline,
     required this.isBusy,
+    required this.isVerified,
     required this.chatWaitMinutes,
     required this.expertise,
   });
@@ -32,6 +33,11 @@ class PublicAstrologer {
       rating: _readNumber(json['rating']).clamp(0, 5),
       isOnline: json['isOnline'] == true,
       isBusy: json['isBusy'] == true,
+      isVerified:
+          json['isVerified'] == true ||
+          json['verified'] == true ||
+          json['isApproved'] == true ||
+          json['approved'] == true,
       chatWaitMinutes: _readNumber(
         json['chatWaitMinutes'],
       ).toInt().clamp(0, 1440),
@@ -51,6 +57,7 @@ class PublicAstrologer {
   final num rating;
   final bool isOnline;
   final bool isBusy;
+  final bool isVerified;
   final int chatWaitMinutes;
   final List<String> expertise;
 

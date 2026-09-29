@@ -1,4 +1,4 @@
-﻿const API_BASE_URL = (
+const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_BASE_URL ??
   process.env.NEXT_PUBLIC_API_URL ??
   "http://localhost:4000"
@@ -22,6 +22,26 @@ export type AstrologerDashboardData = {
   experience: number;
 };
 
+export type ArticleTranslationPayload = {
+  locale: string;
+  title: string;
+  excerpt?: string;
+  contentMarkdown: string;
+  authorName?: string;
+  readingMinutes?: number;
+};
+
+export type AstrologerArticle = {
+  id: string;
+  slug: string;
+  category: string;
+  status: "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "REJECTED";
+  reviewNote?: string | null;
+  submittedAt?: string | null;
+  updatedAt: string;
+  translations: ArticleTranslationPayload[];
+};
+
 type ApiResponse<T> = {
   success?: boolean;
   message?: string;
@@ -29,24 +49,15 @@ type ApiResponse<T> = {
 };
 
 function getAccessToken(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return window.localStorage.getItem(
-    "asp_astrologer_access_token",
-  );
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem("asp_astrologer_access_token");
 }
-
-  
 
 function getAuthHeaders(): HeadersInit {
   const token = getAccessToken();
 
   if (!token) {
-    throw new Error(
-      "Astrologer session is missing. Please log in again.",
-    );
+    throw new Error("Astrologer session is missing. Please log in again.");
   }
 
   return {
@@ -76,18 +87,13 @@ async function parseResponse<T>(
 export async function getAstrologerDashboard(): Promise<
   ApiResponse<AstrologerDashboardData>
 > {
-  const response = await fetch(
-    `${API_BASE_URL}/astrologer/dashboard`,
-    {
-      method: "GET",
-      headers: getAuthHeaders(),
-      cache: "no-store",
-    },
-  );
+  const response = await fetch(`${API_BASE_URL}/astrologer/dashboard`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+    cache: "no-store",
+  });
 
-  return parseResponse<
-    ApiResponse<AstrologerDashboardData>
-  >(
+  return parseResponse<ApiResponse<AstrologerDashboardData>>(
     response,
     "Failed to load astrologer dashboard.",
   );
@@ -96,19 +102,47 @@ export async function getAstrologerDashboard(): Promise<
 export async function updateAstrologerStatus(
   isOnline: boolean,
 ): Promise<ApiResponse<{ isOnline: boolean }>> {
-  const response = await fetch(
-    `${API_BASE_URL}/astrologer/status`,
-    {
-      method: "PATCH",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ isOnline }),
-    },
-  );
+  const response = await fetch(`${API_BASE_URL}/astrologer/status`, {
+    method: "PATCH",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ isOnline }),
+  });
 
-  return parseResponse<
-    ApiResponse<{ isOnline: boolean }>
-  >(
+  return parseResponse<ApiResponse<{ isOnline: boolean }>>(
     response,
     "Failed to update astrologer availability.",
+  );
+}
+
+export async function getMyArticles(): Promise<AstrologerArticle[]> {
+  const response = await fetch(`${API_BASE_URL}/astrologer/articles`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+    cache: "no-store",
+  });
+
+  return parseResponse<AstrologerArticle[]>(
+    response,
+    "Failed to load your articles.",
+  );
+}
+
+export async function submitAstrologerArticle(body: {
+  slug: string;
+  category: string;
+  festivalTags: string[];
+  visibilityCountries: string[];
+  defaultLocale: string;
+  translations: ArticleTranslationPayload[];
+}): Promise<AstrologerArticle> {
+  const response = await fetch(`${API_BASE_URL}/astrologer/articles`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  });
+
+  return parseResponse<AstrologerArticle>(
+    response,
+    "Failed to submit article for review.",
   );
 }

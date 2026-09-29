@@ -1,5 +1,4 @@
-﻿"use client";
-
+"use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -113,6 +112,13 @@ const modules = [
     title: "Platform Settings",
     description: "Manage platform commission and astrologer revenue share.",
     href: "/admin/platform-settings",
+  },
+  {
+    title: "Video Management",
+    description:
+      "Add YouTube lessons, translations, country availability and publishing.",
+    href: "/admin/videos",
+    icon: "\u25B6",
   },
 ];
 
@@ -342,7 +348,7 @@ export function AdminDashboard() {
           ))}
         </div>
       </section>
-<section className="mt-8 rounded-[26px] border border-slate-700/70 bg-slate-900/55 p-6 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
+      <section className="mt-8 rounded-[26px] border border-slate-700/70 bg-slate-900/55 p-6 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-400">
             Astrologer Management
@@ -360,4 +366,3 @@ export function AdminDashboard() {
     </section>
   );
 }
-

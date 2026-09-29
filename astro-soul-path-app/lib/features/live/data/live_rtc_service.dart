@@ -169,7 +169,8 @@ class LiveRtcService {
       } else {
         // Audience only receives the live stream.
         // It must never publish camera or microphone tracks.
-        await engine.disableVideo();
+        await engine.enableVideo();
+        await engine.enableLocalVideo(false);
         _cameraEnabled = false;
         _muted = true;
       }

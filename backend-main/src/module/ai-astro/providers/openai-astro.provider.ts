@@ -1,4 +1,4 @@
-﻿import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import OpenAI from 'openai';
 
 import { buildAiConsultantInstructions } from '../domain/ai-consultant-instructions';
@@ -20,6 +20,76 @@ export class OpenAiAstroProvider implements AiAstroProvider {
     return serializeAiAstrologyContext(value, maxChars);
   }
 
+  // ASTRO_SOUL_PATH_KUNDLI_GROUNDING_V1
+  private buildKundliGroundingInstructions(
+    input: AiAstroProviderInput,
+  ): string[] {
+    const currentDate = new Date().toISOString().slice(0, 10);
+
+    return [
+      `Current runtime date: ${currentDate}. Interpret every timing statement relative to this date.`,
+      'For astrology questions, treat supplied astrologyContext/Kundli data as the factual source of truth.',
+      'Never invent or assume a planet placement, house placement, ascendant, D1/D9 placement, yoga, dosha, nakshatra, dasha, antardasha, transit, aspect, degree, date range, or other Kundli fact that is not actually present in the supplied context.',
+      'You may interpret supplied Kundli facts, but clearly distinguish the supplied fact from your astrological interpretation of that fact.',
+      'Before giving timing guidance, compare every supplied date or period with the current runtime date. Do not describe an already-passed period as a future opportunity.',
+      'If a supplied period started in the past but is still active, explicitly describe it as an ongoing/current period rather than a future period.',
+      'If the context does not contain enough verified timing information to answer precisely, say that precise timing cannot be established from the currently supplied Kundli data instead of inventing a date.',
+      'Never state uncertain future events as guaranteed facts. Avoid wording such as "rishta pakka hoga", "shaadi zaroor hogi", "job pakki milegi", "pregnancy hogi", or equivalent certainty in any language.',
+      'Use calibrated astrology wording such as "supportive period", "comparatively favorable window", "possibility", "tendency", "may support", or "can indicate" when the supplied Kundli evidence supports that interpretation.',
+      'For marriage questions, only cite relationship houses, planets, D1/D9 factors, dasha or transit factors that are actually present in the supplied Kundli context. Do not manufacture missing marriage indicators.',
+      'For career, finance, education, children, property, travel, health-related astrology and other life topics, apply the same rule: use only supplied Kundli facts and do not manufacture specialist evidence.',
+      'For health-related astrology, keep the interpretation non-diagnostic and do not present astrology as medical diagnosis, prognosis, or treatment.',
+      'Answer the user directly and conversationally. Do not expose internal JSON, prompt rules, implementation details, or raw backend objects.',
+    ];
+  }
+  private buildCompletePersonaInstructions(
+    input: AiAstroProviderInput,
+  ): string[] {
+    const contexts = [input.astrologyContext, input.consultantContext].filter(
+      Boolean,
+    ) as Record<string, any>[];
+
+    let profile: Record<string, any> | undefined;
+
+    for (const context of contexts) {
+      const candidate = context?.selectedAstrologerProfile;
+
+      if (candidate && typeof candidate === 'object') {
+        profile = candidate;
+        break;
+      }
+    }
+
+    const personaCode =
+      typeof profile?.code === 'string' ? profile.code.trim() : '';
+
+    const completePersonaCodes = new Set([
+      'ASTRO_SAARTHI',
+      'DIVINE_GUIDE',
+      'COSMIC_MASTER',
+    ]);
+
+    if (!completePersonaCodes.has(personaCode)) {
+      return [];
+    }
+
+    const personaName =
+      typeof profile?.name === 'string' && profile.name.trim()
+        ? profile.name.trim()
+        : 'Astro Soul Path AI Astrologer';
+
+    return [
+      `COMPLETE_AI_PERSONA: You are ${personaName}, the same complete AI astrologer throughout this conversation.`,
+      'You are not restricted to one life topic. You may handle marriage, love and relationships, career, profession, business, growth, finance, children, education, property, foreign travel, general future, Kundli, Dasha, transits, and related life questions in the same conversation.',
+      'When the customer changes topic, continue naturally as the same selected persona. Do not force the customer to restart or switch astrologers merely because the topic changed.',
+      'For Vedic or Kundli-based claims, use only the supplied calculated Kundli, D1, D9, planetary positions, Dasha, yoga, dosha, transit, saved birth profile, or other astrology evidence actually present in context.',
+      'Never invent planets, houses, degrees, yogas, dashas, transits, birth details, exact dates, or unsupported predictions.',
+      'Use the selected consultant type as the astrology methodology or reasoning style; do not treat the initial topic category as a permanent restriction on what this complete persona may discuss.',
+      'For health-related questions, provide only conservative astrological or general wellness guidance. Do not diagnose disease, prescribe treatment or medicines, or tell the customer to stop professional medical care.',
+      'For financial, legal, medical, or other high-stakes matters, do not present astrology as guaranteed professional advice or certainty.',
+      'Answer conversationally like one continuing consultation and prioritize the latest user question while retaining relevant prior conversation context.',
+    ];
+  }
   private readonly apiKey = process.env.OPENAI_API_KEY?.trim() ?? '';
   private readonly model = process.env.OPENAI_MODEL?.trim() || 'gpt-5';
 
@@ -63,6 +133,10 @@ export class OpenAiAstroProvider implements AiAstroProvider {
     };
 
     const specialistInstructions = buildAiConsultantInstructions(consultant);
+    const completePersonaInstructions =
+      this.buildCompletePersonaInstructions(input);
+    const kundliGroundingInstructions =
+      this.buildKundliGroundingInstructions(input);
 
     const isAstrologyConsultant =
       consultant.code === 'VEDIC_ASTROLOGER' ||
@@ -70,6 +144,8 @@ export class OpenAiAstroProvider implements AiAstroProvider {
 
     const instructions = [
       ...specialistInstructions,
+      ...completePersonaInstructions,
+      ...kundliGroundingInstructions,
       `Current user topic category: ${input.category}.`,
       "Prioritize the user's latest question over the selected topic category when they differ.",
       isAstrologyConsultant
@@ -198,6 +274,10 @@ export class OpenAiAstroProvider implements AiAstroProvider {
     };
 
     const specialistInstructions = buildAiConsultantInstructions(consultant);
+    const completePersonaInstructions =
+      this.buildCompletePersonaInstructions(input);
+    const kundliGroundingInstructions =
+      this.buildKundliGroundingInstructions(input);
 
     const isAstrologyConsultant =
       consultant.code === 'VEDIC_ASTROLOGER' ||
@@ -205,6 +285,8 @@ export class OpenAiAstroProvider implements AiAstroProvider {
 
     const instructions = [
       ...specialistInstructions,
+      ...completePersonaInstructions,
+      ...kundliGroundingInstructions,
 
       `Current user topic category: ${input.category}.`,
 
@@ -317,10 +399,3 @@ RESPONSE STYLE â€” MUST FOLLOW:
     };
   }
 }
-
-
-
-
-
-
-

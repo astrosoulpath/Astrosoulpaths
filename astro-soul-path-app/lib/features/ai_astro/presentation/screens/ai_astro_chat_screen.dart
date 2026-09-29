@@ -269,7 +269,7 @@ class _AiAstroChatScreenState extends State<AiAstroChatScreen> {
 
     final rate = _aiCatalogRatePerMinute;
 
-    if (rate == null || rate <= 0) {
+    if (rate == null) {
       if (!mounted) {
         return;
       }
@@ -954,7 +954,7 @@ class _AiAstroChatScreenState extends State<AiAstroChatScreen> {
   String get _aiTimedRateLabel {
     final rate = _aiTimedRatePerMinute;
 
-    if (rate == null || rate <= 0) {
+    if (rate == null) {
       return 'Paid consultation';
     }
 
@@ -970,10 +970,16 @@ class _AiAstroChatScreenState extends State<AiAstroChatScreen> {
     return '$currencyLabel$formattedRate/min';
   }
 
+  bool get _aiCatalogIsFree => widget.persona.aiPricing.isFree;
+
   double? get _aiCatalogRatePerMinute {
+    if (_aiCatalogIsFree) {
+      return 0;
+    }
+
     final rate = widget.persona.aiPricing.pricePerMinute;
 
-    if (rate == null || rate <= 0) {
+    if (rate == null) {
       return null;
     }
 
@@ -1240,6 +1246,7 @@ class _AiAstroChatScreenState extends State<AiAstroChatScreen> {
                           widget.persona.name,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
+                            color: Colors.white,
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
                           ),
@@ -1332,7 +1339,10 @@ class _AiAstroChatScreenState extends State<AiAstroChatScreen> {
                         maxLines: 5,
                         minLines: 1,
                         textInputAction: TextInputAction.newline,
-                        style: const TextStyle(color: Colors.white),
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 16,
+                        ),
                         decoration: InputDecoration(
                           hintText: _aiTimedSessionCompleted
                               ? 'Choose duration to continue consultation'

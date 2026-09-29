@@ -117,17 +117,18 @@ class _ConsultationConfirmationScreenState
         return;
       }
 
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
-          builder: (_) => CustomerConsultationWaitingScreen(
-            consultationId: result.consultationId,
-            astrologerUserId: astrologerUserId,
-            astrologerName: _astrologer.name,
-            modeLabel: _modeLabel,
-            requestExpiresAt: result.expiresAt,
-          ),
+      final waitingRoute = MaterialPageRoute<void>(
+        builder: (_) => CustomerConsultationWaitingScreen(
+          consultationId: result.consultationId,
+          astrologerUserId: astrologerUserId,
+          astrologerName: _astrologer.name,
+          modeLabel: _modeLabel,
+          requestExpiresAt: result.expiresAt,
         ),
       );
+      // Keep the waiting screen visible until acceptance.
+      // It polls ACTIVE status and automatically opens the real customer chat.
+      await Navigator.of(context).pushReplacement<void, void>(waitingRoute);
     } on CustomerConsultationApiException catch (error) {
       if (!mounted) {
         return;

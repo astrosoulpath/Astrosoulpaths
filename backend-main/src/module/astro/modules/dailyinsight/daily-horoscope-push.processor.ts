@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { SubscriptionStatus } from '@prisma/client';
 
@@ -83,14 +83,12 @@ export class DailyHoroscopePushProcessor {
       // AstroTalk/AstroSage-style delivery:
       // send during customer's local morning hour.
       const isHoroscopeHour = local.hour === 8;
-      const isCategoryInsightHour = local.hour === 13;
 
-      if (!isHoroscopeHour && !isCategoryInsightHour) {
+      if (!isHoroscopeHour) {
         continue;
       }
 
-      const deliveryKind =
-        isHoroscopeHour ? 'horoscope' : 'category-insight';
+      const deliveryKind = 'horoscope';
 
       const sentKey =
         `daily-horoscope:push:sent:${deliveryKind}:${user.id}:${local.date}`;
@@ -157,96 +155,6 @@ export class DailyHoroscopePushProcessor {
           continue;
         }
 
-        if (isCategoryInsightHour) {
-          const dateSeed = Number(
-            local.date.replace(/-/g, '').slice(-6),
-          );
-
-          const categoryIndex =
-            Math.abs(dateSeed + user.id.length) % 3;
-
-          const category: 'love' | 'marriage' | 'career' =
-            categoryIndex === 0
-              ? 'love'
-              : categoryIndex === 1
-                ? 'marriage'
-                : 'career';
-
-          const personalizedInsight =
-            category === 'career'
-              ? careerInsight
-              : relationshipInsight;
-
-          if (!personalizedInsight) {
-            this.logger.warn(
-              `daily_category.push.personalized_content_missing userId=${user.id} type=${category}`,
-            );
-            continue;
-          }
-
-          const categoryTitle =
-            category === 'love'
-              ? 'Love & Relationship Insight'
-              : category === 'marriage'
-                ? 'Marriage Guidance'
-                : 'Career Insight';
-
-          const categoryBody =
-            this.buildNotificationBody(
-              personalizedInsight,
-              personalizedInsight,
-            ) ?? personalizedInsight;
-
-          const categoryNotification =
-            await this.notificationsService.createForUser({
-              userId: user.id,
-              title: categoryTitle,
-              body: categoryBody,
-              type: category,
-              data: {
-                type: category,
-                screen: category,
-                targetDate: local.date,
-                personalized: true,
-                source: 'daily-personalized-category',
-              },
-            });
-
-          const categoryPush =
-            await this.pushService.sendToUser(
-              user.id,
-              {
-                title: categoryNotification.title,
-                body: categoryNotification.body,
-                data: {
-                  type: category,
-                  screen: category,
-                  targetDate: local.date,
-                  personalized: 'true',
-                  notificationId: categoryNotification.id,
-                  source: 'daily-personalized-category',
-                },
-              },
-            );
-
-          if (categoryPush.sent > 0) {
-            await this.redis.set(
-              sentKey,
-              '1',
-              48 * 60 * 60,
-            );
-
-            this.logger.log(
-              `daily_category.push.sent userId=${user.id} type=${category} date=${local.date}`,
-            );
-          } else {
-            this.logger.warn(
-              `daily_category.push.not_delivered userId=${user.id} type=${category}`,
-            );
-          }
-
-          continue;
-        }
 
         const notification = await this.notificationsService.createForUser({
           userId: user.id,
@@ -320,6 +228,7 @@ export class DailyHoroscopePushProcessor {
   ): {
     date: string;
     hour: number;
+    minute: number;
   } {
     const zone = timezoneName?.trim();
 
@@ -331,6 +240,7 @@ export class DailyHoroscopePushProcessor {
           month: '2-digit',
           day: '2-digit',
           hour: '2-digit',
+          minute: '2-digit',
           hourCycle: 'h23',
         }).formatToParts(now);
 
@@ -341,11 +251,13 @@ export class DailyHoroscopePushProcessor {
         const month = read('month');
         const day = read('day');
         const hour = Number(read('hour'));
+        const minute = Number(read('minute'));
 
-        if (year && month && day && Number.isFinite(hour)) {
+        if (year && month && day && Number.isFinite(hour) && Number.isFinite(minute)) {
           return {
             date: `${year}-${month}-${day}`,
             hour,
+            minute,
           };
         }
       } catch {
@@ -365,6 +277,7 @@ export class DailyHoroscopePushProcessor {
         String(local.getUTCDate()).padStart(2, '0'),
       ].join('-'),
       hour: local.getUTCHours(),
+      minute: local.getUTCMinutes(),
     };
   }
 }

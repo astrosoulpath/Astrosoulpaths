@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -526,7 +527,14 @@ class KundliApi {
     }
   }
 
-  Future<KundliReport> generateMyKundli() async {
+  Future<KundliReport> generateMyKundli({
+    String language = 'en',
+    String? birthTimeOverride,
+    double? latitudeOverride,
+    double? longitudeOverride,
+    double? timezoneOverride,
+    String? birthPlaceOverride,
+  }) async {
     final session = await _sessionStore.read();
     final accessToken = session?.accessToken.trim() ?? '';
 
@@ -540,7 +548,23 @@ class KundliApi {
     try {
       final response = await _client
           .get(
-            Uri.parse('${ApiConfig.baseUrl}/kundli/my-kundli'),
+            Uri.parse('${ApiConfig.baseUrl}/kundli/my-kundli').replace(
+              queryParameters: {
+                'lang': language.trim().isEmpty
+                    ? 'en'
+                    : language.trim().toLowerCase(),
+                if (birthTimeOverride?.trim().isNotEmpty == true)
+                  'tob': birthTimeOverride!.trim(),
+                if (latitudeOverride != null)
+                  'lat': latitudeOverride.toString(),
+                if (longitudeOverride != null)
+                  'lon': longitudeOverride.toString(),
+                if (timezoneOverride != null)
+                  'timezone': timezoneOverride.toString(),
+                if (birthPlaceOverride?.trim().isNotEmpty == true)
+                  'place': birthPlaceOverride!.trim(),
+              },
+            ),
             headers: {
               'Accept': 'application/json',
               'Authorization': 'Bearer $accessToken',
@@ -579,6 +603,16 @@ class KundliApi {
 
       final report = _asMap(data['report']);
       final preferences = _asMap(data['preferences']);
+      // TEMP: verify the real authenticated Kundli Panchang response.
+      final debugPanchang = report == null ? null : _asMap(report['panchang']);
+
+      developer.log(
+        'provider=${report?['provider']} | '
+        'sunrise=${debugPanchang?['sunrise']} | '
+        'sunset=${debugPanchang?['sunset']} | '
+        'panchang=$debugPanchang',
+        name: 'REAL_KUNDLI_PANCHANG',
+      );
 
       if (report == null) {
         throw const KundliApiException(

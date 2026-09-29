@@ -10,6 +10,7 @@ import 'astrologer_availability_screen.dart';
 import 'astrologer_earnings_screen.dart';
 import 'astrologer_customer_history_screen.dart';
 import 'astrologer_consultations_screen.dart';
+import '../../../articles/presentation/screens/astrologer_articles_screen.dart';
 import '../../../auth/data/auth_session_store.dart';
 import '../../../calling/data/video_call_socket_service.dart';
 import '../../../calling/data/audio_call_socket_service.dart';
@@ -1011,7 +1012,7 @@ class _AstrologerDashboardScreenState extends State<AstrologerDashboardScreen> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                      color: AppColors.white,
+                                      color: Colors.white,
                                       fontSize: 20,
                                       fontWeight: FontWeight.w900,
                                     ),
@@ -1041,7 +1042,7 @@ class _AstrologerDashboardScreenState extends State<AstrologerDashboardScreen> {
                                       ? rating.toStringAsFixed(1)
                                       : 'New',
                                   style: const TextStyle(
-                                    color: AppColors.white,
+                                    color: Colors.white,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -1052,8 +1053,9 @@ class _AstrologerDashboardScreenState extends State<AstrologerDashboardScreen> {
                                     '$experience yrs experience',
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                      color: AppColors.muted,
+                                      color: Colors.white,
                                       fontSize: 12,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ),
@@ -1212,7 +1214,7 @@ class _AstrologerDashboardScreenState extends State<AstrologerDashboardScreen> {
                         child: Text(
                           isOnline ? 'You are Online' : 'You are Offline',
                           style: const TextStyle(
-                            color: AppColors.white,
+                            color: Colors.white,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -1461,6 +1463,22 @@ class _AstrologerDashboardScreenState extends State<AstrologerDashboardScreen> {
                 await Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => const AstrologerConsultationsScreen(),
+                  ),
+                );
+
+                if (context.mounted) {
+                  await _loadDashboard();
+                }
+              },
+            ),
+            _DashboardItem(
+              icon: Icons.article_outlined,
+              title: 'Posts',
+              subtitle: 'Write articles and track admin approval',
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AstrologerArticlesScreen(),
                   ),
                 );
 

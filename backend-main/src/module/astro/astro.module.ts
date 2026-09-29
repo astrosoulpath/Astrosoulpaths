@@ -1,4 +1,4 @@
-﻿import { forwardRef, Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 
 import { AstroService } from './astro.service';
 import { AstroController } from './astro.controller';
@@ -16,7 +16,7 @@ import { NumerologyModule } from './modules/numerology/numerology.module';
 import { DailyinsightModule } from './modules/dailyinsight/dailyinsight.module';
 
 import { GeoModule } from './modules/geo/geo.module';
-
+import { GeneralHoroscopeModule } from './modules/general-horoscope/general-horoscope.module';
 
 @Module({
   imports: [
@@ -33,6 +33,7 @@ import { GeoModule } from './modules/geo/geo.module';
     DailyinsightModule,
 
     GeoModule,
+    GeneralHoroscopeModule,
   ],
 
   controllers: [AstroController, DoshaController],
@@ -42,4 +43,3 @@ import { GeoModule } from './modules/geo/geo.module';
   exports: [AstroService],
 })
 export class AstroModule {}
-

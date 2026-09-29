@@ -253,7 +253,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             "You've unlocked your",
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Color(0xFFECE7F3),
+                              color: Color(0xFF51415F),
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                             ),
@@ -278,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             'with a trusted astrologer',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Color(0xFFE6DFEE),
+                              color: Color(0xFF685675),
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                             ),
@@ -321,7 +321,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   child: Text(
                                     'Ask your questions, get clarity and guidance instantly.',
                                     style: TextStyle(
-                                      color: Color(0xFFF0EBF5),
+                                      color: Color(0xFF4D3F59),
                                       fontSize: 13,
                                       height: 1.35,
                                       fontWeight: FontWeight.w600,
@@ -609,6 +609,172 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _continueWithEmailPassword() async {
+    if (widget.portal != AuthPortal.customer) return;
+
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    var obscurePassword = true;
+
+    final credentials = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+                side: const BorderSide(color: Color(0x557A8BB8)),
+              ),
+              title: const Text(
+                'Continue with Email',
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
+                      style: const TextStyle(color: AppColors.white),
+                      decoration: const InputDecoration(
+                        labelText: 'Email address',
+                        prefixIcon: Icon(Icons.email_outlined),
+                      ),
+                      validator: (value) {
+                        final email = value?.trim() ?? '';
+
+                        if (email.isEmpty ||
+                            !RegExp(
+                              r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                            ).hasMatch(email)) {
+                          return 'Enter a valid email address';
+                        }
+
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: passwordController,
+                      obscureText: obscurePassword,
+                      autofillHints: const [AutofillHints.password],
+                      style: const TextStyle(color: AppColors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: const Icon(Icons.lock_outline_rounded),
+                        suffixIcon: IconButton(
+                          onPressed: () {
+                            setDialogState(() {
+                              obscurePassword = !obscurePassword;
+                            });
+                          },
+                          icon: Icon(
+                            obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                        ),
+                      ),
+                      validator: (value) {
+                        if ((value ?? '').length < 8) {
+                          return 'Password must be at least 8 characters';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    if (!formKey.currentState!.validate()) return;
+
+                    Navigator.of(dialogContext).pop({
+                      'email': emailController.text.trim(),
+                      'password': passwordController.text,
+                    });
+                  },
+                  child: const Text('Sign In'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    emailController.dispose();
+    passwordController.dispose();
+
+    if (credentials == null || !mounted) return;
+
+    try {
+      final verifyResult = await _authApi.emailPasswordLogin(
+        email: credentials['email']!,
+        password: credentials['password']!,
+      );
+
+      if (!mounted) return;
+
+      if (verifyResult.role != 'CUSTOMER' ||
+          verifyResult.portal != 'customer') {
+        throw const AuthApiException(
+          'This account is not authorized for customer login.',
+        );
+      }
+
+      await _sessionStore.save(verifyResult);
+
+      if (!mounted) return;
+
+      if (verifyResult.nextStep == 'OPEN_HOME') {
+        await _openCustomerHomeWithFreeChat(verifyResult);
+        return;
+      }
+
+      if (verifyResult.nextStep == 'COMPLETE_PROFILE') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Complete your customer profile to continue.'),
+          ),
+        );
+        return;
+      }
+
+      throw AuthApiException(
+        'Unsupported customer login state: ${verifyResult.nextStep}',
+      );
+    } on AuthApiException catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text(error.message), backgroundColor: Colors.red),
+        );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email login failed. Please try again.')),
+      );
+    }
+  }
+
   Future<void> _continueWithGoogle() async {
     FocusScope.of(context).unfocus();
 
@@ -857,7 +1023,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: ClipOval(
                       child: Image.asset(
-                        'assets/branding/login_deity.png',
+                        'assets/branding/login_cosmic_compass.png',
                         width: 96,
                         height: 96,
                         fit: BoxFit.cover,
@@ -1075,7 +1241,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                 tooltip: 'Continue with Google',
                                 onTap: _continueWithGoogle,
                               ),
-                              const SizedBox(width: 18),
+                              const SizedBox(width: 14),
+                              if (portal == AuthPortal.customer) ...[
+                                _SocialLoginButton(
+                                  label: '@',
+                                  tooltip: 'Continue with Email',
+                                  onTap: _continueWithEmailPassword,
+                                ),
+                                const SizedBox(width: 14),
+                              ],
                               const _AppleVisualLoginButton(),
                             ],
                           ),
@@ -1121,14 +1295,14 @@ class _SocialLoginButton extends StatelessWidget {
           onTap: onTap,
           customBorder: const CircleBorder(),
           child: SizedBox(
-            width: 58,
-            height: 58,
+            width: 50,
+            height: 50,
             child: Center(
               child: Text(
                 label,
                 style: const TextStyle(
                   color: AppColors.background,
-                  fontSize: 22,
+                  fontSize: 19,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -1151,10 +1325,10 @@ class _AppleVisualLoginButton extends StatelessWidget {
         color: AppColors.white,
         shape: CircleBorder(),
         child: SizedBox(
-          width: 58,
-          height: 58,
+          width: 50,
+          height: 50,
           child: Center(
-            child: Icon(Icons.apple, color: AppColors.background, size: 29),
+            child: Icon(Icons.apple, color: AppColors.background, size: 25),
           ),
         ),
       ),

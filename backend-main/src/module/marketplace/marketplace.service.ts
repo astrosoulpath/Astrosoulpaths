@@ -1,4 +1,4 @@
-﻿import { createHmac, timingSafeEqual, randomBytes, randomUUID } from 'crypto';
+import { createHmac, timingSafeEqual, randomBytes, randomUUID } from 'crypto';
 import {
   InternalServerErrorException,
   BadRequestException,
@@ -778,6 +778,7 @@ export class MarketplaceService {
     search?: string,
     categoryId?: string,
     featured?: boolean,
+    countryCode?: string,
   ) {
     const normalizedSearch = search?.trim();
 
@@ -891,13 +892,64 @@ export class MarketplaceService {
       ],
     });
 
+    const displayCurrency = this.resolveMarketplacePaymentCurrency(countryCode);
+
+    let displayFxRate = 1;
+    let displayFxSource = 'IDENTITY';
+    let displayFxQuotedAt = new Date();
+
+    if (displayCurrency !== 'INR') {
+      try {
+        const quote = await this.resolveMarketplaceLiveFxQuote(
+          'INR',
+          displayCurrency,
+        );
+
+        displayFxRate = quote.rate;
+        displayFxSource = quote.source;
+        displayFxQuotedAt = quote.quotedAt;
+      } catch {
+        // Never fake a foreign amount when FX is unavailable.
+        // Fall back to the original INR display.
+        displayFxRate = 1;
+        displayFxSource = 'FALLBACK_INR';
+      }
+    }
+
+    const effectiveDisplayCurrency =
+      displayFxSource === 'FALLBACK_INR' ? 'INR' : displayCurrency;
+
+    const data = products.map((product) => {
+      const selling = this.calculateMarketplaceDisplayAmount(
+        product.sellingPrice,
+        displayFxRate,
+        effectiveDisplayCurrency,
+      );
+
+      const mrp = this.calculateMarketplaceDisplayAmount(
+        product.mrp,
+        displayFxRate,
+        effectiveDisplayCurrency,
+      );
+
+      return {
+        ...product,
+        displayCurrency: effectiveDisplayCurrency,
+        displaySellingPrice: selling.toString(),
+        displayMrp: mrp.toString(),
+        displayFxRate,
+        displayFxSource,
+        displayFxQuotedAt,
+      };
+    });
+
     return {
       success: true,
-      data: products,
+      data,
     };
   }
 
-  async getPublicProductById(id: string) {
+  async getPublicProductById(id: string, countryCode?: string) {
     const product = await this.prisma.marketplaceProduct.findFirst({
       where: {
         id,
@@ -2124,9 +2176,27 @@ export class MarketplaceService {
       throw new ForbiddenException('Authenticated user is required');
     }
 
-    const user = await this.prisma.user.findUnique({
+    // Resolve the canonical customer account. A customer can have more
+    // than one Supabase identity (for example phone OTP and Google).
+    const mappedIdentity = await this.prisma.userAuthIdentity.findUnique({
       where: {
-        supabaseId: normalizedSupabaseId,
+        provider_providerUserId: {
+          provider: 'supabase',
+          providerUserId: normalizedSupabaseId,
+        },
+      },
+      select: {
+        userId: true,
+      },
+    });
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          ...(mappedIdentity?.userId ? [{ id: mappedIdentity.userId }] : []),
+          { supabaseId: normalizedSupabaseId },
+          { id: normalizedSupabaseId },
+        ],
       },
       select: {
         id: true,
@@ -3741,25 +3811,43 @@ export class MarketplaceService {
     const countryCurrencyMap: Readonly<Record<string, string>> = {
       AE: 'AED',
       AU: 'AUD',
+      BD: 'BDT',
+      BH: 'BHD',
+      BR: 'BRL',
       CA: 'CAD',
       CH: 'CHF',
+      CL: 'CLP',
+      CN: 'CNY',
+      CO: 'COP',
       CZ: 'CZK',
       DK: 'DKK',
+      EG: 'EGP',
       HK: 'HKD',
       HU: 'HUF',
       ID: 'IDR',
       IL: 'ILS',
       JP: 'JPY',
+      KR: 'KRW',
+      KW: 'KWD',
+      LK: 'LKR',
+      MX: 'MXN',
       MY: 'MYR',
+      NG: 'NGN',
       NO: 'NOK',
+      NP: 'NPR',
       NZ: 'NZD',
+      OM: 'OMR',
       PH: 'PHP',
+      PK: 'PKR',
       PL: 'PLN',
+      QA: 'QAR',
       SA: 'SAR',
       SE: 'SEK',
       SG: 'SGD',
       TH: 'THB',
       TR: 'TRY',
+      TW: 'TWD',
+      VN: 'VND',
       ZA: 'ZAR',
     };
 
@@ -3803,6 +3891,21 @@ export class MarketplaceService {
     }
 
     return subunits;
+  }
+  private calculateMarketplaceDisplayAmount(
+    baseAmount: Prisma.Decimal,
+    fxRate: number,
+    currency: string,
+  ): Prisma.Decimal {
+    if (!Number.isFinite(fxRate) || fxRate <= 0) {
+      throw new BadRequestException('Marketplace display FX rate is invalid');
+    }
+
+    const exponent = this.getMarketplaceCurrencyExponent(currency);
+
+    return new Prisma.Decimal(baseAmount)
+      .mul(fxRate)
+      .toDecimalPlaces(exponent, Prisma.Decimal.ROUND_HALF_UP);
   }
   private async resolveMarketplaceLiveFxQuote(
     baseCurrency: string,

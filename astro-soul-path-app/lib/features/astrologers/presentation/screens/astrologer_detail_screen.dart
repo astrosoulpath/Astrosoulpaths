@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../articles/data/astrology_article.dart';
+import '../../../articles/data/astrology_articles_api.dart';
+import '../../../articles/presentation/screens/astrology_article_detail_screen.dart';
 import '../../../consultations/data/consultation_models.dart';
+import '../../../follow/data/follow_api.dart';
 import '../../../consultations/presentation/screens/consultation_confirmation_screen.dart';
 import '../../data/astrologer_api.dart';
 import '../../data/public_astrologer.dart';
@@ -35,6 +39,19 @@ class AstrologerDetailScreen extends StatefulWidget {
 
 class _AstrologerDetailScreenState extends State<AstrologerDetailScreen> {
   final _astrologerApi = AstrologerApi();
+  final _followApi = FollowApi();
+  final _articlesApi = AstrologyArticlesApi();
+
+  bool _isFollowing = false;
+  bool _followLoading = true;
+  bool _followActionLoading = false;
+  int _followerCount = 0;
+  int _selectedProfileTab = 0;
+
+  List<AstrologyArticle> _profilePosts = const [];
+  bool _profilePostsLoading = false;
+  bool _profilePostsLoaded = false;
+  String _profilePostsError = '';
 
   PublicAstrologerProfile? _profile;
   String _error = '';
@@ -44,12 +61,653 @@ class _AstrologerDetailScreenState extends State<AstrologerDetailScreen> {
   void initState() {
     super.initState();
     _loadProfile();
+    _loadFollowStatus();
   }
 
   @override
   void dispose() {
     _astrologerApi.close();
+    _articlesApi.close();
     super.dispose();
+  }
+
+  Future<void> _loadFollowStatus() async {
+    if (mounted) {
+      setState(() {
+        _followLoading = true;
+      });
+    }
+
+    try {
+      final status = await _followApi.getRealStatus(widget.astrologerId);
+
+      if (!mounted) return;
+
+      setState(() {
+        _isFollowing = status.isFollowing;
+        _followerCount = status.followerCount;
+      });
+    } on FollowApiException {
+      // Profile remains usable even if follow status cannot be loaded.
+    } finally {
+      if (mounted) {
+        setState(() {
+          _followLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    if (_followLoading || _followActionLoading) return;
+
+    setState(() {
+      _followActionLoading = true;
+    });
+
+    try {
+      final status = _isFollowing
+          ? await _followApi.unfollowReal(widget.astrologerId)
+          : await _followApi.followReal(widget.astrologerId);
+
+      if (!mounted) return;
+
+      setState(() {
+        _isFollowing = status.isFollowing;
+        _followerCount = status.followerCount;
+      });
+    } on FollowApiException catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _followActionLoading = false;
+        });
+      }
+    }
+  }
+
+  String _followersLabel(int count) {
+    if (count >= 1000000) {
+      final value = count / 1000000;
+      return '${value.toStringAsFixed(value >= 10 ? 0 : 1)}M followers';
+    }
+
+    if (count >= 1000) {
+      final value = count / 1000;
+      return '${value.toStringAsFixed(value >= 10 ? 0 : 1)}K followers';
+    }
+
+    return '$count ${count == 1 ? 'follower' : 'followers'}';
+  }
+
+  Future<void> _loadProfilePosts() async {
+    if (_profilePostsLoading || _profilePostsLoaded) return;
+
+    setState(() {
+      _profilePostsLoading = true;
+      _profilePostsError = '';
+    });
+
+    try {
+      final locale = Localizations.localeOf(context).languageCode;
+
+      final posts = await _articlesApi.getAstrologerPublishedArticles(
+        astrologerId: widget.astrologerId,
+        locale: locale,
+        limit: 20,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _profilePosts = posts;
+        _profilePostsLoaded = true;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _profilePostsError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _profilePostsLoading = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildProfileTabs() {
+    const labels = <String>['About', 'Reviews', 'Services', 'Posts'];
+
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F0FF),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2D4F3)),
+      ),
+      child: Row(
+        children: List.generate(labels.length, (index) {
+          final selected = _selectedProfileTab == index;
+
+          return Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                if (_selectedProfileTab == index) return;
+
+                setState(() {
+                  _selectedProfileTab = index;
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 11,
+                  horizontal: 4,
+                ),
+                decoration: BoxDecoration(
+                  gradient: selected
+                      ? const LinearGradient(
+                          colors: [Color(0xFF7C4DFF), Color(0xFFB45DE4)],
+                        )
+                      : null,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  labels[index],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selected ? Colors.white : const Color(0xFF5F536C),
+                    fontSize: 12,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildAboutTab(PublicAstrologer astrologer) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBF5),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE9DDF2)),
+      ),
+      child: Text(
+        astrologer.bio?.isNotEmpty == true
+            ? astrologer.bio!
+            : 'Biography not provided.',
+        style: const TextStyle(
+          color: Color(0xFF655C6D),
+          height: 1.55,
+          fontSize: 14,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewsTab(PublicAstrologer astrologer) {
+    return AstrologerDetailExtras(
+      astrologer: astrologer,
+      showReviews: true,
+      showSimilar: false,
+      onAstrologerTap: (astrologerId) {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => AstrologerDetailScreen(astrologerId: astrologerId),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildServicesTab(PublicAstrologerProfile profile) {
+    final astrologer = profile.astrologer;
+
+    Widget statusBadge(bool available) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+          color: available ? const Color(0xFFEAF8EE) : const Color(0xFFF2EFF4),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: available
+                    ? const Color(0xFF2D9A48)
+                    : const Color(0xFF8B8490),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              available ? 'Available' : 'Unavailable',
+              style: TextStyle(
+                color: available
+                    ? const Color(0xFF23783A)
+                    : const Color(0xFF746D79),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget serviceRow({
+      required IconData icon,
+      required String title,
+      required Widget value,
+      bool last = false,
+    }) {
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF8EA),
+                    borderRadius: BorderRadius.circular(13),
+                    border: Border.all(color: const Color(0xFFF0E2C8)),
+                  ),
+                  child: Icon(icon, color: AppColors.gold, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: Color(0xFF6D6875),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Flexible(child: value),
+              ],
+            ),
+          ),
+          if (!last) const Divider(height: 1, color: Color(0xFFECE7EF)),
+        ],
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 17, 16, 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBF7),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE7D9F3)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0C49365D),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.auto_awesome_rounded, color: AppColors.gold, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Consultation Services',
+                style: TextStyle(
+                  color: Color(0xFF17223A),
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Choose how you would like to connect.',
+            style: TextStyle(
+              color: Color(0xFF8A8390),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          serviceRow(
+            icon: Icons.schedule_rounded,
+            title: 'Availability',
+            value: Container(
+              constraints: const BoxConstraints(maxWidth: 145),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF8EE),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                profile.availability,
+                textAlign: TextAlign.right,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF23783A),
+                  fontSize: 12,
+                  height: 1.2,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+
+          serviceRow(
+            icon: Icons.currency_rupee_rounded,
+            title: 'Consultation Rate',
+            value: Text(
+              astrologer.priceLabel,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: Color(0xFF17223A),
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+
+          serviceRow(
+            icon: Icons.chat_bubble_rounded,
+            title: 'Chat Consultation',
+            value: statusBadge(profile.consultationOptions.chat),
+          ),
+
+          serviceRow(
+            icon: Icons.call_rounded,
+            title: 'Audio Call',
+            value: statusBadge(profile.consultationOptions.audioCall),
+            last: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPostsTab() {
+    if (_profilePostsLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_profilePostsError.isNotEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFBF7),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFE7D9F3)),
+        ),
+        child: Column(
+          children: [
+            const Icon(
+              Icons.cloud_off_rounded,
+              color: Color(0xFF7B5A91),
+              size: 30,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Unable to load posts right now.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _profilePostsLoaded = false;
+                  _profilePostsError = '';
+                });
+                _loadProfilePosts();
+              },
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!_profilePostsLoaded) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadProfilePosts();
+      });
+
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_profilePosts.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFBF7),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFE7D9F3)),
+        ),
+        child: const Column(
+          children: [
+            Icon(
+              Icons.auto_stories_rounded,
+              size: 34,
+              color: Color(0xFF8B6AA3),
+            ),
+            SizedBox(height: 10),
+            Text(
+              'No published posts yet.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF493957),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: _profilePosts
+          .map((article) {
+            final excerpt = article.excerpt?.trim();
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          AstrologyArticleDetailScreen(article: article),
+                    ),
+                  );
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFBF7),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFE7D9F3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        article.title,
+                        style: const TextStyle(
+                          color: Color(0xFF3F3150),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      if (excerpt?.isNotEmpty == true) ...[
+                        const SizedBox(height: 7),
+                        Text(
+                          excerpt!,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF75677F),
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.schedule_rounded,
+                            size: 15,
+                            color: Color(0xFF8B6AA3),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${article.readingMinutes} min read',
+                            style: const TextStyle(
+                              color: Color(0xFF8B6AA3),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          })
+          .toList(growable: false),
+    );
+  }
+
+  // ignore: unused_element
+  Widget _buildProfileTabPlaceholder({
+    required IconData icon,
+    required String title,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBF5),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE9DDF2)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: const Color(0xFF8B67A8), size: 28),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF655C6D),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFollowRow() {
+    final busy = _followLoading || _followActionLoading;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          OutlinedButton.icon(
+            onPressed: busy ? null : _toggleFollow,
+            icon: _followActionLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(
+                    _isFollowing
+                        ? Icons.check_rounded
+                        : Icons.person_add_alt_1_rounded,
+                    size: 18,
+                  ),
+            label: Text(
+              _followLoading
+                  ? 'Loading...'
+                  : (_isFollowing ? 'Following' : 'Follow'),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _isFollowing
+                  ? const Color(0xFF6B4E8A)
+                  : const Color(0xFF7B3FF2),
+              side: BorderSide(
+                color: _isFollowing
+                    ? const Color(0xFFCDBBE1)
+                    : const Color(0xFF9B6BFF),
+              ),
+              backgroundColor: _isFollowing
+                  ? const Color(0xFFF5EFFA)
+                  : const Color(0xFFFFF9F1),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            _followLoading
+                ? 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â followers'
+                : _followersLabel(_followerCount),
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF6F6478),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadProfile() async {
@@ -92,8 +750,8 @@ class _AstrologerDetailScreenState extends State<AstrologerDetailScreen> {
     PublicAstrologerProfile profile,
     ConsultationMode mode,
   ) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
+    final freeChatStarted = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
         builder: (_) => ConsultationConfirmationScreen(
           profile: profile,
           mode: mode,
@@ -106,6 +764,11 @@ class _AstrologerDetailScreenState extends State<AstrologerDetailScreen> {
         ),
       ),
     );
+
+    if (mounted && freeChatStarted == true) {
+      Navigator.of(context).pop(true);
+      return;
+    }
 
     if (mounted) {
       await _loadProfile();
@@ -234,14 +897,12 @@ class _AstrologerDetailScreenState extends State<AstrologerDetailScreen> {
           Container(
             padding: const EdgeInsets.fromLTRB(20, 28, 20, 26),
             decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  AppColors.background,
-                  AppColors.surfaceLight,
-                  AppColors.surfaceLight,
-                ],
+              image: DecorationImage(
+                image: AssetImage(
+                  'assets/stickers/astrologer_profile_background.png',
+                ),
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
               ),
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(34),
@@ -369,6 +1030,7 @@ class _AstrologerDetailScreenState extends State<AstrologerDetailScreen> {
                   ],
                 ),
                 const SizedBox(height: 7),
+                _buildFollowRow(),
                 Text(
                   astrologer.primaryExpertise,
                   textAlign: TextAlign.center,
@@ -458,79 +1120,70 @@ class _AstrologerDetailScreenState extends State<AstrologerDetailScreen> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  'About',
-                  style: TextStyle(
-                    color: AppColors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
+                _buildProfileTabs(),
+                const SizedBox(height: 12),
+                if (_selectedProfileTab == 0)
+                  _buildAboutTab(astrologer)
+                else if (_selectedProfileTab == 1)
+                  _buildReviewsTab(astrologer)
+                else if (_selectedProfileTab == 2)
+                  _buildServicesTab(profile)
+                else
+                  _buildPostsTab(),
+                if (_selectedProfileTab == 0) ...[
+                  const SizedBox(height: 22),
+                  AstrologerDetailExtras(
+                    astrologer: astrologer,
+                    showReviews: false,
+                    showSimilar: true,
+                    onAstrologerTap: (astrologerId) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => AstrologerDetailScreen(
+                            astrologerId: astrologerId,
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0x667A8BB8)),
-                  ),
-                  child: Text(
-                    astrologer.bio?.isNotEmpty == true
-                        ? astrologer.bio!
-                        : 'Biography not provided.',
-                    style: const TextStyle(
-                      color: AppColors.muted,
-                      height: 1.55,
+                  const SizedBox(height: 26),
+                  const Text(
+                    'Consultation Options',
+                    style: TextStyle(
+                      color: AppColors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-                ),
-                const SizedBox(height: 22),
-                AstrologerDetailExtras(
-                  astrologer: astrologer,
-                  onAstrologerTap: (astrologerId) {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) =>
-                            AstrologerDetailScreen(astrologerId: astrologerId),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 26),
-                const Text(
-                  'Consultation Options',
-                  style: TextStyle(
-                    color: AppColors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap:
+                        profile.astrologer.isOnline &&
+                            profile.consultationOptions.chat
+                        ? () =>
+                              _openConfirmation(profile, ConsultationMode.chat)
+                        : null,
+                    child: _ConsultationOption(
+                      icon: Icons.chat_bubble_rounded,
+                      label: 'Chat Consultation',
+                      available: profile.consultationOptions.chat,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                GestureDetector(
-                  onTap:
-                      profile.astrologer.isOnline &&
-                          profile.consultationOptions.chat
-                      ? () => _openConfirmation(profile, ConsultationMode.chat)
-                      : null,
-                  child: _ConsultationOption(
-                    icon: Icons.chat_bubble_rounded,
-                    label: 'Chat Consultation',
-                    available: profile.consultationOptions.chat,
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap:
+                        profile.astrologer.isOnline &&
+                            profile.consultationOptions.audioCall
+                        ? () =>
+                              _openConfirmation(profile, ConsultationMode.audio)
+                        : null,
+                    child: _ConsultationOption(
+                      icon: Icons.call_rounded,
+                      label: 'Audio Consultation',
+                      available: profile.consultationOptions.audioCall,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                GestureDetector(
-                  onTap:
-                      profile.astrologer.isOnline &&
-                          profile.consultationOptions.audioCall
-                      ? () => _openConfirmation(profile, ConsultationMode.audio)
-                      : null,
-                  child: _ConsultationOption(
-                    icon: Icons.call_rounded,
-                    label: 'Audio Consultation',
-                    available: profile.consultationOptions.audioCall,
-                  ),
-                ),
+                ],
               ],
             ),
           ),

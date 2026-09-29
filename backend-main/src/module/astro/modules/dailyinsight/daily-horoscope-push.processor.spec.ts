@@ -1,4 +1,4 @@
-﻿import { DailyHoroscopePushProcessor } from './daily-horoscope-push.processor';
+import { DailyHoroscopePushProcessor } from './daily-horoscope-push.processor';
 
 describe('DailyHoroscopePushProcessor', () => {
   const prismaMock = {
@@ -21,16 +21,29 @@ describe('DailyHoroscopePushProcessor', () => {
     sendToUser: jest.fn(),
   };
 
+  const notificationsServiceMock = {
+    createForUser: jest.fn(),
+  };
+
   let processor: DailyHoroscopePushProcessor;
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    notificationsServiceMock.createForUser.mockImplementation(
+      async (input: any) => ({
+        id: 'test-notification-id',
+        title: input.title,
+        body: input.body,
+      }),
+    );
 
     processor = new DailyHoroscopePushProcessor(
       prismaMock as any,
       redisMock as any,
       dailyInsightServiceMock as any,
       pushServiceMock as any,
+      notificationsServiceMock as any,
     );
   });
 
@@ -161,7 +174,7 @@ describe('DailyHoroscopePushProcessor', () => {
       data: {
         ai: {
           notificationTitle: 'Your Daily Horoscope',
-          shortReading: 'A focused and balanced Vedic day is indicated.',
+          shortReading: 'Today is a good day to make steady progress.',
           dailyAdvice: 'Complete your highest-priority work first.',
         },
       },
@@ -182,17 +195,20 @@ describe('DailyHoroscopePushProcessor', () => {
       'user-1',
       expect.objectContaining({
         title: 'Your Daily Horoscope',
-        body: 'A focused and balanced Vedic day is indicated.',
-        data: {
+        body: 'Today is a good day to make steady progress.',
+        data: expect.objectContaining({
           type: 'horoscope',
           day: 'today',
           targetDate: '2026-08-21',
-        },
+          notificationId: 'test-notification-id',
+          screen: 'horoscope',
+          source: 'daily-horoscope-push',
+        }),
       }),
     );
 
     expect(redisMock.set).toHaveBeenCalledWith(
-      'daily-horoscope:push:sent:user-1:2026-08-21',
+      'daily-horoscope:push:sent:horoscope:user-1:2026-08-21',
       '1',
       48 * 60 * 60,
     );
@@ -242,4 +258,3 @@ describe('DailyHoroscopePushProcessor', () => {
     expect(redisMock.set).not.toHaveBeenCalled();
   });
 });
-

@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../data/horoscope_api.dart';
 import '../../data/today_for_you_model.dart';
+import '../../../../core/localization/app_locale_controller.dart';
 import '../../../subscription/presentation/screens/subscription_plans_screen.dart';
 
 class DailyHoroscopeScreen extends StatefulWidget {
@@ -43,7 +44,10 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
     }
 
     try {
-      final result = await _api.getDailyHoroscope(day: _selectedDay);
+      final result = await _api.getDailyHoroscope(
+        day: _selectedDay,
+        languageCode: AppLocaleController.languageCode,
+      );
 
       if (!mounted) return;
 
@@ -131,10 +135,17 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFF0B0713),
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.white,
+        backgroundColor: const Color(0xFF0B0713),
+        iconTheme: const IconThemeData(color: Colors.white),
+        titleTextStyle: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+        ),
+        leading: const BackButton(color: Colors.white),
+        foregroundColor: Colors.white,
         title: const Text(
           'Daily Horoscope',
           style: TextStyle(fontWeight: FontWeight.w800),
@@ -147,7 +158,15 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(onRefresh: _loadHoroscope, child: _body()),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/branding/horoscope_background.png'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: RefreshIndicator(onRefresh: _loadHoroscope, child: _body()),
+      ),
     );
   }
 
@@ -232,7 +251,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                         size: 16,
                         color: selected
                             ? const Color(0xFF291E08)
-                            : AppColors.muted,
+                            : Color(0xFFD7CEE6),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -243,7 +262,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                         style: TextStyle(
                           color: selected
                               ? const Color(0xFF291E08)
-                              : AppColors.white,
+                              : Colors.white,
                           fontSize: 12,
                           fontWeight: selected
                               ? FontWeight.w900
@@ -318,14 +337,18 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
 
     final user = <String, dynamic>{
       ...rawUser,
-      'natalNakshatra': vedicNatalForCosmic['nakshatra'] ?? rawUser['natalNakshatra'],
-      'currentNakshatra': vedicCurrentForCosmic['nakshatra'] ?? rawUser['currentNakshatra'],
+      'natalNakshatra':
+          vedicNatalForCosmic['nakshatra'] ?? rawUser['natalNakshatra'],
+      'currentNakshatra':
+          vedicCurrentForCosmic['nakshatra'] ?? rawUser['currentNakshatra'],
     };
 
     final cosmic = <String, dynamic>{
       ...rawCosmic,
       'overallScore': todayForYou?.overallScore ?? rawCosmic['overallScore'],
-      'tarabala': vedicTarabala.isNotEmpty ? vedicTarabala : rawCosmic['tarabala'],
+      'tarabala': vedicTarabala.isNotEmpty
+          ? vedicTarabala
+          : rawCosmic['tarabala'],
     };
 
     final tarabala = _map(cosmic['tarabala']);
@@ -371,7 +394,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
           const Text(
             'Personalized for you',
             style: TextStyle(
-              color: AppColors.muted,
+              color: Color(0xFFD7CEE6),
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
@@ -419,7 +442,6 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
               ),
             ],
           ),
-
 
           const SizedBox(height: 18),
 
@@ -628,7 +650,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.surfaceLight, AppColors.surface],
+          colors: [Color(0x26000000), Color(0x12000000)],
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0x88F4C45E)),
@@ -677,7 +699,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                     Text(
                       'Your personal Vedic day',
                       style: TextStyle(
-                        color: AppColors.white,
+                        color: Colors.white,
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
                       ),
@@ -715,7 +737,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
             Text(
               headline,
               style: const TextStyle(
-                color: AppColors.white,
+                color: Colors.white,
                 fontSize: 16,
                 height: 1.45,
                 fontWeight: FontWeight.w700,
@@ -729,7 +751,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: const Color(0x14000000),
+                color: const Color(0x1AFFFFFF),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
@@ -744,7 +766,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                     child: Text(
                       'Current phase  \u2022  $phase',
                       style: const TextStyle(
-                        color: AppColors.white,
+                        color: Colors.white,
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                       ),
@@ -770,7 +792,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                   child: Text(
                     advice,
                     style: const TextStyle(
-                      color: AppColors.muted,
+                      color: Color(0xFFD9D3E8),
                       height: 1.45,
                     ),
                   ),
@@ -853,7 +875,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                       child: Text(
                         'Why Today?',
                         style: TextStyle(
-                          color: AppColors.white,
+                          color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.w900,
                         ),
@@ -864,7 +886,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                 const SizedBox(height: 6),
                 const Text(
                   'The Vedic factors used for your personal daily guidance.',
-                  style: TextStyle(color: AppColors.muted, height: 1.4),
+                  style: TextStyle(color: Color(0xFFD7CEE6), height: 1.4),
                 ),
 
                 if (evidence.isNotEmpty) ...[
@@ -928,7 +950,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                   child: const Text(
                     'Calculated Vedic data is generated first. AI is used only to explain the supplied astrological context.',
                     style: TextStyle(
-                      color: AppColors.muted,
+                      color: Color(0xFFD9D3E8),
                       height: 1.45,
                       fontSize: 12,
                     ),
@@ -973,7 +995,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                 const Text(
                   'Vedic Calculation Basis',
                   style: TextStyle(
-                    color: AppColors.white,
+                    color: Colors.white,
                     fontSize: 21,
                     fontWeight: FontWeight.w900,
                   ),
@@ -981,13 +1003,13 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                 const SizedBox(height: 8),
                 const Text(
                   'Only data actually available for this reading is listed below.',
-                  style: TextStyle(color: AppColors.muted, height: 1.4),
+                  style: TextStyle(color: Color(0xFFD7CEE6), height: 1.4),
                 ),
                 const SizedBox(height: 18),
                 if (sources.isEmpty)
                   const Text(
                     'Calculation source details are not available for this reading.',
-                    style: TextStyle(color: AppColors.muted),
+                    style: TextStyle(color: Color(0xFFD7CEE6)),
                   )
                 else
                   Wrap(
@@ -1005,7 +1027,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                             backgroundColor: const Color(0x18F4C45E),
                             side: const BorderSide(color: Color(0x33F4C45E)),
                             labelStyle: const TextStyle(
-                              color: AppColors.white,
+                              color: Colors.white,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -1038,7 +1060,11 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0x22000000), Color(0x16000000), Color(0x0D000000)],
+        ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0x22FFFFFF)),
       ),
@@ -1058,14 +1084,14 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                 Text(
                   evidence.label,
                   style: const TextStyle(
-                    color: AppColors.white,
+                    color: Colors.white,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   evidence.value,
-                  style: const TextStyle(color: AppColors.muted, height: 1.4),
+                  style: const TextStyle(color: Color(0xFFD7CEE6), height: 1.4),
                 ),
               ],
             ),
@@ -1082,7 +1108,10 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Text(label, style: const TextStyle(color: AppColors.muted)),
+            child: Text(
+              label,
+              style: const TextStyle(color: Color(0xFFD7CEE6)),
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -1090,7 +1119,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
               value,
               textAlign: TextAlign.right,
               style: const TextStyle(
-                color: AppColors.white,
+                color: Colors.white,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1113,7 +1142,11 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0x22000000), Color(0x16000000), Color(0x0D000000)],
+        ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0x55F4C45E)),
       ),
@@ -1152,13 +1185,16 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                     Text(
                       name,
                       style: const TextStyle(
-                        color: AppColors.white,
+                        color: Colors.white,
                         fontSize: 23,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(date, style: const TextStyle(color: AppColors.muted)),
+                    Text(
+                      date,
+                      style: const TextStyle(color: Color(0xFFD7CEE6)),
+                    ),
                   ],
                 ),
               ),
@@ -1183,14 +1219,17 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                       Text(
                         'Overall Cosmic Score',
                         style: TextStyle(
-                          color: AppColors.white,
+                          color: Colors.white,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
                       SizedBox(height: 2),
                       Text(
                         'Your personalized Vedic outlook',
-                        style: TextStyle(color: AppColors.muted, fontSize: 12),
+                        style: TextStyle(
+                          color: Color(0xFFD7CEE6),
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -1237,7 +1276,11 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0x22000000), Color(0x16000000), Color(0x0D000000)],
+        ),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -1259,7 +1302,11 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0x22000000), Color(0x16000000), Color(0x0D000000)],
+        ),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -1309,7 +1356,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
               Text(
                 _text(data['nakshatra']),
                 style: const TextStyle(
-                  color: AppColors.white,
+                  color: Colors.white,
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1317,13 +1364,13 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
               const SizedBox(height: 4),
               Text(
                 'Lord: ${_text(data['nakshatraLord'] ?? data['lord'], fallback: 'N/A')}',
-                style: const TextStyle(color: AppColors.muted),
+                style: const TextStyle(color: Color(0xFFD7CEE6)),
               ),
               if (includeExtra) ...[
                 const SizedBox(height: 4),
                 Text(
                   'Deity: ${_text(data['deity'], fallback: 'N/A')}  |  Pada: ${_text(data['pada'], fallback: 'N/A')}',
-                  style: const TextStyle(color: AppColors.muted),
+                  style: const TextStyle(color: Color(0xFFD7CEE6)),
                 ),
               ],
             ],
@@ -1342,7 +1389,11 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0x22000000), Color(0x16000000), Color(0x0D000000)],
+        ),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -1357,7 +1408,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                 Text(
                   title,
                   style: const TextStyle(
-                    color: AppColors.white,
+                    color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
@@ -1365,7 +1416,10 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                 const SizedBox(height: 7),
                 Text(
                   description,
-                  style: const TextStyle(color: AppColors.muted, height: 1.45),
+                  style: const TextStyle(
+                    color: Color(0xFFD7CEE6),
+                    height: 1.45,
+                  ),
                 ),
               ],
             ),
@@ -1387,7 +1441,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF211B34), Color(0xFF171322)],
+          colors: [Color(0x22000000), Color(0x12000000)],
         ),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: const Color(0x55F4C45E), width: 1),
@@ -1434,7 +1488,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: AppColors.white,
+              color: Colors.white,
               fontSize: 15,
               height: 1.35,
               fontWeight: FontWeight.w800,
@@ -1477,8 +1531,8 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isClosing
-              ? const [Color(0xFF292039), Color(0xFF181321)]
-              : const [Color(0xFF211B31), Color(0xFF17131F)],
+              ? const [Color(0x26000000), Color(0x16000000)]
+              : const [Color(0x22000000), Color(0x12000000)],
         ),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
@@ -1528,7 +1582,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                 Text(
                   value,
                   style: const TextStyle(
-                    color: AppColors.white,
+                    color: Colors.white,
                     fontSize: 14,
                     height: 1.55,
                     fontWeight: FontWeight.w500,
@@ -1566,7 +1620,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
           child: Text(
             title,
             style: const TextStyle(
-              color: AppColors.white,
+              color: Colors.white,
               fontSize: 19,
               height: 1.2,
               fontWeight: FontWeight.w900,
@@ -1598,7 +1652,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
       child: Text(
         text,
         style: const TextStyle(
-          color: AppColors.white,
+          color: Colors.white,
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
@@ -1611,7 +1665,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Text(label, style: const TextStyle(color: AppColors.muted)),
+          child: Text(label, style: const TextStyle(color: Color(0xFFD7CEE6))),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -1619,7 +1673,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
             value,
             textAlign: TextAlign.right,
             style: const TextStyle(
-              color: AppColors.white,
+              color: Colors.white,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -1644,7 +1698,11 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0x22000000), Color(0x16000000), Color(0x0D000000)],
+        ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0x33F4C45E)),
       ),
@@ -1673,7 +1731,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                     Text(
                       'Current Vimshottari Dasha',
                       style: TextStyle(
-                        color: AppColors.white,
+                        color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                       ),
@@ -1681,7 +1739,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                     SizedBox(height: 2),
                     Text(
                       'Calculated from your Vedic birth chart',
-                      style: TextStyle(color: AppColors.muted, fontSize: 12),
+                      style: TextStyle(color: Color(0xFFD7CEE6), fontSize: 12),
                     ),
                   ],
                 ),
@@ -1824,7 +1882,15 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF2A203A),
+                      Color(0xFF171220),
+                      Color(0xFF110D19),
+                    ],
+                  ),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: const Color(0x55F4C45E)),
                 ),
@@ -1849,7 +1915,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                       'Unlock Daily Horoscope',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: AppColors.white,
+                        color: Colors.white,
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
                       ),
@@ -1858,7 +1924,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                     const Text(
                       'Get your personalized Vedic daily horoscope, lucky elements, life-area guidance and daily insights.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.muted, height: 1.5),
+                      style: TextStyle(color: Color(0xFFD7CEE6), height: 1.5),
                     ),
                     const SizedBox(height: 22),
                     SizedBox(
@@ -1905,7 +1971,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                   _error,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    color: AppColors.white,
+                    color: Colors.white,
                     fontSize: 16,
                     height: 1.4,
                   ),
@@ -1924,5 +1990,3 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
     );
   }
 }
-
-
