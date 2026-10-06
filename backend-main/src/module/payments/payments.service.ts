@@ -1,4 +1,6 @@
 ﻿import { MarketplaceService } from '../marketplace/marketplace.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsPushService } from '../notifications/notifications.push.service';
 import {
   BadGatewayException,
   BadRequestException,
@@ -94,6 +96,8 @@ export class PaymentsService {
     private readonly kundliOrderService: KundliOrderService,
     private readonly localizedPricingService: LocalizedPricingService,
     private readonly marketplaceService: MarketplaceService,
+    private readonly notificationsService: NotificationsService,
+    private readonly notificationsPushService: NotificationsPushService,
   ) {}
 
   async createOrder(
@@ -861,6 +865,13 @@ export class PaymentsService {
       );
     }
 
+    if (result.subscriptionId) {
+      await this.sendSubscriptionActivatedNotification(
+        paymentOrder.userId,
+        result.subscriptionId,
+      );
+    }
+
     this.logger.log(
       `subscription.activated paymentOrderId=${paymentOrder.id} subscriptionId=${result.subscriptionId ?? 'unknown'} razorpayPaymentId=${payment.id}`,
     );
@@ -1098,6 +1109,50 @@ export class PaymentsService {
     };
   }
 
+
+  private async sendSubscriptionActivatedNotification(
+    userId: string,
+    subscriptionId: string,
+  ): Promise<void> {
+    try {
+      const title = 'Personalized Daily Horoscope activated';
+      const body =
+        'Your subscription is active. Your personalized Vedic horoscope is now available.';
+
+      const notification = await this.notificationsService.createForUser({
+        userId,
+        title,
+        body,
+        type: 'subscription',
+        data: {
+          type: 'subscription',
+          screen: 'horoscope',
+          subscriptionId,
+          status: 'ACTIVE',
+          source: 'subscription-activation',
+        },
+      });
+
+      await this.notificationsPushService.sendToUser(userId, {
+        title: notification.title,
+        body: notification.body,
+        data: {
+          type: 'subscription',
+          screen: 'horoscope',
+          subscriptionId,
+          notificationId: notification.id,
+          status: 'ACTIVE',
+          source: 'subscription-activation',
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Subscription activation notification failed userId=${userId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
   private async markSubscriptionFailed(
     paymentOrder: PaymentOrder,
     payment: RazorpayPaymentEntity,
@@ -1818,4 +1873,3 @@ export class PaymentsService {
     }
   }
 }
-

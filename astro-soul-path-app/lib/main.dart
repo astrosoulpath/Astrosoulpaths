@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -34,6 +35,15 @@ class _BootstrapAppState extends State<_BootstrapApp> {
 
   Future<void> _bootstrap() async {
     try {
+      debugPrint('BOOTSTRAP: initializing Firebase...');
+      await Firebase.initializeApp();
+      debugPrint('BOOTSTRAP: Firebase initialized successfully.');
+      final fb = Firebase.app().options;
+      debugPrint('FB_RUNTIME_PROJECT=${fb.projectId}');
+      debugPrint('FB_RUNTIME_APP_ID=${fb.appId}');
+      debugPrint('FB_RUNTIME_SENDER=${fb.messagingSenderId}');
+      debugPrint('FB_RUNTIME_API_PREFIX=${fb.apiKey.substring(0, 12)}');
+
       debugPrint('BOOTSTRAP: validating Supabase config...');
 
       SupabaseConfig.validate();
@@ -101,7 +111,6 @@ class _StartupLoadingScreenState extends State<_StartupLoadingScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _fadeAnimation;
-  late final Animation<Offset> _slideAnimation;
   late final Animation<double> _scaleAnimation;
 
   @override
@@ -110,18 +119,13 @@ class _StartupLoadingScreenState extends State<_StartupLoadingScreen>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 950),
+      duration: const Duration(milliseconds: 850),
     );
 
     _fadeAnimation = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.0, 0.75, curve: Curves.easeOut),
+      curve: Curves.easeOut,
     );
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.28),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
 
     _scaleAnimation = Tween<double>(
       begin: 0.94,
@@ -141,50 +145,34 @@ class _StartupLoadingScreenState extends State<_StartupLoadingScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Center(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: ScaleTransition(
-                scale: _scaleAnimation,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Image.asset(
-                      'assets/branding/AstroSoulPathEmblem.png',
-                      width: 148,
-                      height: 148,
-                      fit: BoxFit.contain,
-                      filterQuality: FilterQuality.high,
-                    ),
-                    const SizedBox(height: 22),
-                    const Text(
-                      'Astro Soul Path',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Color(0xFF111827),
-                        fontSize: 34,
-                        height: 1.05,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.8,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'DISCOVER  •  ALIGN  •  TRANSFORM',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Color(0xFFB78628),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 2.1,
-                      ),
-                    ),
-                  ],
+      body: Center(
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: ScaleTransition(
+            scale: _scaleAnimation,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset(
+                  'assets/branding/AstroSoulPathEmblem.png',
+                  width: 112,
+                  height: 112,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
                 ),
-              ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Astro Soul Path',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF111827),
+                    fontSize: 32,
+                    height: 1.05,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.7,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

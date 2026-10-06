@@ -1,17 +1,21 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { PaymentStatus, PaymentType, Prisma } from '@prisma/client';
+﻿import { Test, TestingModule } from '@nestjs/testing';
+import { PaymentStatus, PaymentType, Prisma, SubscriptionStatus } from '@prisma/client';
 
-import { razorpayInstance } from '../../config/razorpay.config';
+import { getRazorpayInstance } from '../../config/razorpay.config';
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { KundliOrderService } from '../kundli/kundli-order.service';
 import { LocalizedPricingService } from './pricing/localized-pricing.service';
+import { MarketplaceService } from '../marketplace/marketplace.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsPushService } from '../notifications/notifications.push.service';
 
 describe('PaymentsService', () => {
   let service: PaymentsService;
   let prismaMock: {
     $transaction: jest.Mock;
-    user: { findUnique: jest.Mock };
+    user: { findUnique: jest.Mock; update: jest.Mock };
+    userAuthIdentity: { findUnique: jest.Mock };
     wallet: {
       upsert: jest.Mock;
       findUnique: jest.Mock;
@@ -27,6 +31,10 @@ describe('PaymentsService', () => {
       upsert: jest.Mock;
     };
     walletLedger: { create: jest.Mock };
+    subscription: {
+      findUnique: jest.Mock;
+      update: jest.Mock;
+    };
   };
   let kundliOrderServiceMock: {
     assertKundliExists: jest.Mock;
@@ -41,6 +49,14 @@ describe('PaymentsService', () => {
   };
 
   let fetchPaymentsSpy: jest.SpyInstance;
+
+  let notificationsServiceMock: {
+    createForUser: jest.Mock;
+  };
+
+  let notificationsPushServiceMock: {
+    sendToUser: jest.Mock;
+  };
 
   const buildCapturedEvent = () => ({
     event: 'payment.captured',
@@ -92,6 +108,8 @@ describe('PaymentsService', () => {
       id: 'wallet_123',
       userId: 'user_123',
       balance: new Prisma.Decimal('250.00'),
+      paidBalance: new Prisma.Decimal('250.00'),
+      freeBalance: new Prisma.Decimal('0.00'),
       lockedBalance: new Prisma.Decimal('0.00'),
       currency: 'INR',
       createdAt: new Date('2026-05-12T00:00:00.000Z'),
@@ -100,6 +118,8 @@ describe('PaymentsService', () => {
   });
 
   beforeEach(async () => {
+    const razorpayInstance = getRazorpayInstance();
+
     fetchPaymentsSpy = jest
       .spyOn(razorpayInstance.orders, 'fetchPayments')
       .mockResolvedValue({ items: [] } as never);
@@ -108,6 +128,12 @@ describe('PaymentsService', () => {
       $transaction: jest.fn(),
       user: {
         findUnique: jest.fn(),
+        update: jest.fn(),
+      },
+      userAuthIdentity: {
+        findUnique: jest.fn().mockResolvedValue({
+          userId: 'user_123',
+        }),
       },
       wallet: {
         upsert: jest.fn(),
@@ -125,6 +151,10 @@ describe('PaymentsService', () => {
       },
       walletLedger: {
         create: jest.fn(),
+      },
+      subscription: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
       },
     };
 
@@ -144,6 +174,14 @@ describe('PaymentsService', () => {
       quoteUsdPrice: jest.fn(),
     };
 
+    notificationsServiceMock = {
+      createForUser: jest.fn(),
+    };
+
+    notificationsPushServiceMock = {
+      sendToUser: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PaymentsService,
@@ -158,6 +196,27 @@ describe('PaymentsService', () => {
         {
           provide: LocalizedPricingService,
           useValue: localizedPricingServiceMock,
+        },
+        {
+          provide: MarketplaceService,
+          useValue: {
+            findMarketplaceOrderForRazorpayWebhook: jest
+              .fn()
+              .mockResolvedValue(null),
+            finalizeMarketplaceRazorpayWebhook: jest.fn(),
+            isMarketplaceRefundRequiredFinalizationError: jest
+              .fn()
+              .mockReturnValue(false),
+            recordMarketplaceCapturedPaymentException: jest.fn(),
+          },
+        },
+        {
+          provide: NotificationsService,
+          useValue: notificationsServiceMock,
+        },
+        {
+          provide: NotificationsPushService,
+          useValue: notificationsPushServiceMock,
         },
       ],
     }).compile();
@@ -424,5 +483,177 @@ describe('PaymentsService', () => {
     expect(fetchPaymentsSpy).not.toHaveBeenCalled();
     expect(prismaMock.wallet.update).not.toHaveBeenCalled();
     expect(prismaMock.walletLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('activates subscription and sends personalized horoscope notification', async () => {
+    const paymentOrder = {
+      ...buildPaymentOrder(),
+      type: PaymentType.SUBSCRIPTION,
+      walletId: null,
+      wallet: null,
+      metadata: {
+        subscriptionId: 'subscription_123',
+        subscriptionPlanId: 'plan_123',
+        planName: 'DAILY_HOROSCOPE_MONTHLY',
+      },
+    };
+
+    const event = buildCapturedEvent();
+
+    prismaMock.paymentOrder.findUnique.mockResolvedValue(paymentOrder);
+
+    prismaMock.$transaction.mockImplementation(async (callback) =>
+      callback(prismaMock),
+    );
+
+    prismaMock.paymentOrder.updateMany.mockResolvedValue({ count: 1 });
+
+    prismaMock.paymentOrder.findUniqueOrThrow.mockResolvedValue({
+      ...paymentOrder,
+      status: PaymentStatus.SUCCESS,
+      razorpayPaymentId: 'pay_123',
+      paymentMethod: 'upi',
+    });
+
+    prismaMock.subscription.findUnique.mockResolvedValue({
+      id: 'subscription_123',
+      userId: 'user_123',
+      subscriptionPlanId: 'plan_123',
+      subscriptionStatus: SubscriptionStatus.PENDING,
+      subscriptionPlan: {
+        id: 'plan_123',
+        name: 'DAILY_HOROSCOPE_MONTHLY',
+        durationDays: 30,
+      },
+    });
+
+    prismaMock.subscription.update.mockResolvedValue({
+      id: 'subscription_123',
+      userId: 'user_123',
+      subscriptionPlanId: 'plan_123',
+      subscriptionStatus: SubscriptionStatus.ACTIVE,
+    });
+
+    prismaMock.user.update.mockResolvedValue({
+      id: 'user_123',
+      subscriptionStatus: SubscriptionStatus.ACTIVE,
+      subscriptionPlanId: 'plan_123',
+    });
+
+    notificationsServiceMock.createForUser.mockResolvedValue({
+      id: 'notification_123',
+      userId: 'user_123',
+      title: 'Personalized Daily Horoscope activated',
+      body:
+        'Your subscription is active. Your personalized Vedic horoscope is now available.',
+    });
+
+    notificationsPushServiceMock.sendToUser.mockResolvedValue(undefined);
+
+    const result = await service.processVerifiedWebhook(event);
+
+    expect(result).toEqual({
+      status: 'success',
+      paymentOrderId: paymentOrder.id,
+    });
+
+    expect(prismaMock.subscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'subscription_123',
+        },
+        data: expect.objectContaining({
+          subscriptionStatus: SubscriptionStatus.ACTIVE,
+        }),
+      }),
+    );
+
+    expect(prismaMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'user_123',
+        },
+        data: expect.objectContaining({
+          subscriptionStatus: SubscriptionStatus.ACTIVE,
+          subscriptionPlanId: 'plan_123',
+        }),
+      }),
+    );
+
+    expect(notificationsServiceMock.createForUser).toHaveBeenCalledTimes(1);
+
+    expect(notificationsServiceMock.createForUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user_123',
+        title: 'Personalized Daily Horoscope activated',
+        type: 'subscription',
+        data: expect.objectContaining({
+          type: 'subscription',
+          screen: 'horoscope',
+          subscriptionId: 'subscription_123',
+          status: 'ACTIVE',
+          source: 'subscription-activation',
+        }),
+      }),
+    );
+
+    expect(notificationsPushServiceMock.sendToUser).toHaveBeenCalledTimes(1);
+
+    expect(notificationsPushServiceMock.sendToUser).toHaveBeenCalledWith(
+      'user_123',
+      expect.objectContaining({
+        title: 'Personalized Daily Horoscope activated',
+        data: expect.objectContaining({
+          type: 'subscription',
+          screen: 'horoscope',
+          subscriptionId: 'subscription_123',
+          notificationId: 'notification_123',
+          status: 'ACTIVE',
+          source: 'subscription-activation',
+        }),
+      }),
+    );
+  });
+
+  it('does not send personalized horoscope notification for duplicate subscription webhook', async () => {
+    const paymentOrder = {
+      ...buildPaymentOrder(),
+      type: PaymentType.SUBSCRIPTION,
+      walletId: null,
+      wallet: null,
+      metadata: {
+        subscriptionId: 'subscription_123',
+        subscriptionPlanId: 'plan_123',
+        planName: 'DAILY_HOROSCOPE_MONTHLY',
+      },
+    };
+
+    const event = buildCapturedEvent();
+
+    prismaMock.paymentOrder.findUnique.mockResolvedValue(paymentOrder);
+
+    prismaMock.$transaction.mockImplementation(async (callback) =>
+      callback(prismaMock),
+    );
+
+    prismaMock.paymentOrder.updateMany.mockResolvedValue({ count: 0 });
+
+    const result = await service.processVerifiedWebhook(event);
+
+    expect(result).toEqual({
+      status: 'duplicate',
+      paymentOrderId: paymentOrder.id,
+    });
+
+    expect(prismaMock.subscription.update).not.toHaveBeenCalled();
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+
+    expect(
+      notificationsServiceMock.createForUser,
+    ).not.toHaveBeenCalled();
+
+    expect(
+      notificationsPushServiceMock.sendToUser,
+    ).not.toHaveBeenCalled();
   });
 });

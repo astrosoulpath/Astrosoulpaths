@@ -1,4 +1,4 @@
-import { existsSync } from 'fs';
+﻿import { existsSync } from 'fs';
 import { join } from 'path';
 
 import {
@@ -33,12 +33,47 @@ export type GenerateSavedKundliPdfInput = {
 export class KundliPdfService {
   private readonly logger = new Logger(KundliPdfService.name);
 
-  private readonly fontPath = join(
+  private readonly fontDirectory = join(
     process.cwd(),
     'assets',
     'fonts',
-    'NotoSansDevanagari.ttf',
   );
+
+  private resolveFontPath(lang: string): string {
+    const normalizedLang = (lang || 'en').trim().toLowerCase();
+
+    const fontByLanguage: Record<string, string> = {
+      en: 'NotoSans.ttf',
+      es: 'NotoSans.ttf',
+      fr: 'NotoSans.ttf',
+      de: 'NotoSans.ttf',
+      pt: 'NotoSans.ttf',
+      it: 'NotoSans.ttf',
+      ru: 'NotoSans.ttf',
+
+      hi: 'NotoSansDevanagari.ttf',
+      mr: 'NotoSansDevanagari.ttf',
+
+      bn: 'NotoSansBengali.ttf',
+      ta: 'NotoSansTamil.ttf',
+      te: 'NotoSansTelugu.ttf',
+      gu: 'NotoSansGujarati.ttf',
+      kn: 'NotoSansKannada.ttf',
+      ml: 'NotoSansMalayalam.ttf',
+      pa: 'NotoSansGurmukhi.ttf',
+
+      ar: 'NotoSansArabic.ttf',
+
+      zh: 'NotoSansSC.ttf',
+      ja: 'NotoSansJP.ttf',
+      ko: 'NotoSansKR.ttf',
+    };
+
+    return join(
+      this.fontDirectory,
+      fontByLanguage[normalizedLang] ?? 'NotoSans.ttf',
+    );
+  }
 
   async generateProfileKundliPdf(
     input: GenerateSavedKundliPdfInput & {
@@ -63,8 +98,12 @@ export class KundliPdfService {
       });
     }
 
-    if (!existsSync(this.fontPath)) {
-      this.logger.error(`kundli_pdf.font_missing path=${this.fontPath}`);
+    const fontPath = this.resolveFontPath(input.lang);
+
+    if (!existsSync(fontPath)) {
+      this.logger.error(
+        `kundli_pdf.font_missing lang=${input.lang} path=${fontPath}`,
+      );
 
       throw new InternalServerErrorException({
         success: false,
@@ -92,7 +131,7 @@ export class KundliPdfService {
         },
       });
 
-      document.registerFont('AspUnicode', this.fontPath);
+      document.registerFont('AspUnicode', fontPath);
 
       document.font('AspUnicode');
 
@@ -157,6 +196,11 @@ export class KundliPdfService {
     const analysis =
       reportData.analysis && typeof reportData.analysis === 'object'
         ? reportData.analysis
+        : {};
+
+    const dashaDisplay =
+      analysis.dashaDisplay && typeof analysis.dashaDisplay === 'object'
+        ? analysis.dashaDisplay
         : {};
 
     const extended =
@@ -245,13 +289,13 @@ export class KundliPdfService {
 
     this.writeProfessionalSectionHeading(
       document,
-      'Vimshottari Dasha',
-      'Major and sub-period timeline calculated from the verified birth chart.',
+      this.text(dashaDisplay.sectionTitle),
+      this.text(dashaDisplay.sectionSubtitle),
     );
 
-    this.writeDashaReadingGuide(document, report.dasha);
-    this.writeCurrentDashaSummary(document, report.dasha);
-    this.writeFullDashaHierarchy(document, report.dasha);
+    this.writeDashaReadingGuide(document, report.dasha, dashaDisplay);
+    this.writeCurrentDashaSummary(document, report.dasha, dashaDisplay);
+    this.writeFullDashaHierarchy(document, report.dasha, dashaDisplay);
 
     this.writeProfessionalSectionHeading(
       document,
@@ -656,6 +700,7 @@ export class KundliPdfService {
   private writeDasha(
     document: PDFKit.PDFDocument,
     dasha: Record<string, any> | null,
+    dashaDisplay?: Record<string, any>,
   ): void {
     const timeline = Array.isArray(dasha?.timeline) ? dasha.timeline : [];
 
@@ -664,7 +709,10 @@ export class KundliPdfService {
     }
 
     this.ensureSpace(document, 180);
-    this.sectionTitle(document, 'Vimshottari Dasha Timeline');
+    this.sectionTitle(
+      document,
+      this.text(dashaDisplay?.timelineTitle) || 'Vimshottari Dasha Timeline',
+    );
 
     const left = 55;
     const width = 480;
@@ -689,8 +737,10 @@ export class KundliPdfService {
         .fillColor('#071936')
         .fontSize(9)
         .text(
-          `${this.text(period?.lord) || 'Unknown'} ${
-            this.text(period?.level) || 'Dasha'
+          `${this.text(period?.lord) || this.text(dashaDisplay?.unknownLabel) || 'Unknown'} ${
+            this.text(period?.level) ||
+            this.text(dashaDisplay?.mahadashaLabel) ||
+            'Dasha'
           }`,
           left + 10,
           rowY + 7,
@@ -1612,6 +1662,7 @@ export class KundliPdfService {
   private writeDashaReadingGuide(
     document: PDFKit.PDFDocument,
     dasha: Record<string, any> | null,
+    dashaDisplay: Record<string, any>,
   ): void {
     const timeline = Array.isArray(dasha?.timeline) ? dasha.timeline : [];
 
@@ -1641,7 +1692,7 @@ export class KundliPdfService {
       .fillColor('#7A5B08')
       .fontSize(8)
       .text(
-        'DASHA READING GUIDE',
+        this.text(dashaDisplay.guideTitle),
         document.page.margins.left + 12,
         startY + 11,
       );
@@ -1650,7 +1701,7 @@ export class KundliPdfService {
       .fillColor('#252A3A')
       .fontSize(8)
       .text(
-        'Mahadasha describes the broader planetary period. Antardasha refines the active sub-period. Dates shown in this report come from the verified calculation dataset and should be interpreted together with the natal chart, divisional charts and current transit context.',
+        this.text(dashaDisplay.guideBody),
         document.page.margins.left + 12,
         startY + 29,
         {
@@ -1668,6 +1719,7 @@ export class KundliPdfService {
   private writeCurrentDashaSummary(
     document: PDFKit.PDFDocument,
     dasha: Record<string, any> | null,
+    dashaDisplay: Record<string, any>,
   ): void {
     const current =
       dasha?.current && typeof dasha.current === 'object'
@@ -1694,7 +1746,7 @@ export class KundliPdfService {
 
     this.ensureSpace(document, 125);
 
-    this.sectionTitle(document, 'Current Vimshottari Period');
+    this.sectionTitle(document, this.text(dashaDisplay.currentPeriodTitle));
 
     const startY = document.y;
 
@@ -1705,18 +1757,18 @@ export class KundliPdfService {
     document
       .fillColor('#7A5B08')
       .fontSize(8)
-      .text('CURRENT MAHADASHA', 66, startY + 14);
+      .text(this.text(dashaDisplay.currentMahadashaLabel), 66, startY + 14);
 
     document
       .fillColor('#0B1026')
       .fontSize(13)
-      .text(this.text(maha?.lord) || 'Unavailable', 66, startY + 29);
+      .text(this.text(maha?.lord) || this.text(dashaDisplay.unavailableLabel), 66, startY + 29);
 
     document
       .fillColor('#5F6473')
       .fontSize(7.5)
       .text(
-        `${this.text(maha?.start) || '-'} to ${this.text(maha?.end) || '-'}`,
+        `${this.text(maha?.start) || '-'} ${this.text(dashaDisplay.dateSeparator)} ${this.text(maha?.end) || '-'}`,
         66,
         startY + 48,
       );
@@ -1724,18 +1776,18 @@ export class KundliPdfService {
     document
       .fillColor('#7A5B08')
       .fontSize(8)
-      .text('CURRENT ANTARDASHA', 310, startY + 14);
+      .text(this.text(dashaDisplay.currentAntardashaLabel), 310, startY + 14);
 
     document
       .fillColor('#0B1026')
       .fontSize(13)
-      .text(this.text(antar?.lord) || 'Unavailable', 310, startY + 29);
+      .text(this.text(antar?.lord) || this.text(dashaDisplay.unavailableLabel), 310, startY + 29);
 
     document
       .fillColor('#5F6473')
       .fontSize(7.5)
       .text(
-        `${this.text(antar?.start) || '-'} to ${this.text(antar?.end) || '-'}`,
+        `${this.text(antar?.start) || '-'} ${this.text(dashaDisplay.dateSeparator)} ${this.text(antar?.end) || '-'}`,
         310,
         startY + 48,
       );
@@ -1746,6 +1798,7 @@ export class KundliPdfService {
   private writeFullDashaHierarchy(
     document: PDFKit.PDFDocument,
     dasha: Record<string, any> | null,
+    dashaDisplay: Record<string, any>,
   ): void {
     const timeline = Array.isArray(dasha?.timeline) ? dasha.timeline : [];
 
@@ -1753,7 +1806,7 @@ export class KundliPdfService {
       return;
     }
 
-    this.sectionTitle(document, 'Vimshottari Dasha Timeline');
+    this.sectionTitle(document, this.text(dashaDisplay.timelineTitle));
 
     for (const maha of timeline) {
       this.ensureSpace(document, 80);
@@ -1767,7 +1820,11 @@ export class KundliPdfService {
       document
         .fillColor('#0B1026')
         .fontSize(10)
-        .text(`${this.text(maha?.lord) || 'Unknown'} Mahadasha`, 62, y + 10, {
+        .text(
+          `${this.text(maha?.lord) || this.text(dashaDisplay.unknownLabel)} ${this.text(dashaDisplay.mahadashaLabel)}`,
+          62,
+          y + 10,
+          {
           width: 220,
         });
 
@@ -1775,7 +1832,7 @@ export class KundliPdfService {
         .fillColor('#5F6473')
         .fontSize(7.5)
         .text(
-          `${this.text(maha?.start) || '-'} to ${this.text(maha?.end) || '-'}`,
+          `${this.text(maha?.start) || '-'} ${this.text(dashaDisplay.dateSeparator)} ${this.text(maha?.end) || '-'}`,
           300,
           y + 12,
           {
@@ -1801,7 +1858,7 @@ export class KundliPdfService {
           .fillColor('#252A3A')
           .fontSize(8)
           .text(
-            `${this.text(antar?.lord) || 'Unknown'} Antardasha`,
+            `${this.text(antar?.lord) || this.text(dashaDisplay.unknownLabel)} ${this.text(dashaDisplay.antardashaLabel)}`,
             82,
             document.y - 8,
             {
@@ -1813,7 +1870,7 @@ export class KundliPdfService {
           .fillColor('#5F6473')
           .fontSize(7)
           .text(
-            `${this.text(antar?.start) || '-'} to ${this.text(antar?.end) || '-'}`,
+            `${this.text(antar?.start) || '-'} ${this.text(dashaDisplay.dateSeparator)} ${this.text(antar?.end) || '-'}`,
             245,
             document.y - 8,
             {

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -62,6 +62,11 @@ class _AstroSoulPathAppState extends State<AstroSoulPathApp> {
       onNotificationTap: _handleNotificationTap,
       onForegroundNotification: _showForegroundPopup,
     );
+
+    // Re-register the current device on app startup as well.
+    // If no authenticated session exists, NotificationDeviceApi
+    // safely returns without registering anything.
+    await NotificationService.instance.syncCurrentDevice();
   }
 
   void _handleNotificationTap(Map<String, dynamic> payload) {
@@ -197,6 +202,16 @@ class _AstroSoulPathAppState extends State<AstroSoulPathApp> {
           ),
         );
         break;
+      case 'subscription':
+        if (payload['screen'] == 'horoscope') {
+          navigator.push(
+            MaterialPageRoute<void>(
+              builder: (_) => const DailyHoroscopeScreen(),
+            ),
+          );
+        }
+        break;
+
       case 'horoscope':
         navigator.push(
           MaterialPageRoute<void>(builder: (_) => const DailyHoroscopeScreen()),

@@ -159,12 +159,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
         ],
       ),
       body: DecoratedBox(
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/branding/horoscope_background.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
+        decoration: const BoxDecoration(),
         child: RefreshIndicator(onRefresh: _loadHoroscope, child: _body()),
       ),
     );

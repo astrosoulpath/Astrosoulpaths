@@ -1,5 +1,8 @@
+﻿import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   createRemoteJWKSet,
   decodeProtectedHeader,
@@ -16,7 +19,10 @@ export class SupabaseJwtService {
   private readonly jwks;
   private readonly legacyJwtSecret?: Uint8Array;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prismaService: PrismaService,
+  ) {
     const supabaseUrl = this.normalizeSupabaseUrl(
       this.configService.getOrThrow<string>('supabase.url'),
     );
@@ -58,6 +64,39 @@ export class SupabaseJwtService {
       throw new UnauthorizedException('Missing access token');
     }
 
+    /*
+     * Backward compatibility is intentional:
+     *
+     * 1. Existing Supabase access tokens continue to work.
+     * 2. If Supabase verification fails, try Firebase Auth.
+     * 3. Firebase UID is resolved through UserAuthIdentity.
+     * 4. Downstream code receives the canonical ASP/Supabase subject.
+     *
+     * This means HTTP guards and existing Chat / Call / Live gateways
+     * can continue consuming payload.sub without changing their
+     * authorization/business logic.
+     */
+    try {
+      return await this.verifySupabaseAccessToken(normalizedToken);
+    } catch (supabaseError) {
+      try {
+        return await this.verifyFirebaseAccessToken(normalizedToken);
+      } catch (firebaseError) {
+        const supabaseMessage = this.errorMessage(supabaseError);
+        const firebaseMessage = this.errorMessage(firebaseError);
+
+        this.logger.warn(
+          `auth.verify_failed supabase=${supabaseMessage} firebase=${firebaseMessage}`,
+        );
+
+        throw new UnauthorizedException('Invalid access token');
+      }
+    }
+  }
+
+  private async verifySupabaseAccessToken(
+    normalizedToken: string,
+  ): Promise<JWTPayload> {
     const header = this.decodeHeader(normalizedToken);
 
     if (__DEV_LOG_ENABLED()) {
@@ -66,26 +105,14 @@ export class SupabaseJwtService {
       );
     }
 
-    /*
-     * Tokens with a kid are normally modern asymmetric
-     * Supabase JWTs. Verify against Supabase JWKS.
-     */
     if (header.kid) {
       return this.verifyUsingJwks(normalizedToken);
     }
 
-    /*
-     * Legacy Supabase access tokens commonly use HS256
-     * and may not contain a kid.
-     */
     if (typeof header.alg === 'string' && header.alg.startsWith('HS')) {
       return this.verifyLegacyToken(normalizedToken);
     }
 
-    /*
-     * Unknown/no-kid token:
-     * try JWKS first rather than silently trusting it.
-     */
     try {
       return await this.verifyUsingJwks(normalizedToken);
     } catch {
@@ -97,6 +124,109 @@ export class SupabaseJwtService {
     }
   }
 
+  private async verifyFirebaseAccessToken(token: string): Promise<JWTPayload> {
+    const app = this.getFirebaseAdminApp();
+
+    const decoded = await getAuth(app).verifyIdToken(token, true);
+
+    const firebaseUid = decoded.uid?.trim();
+
+    if (!firebaseUid) {
+      throw new UnauthorizedException('Firebase UID is missing');
+    }
+
+    const identity = await this.prismaService.userAuthIdentity.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: 'firebase',
+          providerUserId: firebaseUid,
+        },
+      },
+      select: {
+        user: {
+          select: {
+            id: true,
+            supabaseId: true,
+            phone: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    const user = identity?.user;
+
+    if (!user?.supabaseId?.trim()) {
+      throw new UnauthorizedException(
+        'Firebase identity is not linked to an Astro Soul Path account',
+      );
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+
+    const payload: JWTPayload = {
+      sub: user.supabaseId.trim(),
+      aud: 'authenticated',
+      role: 'authenticated',
+      iss: `firebase:${decoded.iss ?? 'firebase-auth'}`,
+      iat: decoded.iat ?? now,
+      exp: decoded.exp,
+      phone:
+        typeof decoded.phone_number === 'string'
+          ? decoded.phone_number
+          : (user.phone ?? undefined),
+      email:
+        typeof decoded.email === 'string'
+          ? decoded.email
+          : (user.email ?? undefined),
+      firebase_uid: firebaseUid,
+      asp_user_id: user.id,
+      asp_account_role: user.role,
+      auth_provider: 'firebase',
+    };
+
+    if (!payload.exp) {
+      throw new UnauthorizedException('Firebase token expiration is missing');
+    }
+
+    this.logger.debug(
+      `jwt.verify_success mode=firebase uid=${firebaseUid} canonicalSub=${payload.sub}`,
+    );
+
+    return payload;
+  }
+
+  private getFirebaseAdminApp(): App {
+    const existingApp = getApps()[0];
+
+    if (existingApp) {
+      return existingApp;
+    }
+
+    const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
+
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(
+      /\\n/g,
+      '\n',
+    ).trim();
+
+    if (!projectId || !clientEmail || !privateKey) {
+      throw new UnauthorizedException(
+        'Firebase Admin configuration is incomplete',
+      );
+    }
+
+    return initializeApp({
+      credential: cert({
+        projectId,
+        clientEmail,
+        privateKey,
+      }),
+      projectId,
+    });
+  }
   private async verifyUsingJwks(token: string): Promise<JWTPayload> {
     try {
       const { payload } = await jwtVerify(token, this.jwks, {

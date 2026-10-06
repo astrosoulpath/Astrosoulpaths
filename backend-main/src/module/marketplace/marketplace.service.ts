@@ -932,11 +932,17 @@ export class MarketplaceService {
         effectiveDisplayCurrency,
       );
 
-      return {
+        const displayShipping = this.calculateMarketplaceDisplayAmount(
+        product.shippingCharge,
+        displayFxRate,
+        effectiveDisplayCurrency,
+      );
+    return {
         ...product,
         displayCurrency: effectiveDisplayCurrency,
         displaySellingPrice: selling.toString(),
         displayMrp: mrp.toString(),
+        displayShippingCharge: displayShipping.toString(),
         displayFxRate,
         displayFxSource,
         displayFxQuotedAt,
@@ -1028,9 +1034,57 @@ export class MarketplaceService {
       throw new NotFoundException('Marketplace product not found');
     }
 
+    const requestedCurrency =
+      this.resolveMarketplacePaymentCurrency(countryCode);
+
+    let displayFxRate = 1;
+    let displayFxSource = 'IDENTITY';
+    let displayFxQuotedAt = new Date();
+
+    if (requestedCurrency !== 'INR') {
+      try {
+        const quote = await this.resolveMarketplaceLiveFxQuote(
+          'INR',
+          requestedCurrency,
+        );
+
+        displayFxRate = quote.rate;
+        displayFxSource = quote.source;
+        displayFxQuotedAt = quote.quotedAt;
+      } catch {
+        displayFxSource = 'FALLBACK_INR';
+      }
+    }
+
+    const displayCurrency =
+      displayFxSource === 'FALLBACK_INR'
+        ? 'INR'
+        : requestedCurrency;
+
     return {
       success: true,
-      data: product,
+      data: {
+        ...product,
+        displayCurrency,
+        displaySellingPrice: this.calculateMarketplaceDisplayAmount(
+          product.sellingPrice,
+          displayFxRate,
+          displayCurrency,
+        ).toString(),
+        displayMrp: this.calculateMarketplaceDisplayAmount(
+          product.mrp,
+          displayFxRate,
+          displayCurrency,
+        ).toString(),
+        displayShippingCharge: this.calculateMarketplaceDisplayAmount(
+          product.shippingCharge,
+          displayFxRate,
+          displayCurrency,
+        ).toString(),
+        displayFxRate,
+        displayFxSource,
+        displayFxQuotedAt,
+      },
     };
   }
 
@@ -2202,6 +2256,20 @@ export class MarketplaceService {
         id: true,
         isActive: true,
         isBlocked: true,
+        userProfile: {
+          select: {
+            residenceCountryCode: true,
+          },
+        },
+        profiles: {
+          select: {
+            countryCode: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+        },
       },
     });
 
@@ -2251,7 +2319,39 @@ export class MarketplaceService {
     };
   }
 
-  private async buildMarketplaceCartResponse(userId: string) {
+  private async buildMarketplaceCartResponse(userId: string, countryCode?: string) {
+    const requestedCurrency =
+      this.resolveMarketplacePaymentCurrency(countryCode);
+
+    let displayFxRate = 1;
+    let displayFxSource = 'IDENTITY';
+    let displayFxQuotedAt = new Date();
+
+    if (requestedCurrency !== 'INR') {
+      try {
+        const quote = await this.resolveMarketplaceLiveFxQuote(
+          'INR',
+          requestedCurrency,
+        );
+        displayFxRate = quote.rate;
+        displayFxSource = quote.source;
+        displayFxQuotedAt = quote.quotedAt;
+      } catch {
+        displayFxSource = 'FALLBACK_INR';
+      }
+    }
+
+    const displayCurrency =
+      displayFxSource === 'FALLBACK_INR'
+        ? 'INR'
+        : requestedCurrency;
+
+    const displayAmount = (amount: Prisma.Decimal) =>
+      this.calculateMarketplaceDisplayAmount(
+        amount,
+        displayFxRate,
+        displayCurrency,
+      );
     const cart = await this.prisma.marketplaceCart.findUnique({
       where: {
         userId,
@@ -2306,6 +2406,13 @@ export class MarketplaceService {
           shippingTotal: 0,
           grandTotal: 0,
           currency: 'INR',
+          displayCurrency,
+          displaySubtotal: '0',
+          displayShippingTotal: '0',
+          displayGrandTotal: '0',
+          displayFxRate,
+          displayFxSource,
+          displayFxQuotedAt,
         },
       };
     }
@@ -2368,6 +2475,7 @@ export class MarketplaceService {
           },
         },
         lineSubtotal,
+        displayLineSubtotal: displayAmount(lineSubtotal).toString(),
       };
     });
 
@@ -2380,6 +2488,13 @@ export class MarketplaceService {
         shippingTotal,
         grandTotal: subtotal.add(shippingTotal),
         currency: 'INR',
+        displayCurrency,
+        displaySubtotal: displayAmount(subtotal).toString(),
+        displayShippingTotal: displayAmount(shippingTotal).toString(),
+        displayGrandTotal: displayAmount(subtotal.add(shippingTotal)).toString(),
+        displayFxRate,
+        displayFxSource,
+        displayFxQuotedAt,
       },
     };
   }
@@ -2387,7 +2502,11 @@ export class MarketplaceService {
   async getCustomerCart(supabaseId: string) {
     const user = await this.resolveMarketplaceCustomer(supabaseId);
 
-    return this.buildMarketplaceCartResponse(user.id);
+    return this.buildMarketplaceCartResponse(
+      user.id,
+      user.userProfile?.residenceCountryCode ??
+        undefined,
+    );
   }
 
   async addCustomerCartItem(
@@ -2457,7 +2576,11 @@ export class MarketplaceService {
       });
     });
 
-    return this.buildMarketplaceCartResponse(user.id);
+    return this.buildMarketplaceCartResponse(
+      user.id,
+      user.userProfile?.residenceCountryCode ??
+        undefined,
+    );
   }
 
   async updateCustomerCartItem(
@@ -2514,7 +2637,11 @@ export class MarketplaceService {
       },
     });
 
-    return this.buildMarketplaceCartResponse(user.id);
+    return this.buildMarketplaceCartResponse(
+      user.id,
+      user.userProfile?.residenceCountryCode ??
+        undefined,
+    );
   }
 
   async removeCustomerCartItem(supabaseId: string, itemId: string) {
@@ -2544,7 +2671,11 @@ export class MarketplaceService {
       },
     });
 
-    return this.buildMarketplaceCartResponse(user.id);
+    return this.buildMarketplaceCartResponse(
+      user.id,
+      user.userProfile?.residenceCountryCode ??
+        undefined,
+    );
   }
 
   async getCustomerAddresses(supabaseId: string) {
@@ -2928,7 +3059,7 @@ export class MarketplaceService {
       !razorpayPaymentId ||
       !Number.isSafeInteger(input.amount) ||
       input.amount <= 0 ||
-      currency !== 'INR' ||
+      !currency ||
       !reason
     ) {
       throw new BadRequestException(
@@ -2943,21 +3074,18 @@ export class MarketplaceService {
       throw new NotFoundException('Marketplace order not found');
     }
 
-    const expectedAmount = new Prisma.Decimal(marketplaceOrder.grandTotal)
-      .mul(100)
-      .toDecimalPlaces(0);
+    const expectedPayment =
+      this.resolveMarketplaceExpectedProviderPaymentSnapshot(marketplaceOrder);
 
     if (
-      expectedAmount.lessThanOrEqualTo(0) ||
-      !expectedAmount.isInteger() ||
-      expectedAmount.toNumber() !== input.amount
+      input.amount !== expectedPayment.amountSubunits
     ) {
       throw new ConflictException(
         'Marketplace compensation payment amount does not match order total',
       );
     }
 
-    if (marketplaceOrder.currency.trim().toUpperCase() !== currency) {
+    if (expectedPayment.currency !== currency) {
       throw new ConflictException(
         'Marketplace compensation payment currency does not match order',
       );
@@ -3054,11 +3182,7 @@ export class MarketplaceService {
       );
     }
 
-    if (currency !== 'INR') {
-      throw new BadRequestException(
-        'Marketplace webhook payment currency does not match',
-      );
-    }
+
 
     if (paymentStatus !== 'captured') {
       throw new ConflictException(

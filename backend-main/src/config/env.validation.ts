@@ -1,4 +1,4 @@
-﻿import * as Joi from 'joi';
+import * as Joi from 'joi';
 
 type RedisValidationEnv = {
   REDIS_URL?: string;
@@ -34,12 +34,8 @@ export const envValidationSchema = Joi.object({
   RAZORPAY_WEBHOOK_SECRET: Joi.string().optional(),
   RAZORPAYX_ACCOUNT_NUMBER: Joi.string().optional(),
 
-  ASTRO_API_KEY: Joi.string().optional(),
-  ASTRO_BASE_URL: Joi.string().optional(),
 
   VEDIC_API_KEY: Joi.string().required().optional(),
-  ASTROLOGY_API_KEY: Joi.string().optional(),
-  ASTROLOGY_BASE_URL: Joi.string().optional(),
 })
   .custom((value, helpers) => {
     const env = value as RedisValidationEnv;

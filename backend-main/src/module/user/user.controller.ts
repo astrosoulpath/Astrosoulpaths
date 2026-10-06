@@ -1,5 +1,9 @@
-import {
+﻿import {
   Controller,
+  BadRequestException,
+  Headers,
+  ServiceUnavailableException,
+  Delete,
   Get,
   Param,
   Patch,
@@ -20,6 +24,20 @@ import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  @Delete('account')
+  @UseGuards(SupabaseAuthGuard)
+  async deleteAccount(
+    @CurrentUser() user: JWTPayload,
+    @Headers('x-confirm-account-deletion') confirmation?: string,
+  ) {
+    if (confirmation !== 'DELETE') {
+      throw new BadRequestException('Deletion confirmation required');
+    }
+
+    throw new ServiceUnavailableException(
+      'Account deletion is temporarily unavailable',
+    );
+  }
   @Get('profile')
   @UseGuards(SupabaseAuthGuard)
   getProfile(@CurrentUser() user: JWTPayload) {
@@ -35,6 +53,27 @@ export class UserController {
     return this.userService.createProfile(user.sub as string, dto);
   }
 
+  @Post('profile/phone/send-otp')
+  @UseGuards(SupabaseAuthGuard)
+  sendProfilePhoneOtp(
+    @CurrentUser() user: JWTPayload,
+    @Body() body: { phone: string },
+  ) {
+    return this.userService.sendProfilePhoneOtp(user.sub as string, body.phone);
+  }
+
+  @Post('profile/phone/verify-otp')
+  @UseGuards(SupabaseAuthGuard)
+  verifyProfilePhoneOtp(
+    @CurrentUser() user: JWTPayload,
+    @Body() body: { phone: string; token: string },
+  ) {
+    return this.userService.verifyAndLinkProfilePhone(
+      user.sub as string,
+      body.phone,
+      body.token,
+    );
+  }
   @Patch('profile')
   @UseGuards(SupabaseAuthGuard)
   updateProfile(
@@ -44,7 +83,7 @@ export class UserController {
     return this.userService.updateProfile(user.sub as string, dto);
   }
 
-  // 👤 Get user by ID
+  // Ã°Å¸â€˜Â¤ Get user by ID
 
   @Post('oauth/bootstrap')
   @UseGuards(SupabaseAuthGuard)
@@ -98,10 +137,10 @@ export class UserController {
   @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Roles(Role.Admin)
   findOne(@Param('id') id: string) {
-    return this.userService.findOne(id); // ✅ no +
+    return this.userService.findOne(id); // Ã¢Å“â€¦ no +
   }
 
-  // 📄 Get users (pagination later)
+  // Ã°Å¸â€œâ€ž Get users (pagination later)
   @Get()
   @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Roles(Role.Admin)
@@ -109,7 +148,7 @@ export class UserController {
     return this.userService.findAll();
   }
 
-  // ✏️ Update profile
+  // Ã¢Å“ÂÃ¯Â¸Â Update profile
   @Patch(':id')
   @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Roles(Role.Admin)

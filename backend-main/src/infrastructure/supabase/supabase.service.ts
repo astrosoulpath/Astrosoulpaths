@@ -63,6 +63,36 @@ export class SupabaseService {
     }
   }
 
+  async verifyPhoneOtpForLinking(phone: string, token: string) {
+    const normalizedPhone = phone?.trim();
+    const normalizedToken = token?.trim();
+
+    if (!normalizedPhone) {
+      throw new BadRequestException('Phone number is required');
+    }
+
+    if (!normalizedToken) {
+      throw new BadRequestException('OTP is required');
+    }
+
+    const { data, error } = await this.client.auth.verifyOtp({
+      phone: normalizedPhone,
+      token: normalizedToken,
+      type: 'sms',
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data.user) {
+      throw new BadRequestException('Phone verification failed');
+    }
+
+    return {
+      phone: data.user.phone ?? normalizedPhone,
+    };
+  }
   async verifyOtp(phone: string, token: string): Promise<AuthResult> {
     const normalizedPhone = phone?.trim();
     const normalizedToken = token?.trim();
@@ -242,6 +272,20 @@ export class SupabaseService {
     return this.adminClient ?? this.client;
   }
 
+  async revokeAccountSessions(authUserId: string): Promise<void> {
+    if (!this.adminClient) {
+      throw new Error('Supabase admin credentials are unavailable');
+    }
+
+    const { error } = await this.adminClient.auth.admin.signOut(
+      authUserId,
+      'global',
+    );
+
+    if (error) {
+      throw new Error(`Supabase session revocation failed: ${error.message}`);
+    }
+  }
   hasAdminClient(): boolean {
     return this.adminClient !== null;
   }

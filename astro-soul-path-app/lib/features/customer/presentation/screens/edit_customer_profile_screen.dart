@@ -29,6 +29,10 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
   late final TextEditingController _stateController;
   late final TextEditingController _countryController;
   late final TextEditingController _occupationController;
+  late final TextEditingController _phoneController;
+
+  bool _isPhoneVerified = false;
+  bool _isSendingPhoneOtp = false;
 
   Timer? _cityDebounce;
 
@@ -72,6 +76,10 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
     _occupationController = TextEditingController(
       text: profile?.occupation ?? '',
     );
+    final existingPhone = profile?.phoneNumber?.trim() ?? '';
+
+    _phoneController = TextEditingController(text: existingPhone);
+    _isPhoneVerified = existingPhone.isNotEmpty;
 
     _countryCode = profile?.countryCode ?? '';
     _latitude = profile?.latitude ?? 0;
@@ -94,6 +102,7 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
     _stateController.dispose();
     _countryController.dispose();
     _occupationController.dispose();
+    _phoneController.dispose();
 
     super.dispose();
   }
@@ -231,6 +240,235 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
     });
 
     FocusScope.of(context).unfocus();
+  }
+
+  String? _phoneForVerification() {
+    final phone = _phoneController.text.trim().replaceAll(
+      RegExp(r'[\s\-\(\)]'),
+      '',
+    );
+
+    if (!RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone)) {
+      return null;
+    }
+
+    return phone;
+  }
+
+  Future<void> _sendPhoneVerificationOtp() async {
+    if (_isSendingPhoneOtp) {
+      return;
+    }
+
+    final phone = _phoneForVerification();
+
+    if (phone == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid mobile number.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSendingPhoneOtp = true;
+    });
+
+    try {
+      await _profileApi.sendProfilePhoneOtp(phone: phone);
+
+      if (!mounted) {
+        return;
+      }
+
+      await _showPhoneOtpDialog(phone);
+    } on ProfileApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to send OTP. Please try again.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingPhoneOtp = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _showPhoneOtpDialog(String phone) async {
+    final otpController = TextEditingController();
+
+    var verifying = false;
+    var resending = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            Future<void> verify() async {
+              final otp = otpController.text.trim();
+
+              if (otp.length < 4) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(content: Text('Enter the OTP code.')),
+                );
+                return;
+              }
+
+              setDialogState(() {
+                verifying = true;
+              });
+
+              try {
+                final profile = await _profileApi.verifyProfilePhoneOtp(
+                  phone: phone,
+                  token: otp,
+                );
+
+                if (!mounted) {
+                  return;
+                }
+
+                final verifiedPhone = profile.phoneNumber ?? phone;
+
+                setState(() {
+                  _isPhoneVerified = true;
+                  _phoneController.text = verifiedPhone;
+                });
+
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Mobile number verified successfully'),
+                    ),
+                  );
+                }
+              } on ProfileApiException catch (error) {
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(
+                    dialogContext,
+                  ).showSnackBar(SnackBar(content: Text(error.message)));
+                }
+              } catch (_) {
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Verification failed. Please check the OTP.',
+                      ),
+                    ),
+                  );
+                }
+              } finally {
+                if (dialogContext.mounted) {
+                  setDialogState(() {
+                    verifying = false;
+                  });
+                }
+              }
+            }
+
+            Future<void> resend() async {
+              if (resending) {
+                return;
+              }
+
+              setDialogState(() {
+                resending = true;
+              });
+
+              try {
+                await _profileApi.sendProfilePhoneOtp(phone: phone);
+
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(content: Text('OTP sent again')),
+                  );
+                }
+              } on ProfileApiException catch (error) {
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(
+                    dialogContext,
+                  ).showSnackBar(SnackBar(content: Text(error.message)));
+                }
+              } finally {
+                if (dialogContext.mounted) {
+                  setDialogState(() {
+                    resending = false;
+                  });
+                }
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Verify Mobile Number'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('OTP sent to $phone'),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: otpController,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: verifying ? null : (_) => verify(),
+                    decoration: const InputDecoration(
+                      labelText: 'OTP',
+                      hintText: 'Enter verification code',
+                      prefixIcon: Icon(Icons.lock_outline_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton(
+                    onPressed: verifying || resending ? null : resend,
+                    child: Text(resending ? 'Sending...' : 'Resend OTP'),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: verifying
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: verifying ? null : verify,
+                  child: verifying
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Verify'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    otpController.dispose();
   }
 
   Future<void> _saveProfile() async {
@@ -481,7 +719,61 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
               },
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 18),
+
+            TextFormField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              readOnly: _isPhoneVerified,
+              decoration: fieldDecoration(
+                label: 'Mobile Number',
+                hint: '+91 9876543210',
+                icon: Icons.phone_android_rounded,
+                suffixIcon: _isPhoneVerified
+                    ? const Icon(Icons.verified_rounded, color: Colors.green)
+                    : TextButton(
+                        onPressed: _isSendingPhoneOtp
+                            ? null
+                            : _sendPhoneVerificationOtp,
+                        child: _isSendingPhoneOtp
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Verify'),
+                      ),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            if (_isPhoneVerified)
+              const Row(
+                children: [
+                  Icon(
+                    Icons.check_circle_rounded,
+                    size: 16,
+                    color: Colors.green,
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    'Verified mobile number',
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              )
+            else
+              const Text(
+                'Enter full mobile number with country code, for example +91 9876543210.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
 
             const _EditSectionHeader(
               icon: Icons.auto_awesome_rounded,

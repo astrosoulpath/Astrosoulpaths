@@ -1,5 +1,8 @@
+﻿import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -12,6 +15,7 @@ import { Prisma } from '@prisma/client';
 import { Session } from '@supabase/supabase-js';
 import { SupabaseService } from '../../infrastructure/supabase/supabase.service';
 import { UserService } from '../user/user.service';
+import { EmailSignupDto } from './dto/email-signup.dto';
 
 type AuthUserRecord = Prisma.UserGetPayload<{
   include: {
@@ -144,6 +148,267 @@ export class AuthService {
     };
   }
 
+  async verifyFirebasePhoneToken(
+    idToken: string,
+    portal: 'customer' | 'astrologer' | 'joinAstrologer' | 'admin' = 'customer',
+  ) {
+    const token = idToken?.trim();
+
+    if (!token) {
+      throw new BadRequestException({
+        success: false,
+        message: 'Firebase ID token is required',
+        code: 'FIREBASE_TOKEN_REQUIRED',
+      });
+    }
+
+    const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
+
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
+
+    const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY?.trim();
+
+    if (!projectId || !clientEmail || !privateKeyRaw) {
+      this.logger.error('Firebase Admin credentials are missing');
+
+      throw new InternalServerErrorException({
+        success: false,
+        message: 'Firebase phone authentication is not configured',
+        code: 'FIREBASE_NOT_CONFIGURED',
+      });
+    }
+
+    try {
+      const app =
+        getApps().length > 0
+          ? getApps()[0]
+          : initializeApp({
+              credential: cert({
+                projectId,
+                clientEmail,
+                privateKey: privateKeyRaw.replace(/\\n/g, '\n'),
+              }),
+            });
+
+      const decoded = await getAuth(app).verifyIdToken(token, true);
+
+      // Production safety:
+      // Accept Firebase tokens only from the configured Firebase project.
+      const tokenAudience =
+        typeof decoded.aud === 'string' ? decoded.aud.trim() : '';
+
+      if (!tokenAudience || tokenAudience !== projectId) {
+        this.logger.warn(
+          `Firebase token project mismatch expected=${projectId} received=${tokenAudience || 'missing'}`,
+        );
+
+        throw new UnauthorizedException({
+          success: false,
+          message: 'Firebase authentication project mismatch',
+          code: 'FIREBASE_PROJECT_MISMATCH',
+        });
+      }
+
+      const firebaseUid = decoded.uid?.trim();
+
+      const phone =
+        typeof decoded.phone_number === 'string'
+          ? decoded.phone_number.trim()
+          : '';
+
+      if (!firebaseUid) {
+        throw new UnauthorizedException({
+          success: false,
+          message: 'Firebase UID missing',
+          code: 'FIREBASE_UID_MISSING',
+        });
+      }
+
+      if (!phone || !phone.startsWith('+')) {
+        throw new UnauthorizedException({
+          success: false,
+          message: 'Verified Firebase phone number missing',
+          code: 'FIREBASE_PHONE_MISSING',
+        });
+      }
+
+      const result = await this.userService.syncFirebasePhoneUser({
+        firebaseUid,
+        phone,
+      });
+
+      // ----------------------------------------------------
+      // CUSTOMER
+      // Preserve the already-working Firebase customer flow.
+      // ----------------------------------------------------
+      if (portal === 'customer') {
+        return {
+          success: true,
+          message: 'Firebase phone verified',
+          portal: 'customer',
+          role: 'CUSTOMER',
+
+          user: this.buildCustomerUserPayload(result.user, result.isNewUser),
+
+          nextStep: this.getCustomerNextStep(result.user),
+
+          firebaseVerified: true,
+        };
+      }
+
+      // Load authorization/profile state only for astrologer portals.
+      const fullUser = await this.userService.getUserWithRelations(
+        result.user.supabaseId,
+      );
+
+      if (!fullUser) {
+        throw new NotFoundException({
+          success: false,
+          message: 'User not found',
+          code: 'USER_NOT_FOUND',
+        });
+      }
+
+      // ----------------------------------------------------
+      // ADMIN LOGIN
+      // Firebase proves ownership of the phone number.
+      // Database role remains the source of truth for admin access.
+      // ----------------------------------------------------
+      if (portal === 'admin') {
+        const accountRole = fullUser.role?.name?.trim().toUpperCase();
+
+        if (accountRole !== 'ADMIN') {
+          throw new UnauthorizedException({
+            success: false,
+            message: 'Admin access is not enabled for this account',
+            code: 'ADMIN_ACCESS_DENIED',
+          });
+        }
+
+        return {
+          success: true,
+          message: 'Firebase admin login successful',
+          portal: 'admin',
+          role: 'ADMIN',
+          user: {
+            ...this.buildCustomerUserPayload(result.user, result.isNewUser),
+            role: 'ADMIN',
+            portal: 'admin',
+            accountRole: fullUser.role?.name ?? 'ADMIN',
+          },
+          nextStep: 'OPEN_ADMIN_DASHBOARD',
+          firebaseVerified: true,
+        };
+      }
+      // ----------------------------------------------------
+      // ASTROLOGER LOGIN
+      // Firebase verifies the phone.
+      // Database still decides whether astrologer access exists.
+      // ----------------------------------------------------
+      if (portal === 'astrologer') {
+        if (!fullUser.isAstrologer) {
+          throw new UnauthorizedException({
+            success: false,
+            message: 'Astrologer access is not enabled for this account',
+            code: 'ASTROLOGER_ACCESS_DENIED',
+          });
+        }
+
+        const astrologer = this.buildAstrologerPayload(fullUser);
+
+        const nextStep = !astrologer.hasAstrologerProfile
+          ? 'COMPLETE_ASTROLOGER_ONBOARDING'
+          : astrologer.isApproved && astrologer.isVerified
+            ? 'OPEN_ASTROLOGER_DASHBOARD'
+            : 'WAIT_FOR_ADMIN_APPROVAL';
+
+        return {
+          success: true,
+          message: 'Firebase astrologer login successful',
+          portal: 'astrologer',
+          role: 'ASTROLOGER',
+
+          user: {
+            ...this.buildCustomerUserPayload(result.user, result.isNewUser),
+            role: 'ASTROLOGER',
+            portal: 'astrologer',
+            accountRole: fullUser.role?.name ?? 'ASTROLOGER',
+            isAstrologer: true,
+          },
+
+          astrologer,
+          nextStep,
+          firebaseVerified: true,
+        };
+      }
+
+      // ----------------------------------------------------
+      // JOIN AS ASTROLOGER
+      //
+      // Unlike Google Join, Firebase has already verified the
+      // mobile number. Therefore a new applicant can continue
+      // directly to astrologer onboarding.
+      // ----------------------------------------------------
+
+      const hasAstrologerProfile = Boolean(fullUser.astrologer);
+
+      const isApprovedAstrologer =
+        hasAstrologerProfile &&
+        Boolean(fullUser.astrologer?.isApproved) &&
+        Boolean(fullUser.astrologer?.isVerified);
+
+      const nextStep = !hasAstrologerProfile
+        ? 'COMPLETE_ASTROLOGER_ONBOARDING'
+        : isApprovedAstrologer
+          ? 'OPEN_ASTROLOGER_DASHBOARD'
+          : 'WAIT_FOR_ADMIN_APPROVAL';
+
+      return {
+        success: true,
+        message: hasAstrologerProfile
+          ? 'Astrologer application found'
+          : 'Mobile number verified. Continue your astrologer application.',
+        portal: 'joinAstrologer',
+        role: 'ASTROLOGER_APPLICANT',
+
+        user: {
+          ...this.buildCustomerUserPayload(result.user, result.isNewUser),
+          portal: 'joinAstrologer',
+          accountRole: fullUser.role?.name ?? 'USER',
+          isAstrologer: Boolean(fullUser.isAstrologer),
+        },
+
+        astrologer: {
+          hasAstrologerProfile,
+          astrologerId: fullUser.astrologer?.id ?? null,
+          isApproved: fullUser.astrologer?.isApproved ?? false,
+          isVerified: fullUser.astrologer?.isVerified ?? false,
+        },
+
+        nextStep,
+        firebaseVerified: true,
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof UnauthorizedException ||
+        error instanceof ConflictException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+
+      this.logger.warn(
+        `Firebase token rejected: ${this.getErrorMessage(error)}`,
+      );
+
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Invalid or expired Firebase phone authentication',
+        code: 'INVALID_FIREBASE_TOKEN',
+      });
+    }
+  }
   async sendOtp(phone: string) {
     try {
       const normalizedPhone = phone?.trim();
@@ -962,6 +1227,79 @@ export class AuthService {
         tokenType: session.token_type ?? 'bearer',
       },
       nextStep: this.getCustomerNextStep(user),
+    };
+  }
+  async signupWithEmail(dto: EmailSignupDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const normalizedPhone = dto.phone.trim();
+    const normalizedFullName = dto.fullName.trim();
+
+    let authResult: Awaited<ReturnType<SupabaseService['signUpWithEmail']>>;
+
+    try {
+      authResult = await this.supabaseService.signUpWithEmail({
+        fullName: normalizedFullName,
+        email: normalizedEmail,
+        phone: normalizedPhone,
+        password: dto.password,
+      });
+    } catch (error: unknown) {
+      const message = this.getErrorMessage(error);
+      const normalizedError = message.toLowerCase();
+
+      if (
+        normalizedError.includes('already registered') ||
+        normalizedError.includes('already exists')
+      ) {
+        throw new ConflictException({
+          success: false,
+          message: 'An account with this email already exists',
+          code: 'EMAIL_ALREADY_REGISTERED',
+        });
+      }
+
+      throw new BadRequestException({
+        success: false,
+        message: message || 'Unable to create account',
+        code: 'EMAIL_SIGNUP_FAILED',
+      });
+    }
+
+    const { user: authUser, session } = authResult;
+
+    if (!authUser) {
+      throw new BadRequestException({
+        success: false,
+        message: 'Unable to create account',
+        code: 'EMAIL_SIGNUP_FAILED',
+      });
+    }
+
+    const { user, isNewUser } = await this.userService.syncUser({
+      supabaseId: authUser.id,
+      phone: authUser.phone ?? normalizedPhone,
+      email: authUser.email ?? normalizedEmail,
+      fullName: normalizedFullName,
+    });
+
+    if (!user.isActive || user.isBlocked) {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Account is inactive or blocked',
+        code: 'ACCOUNT_UNAVAILABLE',
+      });
+    }
+
+    return {
+      success: true,
+      message: session
+        ? 'Account created successfully'
+        : 'Account created. Please verify your email.',
+      portal: 'customer',
+      role: 'CUSTOMER',
+      user: this.buildCustomerUserPayload(user, isNewUser),
+      ...(session ? { session: this.buildSessionPayload(session) } : {}),
+      nextStep: session ? this.getCustomerNextStep(user) : 'VERIFY_EMAIL',
     };
   }
   async loginWithEmail(email: string, password: string) {

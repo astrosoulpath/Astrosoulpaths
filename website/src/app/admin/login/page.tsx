@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import PhoneInput, {
@@ -8,7 +8,9 @@ import PhoneInput, {
   type Value,
 } from "react-phone-number-input";
 
-import { sendAdminOtp } from "@/services/authService";
+import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+
+import { firebaseAuth } from "@/lib/firebaseClient";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -16,10 +18,9 @@ export default function AdminLoginPage() {
   const [phone, setPhone] = useState<Value>();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
 
-  const handleLogin = async (
-    event: FormEvent<HTMLFormElement>,
-  ) => {
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const normalizedPhone = phone?.trim() ?? "";
@@ -48,30 +49,37 @@ export default function AdminLoginPage() {
        *
        * Same backend-compatible format as Flutter.
        */
-      await sendAdminOtp(normalizedPhone);
+      if (recaptchaRef.current) {
+        recaptchaRef.current.clear();
+        recaptchaRef.current = null;
+      }
+
+      const verifier = new RecaptchaVerifier(
+        firebaseAuth,
+        "admin-recaptcha-container",
+        {
+          size: "normal",
+        },
+      );
+
+      recaptchaRef.current = verifier;
+
+      const confirmationResult = await signInWithPhoneNumber(
+        firebaseAuth,
+        normalizedPhone,
+        verifier,
+      );
+
+      window.sessionStorage.setItem("admin_phone", normalizedPhone);
 
       window.sessionStorage.setItem(
-        "admin_phone",
-        normalizedPhone,
+        "admin_firebase_verification_id",
+        confirmationResult.verificationId,
       );
 
-      window.localStorage.setItem(
-        "asp_otp_context",
-        JSON.stringify({
-          phone: normalizedPhone,
-          flow: "login",
-          portal: "admin",
-          redirectTo: "/admin",
-        }),
-      );
-
-      router.push("/verify-otp");
+      router.push("/admin/verify-otp");
     } catch (error: unknown) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "OTP send failed.",
-      );
+      setMessage(error instanceof Error ? error.message : "OTP send failed.");
     } finally {
       setLoading(false);
     }
@@ -80,10 +88,7 @@ export default function AdminLoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#faf8f2] px-6">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
-
-        <h1 className="text-3xl font-bold text-[#0b1026]">
-          Admin Login
-        </h1>
+        <h1 className="text-3xl font-bold text-[#0b1026]">Admin Login</h1>
 
         <p className="mt-2 text-gray-500">
           Login with registered admin mobile number
@@ -96,7 +101,6 @@ export default function AdminLoginPage() {
         )}
 
         <form onSubmit={handleLogin} noValidate>
-
           <div className="mt-6">
             <label
               htmlFor="admin-phone"
@@ -145,14 +149,15 @@ export default function AdminLoginPage() {
             </p>
           </div>
 
+          <div id="admin-recaptcha-container" className="mt-4" />
           <button
+            id="admin-send-otp-button"
             type="submit"
             disabled={loading || !phone}
             className="mt-6 w-full rounded-xl bg-[#D4AF37] py-4 font-semibold text-black transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? "Sending OTP..." : "Continue with OTP"}
           </button>
-
         </form>
       </div>
     </main>

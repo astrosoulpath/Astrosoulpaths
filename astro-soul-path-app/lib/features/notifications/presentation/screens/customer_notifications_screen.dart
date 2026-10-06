@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../astrology_questions/presentation/screens/astrology_questions_screen.dart';
@@ -105,6 +105,14 @@ class _CustomerNotificationsScreenState
     final data = notification.data ?? const <String, dynamic>{};
 
     switch (type) {
+      case 'subscription':
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const DailyHoroscopeScreen(),
+          ),
+        );
+        return;
+
       case 'horoscope':
         await Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const DailyHoroscopeScreen()),

@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadGatewayException,
   BadRequestException,
   ForbiddenException,
@@ -634,7 +634,7 @@ export class KundliService {
       if (needsAiAnalysis) {
         try {
           const aiAnalysis =
-            await this.kundliAiService.generateAnalysis(report);
+            await this.kundliAiService.generateAnalysis(report, lang);
 
           report.analysis = {
             ...(report.analysis ?? {}),
@@ -727,7 +727,7 @@ export class KundliService {
      * Never fabricate missing astrology values.
      */
     try {
-      const aiAnalysis = await this.kundliAiService.generateAnalysis(report);
+      const aiAnalysis = await this.kundliAiService.generateAnalysis(report, lang);
 
       report.analysis = {
         ...(report.analysis ?? {}),

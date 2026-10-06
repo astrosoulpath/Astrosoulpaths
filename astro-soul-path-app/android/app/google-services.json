@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "155926082630-rg6jln66ucaiq52cibad8hjt3ngpaq1v.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.astrosoulpath.astro_soul_path",
+            "certificate_hash": "1b005eb2859e123d072a9761c39eaab2bce53609"
+          }
+        },
+        {
           "client_id": "155926082630-tj25e6nfmemqh25qqnnviq15moooqt5n.apps.googleusercontent.com",
           "client_type": 3
         }

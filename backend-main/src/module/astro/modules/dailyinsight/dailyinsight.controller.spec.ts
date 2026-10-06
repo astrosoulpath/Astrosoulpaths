@@ -46,7 +46,7 @@ describe('DailyinsightController', () => {
 
     expect(
       dailyInsightServiceMock.getNakshatraDailyInsight,
-    ).toHaveBeenCalledWith('supabase-customer-1', 'today');
+    ).toHaveBeenCalledWith('supabase-customer-1', 'today', undefined);
   });
 
   it('passes today to the service', async () => {
@@ -59,7 +59,7 @@ describe('DailyinsightController', () => {
 
     expect(
       dailyInsightServiceMock.getNakshatraDailyInsight,
-    ).toHaveBeenCalledWith('supabase-customer-1', 'today');
+    ).toHaveBeenCalledWith('supabase-customer-1', 'today', undefined);
   });
 
   it('passes yesterday to the service', async () => {
@@ -72,7 +72,7 @@ describe('DailyinsightController', () => {
 
     expect(
       dailyInsightServiceMock.getNakshatraDailyInsight,
-    ).toHaveBeenCalledWith('supabase-customer-1', 'yesterday');
+    ).toHaveBeenCalledWith('supabase-customer-1', 'yesterday', undefined);
   });
 
   it('passes tomorrow to the service', async () => {
@@ -85,7 +85,7 @@ describe('DailyinsightController', () => {
 
     expect(
       dailyInsightServiceMock.getNakshatraDailyInsight,
-    ).toHaveBeenCalledWith('supabase-customer-1', 'tomorrow');
+    ).toHaveBeenCalledWith('supabase-customer-1', 'tomorrow', undefined);
   });
 
   it('normalizes day input', async () => {
@@ -98,7 +98,7 @@ describe('DailyinsightController', () => {
 
     expect(
       dailyInsightServiceMock.getNakshatraDailyInsight,
-    ).toHaveBeenCalledWith('supabase-customer-1', 'tomorrow');
+    ).toHaveBeenCalledWith('supabase-customer-1', 'tomorrow', undefined);
   });
 
   it('rejects an invalid day', () => {

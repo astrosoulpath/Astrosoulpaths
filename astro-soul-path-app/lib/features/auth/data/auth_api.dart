@@ -167,6 +167,64 @@ class AuthApi {
     );
   }
 
+  Future<VerifyOtpResult> firebasePhoneLogin({
+    required String idToken,
+    required String phone,
+    required AuthPortal portal,
+  }) async {
+    final normalizedToken = idToken.trim();
+
+    if (normalizedToken.isEmpty) {
+      throw const AuthApiException('Firebase authentication token is missing.');
+    }
+
+    final body = await _post(
+      endpoint: '/auth/firebase/phone',
+      payload: {'idToken': normalizedToken, 'portal': portal.name},
+      fallbackError: 'Firebase phone login failed.',
+    );
+
+    final user = _readMap(body['user']);
+
+    if ((user['phone']?.toString().trim() ?? '').isEmpty) {
+      user['phone'] = phone.trim();
+    }
+
+    final role =
+        body['role']?.toString() ?? user['role']?.toString() ?? 'CUSTOMER';
+
+    final responsePortal =
+        body['portal']?.toString() ?? user['portal']?.toString() ?? 'customer';
+
+    final nextStep = body['nextStep']?.toString() ?? '';
+
+    if (role.isEmpty || responsePortal.isEmpty || nextStep.isEmpty) {
+      throw const AuthApiException(
+        'The server returned an incomplete Firebase login response.',
+      );
+    }
+
+    // Firebase SDK owns token refresh.
+    // Do NOT invent a Supabase refresh token.
+    final session = <String, dynamic>{
+      'accessToken': normalizedToken,
+      'refreshToken': '',
+      'expiresIn': 3600,
+      'tokenType': 'bearer',
+      'authProvider': 'firebase',
+    };
+
+    return VerifyOtpResult(
+      message: _readMessage(body, fallback: 'Login successful.'),
+      portal: responsePortal,
+      role: role,
+      accessToken: normalizedToken,
+      user: user,
+      session: session,
+      nextStep: nextStep,
+    );
+  }
+
   Future<VerifyOtpResult> emailPasswordLogin({
     required String email,
     required String password,

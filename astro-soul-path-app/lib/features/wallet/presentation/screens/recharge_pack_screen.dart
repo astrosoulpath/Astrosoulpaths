@@ -333,7 +333,7 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'â‚¹${updatedWallet.availableBalance.toStringAsFixed(2)}',
+                            '\u20B9${updatedWallet.availableBalance.toStringAsFixed(2)}',
                             style: const TextStyle(
                               color: AppColors.gold,
                               fontSize: 26,
@@ -736,6 +736,11 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
               final pack = _packs[index];
               final selected = _selectedPack?.id == pack.id;
               final hasBonus = pack.bonusPercent > 0;
+              final sticker = pack.bonusPercent >= 30
+                  ? 'BEST VALUE'
+                  : pack.bonusPercent >= 25
+                  ? 'POPULAR'
+                  : null;
 
               final bonusText = hasBonus
                   ? '${pack.bonusPercent == pack.bonusPercent.roundToDouble() ? pack.bonusPercent.toInt() : pack.bonusPercent.toStringAsFixed(1)}% Extra'
@@ -791,6 +796,28 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                               ),
                             ),
                           ),
+                          if (sticker != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  sticker,
+                                  style: const TextStyle(
+                                    color: Colors.black87,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
                           Expanded(
                             child: Center(
                               child: Padding(

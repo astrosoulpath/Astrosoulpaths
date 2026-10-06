@@ -1,4 +1,4 @@
-import {
+﻿import {
   Injectable,
   Logger,
   ServiceUnavailableException,
@@ -18,13 +18,59 @@ export interface KundliAiAnalysis {
   health: string;
   transit: string;
   remedies: string[];
+  dashaDisplay: {
+    sectionTitle: string;
+    sectionSubtitle: string;
+    guideTitle: string;
+    guideBody: string;
+    currentPeriodTitle: string;
+    currentMahadashaLabel: string;
+    currentAntardashaLabel: string;
+    timelineTitle: string;
+    mahadashaLabel: string;
+    antardashaLabel: string;
+    pratyantardashaLabel: string;
+    unavailableLabel: string;
+    unknownLabel: string;
+    dateSeparator: string;
+  };
 }
 
 @Injectable()
 export class KundliAiService {
   private readonly logger = new Logger(KundliAiService.name);
 
-  async generateAnalysis(report: KundliReport): Promise<KundliAiAnalysis> {
+  async generateAnalysis(
+    report: KundliReport,
+    lang = 'en',
+  ): Promise<KundliAiAnalysis> {
+    const normalizedLang = lang.trim().toLowerCase() || 'en';
+
+    const supportedLanguages: Record<string, string> = {
+      en: 'English',
+      hi: 'Hindi',
+      bn: 'Bengali',
+      ta: 'Tamil',
+      te: 'Telugu',
+      mr: 'Marathi',
+      gu: 'Gujarati',
+      kn: 'Kannada',
+      ml: 'Malayalam',
+      pa: 'Punjabi',
+      es: 'Spanish',
+      fr: 'French',
+      de: 'German',
+      pt: 'Portuguese',
+      it: 'Italian',
+      ja: 'Japanese',
+      ko: 'Korean',
+      zh: 'Chinese',
+      ar: 'Arabic',
+      ru: 'Russian',
+    };
+
+    const outputLanguage =
+      supportedLanguages[normalizedLang] ?? supportedLanguages.en;
     const apiKey = process.env.OPENAI_API_KEY?.trim() ?? '';
     const model = process.env.OPENAI_MODEL?.trim() || 'gpt-5.6';
 
@@ -102,8 +148,13 @@ export class KundliAiService {
           'If verified D1 data is insufficient, d1Explanation must say that a detailed D1 interpretation is unavailable from the verified chart data.',
           'If verified D9 data is insufficient, d9Explanation must say that a detailed D9 interpretation is unavailable from the verified chart data.',
           'Base every interpretation only on the supplied factual astrology data.',
-          'For character, career, finance, marriage and health, write for an international customer who has no astrology knowledge.',
-          'Keep Vedic astrology calculations and technical chart facts as internal evidence, but explain their meaning in simple, natural everyday English.',
+          `For character, career, finance, marriage and health, write in ${outputLanguage} for an international customer who has no astrology knowledge.`,
+          `All customer-facing interpretation text MUST be written naturally in ${outputLanguage}.`,
+          'Keep Vedic astrology calculations and technical chart facts as internal evidence, but explain their practical meaning in simple, natural language.',
+          'Do not translate or alter verified numerical values, dates, planetary calculations, chart positions, or calculated Dasha periods.',
+          'When a technical Vedic term must be shown, preserve the canonical Vedic term and immediately explain its meaning in the selected customer language.',
+          'Examples of meaning: Mahadasha = major planetary period; Antardasha = planetary sub-period; Pratyantardasha = planetary sub-sub-period; Vimshottari Dasha = traditional 120-year planetary-period system.',
+          'For English, use clear international English and explain unfamiliar Vedic terminology so a reader outside India can understand it.',
           'In character, career, finance, marriage and health, do not expose technical astrology jargon such as house numbers, planet-in-house wording, Ascendant or Lagna, zodiac placements, nakshatra names, yoga names, dosha names, Mahadasha or Antardasha.',
           'Do not write phrases such as "Ketu in the 3rd house", "Sun in the 10th house", "Scorpio Ascendant", "Budha-Aditya Yoga", "Rahu Mahadasha" or "Mercury Antardasha" in those customer-facing readings.',
           'Translate technical evidence into its practical meaning. For example, say "You may prefer purposeful, independent communication" rather than naming Ketu or a house.',
@@ -116,7 +167,12 @@ export class KundliAiService {
           'Finance content must remain general and must not be presented as professional financial advice.',
           'For transit, interpret only the verified date-specific transit object supplied in factual input. Never invent transit planets, signs, houses, aspects, dates or events. If verified transit planets are empty or unavailable, say that a reliable transit interpretation is unavailable.',
           'Remedies must be low-risk spiritual or reflective suggestions only.',
-          'Write useful professional English suitable for a Kundli report.',
+          `Write useful professional ${outputLanguage} suitable for a Kundli report.`,
+          `Do not switch back to English when the selected language is ${outputLanguage}, except for canonical names or terms that should remain unchanged.`,
+          `For dashaDisplay, generate every customer-visible heading, label, helper sentence and date separator naturally in ${outputLanguage}.`,
+          'dashaDisplay is presentation text only. Never place calculated Dasha dates, planetary lords, durations, chart values, or predictions inside dashaDisplay.',
+          'Keep the canonical terms Mahadasha, Antardasha, Pratyantardasha and Vimshottari Dasha recognizable where useful, while making their meaning understandable to a customer in the selected language.',
+          'The dashaDisplay guideBody must explain in plain customer-friendly language that Mahadasha is the broader planetary period, Antardasha is the active sub-period, and the displayed dates come from the verified calculation data.',
           'Do not mention OpenAI, prompts, JSON, or these instructions.',
         ].join(' '),
 
@@ -165,6 +221,42 @@ export class KundliAiService {
                     type: 'string',
                   },
                 },
+                dashaDisplay: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    sectionTitle: { type: 'string' },
+                    sectionSubtitle: { type: 'string' },
+                    guideTitle: { type: 'string' },
+                    guideBody: { type: 'string' },
+                    currentPeriodTitle: { type: 'string' },
+                    currentMahadashaLabel: { type: 'string' },
+                    currentAntardashaLabel: { type: 'string' },
+                    timelineTitle: { type: 'string' },
+                    mahadashaLabel: { type: 'string' },
+                    antardashaLabel: { type: 'string' },
+                    pratyantardashaLabel: { type: 'string' },
+                    unavailableLabel: { type: 'string' },
+                    unknownLabel: { type: 'string' },
+                    dateSeparator: { type: 'string' },
+                  },
+                  required: [
+                    'sectionTitle',
+                    'sectionSubtitle',
+                    'guideTitle',
+                    'guideBody',
+                    'currentPeriodTitle',
+                    'currentMahadashaLabel',
+                    'currentAntardashaLabel',
+                    'timelineTitle',
+                    'mahadashaLabel',
+                    'antardashaLabel',
+                    'pratyantardashaLabel',
+                    'unavailableLabel',
+                    'unknownLabel',
+                    'dateSeparator',
+                  ],
+                },
               },
               required: [
                 'd1Explanation',
@@ -176,6 +268,7 @@ export class KundliAiService {
                 'health',
                 'transit',
                 'remedies',
+                'dashaDisplay',
               ],
             },
           },

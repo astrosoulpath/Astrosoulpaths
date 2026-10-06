@@ -1,7 +1,8 @@
-// ignore_for_file: prefer_initializing_formals
+﻿// ignore_for_file: prefer_initializing_formals
 
 import 'dart:convert';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -22,6 +23,7 @@ class AuthSessionStore {
   static const _nextStepKey = 'asp_next_step';
   static const _userKey = 'asp_user';
   static const _expiresInKey = 'asp_expires_in';
+  static const _authProviderKey = 'asp_auth_provider';
 
   // Refresh slightly before the actual JWT expiry.
   // This protects against clock skew and requests crossing the expiry boundary.
@@ -39,9 +41,13 @@ class AuthSessionStore {
     final accessToken = result.accessToken.trim();
     final refreshToken = result.refreshToken.trim();
 
-    // A production authenticated session must always be complete.
-    // Never keep an older refresh token when a new login is incomplete.
-    if (accessToken.isEmpty || refreshToken.isEmpty) {
+    final authProvider =
+        result.session['authProvider']?.toString().trim().toLowerCase() ??
+        'supabase';
+
+    final isFirebase = authProvider == 'firebase';
+
+    if (accessToken.isEmpty || (!isFirebase && refreshToken.isEmpty)) {
       await clear();
 
       throw StateError('Authentication server returned an incomplete session.');
@@ -55,11 +61,9 @@ class AuthSessionStore {
       _nextStepKey: result.nextStep.trim(),
       _userKey: jsonEncode(result.user),
       _expiresInKey: result.expiresIn.toString(),
+      _authProviderKey: authProvider,
     };
 
-    // Login is a complete session replacement.
-    // This prevents tokens from an older login/account/session
-    // surviving a fresh OTP authentication.
     await Future.wait([
       _storage.delete(key: _accessTokenKey),
       _storage.delete(key: _refreshTokenKey),
@@ -68,6 +72,7 @@ class AuthSessionStore {
       _storage.delete(key: _nextStepKey),
       _storage.delete(key: _userKey),
       _storage.delete(key: _expiresInKey),
+      _storage.delete(key: _authProviderKey),
     ]);
 
     for (final entry in values.entries) {
@@ -105,7 +110,15 @@ class AuthSessionStore {
   Future<StoredAuthSession?> forceRefresh() async {
     final session = await _readRaw();
 
-    if (session == null || session.refreshToken.trim().isEmpty) {
+    if (session == null) {
+      return null;
+    }
+
+    if (session.authProvider == 'firebase') {
+      return _refreshFirebaseSession(session);
+    }
+
+    if (session.refreshToken.trim().isEmpty) {
       return null;
     }
 
@@ -125,6 +138,8 @@ class AuthSessionStore {
     final nextStep = await _storage.read(key: _nextStepKey) ?? '';
     final userSource = await _storage.read(key: _userKey) ?? '{}';
     final expiresInSource = await _storage.read(key: _expiresInKey) ?? '0';
+    final authProvider =
+        await _storage.read(key: _authProviderKey) ?? 'supabase';
 
     return StoredAuthSession(
       accessToken: accessToken.trim(),
@@ -134,6 +149,7 @@ class AuthSessionStore {
       nextStep: nextStep,
       user: _decodeUser(userSource),
       expiresIn: int.tryParse(expiresInSource) ?? 0,
+      authProvider: authProvider,
     );
   }
 
@@ -188,6 +204,40 @@ class AuthSessionStore {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<StoredAuthSession?> _refreshFirebaseSession(
+    StoredAuthSession current,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      await clear();
+      return null;
+    }
+
+    final token = await user.getIdToken(true);
+
+    if (token == null || token.trim().isEmpty) {
+      return current;
+    }
+
+    final normalizedToken = token.trim();
+
+    await _storage.write(key: _accessTokenKey, value: normalizedToken);
+
+    await _storage.write(key: _authProviderKey, value: 'firebase');
+
+    return StoredAuthSession(
+      accessToken: normalizedToken,
+      refreshToken: '',
+      role: current.role,
+      portal: current.portal,
+      nextStep: current.nextStep,
+      user: current.user,
+      expiresIn: current.expiresIn,
+      authProvider: 'firebase',
+    );
   }
 
   Future<StoredAuthSession?> _refreshSingleFlight(
@@ -315,6 +365,7 @@ class AuthSessionStore {
       _storage.delete(key: _nextStepKey),
       _storage.delete(key: _userKey),
       _storage.delete(key: _expiresInKey),
+      _storage.delete(key: _authProviderKey),
     ]);
   }
 
@@ -366,6 +417,7 @@ class StoredAuthSession {
     required this.nextStep,
     required this.user,
     required this.expiresIn,
+    this.authProvider = 'supabase',
   });
 
   final String accessToken;
@@ -375,4 +427,5 @@ class StoredAuthSession {
   final String nextStep;
   final Map<String, dynamic> user;
   final int expiresIn;
+  final String authProvider;
 }

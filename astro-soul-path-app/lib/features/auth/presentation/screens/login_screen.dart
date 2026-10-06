@@ -10,6 +10,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../customer/presentation/screens/customer_shell_screen.dart';
 import '../../../astrologers/presentation/screens/astrologer_selection_screen.dart';
 import '../../data/auth_api.dart';
+import '../../data/firebase_phone_auth_service.dart';
 import '../../data/auth_portal.dart';
 import '../../data/google_auth_service.dart';
 import '../../data/auth_session_store.dart';
@@ -457,10 +458,16 @@ class _LoginScreenState extends State<LoginScreen> {
     final phone = '+$_selectedPhoneCode$localNumber';
 
     try {
-      final sendResult = await _authApi.sendOtp(
+      String? firebaseVerificationId;
+      int? firebaseResendToken;
+      String? devOtp;
+
+      final firebaseCode = await FirebasePhoneAuthService.instance.sendCode(
         phone: phone,
-        portal: widget.portal,
       );
+
+      firebaseVerificationId = firebaseCode.verificationId;
+      firebaseResendToken = firebaseCode.resendToken;
 
       if (!mounted) {
         return;
@@ -471,11 +478,12 @@ class _LoginScreenState extends State<LoginScreen> {
           builder: (_) => OtpVerificationScreen(
             phone: phone,
             portal: widget.portal,
-            devOtp: sendResult.devOtp,
+            devOtp: devOtp,
+            firebaseVerificationId: firebaseVerificationId,
+            firebaseResendToken: firebaseResendToken,
           ),
         ),
       );
-
       if (!mounted || verifyResult == null) {
         return;
       }
@@ -573,8 +581,18 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
       }
-      if (verifyResult.role == 'CUSTOMER' &&
-          verifyResult.nextStep == 'OPEN_HOME') {
+      // CUSTOMER PHONE/OTP SUCCESS:
+      // OTP screen has already completed required customer onboarding
+      // before returning VerifyOtpResult here.
+      if (widget.portal == AuthPortal.customer &&
+          verifyResult.role == 'CUSTOMER' &&
+          verifyResult.portal == 'customer') {
+        await _sessionStore.save(verifyResult);
+
+        if (!mounted) {
+          return;
+        }
+
         await _openCustomerHomeWithFreeChat(verifyResult);
         return;
       }
@@ -716,9 +734,6 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       },
     );
-
-    emailController.dispose();
-    passwordController.dispose();
 
     if (credentials == null || !mounted) return;
 

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Body,
   Controller,
   Get,
@@ -85,11 +85,11 @@ export class NotificationsController {
 
     const notification = await this.notificationsService.createForUser({
       userId,
-      title: 'Astro Soul Path',
-      body: 'Your notification system is ready.',
-      type: 'astrology_question',
+      title: 'Personalized Daily Horoscope activated',
+      body: 'Your subscription is active. Your personalized Vedic horoscope is now available.',
+      type: 'subscription',
       data: {
-        type: 'astrology_question',
+        type: 'subscription',
       },
     });
 
@@ -97,7 +97,8 @@ export class NotificationsController {
       title: notification.title,
       body: notification.body,
       data: {
-        type: notification.type ?? 'general',
+        type: notification.type ?? 'subscription',
+        screen: 'horoscope',
         notificationId: notification.id,
       },
     });

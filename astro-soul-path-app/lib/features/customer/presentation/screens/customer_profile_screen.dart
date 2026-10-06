@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:country_picker/country_picker.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/data/auth_session_store.dart';
@@ -24,6 +25,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
 
   bool _isLoading = true;
   bool _isLoggingOut = false;
+  bool _isSavingResidence = false;
   bool _profileRequestInFlight = false;
   String _error = '';
 
@@ -140,6 +142,108 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
 
     if (changed == true) {
       await _loadProfile();
+    }
+  }
+
+  Future<void> _changeResidenceCountry() async {
+    if (_isSavingResidence || _profile == null) return;
+
+    showCountryPicker(
+      context: context,
+      showPhoneCode: false,
+      onSelect: (country) async {
+        if (!mounted) return;
+
+        setState(() => _isSavingResidence = true);
+
+        try {
+          final updated = await _profileApi.updateResidenceCountry(
+            countryCode: country.countryCode,
+          );
+
+          if (!mounted) return;
+
+          setState(() => _profile = updated);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Residence country updated successfully'),
+            ),
+          );
+        } catch (error) {
+          if (!mounted) return;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Unable to save country: $error')),
+          );
+        } finally {
+          if (mounted) {
+            setState(() => _isSavingResidence = false);
+          }
+        }
+      },
+    );
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Account'),
+        content: const Text(
+          'Deleting your account is permanent. Your personal data '
+          'will be removed according to the privacy policy. '
+          'Certain payment and transaction records may need to '
+          'be retained for legal requirements.\n\n'
+          'Are you sure you want to continue?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Continue', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    if (_isLoggingOut) return;
+
+    setState(() => _isLoggingOut = true);
+
+    try {
+      await _profileApi.deleteAccount();
+      await _sessionStore.clear();
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => const AuthGate()),
+        (route) => false,
+      );
+    } on ProfileApiException catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Account deletion failed. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoggingOut = false);
+      }
     }
   }
 
@@ -584,6 +688,39 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                     ),
                     const SizedBox(height: 24),
                     const _ProfileSectionTitle(
+                      icon: Icons.public_rounded,
+                      title: 'Country/Region of Residence',
+                    ),
+                    const SizedBox(height: 10),
+                    _ProfileInfoCard(
+                      children: [
+                        _ProfileInfoRow(
+                          icon: Icons.location_on_outlined,
+                          title: 'Current Residence',
+                          value: profile.residenceCountryCode ?? 'Not selected',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: _isSavingResidence
+                          ? null
+                          : _changeResidenceCountry,
+                      icon: _isSavingResidence
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.edit_location_alt_outlined),
+                      label: Text(
+                        _isSavingResidence
+                            ? 'Saving...'
+                            : 'Change Country/Region',
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const _ProfileSectionTitle(
                       icon: Icons.auto_awesome_rounded,
                       title: 'Birth Details',
                     ),
@@ -649,6 +786,20 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                       side: BorderSide(
                         color: AppColors.gold.withValues(alpha: 0.35),
                       ),
+                      minimumSize: const Size.fromHeight(52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  OutlinedButton.icon(
+                    onPressed: _confirmDeleteAccount,
+                    icon: const Icon(Icons.delete_forever_rounded),
+                    label: const Text('Delete Account'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.redAccent,
+                      side: const BorderSide(color: Colors.redAccent),
                       minimumSize: const Size.fromHeight(52),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),

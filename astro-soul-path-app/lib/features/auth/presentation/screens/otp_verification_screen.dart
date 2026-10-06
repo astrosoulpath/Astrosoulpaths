@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +8,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../customer/presentation/screens/customer_birth_onboarding_screen.dart';
 import '../../../profile/data/profile_api.dart';
 import '../../data/auth_api.dart';
+import '../../data/firebase_phone_auth_service.dart';
 import '../../data/auth_portal.dart';
 import '../../data/auth_session_store.dart';
 
@@ -16,12 +17,16 @@ class OtpVerificationScreen extends StatefulWidget {
     required this.phone,
     required this.portal,
     this.devOtp,
+    this.firebaseVerificationId,
+    this.firebaseResendToken,
     super.key,
   });
 
   final String phone;
   final AuthPortal portal;
   final String? devOtp;
+  final String? firebaseVerificationId;
+  final int? firebaseResendToken;
 
   @override
   State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
@@ -38,11 +43,15 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   int _resendSeconds = 60;
   Timer? _resendTimer;
   String? _devOtp;
+  String? _firebaseVerificationId;
+  int? _firebaseResendToken;
 
   @override
   void initState() {
     super.initState();
     _devOtp = widget.devOtp;
+    _firebaseVerificationId = widget.firebaseVerificationId;
+    _firebaseResendToken = widget.firebaseResendToken;
     _startResendCooldown();
   }
 
@@ -95,14 +104,26 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
 
     try {
-      final result = await _authApi.verifyOtp(
-        phone: widget.phone,
-        otp: _otpController.text.trim(),
-        portal: widget.portal,
-      );
+      final VerifyOtpResult result;
+
+      if (_firebaseVerificationId?.trim().isNotEmpty ?? false) {
+        final idToken = await FirebasePhoneAuthService.instance.verifyCode(
+          verificationId: _firebaseVerificationId!,
+          smsCode: _otpController.text.trim(),
+        );
+
+        result = await _authApi.firebasePhoneLogin(
+          idToken: idToken,
+          phone: widget.phone,
+          portal: widget.portal,
+        );
+      } else {
+        throw const AuthApiException(
+          'Firebase verification session is missing. Please request a new OTP.',
+        );
+      }
 
       await _sessionStore.save(result);
-
       // Session now exists, so register the current FCM device.
       // Failure inside syncCurrentDevice never blocks login.
       await NotificationService.instance.syncCurrentDevice();
@@ -216,17 +237,28 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
 
     try {
-      final result = await _authApi.sendOtp(
-        phone: widget.phone,
-        portal: widget.portal,
-      );
+      String message = 'OTP sent successfully.';
+
+      if (_firebaseVerificationId != null) {
+        final firebaseCode = await FirebasePhoneAuthService.instance.sendCode(
+          phone: widget.phone,
+          forceResendingToken: _firebaseResendToken,
+        );
+
+        _firebaseVerificationId = firebaseCode.verificationId;
+        _firebaseResendToken = firebaseCode.resendToken;
+        message = 'OTP sent successfully.';
+      } else {
+        throw const AuthApiException(
+          'Firebase verification session is missing. Please request a new OTP.',
+        );
+      }
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _devOtp = result.devOtp;
         _otpController.clear();
       });
 
@@ -234,7 +266,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
-        ..showSnackBar(SnackBar(content: Text(result.message)));
+        ..showSnackBar(SnackBar(content: Text(message)));
     } on AuthApiException catch (error) {
       if (!mounted) {
         return;
@@ -454,4 +486,3 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     );
   }
 }
-

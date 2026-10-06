@@ -106,10 +106,24 @@ export interface KundliReport {
     health?: unknown;
     transit?: unknown;
     remedies?: unknown;
+    dashaDisplay?: {
+      sectionTitle?: string;
+      sectionSubtitle?: string;
+      guideTitle?: string;
+      guideBody?: string;
+      currentPeriodTitle?: string;
+      currentMahadashaLabel?: string;
+      currentAntardashaLabel?: string;
+      timelineTitle?: string;
+      mahadashaLabel?: string;
+      antardashaLabel?: string;
+      pratyantardashaLabel?: string;
+      unavailableLabel?: string;
+      unknownLabel?: string;
+      dateSeparator?: string;
+    };
   };
 
   metadata?: unknown;
   providerPayload?: unknown;
 }
-
-

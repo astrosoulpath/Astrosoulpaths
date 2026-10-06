@@ -4,10 +4,12 @@ import { SmsRoutingService } from './sms-routing.service';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
+import { FirebasePhoneLoginDto } from './dto/firebase-phone-login.dto';
 import { RefreshSessionDto } from './dto/refresh-session.dto';
 import { SendEmailOtpDto } from './dto/send-email-otp.dto';
 import { VerifyEmailOtpDto } from './dto/verify-email-otp.dto';
 import { EmailLoginDto } from './dto/email-login.dto';
+import { EmailSignupDto } from './dto/email-signup.dto';
 import { Public } from '../../common/decorators/public.decorator';
 
 @Public()
@@ -18,6 +20,24 @@ export class AuthController {
     private readonly smsRoutingService: SmsRoutingService,
   ) {}
 
+  /**
+   * Supabase Send SMS Hook.
+   * +91 -> MSG91
+   * non-+91 -> Twilio
+   */
+  @Post('supabase-sms-hook')
+  async supabaseSmsHook(
+    @Body() payload: Parameters<SmsRoutingService['deliverSupabaseOtp']>[0],
+    @Headers('authorization') authorization?: string,
+    @Headers('x-sms-hook-secret') hookSecret?: string,
+  ) {
+    const receivedSecret =
+      hookSecret?.trim() || authorization?.replace(/^Bearer\s+/i, '').trim();
+
+    await this.smsRoutingService.deliverSupabaseOtp(payload, receivedSecret);
+
+    return { success: true };
+  }
   // Endpoint to send OTP
   @Post('send-otp')
   async sendOtp(@Body() sendOtpDto: SendOtpDto) {
@@ -78,6 +98,10 @@ export class AuthController {
     return this.authService.verifyEmailOtp(dto.email, dto.token);
   }
 
+  @Post('email/signup')
+  async signupWithEmail(@Body() dto: EmailSignupDto) {
+    return this.authService.signupWithEmail(dto);
+  }
   @Post('email/login')
   async loginWithEmail(@Body() dto: EmailLoginDto) {
     return this.authService.loginWithEmail(dto.email, dto.password);
@@ -86,6 +110,14 @@ export class AuthController {
   async refreshSession(@Body() dto: RefreshSessionDto) {
     return this.authService.refreshSession(
       dto.refreshToken,
+      dto.portal ?? 'customer',
+    );
+  }
+
+  @Post('firebase/phone')
+  async firebasePhoneLogin(@Body() dto: FirebasePhoneLoginDto) {
+    return this.authService.verifyFirebasePhoneToken(
+      dto.idToken,
       dto.portal ?? 'customer',
     );
   }

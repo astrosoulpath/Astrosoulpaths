@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
@@ -54,6 +54,32 @@ class NotificationDeviceApi {
     }
   }
 
+  Future<void> sendTestPush() async {
+    final session = await _sessionStore.read();
+
+    if (session == null || session.accessToken.trim().isEmpty) {
+      throw const NotificationDeviceApiException(
+        'Login session not available.',
+      );
+    }
+
+    final response = await _client
+        .post(
+          Uri.parse('${ApiConfig.baseUrl}/notifications/test-push'),
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${session.accessToken}',
+          },
+        )
+        .timeout(ApiConfig.requestTimeout);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw NotificationDeviceApiException(
+        'Test notification failed (${response.statusCode}): ${response.body}',
+      );
+    }
+  }
   void close() {
     _client.close();
   }

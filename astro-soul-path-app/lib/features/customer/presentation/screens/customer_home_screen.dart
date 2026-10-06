@@ -1148,12 +1148,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                           ),
                           const SizedBox(height: 5),
                           Text(
-                            _drawerSession?.user['phone']
-                                        ?.toString()
-                                        .trim()
-                                        .isNotEmpty ==
+                            _drawerProfile?.phoneNumber?.trim().isNotEmpty ==
                                     true
-                                ? _drawerSession!.user['phone'].toString()
+                                ? _drawerProfile!.phoneNumber!.trim()
                                 : 'Phone unavailable',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -2992,19 +2989,14 @@ class _HomeAstrologyAction extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  String? get _assetPath {
-    switch (label) {
-      case 'Kundli AI':
-        return 'assets/stickers/home_astrology/kundli_ai.png';
-      case 'Horoscope':
-        return 'assets/stickers/home_astrology/horoscope.png';
-      case 'AI Astro':
-        return 'assets/stickers/home_astrology/ai_astro.png';
-      case 'Predictions':
-        return 'assets/stickers/home_astrology/predictions.png';
-      default:
-        return null;
-    }
+  String get _assetPath {
+    if (icon == Icons.auto_awesome_rounded)
+      return 'assets/stickers/home_astrology/kundli_ai.png';
+    if (icon == Icons.auto_fix_high_rounded)
+      return 'assets/stickers/home_astrology/ai_astro.png';
+    if (icon == Icons.wb_sunny_rounded)
+      return 'assets/stickers/home_astrology/horoscope.png';
+    return 'assets/stickers/home_astrology/predictions.png';
   }
 
   @override
@@ -3022,18 +3014,16 @@ class _HomeAstrologyAction extends StatelessWidget {
           child: SizedBox(
             height: 118,
             child: Center(
-              child: assetPath == null
-                  ? Icon(icon, size: 42, color: AppColors.gold)
-                  : Image.asset(
-                      assetPath,
-                      width: 108,
-                      height: 108,
-                      fit: BoxFit.contain,
-                      filterQuality: FilterQuality.high,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Icon(icon, size: 42, color: AppColors.gold);
-                      },
-                    ),
+              child: Image.asset(
+                assetPath,
+                width: 108,
+                height: 108,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(icon, size: 42, color: AppColors.gold);
+                },
+              ),
             ),
           ),
         ),
@@ -3053,21 +3043,18 @@ class _HomeAstrologyTopic extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  String? get _assetPath {
-    switch (label) {
-      case 'Career':
-        return 'assets/stickers/home_astrology/career.png';
-      case 'Marriage':
-        return 'assets/stickers/home_astrology/marriage.png';
-      case 'Stock Market':
-        return 'assets/stickers/home_astrology/stock_market.png';
-      case 'Today':
-        return 'assets/stickers/home_astrology/today.png';
-      case 'Business':
-        return 'assets/stickers/home_astrology/business.png';
-      default:
-        return null;
-    }
+  String get _assetPath {
+    if (icon == Icons.business_center_rounded)
+      return 'assets/stickers/home_astrology/business.png';
+    if (icon == Icons.candlestick_chart_rounded)
+      return 'assets/stickers/home_astrology/stock_market.png';
+    if (icon == Icons.event_available_rounded)
+      return 'assets/stickers/home_astrology/today.png';
+    if (icon == Icons.favorite_rounded)
+      return 'assets/stickers/home_astrology/marriage.png';
+    if (icon == Icons.work_rounded)
+      return 'assets/stickers/home_astrology/career.png';
+    return 'assets/stickers/home_astrology/business.png';
   }
 
   @override
@@ -3086,18 +3073,16 @@ class _HomeAstrologyTopic extends StatelessWidget {
             width: 68,
             height: 88,
             child: Center(
-              child: assetPath == null
-                  ? Icon(icon, size: 30, color: AppColors.gold)
-                  : Image.asset(
-                      assetPath,
-                      width: 66,
-                      height: 82,
-                      fit: BoxFit.contain,
-                      filterQuality: FilterQuality.high,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Icon(icon, size: 30, color: AppColors.gold);
-                      },
-                    ),
+              child: Image.asset(
+                assetPath,
+                width: 66,
+                height: 82,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(icon, size: 30, color: AppColors.gold);
+                },
+              ),
             ),
           ),
         ),

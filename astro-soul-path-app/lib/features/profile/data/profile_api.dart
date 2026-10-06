@@ -193,6 +193,93 @@ class ProfileApi {
     return _readProfile(body);
   }
 
+  Future<CustomerProfile> updateResidenceCountry({
+    required String countryCode,
+  }) async {
+    final code = countryCode.trim().toUpperCase();
+
+    if (!RegExp(r'^[A-Z]{2}$').hasMatch(code)) {
+      throw const ProfileApiException('Invalid residence country code.');
+    }
+
+    final body = await _request(
+      method: 'PATCH',
+      path: '/user/profile',
+      payload: <String, dynamic>{'residenceCountryCode': code},
+      fallbackError: 'Failed to update residence country.',
+    );
+
+    return _readProfile(body);
+  }
+
+  Future<void> sendProfilePhoneOtp({required String phone}) async {
+    final normalizedPhone = phone.trim();
+
+    if (normalizedPhone.isEmpty) {
+      throw const ProfileApiException('Phone number is required.');
+    }
+
+    await _request(
+      method: 'POST',
+      path: '/user/profile/phone/send-otp',
+      payload: <String, dynamic>{'phone': normalizedPhone},
+      fallbackError: 'Failed to send verification code.',
+    );
+  }
+
+  Future<CustomerProfile> verifyProfilePhoneOtp({
+    required String phone,
+    required String token,
+  }) async {
+    final normalizedPhone = phone.trim();
+    final normalizedToken = token.trim();
+
+    if (normalizedPhone.isEmpty) {
+      throw const ProfileApiException('Phone number is required.');
+    }
+
+    if (normalizedToken.isEmpty) {
+      throw const ProfileApiException('Verification code is required.');
+    }
+
+    final body = await _request(
+      method: 'POST',
+      path: '/user/profile/phone/verify-otp',
+      payload: <String, dynamic>{
+        'phone': normalizedPhone,
+        'token': normalizedToken,
+      },
+      fallbackError: 'Failed to verify phone number.',
+    );
+
+    final rawData = body['data'];
+
+    if (rawData is Map && rawData['profile'] is Map) {
+      return CustomerProfile.fromJson(
+        Map<String, dynamic>.from(rawData['profile'] as Map),
+      );
+    }
+
+    final profiles = await getProfiles();
+
+    if (profiles.isEmpty) {
+      throw const ProfileApiException(
+        'Phone verified, but profile could not be reloaded.',
+      );
+    }
+
+    return profiles.first;
+  }
+
+  Future<void> deleteAccount() async {
+    await _request(
+      method: 'DELETE',
+      path: '/user/account',
+      extraHeaders: const {'x-confirm-account-deletion': 'DELETE'},
+      fallbackError: 'Failed to delete account.',
+    );
+  }
+
   Future<void> deleteProfile(String profileId) async {
     final id = profileId.trim();
 
@@ -211,6 +298,7 @@ class ProfileApi {
     required String method,
     required String path,
     Map<String, dynamic>? payload,
+    Map<String, String>? extraHeaders,
     required String fallbackError,
   }) async {
     final session = await _sessionStore.read();
@@ -234,6 +322,9 @@ class ProfileApi {
         'Authorization': 'Bearer $accessToken',
       });
 
+      if (extraHeaders != null) {
+        request.headers.addAll(extraHeaders);
+      }
       if (payload != null) {
         request.headers['Content-Type'] = 'application/json';
         request.body = jsonEncode(payload);

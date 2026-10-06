@@ -204,7 +204,7 @@ class _MarketplaceProductDetailScreenState
       product['displaySellingPrice'] ?? product['sellingPrice'],
     );
     final mrp = _money(product['displayMrp'] ?? product['mrp']);
-    final shipping = _money(product['shippingCharge']);
+    final shipping = _money(product['displayShippingCharge'] ?? product['shippingCharge']);
     final stock = _int(product['stock']);
 
     final category = product['category'];
@@ -439,13 +439,13 @@ class _MarketplaceProductDetailScreenState
   String _symbol(String currency) {
     switch (currency.toUpperCase()) {
       case 'INR':
-        return 'â‚¹';
+        return '₹';
       case 'USD':
         return r'$';
       case 'EUR':
-        return 'â‚¬';
+        return '€';
       case 'GBP':
-        return 'Â£';
+        return '£';
       default:
         return '$currency ';
     }

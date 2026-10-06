@@ -17,9 +17,11 @@ class CustomerProfile {
     this.state,
     this.country,
     this.countryCode,
+    this.residenceCountryCode,
     this.language,
     this.maritalStatus,
     this.occupation,
+    this.phoneNumber,
     this.avatarUrl,
   });
 
@@ -41,9 +43,11 @@ class CustomerProfile {
   final String? state;
   final String? country;
   final String? countryCode;
+  final String? residenceCountryCode;
   final String? language;
   final String? maritalStatus;
   final String? occupation;
+  final String? phoneNumber;
   final String? avatarUrl;
 
   factory CustomerProfile.fromJson(Map<String, dynamic> json) {
@@ -69,9 +73,11 @@ class CustomerProfile {
       state: _readOptionalString(json['state']),
       country: _readOptionalString(json['country']),
       countryCode: _readOptionalString(json['countryCode']),
+      residenceCountryCode: _readOptionalString(json['residenceCountryCode']),
       language: _readOptionalString(json['lang']),
       maritalStatus: _readOptionalString(json['maritalStatus']),
       occupation: _readOptionalString(json['occupation']),
+      phoneNumber: _readOptionalString(json['phoneNumber'] ?? json['phone']),
       avatarUrl: _readOptionalString(json['avatarUrl']),
     );
   }

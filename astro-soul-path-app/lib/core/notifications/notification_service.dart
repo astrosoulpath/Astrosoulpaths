@@ -265,6 +265,7 @@ class NotificationService {
       if (kDebugMode) {
         debugPrint('FCM LOGIN SYNC: device registered');
       }
+
     } catch (error) {
       // Push registration must never block a successful customer login.
       if (kDebugMode) {
@@ -281,4 +282,3 @@ class NotificationService {
     return _messaging?.getToken();
   }
 }
-

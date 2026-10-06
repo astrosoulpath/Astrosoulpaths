@@ -499,9 +499,11 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
       );
     }
 
-    final currency = _text(_cart['currency']).isEmpty
-        ? 'INR'
-        : _text(_cart['currency']);
+    final currency = _text(_cart['displayCurrency']).isNotEmpty
+        ? _text(_cart['displayCurrency'])
+        : (_text(_cart['currency']).isEmpty
+            ? 'INR'
+            : _text(_cart['currency']));
 
     return RefreshIndicator(
       color: _gold,
@@ -689,11 +691,11 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
   }
 
   Widget _totals(String currency) {
-    final subtotal = _firstMoney([_cart['itemsSubtotal'], _cart['subtotal']]);
+    final subtotal = _firstMoney([_cart['displaySubtotal'], _cart['itemsSubtotal'], _cart['subtotal']]);
 
-    final shipping = _firstMoney([_cart['shippingTotal'], _cart['shipping']]);
+    final shipping = _firstMoney([_cart['displayShippingTotal'], _cart['shippingTotal'], _cart['shipping']]);
 
-    final total = _firstMoney([_cart['grandTotal'], _cart['total']]);
+    final total = _firstMoney([_cart['displayGrandTotal'], _cart['grandTotal'], _cart['total']]);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -742,14 +744,20 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
   }
 
   String _lineSubtotal(Map<String, dynamic> item) {
-    final value = item['lineSubtotal'] ?? item['subtotal'];
+    final displayValue = item['displayLineSubtotal'];
+    final value =
+        displayValue ?? item['lineSubtotal'] ?? item['subtotal'];
 
     if (value == null) return '';
 
     final product = item['product'];
     String currency = 'INR';
 
-    if (product is Map && _text(product['currency']).isNotEmpty) {
+    if (displayValue != null &&
+        _text(_cart['displayCurrency']).isNotEmpty) {
+      currency = _text(_cart['displayCurrency']);
+    } else if (product is Map &&
+        _text(product['currency']).isNotEmpty) {
       currency = _text(product['currency']);
     }
 

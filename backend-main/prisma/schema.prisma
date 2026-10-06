@@ -633,6 +633,7 @@ model UserProfile {
   state          String?
   country        String?
   countryCode    String?
+  residenceCountryCode String?
   timezoneName   String?
   gender         Gender
   location       String?
