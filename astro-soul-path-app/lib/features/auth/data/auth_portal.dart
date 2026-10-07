@@ -14,8 +14,7 @@ extension AuthPortalDetails on AuthPortal {
   };
 
   String get subtitle => switch (this) {
-    AuthPortal.customer =>
-      'Login securely to start chat, call or video consultation.',
+    AuthPortal.customer => 'Login securely to start chat or call consultation.',
     AuthPortal.astrologer =>
       'Manage consultations, availability and your earnings.',
     AuthPortal.joinAstrologer =>

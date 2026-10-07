@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadGatewayException,
   BadRequestException,
   ForbiddenException,
@@ -160,12 +160,7 @@ export class NakshatraDailyInsightService {
       },
     });
 
-    const hasDailyHoroscopeOverride = user.phone?.trim() === '+918651540070';
-
-    if (
-      !hasDailyHoroscopeOverride &&
-      (!subscription || !subscription.subscriptionPlan)
-    ) {
+    if (!subscription || !subscription.subscriptionPlan) {
       throw new ForbiddenException({
         code: 'DAILY_HOROSCOPE_SUBSCRIPTION_REQUIRED',
         message:

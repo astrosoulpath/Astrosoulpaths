@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:country_picker/country_picker.dart';
 import '../../../astrologer/presentation/screens/astrologer_registration_screen.dart';
 import '../../../astrologer/presentation/screens/astrologer_qualification_screen.dart';
@@ -738,9 +739,47 @@ class _LoginScreenState extends State<LoginScreen> {
     if (credentials == null || !mounted) return;
 
     try {
-      final verifyResult = await _authApi.emailPasswordLogin(
-        email: credentials['email']!,
-        password: credentials['password']!,
+      final firebaseCredential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(
+            email: credentials['email']!.trim().toLowerCase(),
+            password: credentials['password']!,
+          );
+
+      final firebaseUser = firebaseCredential.user;
+
+      if (firebaseUser != null && !firebaseUser.emailVerified) {
+        await firebaseUser.sendEmailVerification();
+        await FirebaseAuth.instance.signOut();
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Verification email sent. Please verify your email, then sign in again.',
+              ),
+            ),
+          );
+
+        return;
+      }
+
+      if (firebaseUser == null) {
+        throw const AuthApiException(
+          'Firebase did not return an authenticated user.',
+        );
+      }
+
+      final idToken = await firebaseUser.getIdToken(true);
+
+      if (idToken == null || idToken.trim().isEmpty) {
+        throw const AuthApiException('Firebase did not return an ID token.');
+      }
+
+      final verifyResult = await _authApi.firebaseEmailLogin(
+        idToken: idToken.trim(),
       );
 
       if (!mounted) return;
@@ -1265,7 +1304,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 const SizedBox(width: 14),
                               ],
-                              const _AppleVisualLoginButton(),
+                              // Apple login temporarily hidden until iOS setup is ready.
                             ],
                           ),
                         ],

@@ -5,6 +5,7 @@ import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { FirebasePhoneLoginDto } from './dto/firebase-phone-login.dto';
+import { FirebaseEmailLoginDto } from './dto/firebase-email-login.dto';
 import { RefreshSessionDto } from './dto/refresh-session.dto';
 import { SendEmailOtpDto } from './dto/send-email-otp.dto';
 import { VerifyEmailOtpDto } from './dto/verify-email-otp.dto';
@@ -126,6 +127,15 @@ export class AuthController {
     return this.authService.loginWithGoogle(
       dto.accessToken,
       dto.portal ?? 'customer',
+    );
+  }
+
+  @Post('firebase/email')
+  async firebaseEmailLogin(
+    @Body() firebaseEmailLoginDto: FirebaseEmailLoginDto,
+  ) {
+    return this.authService.verifyFirebaseEmailToken(
+      firebaseEmailLoginDto.idToken,
     );
   }
 }

@@ -1,4 +1,4 @@
-﻿import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import {
   BadRequestException,
@@ -148,6 +148,129 @@ export class AuthService {
     };
   }
 
+  async verifyFirebaseEmailToken(idToken: string) {
+    const token = idToken?.trim();
+
+    if (!token) {
+      throw new BadRequestException({
+        success: false,
+        message: 'Firebase ID token is required',
+        code: 'FIREBASE_TOKEN_REQUIRED',
+      });
+    }
+
+    const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
+    const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY?.trim();
+
+    if (!projectId || !clientEmail || !privateKeyRaw) {
+      this.logger.error('Firebase Admin credentials are missing');
+
+      throw new InternalServerErrorException({
+        success: false,
+        message: 'Firebase email authentication is not configured',
+        code: 'FIREBASE_NOT_CONFIGURED',
+      });
+    }
+
+    try {
+      const app =
+        getApps().length > 0
+          ? getApps()[0]
+          : initializeApp({
+              credential: cert({
+                projectId,
+                clientEmail,
+                privateKey: privateKeyRaw.replace(/\\n/g, '\n'),
+              }),
+            });
+
+      const decoded = await getAuth(app).verifyIdToken(token, true);
+
+      const tokenAudience =
+        typeof decoded.aud === 'string' ? decoded.aud.trim() : '';
+
+      if (!tokenAudience || tokenAudience !== projectId) {
+        throw new UnauthorizedException({
+          success: false,
+          message: 'Firebase authentication project mismatch',
+          code: 'FIREBASE_PROJECT_MISMATCH',
+        });
+      }
+
+      const firebaseUid = decoded.uid?.trim();
+
+      const email =
+        typeof decoded.email === 'string'
+          ? decoded.email.trim().toLowerCase()
+          : '';
+
+      if (!firebaseUid) {
+        throw new UnauthorizedException({
+          success: false,
+          message: 'Firebase UID missing',
+          code: 'FIREBASE_UID_MISSING',
+        });
+      }
+
+      if (!email) {
+        throw new UnauthorizedException({
+          success: false,
+          message: 'Firebase email missing',
+          code: 'FIREBASE_EMAIL_MISSING',
+        });
+      }
+
+      // Critical account-linking protection:
+      // Never attach an unverified Firebase email to an existing ASP account.
+      if (decoded.email_verified !== true) {
+        throw new UnauthorizedException({
+          success: false,
+          message: 'Please verify your email before signing in',
+          code: 'FIREBASE_EMAIL_NOT_VERIFIED',
+        });
+      }
+
+      const result = await this.userService.syncFirebaseEmailUser({
+        firebaseUid,
+        email,
+      });
+
+      return {
+        success: true,
+        message: 'Firebase email verified',
+        portal: 'customer',
+        role: 'CUSTOMER',
+        user: this.buildCustomerUserPayload(
+          result.user,
+          result.isNewUser,
+        ),
+        nextStep: this.getCustomerNextStep(result.user),
+        firebaseVerified: true,
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof UnauthorizedException ||
+        error instanceof ConflictException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+
+      this.logger.warn(
+        `Firebase email token verification failed: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
+
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Invalid or expired Firebase email session',
+        code: 'FIREBASE_EMAIL_TOKEN_INVALID',
+      });
+    }
+  }
   async verifyFirebasePhoneToken(
     idToken: string,
     portal: 'customer' | 'astrologer' | 'joinAstrologer' | 'admin' = 'customer',

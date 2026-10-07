@@ -1,4 +1,4 @@
-﻿import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { BadRequestException } from '@nestjs/common';
 import {
@@ -749,6 +749,213 @@ export class UserService {
       },
       include: authUserInclude,
     });
+  }
+  async syncFirebaseEmailUser(data: {
+    firebaseUid: string;
+    email: string;
+  }) {
+    const firebaseUid = data.firebaseUid?.trim();
+    const email = data.email?.trim().toLowerCase();
+
+    if (!firebaseUid || !email) {
+      throw new BadRequestException(
+        'Firebase UID and verified email are required',
+      );
+    }
+
+    // First priority: an already-linked Firebase identity.
+    const existingIdentity =
+      await this.prisma.userAuthIdentity.findUnique({
+        where: {
+          provider_providerUserId: {
+            provider: 'firebase',
+            providerUserId: firebaseUid,
+          },
+        },
+        select: {
+          id: true,
+          userId: true,
+          email: true,
+        },
+      });
+
+    if (existingIdentity) {
+      const mappedUser = await this.prisma.user.findUnique({
+        where: { id: existingIdentity.userId },
+        include: authUserInclude,
+      });
+
+      if (!mappedUser) {
+        throw new InternalServerErrorException(
+          'Firebase identity has no customer account',
+        );
+      }
+
+      if (!mappedUser.isActive || mappedUser.isBlocked) {
+        throw new UnauthorizedException('This account is unavailable');
+      }
+
+      const mappedEmail = mappedUser.email?.trim().toLowerCase();
+
+      if (mappedEmail && mappedEmail !== email) {
+        throw new ConflictException(
+          'Firebase email does not match the linked customer',
+        );
+      }
+
+      if (!mappedEmail) {
+        const emailOwner = await this.prisma.user.findUnique({
+          where: { email },
+          select: { id: true },
+        });
+
+        if (emailOwner && emailOwner.id !== mappedUser.id) {
+          throw new ConflictException(
+            'Email already belongs to another customer',
+          );
+        }
+
+        await this.prisma.user.update({
+          where: { id: mappedUser.id },
+          data: { email },
+        });
+      }
+
+      // One Firebase UID can represent linked Firebase credentials.
+      // Preserve the existing identity row and enrich it with email.
+      if (
+        !existingIdentity.email ||
+        existingIdentity.email.trim().toLowerCase() !== email
+      ) {
+        await this.prisma.userAuthIdentity.update({
+          where: { id: existingIdentity.id },
+          data: { email },
+        });
+      }
+
+      const freshMappedUser = await this.prisma.user.findUnique({
+        where: { id: mappedUser.id },
+        include: authUserInclude,
+      });
+
+      if (!freshMappedUser) {
+        throw new InternalServerErrorException(
+          'Customer could not be loaded after Firebase email login',
+        );
+      }
+
+      return {
+        user: freshMappedUser,
+        isNewUser: false,
+      };
+    }
+
+    // No Firebase UID mapping yet.
+    // Reuse the existing ASP account with the SAME VERIFIED EMAIL.
+    // This is what makes Google login + Firebase email login
+    // open the same canonical dashboard/account.
+    let user = await this.prisma.user.findUnique({
+      where: { email },
+      include: authUserInclude,
+    });
+
+    let isNewUser = false;
+
+    if (user && (!user.isActive || user.isBlocked)) {
+      throw new UnauthorizedException('This account is unavailable');
+    }
+
+    if (!user) {
+      const role = await this.prisma.role.findUnique({
+        where: { name: 'user' },
+      });
+
+      if (!role) {
+        throw new InternalServerErrorException(
+          'Default customer role not found',
+        );
+      }
+
+      const freePlan = await this.prisma.subscriptionPlan.findUnique({
+        where: { name: 'FREE' },
+      });
+
+      if (!freePlan) {
+        throw new InternalServerErrorException(
+          'FREE subscription plan not found',
+        );
+      }
+
+      const internalAuthId = `firebase:${firebaseUid}`;
+
+      user = await this.prisma.user.create({
+        data: {
+          supabaseId: internalAuthId,
+          phone: null,
+          email,
+          name: null,
+          roleId: role.id,
+          isProfileComplete: false,
+          freeChatGrantedAt: new Date(),
+          freeChatUsedAt: null,
+          freeChatMinutes: 1,
+          subscriptionPlanId: freePlan.id,
+          subscriptionStatus: 'FREE',
+        },
+        include: authUserInclude,
+      });
+
+      isNewUser = true;
+    }
+
+    const identityCheck =
+      await this.prisma.userAuthIdentity.findUnique({
+        where: {
+          provider_providerUserId: {
+            provider: 'firebase',
+            providerUserId: firebaseUid,
+          },
+        },
+        select: {
+          userId: true,
+        },
+      });
+
+    if (identityCheck && identityCheck.userId !== user.id) {
+      throw new ConflictException(
+        'Firebase identity belongs to another customer',
+      );
+    }
+
+    if (!identityCheck) {
+      await this.prisma.userAuthIdentity.create({
+        data: {
+          userId: user.id,
+          provider: 'firebase',
+          providerUserId: firebaseUid,
+          identityType: 'email',
+          email,
+          phone: null,
+          isPrimary: false,
+        },
+      });
+    }
+
+    const freshUser = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      include: authUserInclude,
+    });
+
+    if (!freshUser) {
+      throw new InternalServerErrorException(
+        'Customer could not be loaded after Firebase email login',
+      );
+    }
+
+    return {
+      user: freshUser,
+      isNewUser,
+    };
   }
   async syncFirebasePhoneUser(data: { firebaseUid: string; phone: string }) {
     const firebaseUid = data.firebaseUid?.trim();

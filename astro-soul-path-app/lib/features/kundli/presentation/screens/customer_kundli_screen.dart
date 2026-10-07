@@ -15,7 +15,7 @@ const Color _kundliThemeBackground = Color(0xFF0B0B0D);
 const Color _kundliThemeSurface = Color(0xFF17171B);
 const Color _kundliThemeSurfaceLight = Color(0xFF202024);
 const Color _kundliThemePrimaryText = Color(0xFFF7F7F8);
-const Color _kundliThemeSecondaryText = Color(0xFFA7A7B0);
+const Color _kundliThemeSecondaryText = Color(0xFFD1D5DB);
 
 class CustomerKundliScreen extends StatefulWidget {
   const CustomerKundliScreen({super.key});
@@ -1031,10 +1031,15 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: _kundliThemeBackground,
-        foregroundColor: _kundliThemePrimaryText,
+        foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
+        leading: const BackButton(color: Colors.white),
         title: Text(
           showingReport ? 'My Kundli' : 'Kundli AI',
-          style: const TextStyle(fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         actions: [
           IconButton(
@@ -4883,6 +4888,16 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
               dataRowMinHeight: 42,
               dataRowMaxHeight: 54,
               columnSpacing: 22,
+              headingTextStyle: const TextStyle(
+                color: AppColors.gold,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
+              dataTextStyle: const TextStyle(
+                color: _kundliThemePrimaryText,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
               columns: const [
                 DataColumn(label: Text('Planet')),
                 DataColumn(label: Text('Sign')),
