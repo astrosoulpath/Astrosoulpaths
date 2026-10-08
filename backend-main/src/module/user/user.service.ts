@@ -867,7 +867,7 @@ export class UserService {
 
     if (!user) {
       const role = await this.prisma.role.findUnique({
-        where: { name: 'user' },
+        where: { name: 'CUSTOMER' },
       });
 
       if (!role) {
@@ -1055,7 +1055,7 @@ export class UserService {
     } else {
       // Brand-new Firebase customer.
       const role = await this.prisma.role.findUnique({
-        where: { name: 'user' },
+        where: { name: 'CUSTOMER' },
       });
 
       if (!role) {
@@ -1166,7 +1166,7 @@ export class UserService {
       }
 
       const role = await this.prisma.role.findUnique({
-        where: { name: 'user' },
+        where: { name: 'CUSTOMER' },
       });
 
       if (!role) {
