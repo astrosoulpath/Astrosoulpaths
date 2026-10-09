@@ -58,9 +58,15 @@ export class UserController {
   @UseGuards(SupabaseAuthGuard)
   verifyFirebaseProfilePhone(
     @CurrentUser() user: JWTPayload,
-    @Body() body: { firebaseIdToken: string },
+    @Body() body: {
+      firebaseIdToken: string;
+      confirmAccountLink?: boolean;
+    },
   ) {
-    if ((user as JWTPayload & { firebaseUid?: string }).firebaseUid) {
+    if (
+      (user as JWTPayload & { firebaseUid?: string }).firebaseUid ||
+      user.iss === 'astro-soul-path-local-auth'
+    ) {
       throw new UnauthorizedException(
         'Google/Supabase session required to link a profile phone',
       );
@@ -69,6 +75,7 @@ export class UserController {
     return this.userService.linkFirebaseVerifiedProfilePhone(
       user.sub as string,
       body.firebaseIdToken,
+      body.confirmAccountLink === true,
     );
   }
   @Post('profile/phone/send-otp')
@@ -101,7 +108,7 @@ export class UserController {
     return this.userService.updateProfile(user.sub as string, dto);
   }
 
-  // ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“Ãƒâ€šÃ‚Â¤ Get user by ID
+  // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¹Ã…â€œÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤ Get user by ID
 
   @Post('oauth/bootstrap')
   @UseGuards(SupabaseAuthGuard)
@@ -155,10 +162,10 @@ export class UserController {
   @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Roles(Role.Admin)
   findOne(@Param('id') id: string) {
-    return this.userService.findOne(id); // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ no +
+    return this.userService.findOne(id); // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ no +
   }
 
-  // ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ Get users (pagination later)
+  // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ Get users (pagination later)
   @Get()
   @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Roles(Role.Admin)
@@ -166,7 +173,7 @@ export class UserController {
     return this.userService.findAll();
   }
 
-  // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¸Ãƒâ€šÃ‚Â Update profile
+  // ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Update profile
   @Patch(':id')
   @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Roles(Role.Admin)

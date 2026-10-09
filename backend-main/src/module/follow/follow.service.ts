@@ -1,4 +1,4 @@
-﻿import {
+import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -16,10 +16,25 @@ export class FollowService {
       throw new UnauthorizedException('Authenticated customer is required');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { supabaseId: clean },
-      select: { id: true },
+    const identity = await this.prisma.userAuthIdentity.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: 'supabase',
+          providerUserId: clean,
+        },
+      },
+      select: { userId: true },
     });
+
+    const user = identity
+      ? await this.prisma.user.findUnique({
+          where: { id: identity.userId },
+          select: { id: true },
+        })
+      : await this.prisma.user.findUnique({
+          where: { supabaseId: clean },
+          select: { id: true },
+        });
 
     if (!user) {
       throw new UnauthorizedException('Customer account not found');

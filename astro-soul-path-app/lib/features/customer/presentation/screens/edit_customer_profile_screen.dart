@@ -335,6 +335,8 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                 verifying = true;
               });
 
+              String? verifiedFirebaseToken;
+
               try {
                 final firebaseIdToken = await FirebasePhoneAuthService.instance
                     .verifyProfilePhoneCode(
@@ -342,6 +344,7 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                       smsCode: otp,
                     );
 
+                verifiedFirebaseToken = firebaseIdToken;
                 await _profileApi.verifyFirebaseProfilePhone(
                   firebaseIdToken: firebaseIdToken,
                 );
@@ -370,9 +373,81 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                 }
               } on ProfileApiException catch (error) {
                 if (dialogContext.mounted) {
-                  ScaffoldMessenger.of(
-                    dialogContext,
-                  ).showSnackBar(SnackBar(content: Text(error.message)));
+                  if (error.message.contains(
+                    'Account linking requires explicit confirmation',
+                  )) {
+                    await showDialog<void>(
+                      context: dialogContext,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Existing Account Found'),
+                        content: const Text(
+                          'This mobile number belongs to an existing account. '
+                          'Secure linking is required before both login methods '
+                          'can access the same account. Wallet balance and '
+                          'subscriptions will not transfer automatically.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              final token = verifiedFirebaseToken;
+
+                              if (token == null || token.isEmpty) {
+                                Navigator.pop(context);
+                                return;
+                              }
+
+                              Navigator.pop(context);
+
+                              try {
+                                await _profileApi.verifyFirebaseProfilePhone(
+                                  firebaseIdToken: token,
+                                  confirmAccountLink: true,
+                                );
+
+                                if (!mounted) return;
+
+                                setState(() {
+                                  _isPhoneVerified = true;
+                                  _phoneController.text = phone;
+                                });
+
+                                if (dialogContext.mounted) {
+                                  Navigator.of(dialogContext).pop();
+                                }
+
+                                if (mounted) {
+                                  ScaffoldMessenger.of(
+                                    this.context,
+                                  ).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Accounts linked successfully',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } on ProfileApiException catch (linkError) {
+                                if (!mounted) return;
+
+                                ScaffoldMessenger.of(this.context).showSnackBar(
+                                  SnackBar(content: Text(linkError.message)),
+                                );
+                              }
+                            },
+                            child: const Text('Link Accounts'),
+                          ),
+                        ],
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(
+                      dialogContext,
+                    ).showSnackBar(SnackBar(content: Text(error.message)));
+                  }
                 }
               } catch (_) {
                 if (dialogContext.mounted) {

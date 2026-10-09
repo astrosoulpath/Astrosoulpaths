@@ -215,6 +215,7 @@ class ProfileApi {
 
   Future<void> verifyFirebaseProfilePhone({
     required String firebaseIdToken,
+    bool confirmAccountLink = false,
   }) async {
     final token = firebaseIdToken.trim();
 
@@ -228,7 +229,10 @@ class ProfileApi {
       method: 'POST',
       path: '/user/profile/phone/firebase-verify',
       fallbackError: 'Unable to verify Firebase phone number.',
-      payload: <String, dynamic>{'firebaseIdToken': token},
+      payload: <String, dynamic>{
+        'firebaseIdToken': token,
+        'confirmAccountLink': confirmAccountLink,
+      },
     );
   }
 

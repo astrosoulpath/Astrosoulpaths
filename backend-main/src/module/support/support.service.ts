@@ -1,4 +1,4 @@
-﻿import {
+import {
   ForbiddenException,
   Injectable,
   Logger,
@@ -57,8 +57,20 @@ export class SupportService {
     const supabaseId = authUser.supabaseId?.trim() || authUser.sub?.trim();
 
     if (supabaseId) {
+      const identity = await this.prisma.userAuthIdentity.findUnique({
+        where: {
+          provider_providerUserId: {
+            provider: 'supabase',
+            providerUserId: supabaseId,
+          },
+        },
+        select: { userId: true },
+      });
+
       const user = await this.prisma.user.findUnique({
-        where: { supabaseId },
+        where: identity
+          ? { id: identity.userId }
+          : { supabaseId },
       });
 
       if (user) {

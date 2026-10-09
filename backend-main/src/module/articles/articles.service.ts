@@ -101,8 +101,20 @@ export class ArticlesService {
   }
 
   private async approvedAstrologer(supabaseId: string) {
+    const identity = await this.prisma.userAuthIdentity.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: 'supabase',
+          providerUserId: supabaseId,
+        },
+      },
+      select: { userId: true },
+    });
+
     const user = await this.prisma.user.findUnique({
-      where: { supabaseId },
+      where: identity
+        ? { id: identity.userId }
+        : { supabaseId },
       include: { astrologer: true },
     });
 
@@ -117,8 +129,20 @@ export class ArticlesService {
 
   private async internalUserId(supabaseId?: string) {
     if (!supabaseId) return null;
+    const identity = await this.prisma.userAuthIdentity.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: 'supabase',
+          providerUserId: supabaseId,
+        },
+      },
+      select: { userId: true },
+    });
+
     const user = await this.prisma.user.findUnique({
-      where: { supabaseId },
+      where: identity
+        ? { id: identity.userId }
+        : { supabaseId },
       select: { id: true },
     });
     return user?.id || null;
@@ -148,7 +172,7 @@ export class ArticlesService {
 
       if (title.length < 4 || title.length > 180) {
         throw new BadRequestException(
-          'Each article title must be 4ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ180 characters.',
+          'Each article title must be 4ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“180 characters.',
         );
       }
 
