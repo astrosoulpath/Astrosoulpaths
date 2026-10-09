@@ -1,4 +1,4 @@
-import { 
+import {
   UnauthorizedException,
   Controller,
   BadRequestException,
@@ -11,22 +11,15 @@ import {
   Body,
   UseGuards,
   Post,
- } from '@nestjs/common';
+} from '@nestjs/common';
 import type { JWTPayload } from 'jose';
-import { 
-  UserService  } from './user.service';
-import { 
-  Roles, Role  } from '../../common/decorators/roles.decorator';
-import { 
-  SupabaseAuthGuard  } from '../../common/guards/supabase-auth.guard';
-import { 
-  RolesGuard  } from '../../common/guards/roles.guard';
-import { 
-  CurrentUser  } from '../../common/decorators/current-user.decorator';
-import { 
-  CreateUserProfileDto  } from './dto/create-user-profile.dto';
-import { 
-  UpdateUserProfileDto  } from './dto/update-user-profile.dto';
+import { UserService } from './user.service';
+import { Roles, Role } from '../../common/decorators/roles.decorator';
+import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CreateUserProfileDto } from './dto/create-user-profile.dto';
+import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 
 @Controller('user')
 export class UserController {
