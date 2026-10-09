@@ -4,6 +4,8 @@ import 'recharge_pack_screen.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../profile/data/profile_api.dart';
+import '../../../customer/presentation/screens/customer_profile_screen.dart';
 import '../../data/customer_wallet.dart';
 import '../../data/wallet_api.dart';
 import '../../data/wallet_history_api.dart';
@@ -66,6 +68,25 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
     }
 
     try {
+      final profileApi = ProfileApi();
+      try {
+        final profiles = await profileApi.getProfiles();
+
+        if (!mounted) return;
+
+        if (profiles.isEmpty || !profiles.first.isPhoneVerified) {
+          setState(() {
+            _wallet = null;
+            _transactions = <WalletTransaction>[];
+            _loading = false;
+            _error = 'Phone verification required to access your wallet.';
+          });
+          return;
+        }
+      } finally {
+        profileApi.close();
+      }
+
       final walletFuture = _walletApi.getWallet();
       final historyFuture = _historyApi.getHistory();
 
@@ -392,6 +413,26 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
     if (_loading && _wallet == null) {
       return const Center(
         child: CircularProgressIndicator(color: AppColors.gold),
+      );
+    }
+
+    if (_error == 'Phone verification required to access your wallet.' &&
+        _wallet == null) {
+      return _WalletMessage(
+        icon: Icons.verified_user_outlined,
+        title: 'Verify your phone',
+        message: 'Verify your phone number to access your wallet.',
+        buttonLabel: 'Verify Phone',
+        onPressed: () async {
+          await Navigator.of(context).push<void>(
+            MaterialPageRoute<void>(
+              builder: (_) => const CustomerProfileScreen(),
+            ),
+          );
+          if (mounted) {
+            await _loadWallet();
+          }
+        },
       );
     }
 

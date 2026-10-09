@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../profile/data/customer_profile.dart';
 import '../../../profile/data/geo_api.dart';
+import '../../../auth/data/firebase_phone_auth_service.dart';
 import '../../../profile/data/profile_api.dart';
 
 class EditCustomerProfileScreen extends StatefulWidget {
@@ -79,7 +80,7 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
     final existingPhone = profile?.phoneNumber?.trim() ?? '';
 
     _phoneController = TextEditingController(text: existingPhone);
-    _isPhoneVerified = existingPhone.isNotEmpty;
+    _isPhoneVerified = profile?.isPhoneVerified == true;
 
     _countryCode = profile?.countryCode ?? '';
     _latitude = profile?.latitude ?? 0;
@@ -274,13 +275,14 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
     });
 
     try {
-      await _profileApi.sendProfilePhoneOtp(phone: phone);
+      final firebaseCode = await FirebasePhoneAuthService.instance
+          .sendProfileCode(phone: phone);
 
       if (!mounted) {
         return;
       }
 
-      await _showPhoneOtpDialog(phone);
+      await _showPhoneOtpDialog(phone, firebaseCode.verificationId);
     } on ProfileApiException catch (error) {
       if (!mounted) {
         return;
@@ -306,11 +308,12 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
     }
   }
 
-  Future<void> _showPhoneOtpDialog(String phone) async {
+  Future<void> _showPhoneOtpDialog(String phone, String verificationId) async {
     final otpController = TextEditingController();
 
     var verifying = false;
     var resending = false;
+    var currentVerificationId = verificationId;
 
     await showDialog<void>(
       context: context,
@@ -333,16 +336,21 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
               });
 
               try {
-                final profile = await _profileApi.verifyProfilePhoneOtp(
-                  phone: phone,
-                  token: otp,
+                final firebaseIdToken = await FirebasePhoneAuthService.instance
+                    .verifyProfilePhoneCode(
+                      verificationId: currentVerificationId,
+                      smsCode: otp,
+                    );
+
+                await _profileApi.verifyFirebaseProfilePhone(
+                  firebaseIdToken: firebaseIdToken,
                 );
 
                 if (!mounted) {
                   return;
                 }
 
-                final verifiedPhone = profile.phoneNumber ?? phone;
+                final verifiedPhone = phone;
 
                 setState(() {
                   _isPhoneVerified = true;
@@ -395,7 +403,10 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
               });
 
               try {
-                await _profileApi.sendProfilePhoneOtp(phone: phone);
+                final newCode = await FirebasePhoneAuthService.instance
+                    .sendProfileCode(phone: phone);
+
+                currentVerificationId = newCode.verificationId;
 
                 if (dialogContext.mounted) {
                   ScaffoldMessenger.of(dialogContext).showSnackBar(

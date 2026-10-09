@@ -1468,9 +1468,22 @@ export class UserService {
       });
     }
 
+    const verifiedPhoneIdentity = canonicalPhone
+      ? await this.prisma.userAuthIdentity.findFirst({
+          where: {
+            userId: user.id,
+            provider: { in: ['firebase', 'supabase_phone_verified'] },
+            identityType: 'phone',
+            phone: canonicalPhone,
+          },
+          select: { userId: true },
+        })
+      : null;
+
     return {
       success: true,
       data: profile,
+      isPhoneVerified: verifiedPhoneIdentity !== null,
       isProfileComplete: user.isProfileComplete,
       nextStep: this.getUserNextStep(user.isProfileComplete),
     };
@@ -1604,6 +1617,192 @@ export class UserService {
     }
   }
 
+  async verifyFirebaseProfilePhoneToken(firebaseIdToken: string) {
+    const token = firebaseIdToken?.trim();
+
+    if (!token) {
+      throw new BadRequestException('Firebase ID token is required');
+    }
+
+    const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.trim();
+
+    if (!projectId || !clientEmail || !privateKey) {
+      throw new InternalServerErrorException(
+        'Firebase Admin credentials are unavailable',
+      );
+    }
+
+    const app =
+      getApps().find((candidate) => candidate.options.projectId === projectId) ??
+      initializeApp(
+        {
+          credential: cert({
+            projectId,
+            clientEmail,
+            privateKey: privateKey.replace(/\\n/g, '\n'),
+          }),
+          projectId,
+        },
+        `profile-phone-${projectId}`,
+      );
+
+    let decoded;
+
+    try {
+      decoded = await getAuth(app).verifyIdToken(token, true);
+    } catch {
+      throw new UnauthorizedException('Invalid Firebase verification token');
+    }
+
+    const phone = decoded.phone_number?.trim();
+    const firebaseUid = decoded.uid?.trim();
+
+    if (!phone || !/^\+[1-9]\d{7,14}$/.test(phone) || !firebaseUid) {
+      throw new UnauthorizedException(
+        'Firebase verified phone identity is missing',
+      );
+    }
+
+    return { phone, firebaseUid };
+  }
+  async linkFirebaseVerifiedProfilePhone(
+    supabaseId: string,
+    firebaseIdToken: string,
+  ) {
+    const { phone, firebaseUid } =
+      await this.verifyFirebaseProfilePhoneToken(firebaseIdToken);
+
+    const canonicalUserId = await this.resolveCanonicalUserId(supabaseId);
+
+    if (!canonicalUserId) {
+      throw new NotFoundException('User not found');
+    }
+
+    const existingPhoneOwner = await this.prisma.user.findFirst({
+      where: {
+        phone,
+        NOT: { id: canonicalUserId },
+      },
+      select: { id: true },
+    });
+
+    if (existingPhoneOwner) {
+      throw new ConflictException(
+        'This phone number belongs to another account',
+      );
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const currentUser = await tx.user.findUnique({
+        where: { id: canonicalUserId },
+        select: { phone: true },
+      });
+
+      if (!currentUser) {
+        throw new NotFoundException('User not found');
+      }
+
+      if (currentUser.phone && currentUser.phone !== phone) {
+        throw new ConflictException(
+          'This account already has a different linked phone number',
+        );
+      }
+
+      const conflictingPhoneIdentity = await tx.userAuthIdentity.findFirst({
+        where: {
+          phone,
+          userId: { not: canonicalUserId },
+          identityType: 'phone',
+          provider: { in: ['firebase', 'supabase_phone_verified'] },
+        },
+        select: { id: true },
+      });
+
+      if (conflictingPhoneIdentity) {
+        throw new ConflictException(
+          'This verified phone belongs to another account',
+        );
+      }
+      const existingFirebaseIdentity =
+        await tx.userAuthIdentity.findUnique({
+          where: {
+            provider_providerUserId: {
+              provider: 'firebase',
+              providerUserId: firebaseUid,
+            },
+          },
+          select: { userId: true },
+        });
+
+      if (
+        existingFirebaseIdentity &&
+        existingFirebaseIdentity.userId !== canonicalUserId
+      ) {
+        throw new ConflictException(
+          'Firebase phone identity belongs to another account',
+        );
+      }
+
+      const otherPhoneOwner = await tx.user.findFirst({
+        where: {
+          phone,
+          NOT: { id: canonicalUserId },
+        },
+        select: { id: true },
+      });
+
+      if (otherPhoneOwner) {
+        throw new ConflictException(
+          'Phone number is already linked to another account',
+        );
+      }
+
+      const user = await tx.user.update({
+        where: { id: canonicalUserId },
+        data: { phone },
+        select: { id: true, phone: true },
+      });
+
+      const profile = await tx.userProfile.update({
+        where: { userId: canonicalUserId },
+        data: { phoneNumber: phone },
+      });
+
+      await tx.userAuthIdentity.upsert({
+        where: {
+          provider_providerUserId: {
+            provider: 'firebase',
+            providerUserId: firebaseUid,
+          },
+        },
+        create: {
+          userId: canonicalUserId,
+          provider: 'firebase',
+          providerUserId: firebaseUid,
+          identityType: 'phone',
+          phone,
+          isPrimary: false,
+        },
+        update: {
+          phone,
+          identityType: 'phone',
+        },
+      });
+
+      return { user, profile };
+    });
+
+    return {
+      success: true,
+      message: 'Firebase phone verified and linked successfully',
+      data: {
+        phone: result.user.phone,
+        profile: result.profile,
+      },
+    };
+  }
   async sendProfilePhoneOtp(supabaseId: string, phone: string) {
     const normalizedPhone = phone?.trim();
 
@@ -1704,6 +1903,44 @@ export class UserService {
         where: { userId: canonicalUserId },
         data: {
           phoneNumber: normalizedPhone,
+        },
+      });
+
+      const existingVerifiedPhone = await tx.userAuthIdentity.findUnique({
+        where: {
+          provider_providerUserId: {
+            provider: 'supabase_phone_verified',
+            providerUserId: normalizedPhone,
+          },
+        },
+        select: { userId: true },
+      });
+
+      if (existingVerifiedPhone &&
+          existingVerifiedPhone.userId !== canonicalUserId) {
+        throw new ConflictException(
+          'This phone number is already verified by another account',
+        );
+      }
+
+      await tx.userAuthIdentity.upsert({
+        where: {
+          provider_providerUserId: {
+            provider: 'supabase_phone_verified',
+            providerUserId: normalizedPhone,
+          },
+        },
+        create: {
+          userId: canonicalUserId,
+          provider: 'supabase_phone_verified',
+          providerUserId: normalizedPhone,
+          identityType: 'phone',
+          phone: normalizedPhone,
+          isPrimary: false,
+        },
+        update: {
+          phone: normalizedPhone,
+          identityType: 'phone',
         },
       });
 

@@ -1,4 +1,5 @@
-﻿import {
+import { 
+  UnauthorizedException,
   Controller,
   BadRequestException,
   Headers,
@@ -10,15 +11,22 @@
   Body,
   UseGuards,
   Post,
-} from '@nestjs/common';
+ } from '@nestjs/common';
 import type { JWTPayload } from 'jose';
-import { UserService } from './user.service';
-import { Roles, Role } from '../../common/decorators/roles.decorator';
-import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { CreateUserProfileDto } from './dto/create-user-profile.dto';
-import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
+import { 
+  UserService  } from './user.service';
+import { 
+  Roles, Role  } from '../../common/decorators/roles.decorator';
+import { 
+  SupabaseAuthGuard  } from '../../common/guards/supabase-auth.guard';
+import { 
+  RolesGuard  } from '../../common/guards/roles.guard';
+import { 
+  CurrentUser  } from '../../common/decorators/current-user.decorator';
+import { 
+  CreateUserProfileDto  } from './dto/create-user-profile.dto';
+import { 
+  UpdateUserProfileDto  } from './dto/update-user-profile.dto';
 
 @Controller('user')
 export class UserController {
@@ -53,6 +61,23 @@ export class UserController {
     return this.userService.createProfile(user.sub as string, dto);
   }
 
+  @Post('profile/phone/firebase-verify')
+  @UseGuards(SupabaseAuthGuard)
+  verifyFirebaseProfilePhone(
+    @CurrentUser() user: JWTPayload,
+    @Body() body: { firebaseIdToken: string },
+  ) {
+    if ((user as JWTPayload & { firebaseUid?: string }).firebaseUid) {
+      throw new UnauthorizedException(
+        'Google/Supabase session required to link a profile phone',
+      );
+    }
+
+    return this.userService.linkFirebaseVerifiedProfilePhone(
+      user.sub as string,
+      body.firebaseIdToken,
+    );
+  }
   @Post('profile/phone/send-otp')
   @UseGuards(SupabaseAuthGuard)
   sendProfilePhoneOtp(
@@ -83,7 +108,7 @@ export class UserController {
     return this.userService.updateProfile(user.sub as string, dto);
   }
 
-  // Ã°Å¸â€˜Â¤ Get user by ID
+  // ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“Ãƒâ€šÃ‚Â¤ Get user by ID
 
   @Post('oauth/bootstrap')
   @UseGuards(SupabaseAuthGuard)
@@ -137,10 +162,10 @@ export class UserController {
   @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Roles(Role.Admin)
   findOne(@Param('id') id: string) {
-    return this.userService.findOne(id); // Ã¢Å“â€¦ no +
+    return this.userService.findOne(id); // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ no +
   }
 
-  // Ã°Å¸â€œâ€ž Get users (pagination later)
+  // ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ Get users (pagination later)
   @Get()
   @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Roles(Role.Admin)
@@ -148,7 +173,7 @@ export class UserController {
     return this.userService.findAll();
   }
 
-  // Ã¢Å“ÂÃ¯Â¸Â Update profile
+  // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¸Ãƒâ€šÃ‚Â Update profile
   @Patch(':id')
   @UseGuards(SupabaseAuthGuard, RolesGuard)
   @Roles(Role.Admin)

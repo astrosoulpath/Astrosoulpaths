@@ -22,6 +22,7 @@ class CustomerProfile {
     this.maritalStatus,
     this.occupation,
     this.phoneNumber,
+    this.isPhoneVerified = false,
     this.avatarUrl,
   });
 
@@ -48,6 +49,7 @@ class CustomerProfile {
   final String? maritalStatus;
   final String? occupation;
   final String? phoneNumber;
+  final bool isPhoneVerified;
   final String? avatarUrl;
 
   factory CustomerProfile.fromJson(Map<String, dynamic> json) {
@@ -78,6 +80,7 @@ class CustomerProfile {
       maritalStatus: _readOptionalString(json['maritalStatus']),
       occupation: _readOptionalString(json['occupation']),
       phoneNumber: _readOptionalString(json['phoneNumber'] ?? json['phone']),
+      isPhoneVerified: json['isPhoneVerified'] == true,
       avatarUrl: _readOptionalString(json['avatarUrl']),
     );
   }

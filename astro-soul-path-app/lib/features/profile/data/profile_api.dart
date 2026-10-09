@@ -41,9 +41,10 @@ class ProfileApi {
     }
 
     if (rawData is Map) {
-      return <CustomerProfile>[
-        CustomerProfile.fromJson(Map<String, dynamic>.from(rawData)),
-      ];
+      final profileJson = Map<String, dynamic>.from(rawData);
+      profileJson['isPhoneVerified'] = body['isPhoneVerified'] == true;
+
+      return <CustomerProfile>[CustomerProfile.fromJson(profileJson)];
     }
 
     if (rawData is List) {
@@ -210,6 +211,25 @@ class ProfileApi {
     );
 
     return _readProfile(body);
+  }
+
+  Future<void> verifyFirebaseProfilePhone({
+    required String firebaseIdToken,
+  }) async {
+    final token = firebaseIdToken.trim();
+
+    if (token.isEmpty) {
+      throw const ProfileApiException(
+        'Firebase verification token is required.',
+      );
+    }
+
+    await _request(
+      method: 'POST',
+      path: '/user/profile/phone/firebase-verify',
+      fallbackError: 'Unable to verify Firebase phone number.',
+      payload: <String, dynamic>{'firebaseIdToken': token},
+    );
   }
 
   Future<void> sendProfilePhoneOtp({required String phone}) async {

@@ -51,6 +51,7 @@ export class WalletService {
             supabaseId: true,
             isActive: true,
             isBlocked: true,
+            phone: true,
           },
         })
       : await this.prisma.user.findUnique({
@@ -62,6 +63,7 @@ export class WalletService {
             supabaseId: true,
             isActive: true,
             isBlocked: true,
+            phone: true,
           },
         });
 
@@ -73,6 +75,28 @@ export class WalletService {
       throw new BadRequestException('User account is not active');
     }
 
+    if (!user.phone) {
+      throw new BadRequestException(
+        'Verify your phone number before accessing your wallet',
+      );
+    }
+
+    const verifiedPhoneIdentity =
+      await this.prisma.userAuthIdentity.findFirst({
+        where: {
+          userId: user.id,
+          phone: user.phone,
+          identityType: 'phone',
+          provider: { in: ['firebase', 'supabase_phone_verified'] },
+        },
+        select: { id: true },
+      });
+
+    if (!verifiedPhoneIdentity) {
+      throw new BadRequestException(
+        'Phone verification is required for wallet access',
+      );
+    }
     return user;
   }
 
