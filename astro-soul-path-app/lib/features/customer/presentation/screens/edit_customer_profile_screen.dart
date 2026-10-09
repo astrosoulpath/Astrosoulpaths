@@ -291,13 +291,19 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
-    } catch (_) {
+    } catch (error) {
       if (!mounted) {
         return;
       }
 
+      final details = error.toString();
+      debugPrint('PROFILE_PHONE_OTP_ERROR: $details');
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to send OTP. Please try again.')),
+        SnackBar(
+          content: Text('Phone OTP failed: $details'),
+          duration: const Duration(seconds: 12),
+        ),
       );
     } finally {
       if (mounted) {
