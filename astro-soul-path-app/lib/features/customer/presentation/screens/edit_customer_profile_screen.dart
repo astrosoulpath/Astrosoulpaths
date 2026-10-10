@@ -409,11 +409,30 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                               Navigator.pop(context);
 
                               try {
-                                await _profileApi.verifyFirebaseProfilePhone(
-                                  firebaseIdToken: token,
-                                  confirmAccountLink: true,
-                                );
+                                final linkResult = await _profileApi
+                                    .verifyFirebaseProfilePhone(
+                                      firebaseIdToken: token,
+                                      confirmAccountLink: true,
+                                    );
 
+                                final data = linkResult['data'];
+                                final linkData = data is Map
+                                    ? data
+                                    : <String, dynamic>{};
+
+                                final accountLinked =
+                                    linkData['accountLinked'] == true;
+                                final canonicalUserId =
+                                    linkData['canonicalUserId']
+                                        ?.toString()
+                                        .trim() ??
+                                    '';
+
+                                if (!accountLinked || canonicalUserId.isEmpty) {
+                                  throw const ProfileApiException(
+                                    'Account linking was not confirmed by the server.',
+                                  );
+                                }
                                 if (!mounted) return;
 
                                 setState(() {

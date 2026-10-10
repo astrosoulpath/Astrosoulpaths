@@ -359,4 +359,102 @@ describe('Account linking - real UserService', () => {
         process.env.ACCOUNT_LINKING_ENABLED = previousFlag;
       }
     }
-  });});
+  });  // PHONE_OWNER_KUNDLI_BLOCK_TEST_V1
+  it('blocks linking when phone owner has an existing Kundli', async () => {
+    const previousFlag = process.env.ACCOUNT_LINKING_ENABLED;
+    process.env.ACCOUNT_LINKING_ENABLED = 'true';
+
+    try {
+      jest.spyOn(service, 'verifyFirebaseProfilePhoneToken')
+        .mockResolvedValue({
+          phone: '+919999999999',
+          firebaseUid: 'firebase-phone-uid',
+        });
+
+      jest.spyOn(service as any, 'resolveCanonicalUserId')
+        .mockResolvedValue('google-user-id');
+
+      const safety = jest.spyOn(service, 'inspectAccountLinkSafety')
+        .mockImplementation(async (_supabaseId, userId) => ({
+          userId: userId ?? 'google-user-id',
+          requiresManualReview: userId === 'phone-user-id',
+          checks: {} as any,
+        }));
+
+      prisma.user.findFirst.mockResolvedValue({
+        id: 'phone-user-id',
+      });
+
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'google-user-id',
+        phone: null,
+        isActive: true,
+        isBlocked: false,
+      });
+
+      prisma.$transaction = jest.fn();
+
+      await expect(
+        service.linkFirebaseVerifiedProfilePhone(
+          'google-supabase-id',
+          'verified-firebase-token',
+          true,
+        ),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'ACCOUNT_LINK_MANUAL_REVIEW',
+        },
+      });
+
+      expect(safety).toHaveBeenCalledWith('', 'phone-user-id');
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    } finally {
+      if (previousFlag === undefined) {
+        delete process.env.ACCOUNT_LINKING_ENABLED;
+      } else {
+        process.env.ACCOUNT_LINKING_ENABLED = previousFlag;
+      }
+    }
+  });
+  // REAL_PHONE_OWNER_ASSET_QUERY_TEST_V1
+  it('detects phone-owner Kundli through actual asset queries', async () => {
+    const db: any = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'phone-user-id',
+        }),
+      },
+      wallet: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      subscription: { count: jest.fn().mockResolvedValue(0) },
+      paymentOrder: { count: jest.fn().mockResolvedValue(0) },
+      kundliSavedRecord: { count: jest.fn().mockResolvedValue(1) },
+      kundliOrder: { count: jest.fn().mockResolvedValue(0) },
+      walletLedger: { count: jest.fn().mockResolvedValue(0) },
+      chatMessage: { count: jest.fn().mockResolvedValue(0) },
+      callSession: { count: jest.fn().mockResolvedValue(0) },
+      marketplaceOrder: { count: jest.fn().mockResolvedValue(0) },
+      aiAstroConversation: { count: jest.fn().mockResolvedValue(0) },
+    };
+
+    const realService = new UserService(db, {} as any);
+
+    const result = await realService.inspectAccountLinkSafety(
+      '',
+      'phone-user-id',
+    );
+
+    expect(result.userId).toBe('phone-user-id');
+    expect(result.requiresManualReview).toBe(true);
+    expect(result.checks.savedKundlis).toBe(1);
+
+    expect(db.user.findUnique).toHaveBeenCalledWith({
+      where: { id: 'phone-user-id' },
+    });
+
+    expect(db.kundliSavedRecord.count).toHaveBeenCalledWith({
+      where: { customerUserId: 'phone-user-id' },
+    });
+  });
+});

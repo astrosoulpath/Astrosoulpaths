@@ -64,7 +64,9 @@ export class UserService {
     }
 
     const app =
-      getApps().find((existing) => existing.name === 'asp-account-revocation') ??
+      getApps().find(
+        (existing) => existing.name === 'asp-account-revocation',
+      ) ??
       initializeApp(
         {
           credential: cert({
@@ -157,13 +159,14 @@ export class UserService {
         'Please resolve pending payments before deleting your account',
       );
     }
-    const deletionSupportAttachments = await this.prisma.supportAttachment.count({
-      where: {
-        ticket: {
-          customerId: user.id,
+    const deletionSupportAttachments =
+      await this.prisma.supportAttachment.count({
+        where: {
+          ticket: {
+            customerId: user.id,
+          },
         },
-      },
-    });
+      });
 
     if (deletionSupportAttachments > 0) {
       throw new BadRequestException(
@@ -274,9 +277,7 @@ export class UserService {
 
     for (const path of chatPaths) {
       if (!path.startsWith('/') && path.trim()) {
-        const { error } = await client.storage
-          .from('chat')
-          .remove([path]);
+        const { error } = await client.storage.from('chat').remove([path]);
 
         if (error) {
           throw new Error('Chat attachment cleanup failed');
@@ -315,9 +316,7 @@ export class UserService {
       throw new NotFoundException('Account not found');
     }
 
-    const inventory = await this.getAccountDeletionStorageInventory(
-      account.id,
-    );
+    const inventory = await this.getAccountDeletionStorageInventory(account.id);
 
     if (inventory.chat.length > 0 || inventory.support.length > 0) {
       throw new BadRequestException(
@@ -478,9 +477,7 @@ export class UserService {
         select: { id: true },
       });
 
-      const deletionProfileIds = deletionProfiles.map(
-        (profile) => profile.id,
-      );
+      const deletionProfileIds = deletionProfiles.map((profile) => profile.id);
 
       if (deletionProfileIds.length > 0) {
         const linkedMatches = await tx.match.count({
@@ -522,9 +519,7 @@ export class UserService {
     const user = await this.resolveUserBySupabaseId(supabaseId);
 
     if (!user) {
-      throw new UnauthorizedException(
-        'Customer account not registered',
-      );
+      throw new UnauthorizedException('Customer account not registered');
     }
 
     if (!user.isActive || user.isBlocked) {
@@ -750,10 +745,7 @@ export class UserService {
       include: authUserInclude,
     });
   }
-  async syncFirebaseEmailUser(data: {
-    firebaseUid: string;
-    email: string;
-  }) {
+  async syncFirebaseEmailUser(data: { firebaseUid: string; email: string }) {
     const firebaseUid = data.firebaseUid?.trim();
     const email = data.email?.trim().toLowerCase();
 
@@ -764,20 +756,19 @@ export class UserService {
     }
 
     // First priority: an already-linked Firebase identity.
-    const existingIdentity =
-      await this.prisma.userAuthIdentity.findUnique({
-        where: {
-          provider_providerUserId: {
-            provider: 'firebase',
-            providerUserId: firebaseUid,
-          },
+    const existingIdentity = await this.prisma.userAuthIdentity.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: 'firebase',
+          providerUserId: firebaseUid,
         },
-        select: {
-          id: true,
-          userId: true,
-          email: true,
-        },
-      });
+      },
+      select: {
+        id: true,
+        userId: true,
+        email: true,
+      },
+    });
 
     if (existingIdentity) {
       const mappedUser = await this.prisma.user.findUnique({
@@ -908,18 +899,17 @@ export class UserService {
       isNewUser = true;
     }
 
-    const identityCheck =
-      await this.prisma.userAuthIdentity.findUnique({
-        where: {
-          provider_providerUserId: {
-            provider: 'firebase',
-            providerUserId: firebaseUid,
-          },
+    const identityCheck = await this.prisma.userAuthIdentity.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: 'firebase',
+          providerUserId: firebaseUid,
         },
-        select: {
-          userId: true,
-        },
-      });
+      },
+      select: {
+        userId: true,
+      },
+    });
 
     if (identityCheck && identityCheck.userId !== user.id) {
       throw new ConflictException(
@@ -1635,7 +1625,9 @@ export class UserService {
     }
 
     const app =
-      getApps().find((candidate) => candidate.options.projectId === projectId) ??
+      getApps().find(
+        (candidate) => candidate.options.projectId === projectId,
+      ) ??
       initializeApp(
         {
           credential: cert({
@@ -1667,8 +1659,15 @@ export class UserService {
 
     return { phone, firebaseUid };
   }
-  async inspectAccountLinkSafety(supabaseId: string) {
-    const user = await this.resolveUserBySupabaseId(supabaseId);
+  async inspectAccountLinkSafety(
+    supabaseId: string,
+    canonicalUserId?: string,
+  ) {
+    const user = canonicalUserId
+      ? await this.prisma.user.findUnique({
+          where: { id: canonicalUserId },
+        })
+      : await this.resolveUserBySupabaseId(supabaseId);
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -1802,7 +1801,11 @@ export class UserService {
         },
       });
 
-      if (!googleAccount || !googleAccount.isActive || googleAccount.isBlocked) {
+      if (
+        !googleAccount ||
+        !googleAccount.isActive ||
+        googleAccount.isBlocked
+      ) {
         throw new ConflictException({
           code: 'ACCOUNT_LINK_UNAVAILABLE',
           message: 'This account cannot be linked.',
@@ -1850,205 +1853,221 @@ export class UserService {
         });
       }
 
-      // ACCOUNT_LINK_VERIFIED_CANONICAL_V1
+            // PHONE_OWNER_ASSET_SAFETY_V1
+      // Both accounts require manual review if either has existing activity.
+      const phoneOwnerSafety = await this.inspectAccountLinkSafety(
+        '',
+        existingPhoneOwner.id,
+      );
+
+      if (phoneOwnerSafety.requiresManualReview) {
+        throw new ConflictException({
+          code: 'ACCOUNT_LINK_MANUAL_REVIEW',
+          message:
+            'The existing phone account contains activity. ' +
+            'Manual review is required before linking.',
+          accountLinkRequired: false,
+        });
+      }
+// ACCOUNT_LINK_VERIFIED_CANONICAL_V1
       // Keep the verified phone account as the canonical customer.
       // Never merge wallets, payments, Kundlis or other customer data.
-      const linkedUserId = await this.prisma.$transaction(async (tx) => {
-        // ACCOUNT_LINK_TX_SAFETY_V2
-        const [
-          wallet,
-          subscriptions,
-          payments,
-          kundlis,
-          kundliOrders,
-          ledger,
-          chats,
-          calls,
-          marketplace,
-          conversations,
-        ] = await Promise.all([
-          tx.wallet.findUnique({
-            where: { userId: canonicalUserId },
-            select: {
-              balance: true,
-              paidBalance: true,
-              freeBalance: true,
-              lockedBalance: true,
-            },
-          }),
-          tx.subscription.count({
-            where: {
-              userId: canonicalUserId,
-              OR: [
-                { subscriptionStatus: { not: 'FREE' } },
-                { razorpaySubscriptionId: { not: null } },
-                { razorpayPaymentId: { not: null } },
-                { razorpayOrderId: { not: null } },
-                { amount: { gt: 0 } },
-              ],
-            },
-          }),
-          tx.paymentOrder.count({ where: { userId: canonicalUserId } }),
-          tx.kundliSavedRecord.count({
-            where: { customerUserId: canonicalUserId },
-          }),
-          tx.kundliOrder.count({ where: { userId: canonicalUserId } }),
-          tx.walletLedger.count({ where: { userId: canonicalUserId } }),
-          tx.chatMessage.count({ where: { senderId: canonicalUserId } }),
-          tx.callSession.count({ where: { userId: canonicalUserId } }),
-          tx.marketplaceOrder.count({
-            where: { customerUserId: canonicalUserId },
-          }),
-          tx.aiAstroConversation.count({
-            where: { userId: canonicalUserId },
-          }),
-        ]);
-
-        const hasWalletValue = wallet
-          ? [
-              wallet.balance,
-              wallet.paidBalance,
-              wallet.freeBalance,
-              wallet.lockedBalance,
-            ].some((value) => !value.isZero())
-          : false;
-
-        if (
-          hasWalletValue ||
-          subscriptions > 0 ||
-          payments > 0 ||
-          kundlis > 0 ||
-          kundliOrders > 0 ||
-          ledger > 0 ||
-          chats > 0 ||
-          calls > 0 ||
-          marketplace > 0 ||
-          conversations > 0
-        ) {
-          throw new ConflictException({
-            code: 'ACCOUNT_LINK_MANUAL_REVIEW',
-            message: 'Google account contains existing activity.',
-          });
-        }
-        const [phoneOwner, googleOwner, supabaseIdentity, firebaseIdentity] =
-          await Promise.all([
-            tx.user.findUnique({
-              where: { id: existingPhoneOwner.id },
+      const linkedUserId = await this.prisma.$transaction(
+        async (tx) => {
+          // ACCOUNT_LINK_TX_SAFETY_V2
+          const [
+            wallet,
+            subscriptions,
+            payments,
+            kundlis,
+            kundliOrders,
+            ledger,
+            chats,
+            calls,
+            marketplace,
+            conversations,
+          ] = await Promise.all([
+            tx.wallet.findUnique({
+              where: { userId: canonicalUserId },
               select: {
-                id: true,
-                phone: true,
-                isActive: true,
-                isBlocked: true,
-                role: { select: { name: true } },
+                balance: true,
+                paidBalance: true,
+                freeBalance: true,
+                lockedBalance: true,
               },
             }),
-            tx.user.findUnique({
-              where: { id: canonicalUserId },
-              select: {
-                id: true,
-                phone: true,
-                isActive: true,
-                isBlocked: true,
-                role: { select: { name: true } },
-              },
-            }),
-            tx.userAuthIdentity.findUnique({
+            tx.subscription.count({
               where: {
-                provider_providerUserId: {
-                  provider: 'supabase',
-                  providerUserId: supabaseId,
-                },
+                userId: canonicalUserId,
+                OR: [
+                  { subscriptionStatus: { not: 'FREE' } },
+                  { razorpaySubscriptionId: { not: null } },
+                  { razorpayPaymentId: { not: null } },
+                  { razorpayOrderId: { not: null } },
+                  { amount: { gt: 0 } },
+                ],
               },
-              select: { id: true, userId: true },
             }),
-            tx.userAuthIdentity.findUnique({
-              where: {
-                provider_providerUserId: {
-                  provider: 'firebase',
-                  providerUserId: firebaseUid,
-                },
-              },
-              select: { userId: true },
+            tx.paymentOrder.count({ where: { userId: canonicalUserId } }),
+            tx.kundliSavedRecord.count({
+              where: { customerUserId: canonicalUserId },
+            }),
+            tx.kundliOrder.count({ where: { userId: canonicalUserId } }),
+            tx.walletLedger.count({ where: { userId: canonicalUserId } }),
+            tx.chatMessage.count({ where: { senderId: canonicalUserId } }),
+            tx.callSession.count({ where: { userId: canonicalUserId } }),
+            tx.marketplaceOrder.count({
+              where: { customerUserId: canonicalUserId },
+            }),
+            tx.aiAstroConversation.count({
+              where: { userId: canonicalUserId },
             }),
           ]);
 
-        if (
-          !phoneOwner ||
-          phoneOwner.phone !== phone ||
-          !phoneOwner.isActive ||
-          phoneOwner.isBlocked ||
-          phoneOwner.role?.name !== 'CUSTOMER' ||
-          !googleOwner ||
-          !googleOwner.isActive ||
-          googleOwner.isBlocked ||
-          googleOwner.role?.name !== 'CUSTOMER' ||
-          (googleOwner.phone && googleOwner.phone !== phone)
-        ) {
-          throw new ConflictException({
-            code: 'ACCOUNT_LINK_UNAVAILABLE',
-            message: 'These customer accounts cannot be linked.',
-          });
-        }
+          const hasWalletValue = wallet
+            ? [
+                wallet.balance,
+                wallet.paidBalance,
+                wallet.freeBalance,
+                wallet.lockedBalance,
+              ].some((value) => !value.isZero())
+            : false;
 
-        if (
-          firebaseIdentity &&
-          firebaseIdentity.userId !== phoneOwner.id
-        ) {
-          throw new ConflictException({
-            code: 'ACCOUNT_LINK_PHONE_IDENTITY_CONFLICT',
-            message: 'Verified phone identity belongs to another account.',
-          });
-        }
+          if (
+            hasWalletValue ||
+            subscriptions > 0 ||
+            payments > 0 ||
+            kundlis > 0 ||
+            kundliOrders > 0 ||
+            ledger > 0 ||
+            chats > 0 ||
+            calls > 0 ||
+            marketplace > 0 ||
+            conversations > 0
+          ) {
+            throw new ConflictException({
+              code: 'ACCOUNT_LINK_MANUAL_REVIEW',
+              message: 'Google account contains existing activity.',
+            });
+          }
+          const [phoneOwner, googleOwner, supabaseIdentity, firebaseIdentity] =
+            await Promise.all([
+              tx.user.findUnique({
+                where: { id: existingPhoneOwner.id },
+                select: {
+                  id: true,
+                  phone: true,
+                  isActive: true,
+                  isBlocked: true,
+                  role: { select: { name: true } },
+                },
+              }),
+              tx.user.findUnique({
+                where: { id: canonicalUserId },
+                select: {
+                  id: true,
+                  phone: true,
+                  isActive: true,
+                  isBlocked: true,
+                  role: { select: { name: true } },
+                },
+              }),
+              tx.userAuthIdentity.findUnique({
+                where: {
+                  provider_providerUserId: {
+                    provider: 'supabase',
+                    providerUserId: supabaseId,
+                  },
+                },
+                select: { id: true, userId: true },
+              }),
+              tx.userAuthIdentity.findUnique({
+                where: {
+                  provider_providerUserId: {
+                    provider: 'firebase',
+                    providerUserId: firebaseUid,
+                  },
+                },
+                select: { userId: true },
+              }),
+            ]);
 
-        if (
-          supabaseIdentity &&
-          supabaseIdentity.userId !== googleOwner.id &&
-          supabaseIdentity.userId !== phoneOwner.id
-        ) {
-          throw new ConflictException({
-            code: 'ACCOUNT_LINK_IDENTITY_CONFLICT',
-            message: 'Google identity belongs to another account.',
-          });
-        }
+          if (
+            !phoneOwner ||
+            phoneOwner.phone !== phone ||
+            !phoneOwner.isActive ||
+            phoneOwner.isBlocked ||
+            phoneOwner.role?.name !== 'CUSTOMER' ||
+            !googleOwner ||
+            !googleOwner.isActive ||
+            googleOwner.isBlocked ||
+            googleOwner.role?.name !== 'CUSTOMER' ||
+            (googleOwner.phone && googleOwner.phone !== phone)
+          ) {
+            throw new ConflictException({
+              code: 'ACCOUNT_LINK_UNAVAILABLE',
+              message: 'These customer accounts cannot be linked.',
+            });
+          }
 
-        if (supabaseIdentity) {
-          await tx.userAuthIdentity.update({
-            where: { id: supabaseIdentity.id },
-            data: { userId: phoneOwner.id },
-          });
-        } else {
-          await tx.userAuthIdentity.create({
-            data: {
-              userId: phoneOwner.id,
-              provider: 'supabase',
-              providerUserId: supabaseId,
-              identityType: 'email',
-              isPrimary: false,
-            },
-          });
-        }
+          if (firebaseIdentity && firebaseIdentity.userId !== phoneOwner.id) {
+            throw new ConflictException({
+              code: 'ACCOUNT_LINK_PHONE_IDENTITY_CONFLICT',
+              message: 'Verified phone identity belongs to another account.',
+            });
+          }
 
-                // ACCOUNT_LINK_FIREBASE_IDENTITY_V1
-        // Bind the verified Firebase UID to the canonical phone account.
-        if (!firebaseIdentity) {
-          await tx.userAuthIdentity.create({
-            data: {
-              userId: phoneOwner.id,
-              provider: 'firebase',
-              providerUserId: firebaseUid,
-              identityType: 'phone',
-              phone,
-              isPrimary: false,
-            },
-          });
-        }
-return phoneOwner.id;
-      }, {
-        // ACCOUNT_LINK_SERIALIZABLE_V1
-        isolationLevel: 'Serializable',
-        maxWait: 5000,
-        timeout: 15000,
-      });
+          if (
+            supabaseIdentity &&
+            supabaseIdentity.userId !== googleOwner.id &&
+            supabaseIdentity.userId !== phoneOwner.id
+          ) {
+            throw new ConflictException({
+              code: 'ACCOUNT_LINK_IDENTITY_CONFLICT',
+              message: 'Google identity belongs to another account.',
+            });
+          }
+
+          if (supabaseIdentity) {
+            await tx.userAuthIdentity.update({
+              where: { id: supabaseIdentity.id },
+              data: { userId: phoneOwner.id },
+            });
+          } else {
+            await tx.userAuthIdentity.create({
+              data: {
+                userId: phoneOwner.id,
+                provider: 'supabase',
+                providerUserId: supabaseId,
+                identityType: 'email',
+                isPrimary: false,
+              },
+            });
+          }
+
+          // ACCOUNT_LINK_FIREBASE_IDENTITY_V1
+          // Bind the verified Firebase UID to the canonical phone account.
+          if (!firebaseIdentity) {
+            await tx.userAuthIdentity.create({
+              data: {
+                userId: phoneOwner.id,
+                provider: 'firebase',
+                providerUserId: firebaseUid,
+                identityType: 'phone',
+                phone,
+                isPrimary: false,
+              },
+            });
+          }
+          return phoneOwner.id;
+        },
+        {
+          // ACCOUNT_LINK_SERIALIZABLE_V1
+          isolationLevel: 'Serializable',
+          maxWait: 5000,
+          timeout: 15000,
+        },
+      );
 
       return {
         success: true,
@@ -2092,16 +2111,15 @@ return phoneOwner.id;
           'This verified phone belongs to another account',
         );
       }
-      const existingFirebaseIdentity =
-        await tx.userAuthIdentity.findUnique({
-          where: {
-            provider_providerUserId: {
-              provider: 'firebase',
-              providerUserId: firebaseUid,
-            },
+      const existingFirebaseIdentity = await tx.userAuthIdentity.findUnique({
+        where: {
+          provider_providerUserId: {
+            provider: 'firebase',
+            providerUserId: firebaseUid,
           },
-          select: { userId: true },
-        });
+        },
+        select: { userId: true },
+      });
 
       if (
         existingFirebaseIdentity &&
@@ -2132,10 +2150,17 @@ return phoneOwner.id;
         select: { id: true, phone: true },
       });
 
-      const profile = await tx.userProfile.update({
+      const existingProfile = await tx.userProfile.findUnique({
         where: { userId: canonicalUserId },
-        data: { phoneNumber: phone },
+        select: { id: true },
       });
+
+      const profile = existingProfile
+        ? await tx.userProfile.update({
+            where: { userId: canonicalUserId },
+            data: { phoneNumber: phone },
+          })
+        : null;
 
       await tx.userAuthIdentity.upsert({
         where: {
@@ -2165,6 +2190,8 @@ return phoneOwner.id;
       success: true,
       message: 'Firebase phone verified and linked successfully',
       data: {
+        accountLinked: false,
+        canonicalUserId,
         phone: result.user.phone,
         profile: result.profile,
       },
@@ -2283,8 +2310,10 @@ return phoneOwner.id;
         select: { userId: true },
       });
 
-      if (existingVerifiedPhone &&
-          existingVerifiedPhone.userId !== canonicalUserId) {
+      if (
+        existingVerifiedPhone &&
+        existingVerifiedPhone.userId !== canonicalUserId
+      ) {
         throw new ConflictException(
           'This phone number is already verified by another account',
         );

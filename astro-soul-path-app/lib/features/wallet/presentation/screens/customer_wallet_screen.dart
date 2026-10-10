@@ -70,11 +70,11 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
     try {
       final profileApi = ProfileApi();
       try {
-        final profiles = await profileApi.getProfiles();
+        final isPhoneVerified = await profileApi.isAuthenticatedPhoneVerified();
 
         if (!mounted) return;
 
-        if (profiles.isEmpty || !profiles.first.isPhoneVerified) {
+        if (!isPhoneVerified) {
           setState(() {
             _wallet = null;
             _transactions = <WalletTransaction>[];

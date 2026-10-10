@@ -24,6 +24,16 @@ class ProfileApi {
   final http.Client _client;
   final AuthSessionStore _sessionStore;
 
+  Future<bool> isAuthenticatedPhoneVerified() async {
+    final body = await _request(
+      method: 'GET',
+      path: '/user/profile',
+      fallbackError: 'Failed to verify phone status.',
+    );
+
+    return body['isPhoneVerified'] == true;
+  }
+
   Future<List<CustomerProfile>> getProfiles() async {
     final body = await _request(
       method: 'GET',
@@ -213,7 +223,7 @@ class ProfileApi {
     return _readProfile(body);
   }
 
-  Future<void> verifyFirebaseProfilePhone({
+  Future<Map<String, dynamic>> verifyFirebaseProfilePhone({
     required String firebaseIdToken,
     bool confirmAccountLink = false,
   }) async {
@@ -225,7 +235,7 @@ class ProfileApi {
       );
     }
 
-    await _request(
+    final response = await _request(
       method: 'POST',
       path: '/user/profile/phone/firebase-verify',
       fallbackError: 'Unable to verify Firebase phone number.',
@@ -234,6 +244,8 @@ class ProfileApi {
         'confirmAccountLink': confirmAccountLink,
       },
     );
+
+    return response;
   }
 
   Future<void> sendProfilePhoneOtp({required String phone}) async {
