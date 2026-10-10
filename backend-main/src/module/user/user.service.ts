@@ -1235,7 +1235,7 @@ export class UserService {
         // CUSTOMER_IDENTITY_ROLE_GUARD
         // An unrecognized customer Supabase identity must never be linked
         // to a privileged/non-customer account through phone/email fallback.
-        if (!isExplicitlyMapped && existingUser.role?.name !== 'user') {
+        if (!isExplicitlyMapped && existingUser.role?.name !== 'CUSTOMER') {
           throw new ConflictException(
             'This sign-in identity cannot be linked to this customer account',
           );
@@ -1977,11 +1977,11 @@ export class UserService {
           phoneOwner.phone !== phone ||
           !phoneOwner.isActive ||
           phoneOwner.isBlocked ||
-          phoneOwner.role?.name !== 'user' ||
+          phoneOwner.role?.name !== 'CUSTOMER' ||
           !googleOwner ||
           !googleOwner.isActive ||
           googleOwner.isBlocked ||
-          googleOwner.role?.name !== 'user' ||
+          googleOwner.role?.name !== 'CUSTOMER' ||
           (googleOwner.phone && googleOwner.phone !== phone)
         ) {
           throw new ConflictException({

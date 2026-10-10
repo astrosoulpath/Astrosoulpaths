@@ -182,14 +182,14 @@ describe('Account linking - real UserService', () => {
               phone: '+919999999999',
               isActive: true,
               isBlocked: false,
-              role: { name: 'user' },
+              role: { name: 'CUSTOMER' },
             })
             .mockResolvedValueOnce({
               id: 'google-user-id',
               phone: null,
               isActive: true,
               isBlocked: false,
-              role: { name: 'user' },
+              role: { name: 'CUSTOMER' },
             }),
         },
         userAuthIdentity: {
@@ -297,14 +297,14 @@ describe('Account linking - real UserService', () => {
               phone: '+919999999999',
               isActive: true,
               isBlocked: false,
-              role: { name: 'user' },
+              role: { name: 'CUSTOMER' },
             })
             .mockResolvedValueOnce({
               id: 'google-user-id',
               phone: null,
               isActive: true,
               isBlocked: false,
-              role: { name: 'user' },
+              role: { name: 'CUSTOMER' },
             }),
           update: jest.fn(),
         },

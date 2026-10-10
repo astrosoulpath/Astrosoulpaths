@@ -431,7 +431,7 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                                   ).showSnackBar(
                                     const SnackBar(
                                       content: Text(
-                                        'Accounts linked successfully',
+                                        'Accounts linked successfully. Please sign out and sign in again to refresh your account.',
                                       ),
                                     ),
                                   );
