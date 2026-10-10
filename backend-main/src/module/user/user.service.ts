@@ -1177,23 +1177,30 @@ export class UserService {
       // explicit auth mapping first, legacy User.supabaseId second.
       let existingUser = await this.resolveUserBySupabaseId(supabaseId);
 
-      // 2. Account linking:
-      // Google/Supabase can return a new auth identity for an email that
-      // already belongs to an ASP customer. Reuse that customer instead
-      // of creating a duplicate database account.
-      if (!existingUser && email) {
-        existingUser = await this.prisma.user.findUnique({
-          where: { email },
-          include: authUserInclude,
-        });
-      }
+      // SECURITY: Never attach an unknown Supabase identity to an existing
+      // customer using only an email or phone match.
+      // Cross-provider linking requires explicit consent and verified
+      // Firebase phone ownership through the dedicated linking flow.
+      if (!existingUser && (email || phone)) {
+        const emailOwner = email
+          ? await this.prisma.user.findUnique({
+              where: { email },
+              select: { id: true },
+            })
+          : null;
 
-      // 3. Phone is another unique verified identity used by OTP login.
-      if (!existingUser && phone) {
-        existingUser = await this.prisma.user.findUnique({
-          where: { phone },
-          include: authUserInclude,
-        });
+        const phoneOwner = phone
+          ? await this.prisma.user.findUnique({
+              where: { phone },
+              select: { id: true },
+            })
+          : null;
+
+        if (emailOwner || phoneOwner) {
+          throw new ConflictException(
+            'An account already uses these details. Verify ownership before linking.',
+          );
+        }
       }
 
       let user: Prisma.UserGetPayload<{
@@ -1292,7 +1299,7 @@ export class UserService {
               ? { email }
               : {}),
 
-            ...(fullName && !existingUser.name ? { name: fullName } : {}),
+            ...(fullName && !existingUser.name && !isExplicitlyMapped ? { name: fullName } : {}),
             isProfileComplete,
           },
           include: authUserInclude,
@@ -1852,24 +1859,10 @@ export class UserService {
           message: 'Account linking is temporarily unavailable for safety.',
         });
       }
-
-            // PHONE_OWNER_ASSET_SAFETY_V1
-      // Both accounts require manual review if either has existing activity.
-      const phoneOwnerSafety = await this.inspectAccountLinkSafety(
-        '',
-        existingPhoneOwner.id,
-      );
-
-      if (phoneOwnerSafety.requiresManualReview) {
-        throw new ConflictException({
-          code: 'ACCOUNT_LINK_MANUAL_REVIEW',
-          message:
-            'The existing phone account contains activity. ' +
-            'Manual review is required before linking.',
-          accountLinkRequired: false,
-        });
-      }
-// ACCOUNT_LINK_VERIFIED_CANONICAL_V1
+      // PHONE_OWNER_CANONICAL_ASSETS_PRESERVED_V2
+      // Existing phone account assets stay on the canonical user.
+      // Google account assets are checked separately before linking.
+      // ACCOUNT_LINK_VERIFIED_CANONICAL_V1
       // Keep the verified phone account as the canonical customer.
       // Never merge wallets, payments, Kundlis or other customer data.
       const linkedUserId = await this.prisma.$transaction(
