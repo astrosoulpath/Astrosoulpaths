@@ -1718,7 +1718,8 @@ export class AuthService {
       if (
         error instanceof BadRequestException ||
         error instanceof UnauthorizedException ||
-        error instanceof NotFoundException
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
       ) {
         throw error;
       }

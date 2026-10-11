@@ -2051,6 +2051,26 @@ export class UserService {
             });
           }
 
+          // ACCOUNT_LINK_EXISTING_GOOGLE_OWNER_GUARD_V1
+          // Do not attach another Google identity to a phone account
+          // that already has a different Supabase identity.
+          const existingPhoneGoogleIdentity =
+            await tx.userAuthIdentity.findFirst({
+              where: {
+                userId: phoneOwner.id,
+                provider: 'supabase',
+                providerUserId: { not: supabaseId },
+              },
+              select: { id: true },
+            });
+
+          if (existingPhoneGoogleIdentity) {
+            throw new ConflictException({
+              code: 'ACCOUNT_LINK_IDENTITY_CONFLICT',
+              message: 'This phone account is already linked to another sign-in identity.',
+            });
+          }
+
           if (supabaseIdentity) {
             await tx.userAuthIdentity.update({
               where: { id: supabaseIdentity.id },
