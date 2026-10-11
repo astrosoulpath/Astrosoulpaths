@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -218,6 +219,29 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             backgroundColor: Colors.red.shade700,
           ),
         );
+    } on FirebaseException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      final message = switch (error.code) {
+        'invalid-verification-code' =>
+          'That code is incorrect. Check it and try again.',
+        'session-expired' =>
+          'That code expired. Request a new verification code.',
+        'too-many-requests' =>
+          'Too many verification attempts. Wait before trying again.',
+        _ => 'Phone verification failed. Please try again.',
+      };
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
     } finally {
       if (mounted) {
         setState(() {
@@ -277,6 +301,27 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         ..showSnackBar(
           SnackBar(
             content: Text(error.message),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+    } on FirebaseException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      if (error.code == 'too-many-requests') {
+        _startResendCooldown();
+      }
+
+      final message = error.code == 'too-many-requests'
+          ? 'Too many code requests. Wait before trying again.'
+          : 'A new verification code could not be sent.';
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(message),
             backgroundColor: Colors.red.shade700,
           ),
         );

@@ -241,10 +241,7 @@ export class AuthService {
         message: 'Firebase email verified',
         portal: 'customer',
         role: 'CUSTOMER',
-        user: this.buildCustomerUserPayload(
-          result.user,
-          result.isNewUser,
-        ),
+        user: this.buildCustomerUserPayload(result.user, result.isNewUser),
         nextStep: this.getCustomerNextStep(result.user),
         firebaseVerified: true,
       };
@@ -1424,6 +1421,402 @@ export class AuthService {
       ...(session ? { session: this.buildSessionPayload(session) } : {}),
       nextStep: session ? this.getCustomerNextStep(user) : 'VERIFY_EMAIL',
     };
+  }
+  async linkGoogleIdentityToVerifiedPhone(
+    googleAccessToken: string,
+    firebaseIdToken: string,
+    confirmAccountLink: boolean,
+  ) {
+    return this.userService.linkGoogleIdentityToVerifiedPhone(
+      googleAccessToken,
+      firebaseIdToken,
+      confirmAccountLink,
+    );
+  }
+  async linkFirebaseEmailToVerifiedPhone(
+    firebaseEmailToken: string,
+    firebasePhoneToken: string,
+    confirmAccountLink: boolean,
+  ) {
+    return this.userService.linkFirebaseEmailToVerifiedPhone(
+      firebaseEmailToken,
+      firebasePhoneToken,
+      confirmAccountLink,
+    );
+  }
+  private async verifyFirebaseGoogleIdToken(
+    idToken: string,
+    requireGoogleSignInProvider = true,
+  ) {
+    const token = idToken?.trim();
+
+    if (!token) {
+      throw new BadRequestException({
+        success: false,
+        message: 'Firebase ID token is required',
+        code: 'FIREBASE_TOKEN_REQUIRED',
+      });
+    }
+
+    const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.trim();
+
+    if (!projectId || !clientEmail || !privateKey) {
+      throw new InternalServerErrorException({
+        success: false,
+        message: 'Firebase Google authentication is not configured',
+        code: 'FIREBASE_NOT_CONFIGURED',
+      });
+    }
+
+    const app =
+      getApps().find(
+        (candidate) => candidate.options.projectId === projectId,
+      ) ??
+      initializeApp(
+        {
+          credential: cert({
+            projectId,
+            clientEmail,
+            privateKey: privateKey.replace(/\\n/g, '\n'),
+          }),
+          projectId,
+        },
+        `asp-google-${projectId}`,
+      );
+
+    let decoded;
+
+    try {
+      decoded = await getAuth(app).verifyIdToken(token, true);
+    } catch {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Invalid or expired Firebase Google session',
+        code: 'FIREBASE_GOOGLE_TOKEN_INVALID',
+      });
+    }
+
+    const uid = decoded.uid?.trim();
+    const email = decoded.email?.trim().toLowerCase();
+    const firebaseProvider = decoded.firebase?.sign_in_provider;
+
+    if (decoded.aud !== projectId) {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Firebase authentication project mismatch',
+        code: 'FIREBASE_PROJECT_MISMATCH',
+      });
+    }
+
+    if (!uid || !email || decoded.email_verified !== true) {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'A verified Firebase Google identity is required',
+        code: 'FIREBASE_GOOGLE_EMAIL_NOT_VERIFIED',
+      });
+    }
+
+    if (requireGoogleSignInProvider && firebaseProvider !== 'google.com') {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'A Google-authenticated Firebase session is required',
+        code: 'FIREBASE_GOOGLE_PROVIDER_REQUIRED',
+      });
+    }
+
+    let firebaseUser;
+
+    try {
+      firebaseUser = await getAuth(app).getUser(uid);
+    } catch {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Firebase Google identity could not be verified',
+        code: 'FIREBASE_GOOGLE_IDENTITY_INVALID',
+      });
+    }
+
+    const googleProviderIdentity = firebaseUser.providerData.find(
+      (provider) => provider.providerId === 'google.com',
+    );
+    const hasEmailPasswordProvider = firebaseUser.providerData.some(
+      (provider) => provider.providerId === 'password',
+    );
+
+    if (!googleProviderIdentity?.uid) {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Google provider identity is missing from Firebase',
+        code: 'FIREBASE_GOOGLE_IDENTITY_INVALID',
+      });
+    }
+
+    return {
+      uid,
+      email,
+      googleSubject: googleProviderIdentity.uid,
+      hasEmailPasswordProvider,
+    };
+  }
+
+  async linkFirebaseGoogleToEmailAccount(
+    idToken: string,
+    confirmAccountLink: boolean,
+  ) {
+    if (confirmAccountLink !== true) {
+      throw new ConflictException({
+        code: 'ACCOUNT_LINK_CONFIRMATION_REQUIRED',
+        message: 'Explicit confirmation is required to link Google.',
+        accountLinkRequired: true,
+      });
+    }
+
+    const identity = await this.verifyFirebaseGoogleIdToken(idToken, false);
+
+    if (!identity.hasEmailPasswordProvider) {
+      throw new ConflictException({
+        code: 'FIREBASE_EMAIL_GOOGLE_LINK_NOT_AVAILABLE',
+        message:
+          'This Firebase account does not contain both email and Google sign-in methods.',
+      });
+    }
+
+    const { user, isNewUser } = await this.userService.syncFirebaseEmailUser({
+      firebaseUid: identity.uid,
+      email: identity.email,
+      identityType: 'google',
+    });
+
+    if (!user.isActive || user.isBlocked) {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Account is inactive or blocked',
+        code: 'ACCOUNT_UNAVAILABLE',
+      });
+    }
+
+    return {
+      success: true,
+      message: 'Google sign-in linked to your existing email account.',
+      portal: 'customer',
+      role: 'CUSTOMER',
+      user: this.buildCustomerUserPayload(user, isNewUser),
+      nextStep: this.getCustomerNextStep(user),
+      firebaseVerified: true,
+      accountLinked: true,
+    };
+  }
+
+  async loginWithFirebaseGoogle(
+    idToken: string,
+    portal: 'customer' | 'astrologer' | 'joinAstrologer' = 'customer',
+  ) {
+    const identity = await this.verifyFirebaseGoogleIdToken(idToken);
+
+    if (!['customer', 'astrologer', 'joinAstrologer'].includes(portal)) {
+      throw new BadRequestException({
+        success: false,
+        message: 'Invalid Firebase Google login portal',
+        code: 'INVALID_GOOGLE_PORTAL',
+      });
+    }
+
+    const { user, isNewUser } = await this.userService.syncFirebaseEmailUser({
+      firebaseUid: identity.uid,
+      email: identity.email,
+      identityType: 'google',
+    });
+
+    if (!user.isActive || user.isBlocked) {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Account is inactive or blocked',
+        code: 'ACCOUNT_UNAVAILABLE',
+      });
+    }
+
+    if (portal === 'customer') {
+      return {
+        success: true,
+        message: 'Firebase Google login successful',
+        portal: 'customer',
+        role: 'CUSTOMER',
+        user: this.buildCustomerUserPayload(user, isNewUser),
+        nextStep: this.getCustomerNextStep(user),
+        firebaseVerified: true,
+      };
+    }
+
+    const fullUser = await this.userService.getUserWithRelations(
+      user.supabaseId,
+    );
+
+    if (!fullUser) {
+      throw new NotFoundException({
+        success: false,
+        message: 'User not found',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    if (portal === 'astrologer') {
+      if (!fullUser.isAstrologer) {
+        throw new UnauthorizedException({
+          success: false,
+          message: 'Astrologer access is not enabled for this account',
+          code: 'ASTROLOGER_ACCESS_DENIED',
+        });
+      }
+
+      const astrologer = this.buildAstrologerPayload(fullUser);
+      const nextStep = !astrologer.hasAstrologerProfile
+        ? 'COMPLETE_ASTROLOGER_ONBOARDING'
+        : astrologer.isApproved && astrologer.isVerified
+          ? 'OPEN_ASTROLOGER_DASHBOARD'
+          : 'WAIT_FOR_ADMIN_APPROVAL';
+
+      return {
+        success: true,
+        message: 'Firebase Google astrologer login successful',
+        portal: 'astrologer',
+        role: 'ASTROLOGER',
+        user: {
+          ...this.buildCustomerUserPayload(user, isNewUser),
+          role: 'ASTROLOGER',
+          portal: 'astrologer',
+          accountRole: fullUser.role?.name ?? 'ASTROLOGER',
+          isAstrologer: true,
+        },
+        astrologer,
+        nextStep,
+        firebaseVerified: true,
+      };
+    }
+
+    const hasAstrologerProfile = Boolean(fullUser.astrologer);
+    const isApprovedAstrologer =
+      hasAstrologerProfile &&
+      Boolean(fullUser.astrologer?.isApproved) &&
+      Boolean(fullUser.astrologer?.isVerified);
+    const hasMobileNumber = Boolean(fullUser.phone?.trim());
+    const nextStep = !hasAstrologerProfile
+      ? hasMobileNumber
+        ? 'COMPLETE_ASTROLOGER_ONBOARDING'
+        : 'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING'
+      : isApprovedAstrologer
+        ? 'OPEN_ASTROLOGER_DASHBOARD'
+        : 'WAIT_FOR_ADMIN_APPROVAL';
+
+    return {
+      success: true,
+      message:
+        nextStep === 'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING'
+          ? 'Google account verified. Verify your mobile number to continue your astrologer application.'
+          : hasAstrologerProfile
+            ? 'Astrologer application found'
+            : 'Continue your astrologer application.',
+      portal: 'joinAstrologer',
+      role: 'ASTROLOGER_APPLICANT',
+      user: {
+        ...this.buildCustomerUserPayload(user, isNewUser),
+        portal: 'joinAstrologer',
+        accountRole: fullUser.role?.name ?? 'USER',
+        isAstrologer: Boolean(fullUser.isAstrologer),
+      },
+      astrologer: {
+        hasAstrologerProfile,
+        astrologerId: fullUser.astrologer?.id ?? null,
+        isApproved: fullUser.astrologer?.isApproved ?? false,
+        isVerified: fullUser.astrologer?.isVerified ?? false,
+      },
+      nextStep,
+      firebaseVerified: true,
+    };
+  }
+
+  async linkFirebaseGoogleToLegacyAccount(
+    firebaseIdToken: string,
+    legacySupabaseAccessToken: string,
+    confirmAccountLink: boolean,
+  ) {
+    if (confirmAccountLink !== true) {
+      throw new ConflictException({
+        code: 'ACCOUNT_LINK_CONFIRMATION_REQUIRED',
+        message: 'Explicit confirmation is required to migrate this account.',
+        accountLinkRequired: true,
+      });
+    }
+
+    const identity = await this.verifyFirebaseGoogleIdToken(firebaseIdToken);
+    const legacyToken = legacySupabaseAccessToken?.trim();
+
+    if (!legacyToken) {
+      throw new BadRequestException('Legacy account session is required');
+    }
+
+    const { data, error } = await this.supabaseService
+      .getClient()
+      .auth.getUser(legacyToken);
+    const legacyUser = data.user;
+
+    if (error || !legacyUser) {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'The existing Google account could not be verified',
+        code: 'LEGACY_GOOGLE_SESSION_INVALID',
+      });
+    }
+
+    const legacyGoogleIdentity = legacyUser.identities?.find(
+      (provider) => provider.provider === 'google',
+    );
+    const legacyGoogleSubject =
+      legacyGoogleIdentity?.identity_data?.sub?.toString().trim() ?? '';
+
+    if (
+      !legacyGoogleSubject ||
+      legacyGoogleSubject !== identity.googleSubject ||
+      legacyUser.email?.trim().toLowerCase() !== identity.email
+    ) {
+      throw new UnauthorizedException({
+        success: false,
+        message:
+          'Both sessions must prove ownership of the same Google identity',
+        code: 'GOOGLE_IDENTITY_OWNERSHIP_MISMATCH',
+      });
+    }
+
+    return this.userService.linkFirebaseGoogleIdentityToLegacyAccount(
+      identity.uid,
+      identity.email,
+      legacyUser.id,
+    );
+  }
+
+  async linkFirebaseGoogleToVerifiedPhone(
+    firebaseGoogleIdToken: string,
+    firebasePhoneIdToken: string,
+    confirmAccountLink: boolean,
+  ) {
+    if (confirmAccountLink !== true) {
+      throw new ConflictException({
+        code: 'ACCOUNT_LINK_CONFIRMATION_REQUIRED',
+        message: 'Explicit confirmation is required to link these accounts.',
+        accountLinkRequired: true,
+      });
+    }
+
+    const identity = await this.verifyFirebaseGoogleIdToken(
+      firebaseGoogleIdToken,
+    );
+
+    return this.userService.linkFirebaseGoogleIdentityToVerifiedPhone(
+      identity.uid,
+      identity.email,
+      firebasePhoneIdToken,
+    );
   }
   async loginWithEmail(email: string, password: string) {
     const normalizedEmail = email?.trim().toLowerCase();

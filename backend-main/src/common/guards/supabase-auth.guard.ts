@@ -134,20 +134,29 @@ export class SupabaseAuthGuard implements CanActivate {
           ? decoded.phone_number.trim()
           : '';
 
-      if (!firebaseUid || !phone || !phone.startsWith('+')) {
-        throw new Error('Firebase verified phone identity missing');
-      }
+      let result: Awaited<ReturnType<UserService['syncFirebasePhoneUser']>>;
+      let email: string | undefined;
 
-      /*
-       * This method already performs canonical identity resolution:
-       * existing phone -> existing user
-       * Firebase identity -> same user
-       * new phone -> new customer
-       */
-      const result = await this.userService.syncFirebasePhoneUser({
-        firebaseUid,
-        phone,
-      });
+      if (firebaseUid && phone.startsWith('+')) {
+        result = await this.userService.syncFirebasePhoneUser({
+          firebaseUid,
+          phone,
+        });
+      } else {
+        email =
+          typeof decoded.email === 'string'
+            ? decoded.email.trim().toLowerCase()
+            : '';
+
+        if (!firebaseUid || !email || decoded.email_verified !== true) {
+          throw new Error('Verified Firebase identity missing');
+        }
+
+        result = await this.userService.syncFirebaseEmailUser({
+          firebaseUid,
+          email,
+        });
+      }
 
       const canonicalSupabaseId = result.user.supabaseId?.trim();
 
@@ -159,7 +168,8 @@ export class SupabaseAuthGuard implements CanActivate {
         sub: canonicalSupabaseId,
         aud: 'authenticated',
         role: 'authenticated',
-        phone,
+        ...(phone.startsWith('+') ? { phone } : {}),
+        ...(email ? { email, email_verified: true } : {}),
         iss: `https://securetoken.google.com/${projectId}`,
         firebaseUid,
       };
@@ -169,7 +179,7 @@ export class SupabaseAuthGuard implements CanActivate {
       request.user = firebasePayload;
 
       this.logger.debug(
-        `Firebase phone authentication successful for canonical user ${result.user.id}`,
+        `Firebase authentication successful for canonical user ${result.user.id}`,
       );
 
       return true;

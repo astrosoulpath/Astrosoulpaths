@@ -745,9 +745,14 @@ export class UserService {
       include: authUserInclude,
     });
   }
-  async syncFirebaseEmailUser(data: { firebaseUid: string; email: string }) {
+  async syncFirebaseEmailUser(data: {
+    firebaseUid: string;
+    email: string;
+    identityType?: 'email' | 'google';
+  }) {
     const firebaseUid = data.firebaseUid?.trim();
     const email = data.email?.trim().toLowerCase();
+    const identityType = data.identityType ?? 'email';
 
     if (!firebaseUid || !email) {
       throw new BadRequestException(
@@ -767,6 +772,7 @@ export class UserService {
         id: true,
         userId: true,
         email: true,
+        identityType: true,
       },
     });
 
@@ -816,11 +822,19 @@ export class UserService {
       // Preserve the existing identity row and enrich it with email.
       if (
         !existingIdentity.email ||
-        existingIdentity.email.trim().toLowerCase() !== email
+        existingIdentity.email.trim().toLowerCase() !== email ||
+        (identityType === 'google' && existingIdentity.identityType === 'email')
       ) {
         await this.prisma.userAuthIdentity.update({
           where: { id: existingIdentity.id },
-          data: { email },
+          data: {
+            email,
+            identityType:
+              identityType === 'google' &&
+              existingIdentity.identityType === 'email'
+                ? 'google'
+                : existingIdentity.identityType,
+          },
         });
       }
 
@@ -841,10 +855,9 @@ export class UserService {
       };
     }
 
-    // No Firebase UID mapping yet.
-    // Reuse the existing ASP account with the SAME VERIFIED EMAIL.
-    // This is what makes Google login + Firebase email login
-    // open the same canonical dashboard/account.
+    // A matching email proves ownership of that email, not ownership of
+    // another authentication identity. Linking must happen in an explicit,
+    // authenticated flow that verifies both identities.
     let user = await this.prisma.user.findUnique({
       where: { email },
       include: authUserInclude,
@@ -854,6 +867,19 @@ export class UserService {
 
     if (user && (!user.isActive || user.isBlocked)) {
       throw new UnauthorizedException('This account is unavailable');
+    }
+
+    if (user) {
+      throw new ConflictException({
+        success: false,
+        message:
+          'An account already uses this email. Sign in to that account and verify both methods to link them securely.',
+        code:
+          identityType === 'google'
+            ? 'FIREBASE_GOOGLE_LINK_REQUIRED'
+            : 'FIREBASE_EMAIL_LINK_REQUIRED',
+        accountLinkRequired: true,
+      });
     }
 
     if (!user) {
@@ -879,24 +905,90 @@ export class UserService {
 
       const internalAuthId = `firebase:${firebaseUid}`;
 
-      user = await this.prisma.user.create({
-        data: {
-          supabaseId: internalAuthId,
-          phone: null,
-          email,
-          name: null,
-          roleId: role.id,
-          isProfileComplete: false,
-          freeChatGrantedAt: new Date(),
-          freeChatUsedAt: null,
-          freeChatMinutes: 1,
-          subscriptionPlanId: freePlan.id,
-          subscriptionStatus: 'FREE',
-        },
-        include: authUserInclude,
-      });
+      user = await this.prisma.$transaction(
+        async (tx) => {
+          const concurrentIdentity = await tx.userAuthIdentity.findUnique({
+            where: {
+              provider_providerUserId: {
+                provider: 'firebase',
+                providerUserId: firebaseUid,
+              },
+            },
+            select: { userId: true },
+          });
 
-      isNewUser = true;
+          if (concurrentIdentity) {
+            const linkedUser = await tx.user.findUnique({
+              where: { id: concurrentIdentity.userId },
+              include: authUserInclude,
+            });
+
+            if (linkedUser?.email?.trim().toLowerCase() !== email) {
+              throw new ConflictException(
+                'Firebase identity belongs to another customer',
+              );
+            }
+
+            isNewUser = false;
+            return linkedUser;
+          }
+
+          const currentEmailOwner = await tx.user.findUnique({
+            where: { email },
+            select: { id: true },
+          });
+
+          if (currentEmailOwner) {
+            throw new ConflictException({
+              success: false,
+              message:
+                'An account already uses this email. Sign in to that account and verify both methods to link them securely.',
+              code:
+                identityType === 'google'
+                  ? 'FIREBASE_GOOGLE_LINK_REQUIRED'
+                  : 'FIREBASE_EMAIL_LINK_REQUIRED',
+              accountLinkRequired: true,
+            });
+          }
+
+          const createdUser = await tx.user.create({
+            data: {
+              supabaseId: internalAuthId,
+              phone: null,
+              email,
+              name: null,
+              roleId: role.id,
+              isProfileComplete: false,
+              freeChatGrantedAt: new Date(),
+              freeChatUsedAt: null,
+              freeChatMinutes: 1,
+              subscriptionPlanId: freePlan.id,
+              subscriptionStatus: 'FREE',
+            },
+            include: authUserInclude,
+          });
+
+          await tx.userAuthIdentity.create({
+            data: {
+              userId: createdUser.id,
+              provider: 'firebase',
+              providerUserId: firebaseUid,
+              identityType,
+              email,
+              phone: null,
+              isPrimary: false,
+            },
+          });
+
+          isNewUser = true;
+          return createdUser;
+        },
+        {
+          isolationLevel: 'Serializable',
+          maxWait: 5000,
+          timeout: 15000,
+        },
+      );
     }
 
     const identityCheck = await this.prisma.userAuthIdentity.findUnique({
@@ -923,7 +1015,7 @@ export class UserService {
           userId: user.id,
           provider: 'firebase',
           providerUserId: firebaseUid,
-          identityType: 'email',
+          identityType,
           email,
           phone: null,
           isPrimary: false,
@@ -997,7 +1089,6 @@ export class UserService {
           'Firebase phone does not match the linked customer',
         );
       }
-
 
       if (!mappedPhone) {
         const phoneOwner = await this.prisma.user.findUnique({
@@ -1094,30 +1185,86 @@ export class UserService {
         );
       }
 
-      // Current User schema requires supabaseId.
-      // This is an internal canonical auth identifier.
-      const internalAuthId = `firebase:${firebaseUid}`;
+      user = await this.prisma.$transaction(
+        async (tx) => {
+          const concurrentIdentity = await tx.userAuthIdentity.findUnique({
+            where: {
+              provider_providerUserId: {
+                provider: 'firebase',
+                providerUserId: firebaseUid,
+              },
+            },
+            select: { userId: true },
+          });
 
-      user = await this.prisma.user.create({
-        data: {
-          supabaseId: internalAuthId,
-          phone,
-          email: null,
-          name: null,
-          roleId: role.id,
-          isProfileComplete: false,
+          if (concurrentIdentity) {
+            const linkedUser = await tx.user.findUnique({
+              where: { id: concurrentIdentity.userId },
+              include: authUserInclude,
+            });
 
-          freeChatGrantedAt: new Date(),
-          freeChatUsedAt: null,
-          freeChatMinutes: 1,
+            if (
+              !linkedUser ||
+              this.normalizePhoneIdentity(linkedUser.phone) !== phone
+            ) {
+              throw new ConflictException(
+                'Firebase identity belongs to another customer',
+              );
+            }
 
-          subscriptionPlanId: freePlan.id,
-          subscriptionStatus: 'FREE',
+            isNewUser = false;
+            return linkedUser;
+          }
+
+          const currentPhoneOwner = await tx.user.findUnique({
+            where: { phone },
+            include: authUserInclude,
+          });
+
+          const account =
+            currentPhoneOwner ??
+            (await tx.user.create({
+              data: {
+                supabaseId: `firebase:${firebaseUid}`,
+                phone,
+                email: null,
+                name: null,
+                roleId: role.id,
+                isProfileComplete: false,
+                freeChatGrantedAt: new Date(),
+                freeChatUsedAt: null,
+                freeChatMinutes: 1,
+                subscriptionPlanId: freePlan.id,
+                subscriptionStatus: 'FREE',
+              },
+              include: authUserInclude,
+            }));
+
+          if (!account.isActive || account.isBlocked) {
+            throw new UnauthorizedException('This account is unavailable');
+          }
+
+          await tx.userAuthIdentity.create({
+            data: {
+              userId: account.id,
+              provider: 'firebase',
+              providerUserId: firebaseUid,
+              identityType: 'phone',
+              phone,
+              email: null,
+              isPrimary: false,
+            },
+          });
+
+          isNewUser = currentPhoneOwner === null;
+          return account;
         },
-        include: authUserInclude,
-      });
-
-      isNewUser = true;
+        {
+          isolationLevel: 'Serializable',
+          maxWait: 5000,
+          timeout: 15000,
+        },
+      );
     }
 
     const identityCheck = await this.prisma.userAuthIdentity.findUnique({
@@ -1227,9 +1374,13 @@ export class UserService {
           : null;
 
         if (emailOwner || phoneOwner) {
-          throw new ConflictException(
-            'An account already uses these details. Verify ownership before linking.',
-          );
+          throw new ConflictException({
+            success: false,
+            message:
+              'These sign-in details may belong to an existing account. Verify both sign-in methods to link them securely.',
+            code: 'ACCOUNT_LINK_REQUIRED',
+            accountLinkRequired: true,
+          });
         }
       }
 
@@ -1329,7 +1480,9 @@ export class UserService {
               ? { email }
               : {}),
 
-            ...(fullName && !existingUser.name && !isExplicitlyMapped ? { name: fullName } : {}),
+            ...(fullName && !existingUser.name && !isExplicitlyMapped
+              ? { name: fullName }
+              : {}),
             isProfileComplete,
           },
           include: authUserInclude,
@@ -1688,18 +1841,311 @@ export class UserService {
     const phone = decoded.phone_number?.trim();
     const firebaseUid = decoded.uid?.trim();
 
-    if (!phone || !/^\+[1-9]\d{7,14}$/.test(phone) || !firebaseUid) {
+    if (
+      decoded.aud !== projectId ||
+      !phone ||
+      !/^\+[1-9]\d{7,14}$/.test(phone) ||
+      !firebaseUid
+    ) {
       throw new UnauthorizedException(
-        'Firebase verified phone identity is missing',
+        'Firebase verified phone identity is invalid',
       );
     }
 
     return { phone, firebaseUid };
   }
-  async inspectAccountLinkSafety(
-    supabaseId: string,
-    canonicalUserId?: string,
+  private async hasAccountLinkActivity(
+    tx: Prisma.TransactionClient,
+    userId: string,
+  ): Promise<boolean> {
+    const [
+      wallet,
+      subscriptions,
+      payments,
+      kundlis,
+      kundliOrders,
+      ledger,
+      chats,
+      calls,
+      marketplaceOrders,
+      conversations,
+      customerProfile,
+      kundliProfiles,
+    ] = await Promise.all([
+      tx.wallet.findUnique({
+        where: { userId },
+        select: {
+          balance: true,
+          paidBalance: true,
+          freeBalance: true,
+          lockedBalance: true,
+        },
+      }),
+      tx.subscription.count({
+        where: {
+          userId,
+          OR: [
+            { subscriptionStatus: { not: 'FREE' } },
+            { razorpaySubscriptionId: { not: null } },
+            { razorpayPaymentId: { not: null } },
+            { razorpayOrderId: { not: null } },
+            { amount: { gt: 0 } },
+          ],
+        },
+      }),
+      tx.paymentOrder.count({ where: { userId } }),
+      tx.kundliSavedRecord.count({ where: { customerUserId: userId } }),
+      tx.kundliOrder.count({ where: { userId } }),
+      tx.walletLedger.count({ where: { userId } }),
+      tx.chatMessage.count({ where: { senderId: userId } }),
+      tx.callSession.count({ where: { userId } }),
+      tx.marketplaceOrder.count({ where: { customerUserId: userId } }),
+      tx.aiAstroConversation.count({ where: { userId } }),
+      tx.userProfile.findUnique({
+        where: { userId },
+        select: { id: true },
+      }),
+      tx.profile.count({ where: { userId } }),
+    ]);
+
+    const walletHasValue = wallet
+      ? [
+          wallet.balance,
+          wallet.paidBalance,
+          wallet.freeBalance,
+          wallet.lockedBalance,
+        ].some((value) => !value.isZero())
+      : false;
+
+    return Boolean(
+      walletHasValue ||
+      subscriptions ||
+      payments ||
+      kundlis ||
+      kundliOrders ||
+      ledger ||
+      chats ||
+      calls ||
+      marketplaceOrders ||
+      conversations ||
+      customerProfile ||
+      kundliProfiles,
+    );
+  }
+  async linkFirebaseGoogleIdentityToLegacyAccount(
+    firebaseUid: string,
+    email: string,
+    legacySupabaseId: string,
   ) {
+    const normalizedFirebaseUid = firebaseUid?.trim();
+    const normalizedEmail = email?.trim().toLowerCase();
+    const canonicalUserId = await this.resolveCanonicalUserId(legacySupabaseId);
+
+    if (!normalizedFirebaseUid || !normalizedEmail || !canonicalUserId) {
+      throw new BadRequestException('Both authenticated accounts are required');
+    }
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        const [target, firebaseIdentity] = await Promise.all([
+          tx.user.findUnique({
+            where: { id: canonicalUserId },
+            select: {
+              id: true,
+              isActive: true,
+              isBlocked: true,
+              email: true,
+            },
+          }),
+          tx.userAuthIdentity.findUnique({
+            where: {
+              provider_providerUserId: {
+                provider: 'firebase',
+                providerUserId: normalizedFirebaseUid,
+              },
+            },
+            select: { id: true, userId: true },
+          }),
+        ]);
+
+        if (
+          !target ||
+          !target.isActive ||
+          target.isBlocked ||
+          (target.email &&
+            target.email.trim().toLowerCase() !== normalizedEmail)
+        ) {
+          throw new ConflictException({
+            code: 'FIREBASE_GOOGLE_LINK_MANUAL_REVIEW',
+            message: 'These sign-in methods require support review.',
+          });
+        }
+
+        if (firebaseIdentity && firebaseIdentity.userId !== target.id) {
+          if (await this.hasAccountLinkActivity(tx, firebaseIdentity.userId)) {
+            throw new ConflictException({
+              code: 'FIREBASE_GOOGLE_LINK_MANUAL_REVIEW',
+              message: 'These sign-in methods require support review.',
+            });
+          }
+
+          await tx.userAuthIdentity.update({
+            where: { id: firebaseIdentity.id },
+            data: {
+              userId: target.id,
+              email: normalizedEmail,
+              identityType: 'google',
+            },
+          });
+          return;
+        }
+
+        if (!firebaseIdentity) {
+          await tx.userAuthIdentity.create({
+            data: {
+              userId: target.id,
+              provider: 'firebase',
+              providerUserId: normalizedFirebaseUid,
+              identityType: 'google',
+              email: normalizedEmail,
+              isPrimary: false,
+            },
+          });
+        }
+      },
+      {
+        isolationLevel: 'Serializable',
+        maxWait: 5000,
+        timeout: 15000,
+      },
+    );
+
+    return {
+      success: true,
+      message: 'Firebase Google sign-in linked to the existing account.',
+      data: { accountLinked: true, canonicalUserId },
+    };
+  }
+  async linkFirebaseGoogleIdentityToVerifiedPhone(
+    firebaseUid: string,
+    email: string,
+    firebasePhoneToken: string,
+  ) {
+    const normalizedFirebaseUid = firebaseUid?.trim();
+    const normalizedEmail = email?.trim().toLowerCase();
+    const { phone } =
+      await this.verifyFirebaseProfilePhoneToken(firebasePhoneToken);
+
+    if (!normalizedFirebaseUid || !normalizedEmail) {
+      throw new BadRequestException('Verified Google identity is required');
+    }
+
+    const phoneOwner = await this.prisma.user.findUnique({
+      where: { phone },
+      select: {
+        id: true,
+        isActive: true,
+        isBlocked: true,
+        role: { select: { name: true } },
+      },
+    });
+
+    if (
+      !phoneOwner ||
+      !phoneOwner.isActive ||
+      phoneOwner.isBlocked ||
+      phoneOwner.role?.name !== 'CUSTOMER'
+    ) {
+      throw new ConflictException({
+        code: 'ACCOUNT_LINK_UNAVAILABLE',
+        message: 'These sign-in methods cannot be linked automatically.',
+      });
+    }
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        const [currentPhoneOwner, googleIdentity] = await Promise.all([
+          tx.user.findUnique({
+            where: { id: phoneOwner.id },
+            select: {
+              id: true,
+              phone: true,
+              isActive: true,
+              isBlocked: true,
+              role: { select: { name: true } },
+            },
+          }),
+          tx.userAuthIdentity.findUnique({
+            where: {
+              provider_providerUserId: {
+                provider: 'firebase',
+                providerUserId: normalizedFirebaseUid,
+              },
+            },
+            select: { id: true, userId: true },
+          }),
+        ]);
+
+        if (
+          !currentPhoneOwner ||
+          currentPhoneOwner.phone !== phone ||
+          !currentPhoneOwner.isActive ||
+          currentPhoneOwner.isBlocked ||
+          currentPhoneOwner.role?.name !== 'CUSTOMER'
+        ) {
+          throw new ConflictException({
+            code: 'ACCOUNT_LINK_UNAVAILABLE',
+            message: 'These sign-in methods cannot be linked automatically.',
+          });
+        }
+
+        if (googleIdentity && googleIdentity.userId !== currentPhoneOwner.id) {
+          if (await this.hasAccountLinkActivity(tx, googleIdentity.userId)) {
+            throw new ConflictException({
+              code: 'ACCOUNT_LINK_MANUAL_REVIEW',
+              message:
+                'The other account contains existing activity. Linking is blocked to protect its data.',
+            });
+          }
+
+          await tx.userAuthIdentity.update({
+            where: { id: googleIdentity.id },
+            data: {
+              userId: currentPhoneOwner.id,
+              email: normalizedEmail,
+              identityType: 'google',
+            },
+          });
+          return;
+        }
+
+        if (!googleIdentity) {
+          await tx.userAuthIdentity.create({
+            data: {
+              userId: currentPhoneOwner.id,
+              provider: 'firebase',
+              providerUserId: normalizedFirebaseUid,
+              identityType: 'google',
+              email: normalizedEmail,
+              isPrimary: false,
+            },
+          });
+        }
+      },
+      {
+        isolationLevel: 'Serializable',
+        maxWait: 5000,
+        timeout: 15000,
+      },
+    );
+
+    return {
+      success: true,
+      message: 'Firebase Google sign-in linked to the verified phone account.',
+      data: { accountLinked: true, canonicalUserId: phoneOwner.id, phone },
+    };
+  }
+  async inspectAccountLinkSafety(supabaseId: string, canonicalUserId?: string) {
     const user = canonicalUserId
       ? await this.prisma.user.findUnique({
           where: { id: canonicalUserId },
@@ -1721,6 +2167,8 @@ export class UserService {
       callSessions,
       marketplaceOrders,
       aiConversations,
+      customerProfile,
+      kundliProfiles,
     ] = await Promise.all([
       this.prisma.wallet.findUnique({
         where: { userId: user.id },
@@ -1767,6 +2215,11 @@ export class UserService {
       this.prisma.aiAstroConversation.count({
         where: { userId: user.id },
       }),
+      this.prisma.userProfile.findUnique({
+        where: { userId: user.id },
+        select: { id: true },
+      }),
+      this.prisma.profile.count({ where: { userId: user.id } }),
     ]);
 
     const hasWalletValue = wallet
@@ -1790,7 +2243,9 @@ export class UserService {
         chatMessages > 0 ||
         callSessions > 0 ||
         marketplaceOrders > 0 ||
-        aiConversations > 0,
+        aiConversations > 0 ||
+        customerProfile !== null ||
+        kundliProfiles > 0,
       checks: {
         hasWalletValue,
         subscriptions,
@@ -1802,7 +2257,561 @@ export class UserService {
         callSessions,
         marketplaceOrders,
         aiConversations,
+        hasCustomerProfile: customerProfile !== null,
+        kundliProfiles,
       },
+    };
+  }
+  async linkGoogleIdentityToVerifiedPhone(
+    googleAccessToken: string,
+    firebaseIdToken: string,
+    confirmAccountLink = false,
+  ) {
+    if (confirmAccountLink !== true) {
+      throw new ConflictException({
+        code: 'ACCOUNT_LINK_CONFIRMATION_REQUIRED',
+        message:
+          'Explicit confirmation is required to link these sign-in methods.',
+        accountLinkRequired: true,
+      });
+    }
+
+    if (process.env.ACCOUNT_LINKING_ENABLED !== 'true') {
+      throw new ConflictException({
+        code: 'ACCOUNT_LINK_TEMPORARILY_UNAVAILABLE',
+        message: 'Account linking is temporarily unavailable for safety.',
+      });
+    }
+
+    const normalizedGoogleToken = googleAccessToken?.trim();
+
+    if (!normalizedGoogleToken) {
+      throw new BadRequestException('Google authentication is required');
+    }
+
+    const { data: googleResult, error: googleError } =
+      await this.supabaseService
+        .getClient()
+        .auth.getUser(normalizedGoogleToken);
+
+    const googleUser = googleResult.user;
+
+    if (googleError || !googleUser) {
+      throw new UnauthorizedException(
+        'Google authentication could not be verified',
+      );
+    }
+
+    const appMetadata = googleUser.app_metadata as Record<string, unknown>;
+    const providers = Array.isArray(appMetadata.providers)
+      ? appMetadata.providers
+      : [];
+    const hasGoogleProvider =
+      appMetadata.provider === 'google' ||
+      providers.includes('google') ||
+      Boolean(
+        googleUser.identities?.some(
+          (identity) => identity.provider === 'google',
+        ),
+      );
+
+    if (!hasGoogleProvider) {
+      throw new UnauthorizedException('A verified Google identity is required');
+    }
+
+    const { phone, firebaseUid } =
+      await this.verifyFirebaseProfilePhoneToken(firebaseIdToken);
+
+    const phoneOwner = await this.prisma.user.findUnique({
+      where: { phone },
+      select: {
+        id: true,
+        phone: true,
+        isActive: true,
+        isBlocked: true,
+        role: { select: { name: true } },
+      },
+    });
+
+    if (
+      !phoneOwner ||
+      !phoneOwner.isActive ||
+      phoneOwner.isBlocked ||
+      phoneOwner.role?.name !== 'CUSTOMER'
+    ) {
+      throw new ConflictException({
+        code: 'ACCOUNT_LINK_UNAVAILABLE',
+        message: 'These sign-in methods cannot be linked automatically.',
+      });
+    }
+
+    const googleIdentity = await this.prisma.userAuthIdentity.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: 'supabase',
+          providerUserId: googleUser.id,
+        },
+      },
+      select: { id: true, userId: true },
+    });
+    const legacyGoogleUser = googleIdentity
+      ? null
+      : await this.prisma.user.findUnique({
+          where: { supabaseId: googleUser.id },
+          select: { id: true },
+        });
+    const secondaryUserId = googleIdentity?.userId ?? legacyGoogleUser?.id;
+
+    if (secondaryUserId && secondaryUserId !== phoneOwner.id) {
+      const safety = await this.inspectAccountLinkSafety(
+        googleUser.id,
+        secondaryUserId,
+      );
+
+      if (safety.requiresManualReview) {
+        throw new ConflictException({
+          code: 'ACCOUNT_LINK_MANUAL_REVIEW',
+          message:
+            'The other account contains existing activity. Linking is blocked to protect its data.',
+        });
+      }
+    }
+
+    const canonicalUserId = await this.prisma.$transaction(
+      async (tx) => {
+        const [
+          currentPhoneOwner,
+          currentGoogleIdentity,
+          currentFirebaseIdentity,
+        ] = await Promise.all([
+          tx.user.findUnique({
+            where: { id: phoneOwner.id },
+            select: {
+              id: true,
+              phone: true,
+              isActive: true,
+              isBlocked: true,
+              role: { select: { name: true } },
+            },
+          }),
+          tx.userAuthIdentity.findUnique({
+            where: {
+              provider_providerUserId: {
+                provider: 'supabase',
+                providerUserId: googleUser.id,
+              },
+            },
+            select: { id: true, userId: true },
+          }),
+          tx.userAuthIdentity.findUnique({
+            where: {
+              provider_providerUserId: {
+                provider: 'firebase',
+                providerUserId: firebaseUid,
+              },
+            },
+            select: { id: true, userId: true },
+          }),
+        ]);
+
+        if (
+          !currentPhoneOwner ||
+          currentPhoneOwner.phone !== phone ||
+          !currentPhoneOwner.isActive ||
+          currentPhoneOwner.isBlocked ||
+          currentPhoneOwner.role?.name !== 'CUSTOMER'
+        ) {
+          throw new ConflictException({
+            code: 'ACCOUNT_LINK_UNAVAILABLE',
+            message: 'These sign-in methods cannot be linked automatically.',
+          });
+        }
+
+        if (
+          currentFirebaseIdentity &&
+          currentFirebaseIdentity.userId !== currentPhoneOwner.id
+        ) {
+          throw new ConflictException({
+            code: 'ACCOUNT_LINK_IDENTITY_CONFLICT',
+            message: 'These sign-in methods cannot be linked automatically.',
+          });
+        }
+
+        if (
+          currentGoogleIdentity &&
+          currentGoogleIdentity.userId !== currentPhoneOwner.id &&
+          currentGoogleIdentity.userId !== secondaryUserId
+        ) {
+          throw new ConflictException({
+            code: 'ACCOUNT_LINK_IDENTITY_CONFLICT',
+            message: 'These sign-in methods cannot be linked automatically.',
+          });
+        }
+
+        if (secondaryUserId && secondaryUserId !== currentPhoneOwner.id) {
+          const [
+            wallet,
+            subscriptions,
+            payments,
+            kundlis,
+            kundliOrders,
+            ledger,
+            chats,
+            calls,
+            orders,
+            conversations,
+            customerProfile,
+            kundliProfiles,
+          ] = await Promise.all([
+            tx.wallet.findUnique({
+              where: { userId: secondaryUserId },
+              select: {
+                balance: true,
+                paidBalance: true,
+                freeBalance: true,
+                lockedBalance: true,
+              },
+            }),
+            tx.subscription.count({
+              where: {
+                userId: secondaryUserId,
+                OR: [
+                  { subscriptionStatus: { not: 'FREE' } },
+                  { razorpaySubscriptionId: { not: null } },
+                  { razorpayPaymentId: { not: null } },
+                  { razorpayOrderId: { not: null } },
+                  { amount: { gt: 0 } },
+                ],
+              },
+            }),
+            tx.paymentOrder.count({ where: { userId: secondaryUserId } }),
+            tx.kundliSavedRecord.count({
+              where: { customerUserId: secondaryUserId },
+            }),
+            tx.kundliOrder.count({ where: { userId: secondaryUserId } }),
+            tx.walletLedger.count({ where: { userId: secondaryUserId } }),
+            tx.chatMessage.count({ where: { senderId: secondaryUserId } }),
+            tx.callSession.count({ where: { userId: secondaryUserId } }),
+            tx.marketplaceOrder.count({
+              where: { customerUserId: secondaryUserId },
+            }),
+            tx.aiAstroConversation.count({
+              where: { userId: secondaryUserId },
+            }),
+            tx.userProfile.findUnique({
+              where: { userId: secondaryUserId },
+              select: { id: true },
+            }),
+            tx.profile.count({ where: { userId: secondaryUserId } }),
+          ]);
+          const hasWalletValue = wallet
+            ? [
+                wallet.balance,
+                wallet.paidBalance,
+                wallet.freeBalance,
+                wallet.lockedBalance,
+              ].some((value) => !value.isZero())
+            : false;
+
+          if (
+            hasWalletValue ||
+            subscriptions ||
+            payments ||
+            kundlis ||
+            kundliOrders ||
+            ledger ||
+            chats ||
+            calls ||
+            orders ||
+            conversations ||
+            customerProfile !== null ||
+            kundliProfiles
+          ) {
+            throw new ConflictException({
+              code: 'ACCOUNT_LINK_MANUAL_REVIEW',
+              message:
+                'The other account contains existing activity. Linking is blocked to protect its data.',
+            });
+          }
+        }
+
+        if (currentGoogleIdentity) {
+          await tx.userAuthIdentity.update({
+            where: { id: currentGoogleIdentity.id },
+            data: { userId: currentPhoneOwner.id },
+          });
+        } else {
+          await tx.userAuthIdentity.create({
+            data: {
+              userId: currentPhoneOwner.id,
+              provider: 'supabase',
+              providerUserId: googleUser.id,
+              identityType: 'google',
+              email: googleUser.email?.trim().toLowerCase() ?? null,
+              isPrimary: false,
+            },
+          });
+        }
+
+        if (!currentFirebaseIdentity) {
+          await tx.userAuthIdentity.create({
+            data: {
+              userId: currentPhoneOwner.id,
+              provider: 'firebase',
+              providerUserId: firebaseUid,
+              identityType: 'phone',
+              phone,
+              isPrimary: false,
+            },
+          });
+        }
+
+        return currentPhoneOwner.id;
+      },
+      {
+        isolationLevel: 'Serializable',
+        maxWait: 5000,
+        timeout: 15000,
+      },
+    );
+
+    return {
+      success: true,
+      message: 'Google sign-in linked to the verified phone account.',
+      data: { accountLinked: true, canonicalUserId, phone },
+    };
+  }
+  async linkFirebaseEmailToVerifiedPhone(
+    firebaseEmailToken: string,
+    firebasePhoneToken: string,
+    confirmAccountLink = false,
+  ) {
+    if (confirmAccountLink !== true) {
+      throw new ConflictException({
+        code: 'ACCOUNT_LINK_CONFIRMATION_REQUIRED',
+        message:
+          'Explicit confirmation is required to link these sign-in methods.',
+        accountLinkRequired: true,
+      });
+    }
+
+    if (process.env.ACCOUNT_LINKING_ENABLED !== 'true') {
+      throw new ConflictException({
+        code: 'ACCOUNT_LINK_TEMPORARILY_UNAVAILABLE',
+        message: 'Account linking is temporarily unavailable for safety.',
+      });
+    }
+
+    const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.trim();
+    const token = firebaseEmailToken?.trim();
+
+    if (!token) {
+      throw new BadRequestException('Firebase email token is required');
+    }
+
+    if (!projectId || !clientEmail || !privateKey) {
+      throw new InternalServerErrorException(
+        'Firebase Admin credentials are unavailable',
+      );
+    }
+
+    const app =
+      getApps().find(
+        (candidate) => candidate.options.projectId === projectId,
+      ) ??
+      initializeApp(
+        {
+          credential: cert({
+            projectId,
+            clientEmail,
+            privateKey: privateKey.replace(/\\n/g, '\n'),
+          }),
+          projectId,
+        },
+        `profile-phone-${projectId}`,
+      );
+
+    let decodedEmailToken;
+
+    try {
+      decodedEmailToken = await getAuth(app).verifyIdToken(token, true);
+    } catch {
+      throw new UnauthorizedException(
+        'Invalid Firebase email verification token',
+      );
+    }
+
+    const firebaseUid = decodedEmailToken.uid?.trim();
+    const email = decodedEmailToken.email?.trim().toLowerCase();
+
+    if (
+      !firebaseUid ||
+      !email ||
+      decodedEmailToken.email_verified !== true ||
+      decodedEmailToken.aud !== projectId
+    ) {
+      throw new UnauthorizedException(
+        'Verified Firebase email identity is missing',
+      );
+    }
+
+    const { phone, firebaseUid: phoneFirebaseUid } =
+      await this.verifyFirebaseProfilePhoneToken(firebasePhoneToken);
+    const phoneOwner = await this.prisma.user.findUnique({
+      where: { phone },
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        isActive: true,
+        isBlocked: true,
+        role: { select: { name: true } },
+      },
+    });
+
+    if (
+      !phoneOwner ||
+      !phoneOwner.isActive ||
+      phoneOwner.isBlocked ||
+      phoneOwner.role?.name !== 'CUSTOMER'
+    ) {
+      throw new ConflictException({
+        code: 'ACCOUNT_LINK_UNAVAILABLE',
+        message: 'These sign-in methods cannot be linked automatically.',
+      });
+    }
+
+    const [emailIdentity, emailOwner, phoneIdentity] = await Promise.all([
+      this.prisma.userAuthIdentity.findUnique({
+        where: {
+          provider_providerUserId: {
+            provider: 'firebase',
+            providerUserId: firebaseUid,
+          },
+        },
+        select: { id: true, userId: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      }),
+      this.prisma.userAuthIdentity.findUnique({
+        where: {
+          provider_providerUserId: {
+            provider: 'firebase',
+            providerUserId: phoneFirebaseUid,
+          },
+        },
+        select: { userId: true },
+      }),
+    ]);
+
+    if (
+      (emailIdentity && emailIdentity.userId !== phoneOwner.id) ||
+      (emailOwner && emailOwner.id !== phoneOwner.id) ||
+      (phoneIdentity && phoneIdentity.userId !== phoneOwner.id) ||
+      (phoneOwner.email && phoneOwner.email.trim().toLowerCase() !== email)
+    ) {
+      throw new ConflictException({
+        code: 'ACCOUNT_LINK_MANUAL_REVIEW',
+        message:
+          'These sign-in methods have conflicting account details. Contact support for review.',
+      });
+    }
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        const [currentPhoneOwner, currentEmailIdentity, currentPhoneIdentity] =
+          await Promise.all([
+            tx.user.findUnique({
+              where: { id: phoneOwner.id },
+              select: {
+                id: true,
+                phone: true,
+                email: true,
+                isActive: true,
+                isBlocked: true,
+                role: { select: { name: true } },
+              },
+            }),
+            tx.userAuthIdentity.findUnique({
+              where: {
+                provider_providerUserId: {
+                  provider: 'firebase',
+                  providerUserId: firebaseUid,
+                },
+              },
+              select: { id: true, userId: true },
+            }),
+            tx.userAuthIdentity.findUnique({
+              where: {
+                provider_providerUserId: {
+                  provider: 'firebase',
+                  providerUserId: phoneFirebaseUid,
+                },
+              },
+              select: { userId: true },
+            }),
+          ]);
+
+        if (
+          !currentPhoneOwner ||
+          currentPhoneOwner.phone !== phone ||
+          !currentPhoneOwner.isActive ||
+          currentPhoneOwner.isBlocked ||
+          currentPhoneOwner.role?.name !== 'CUSTOMER' ||
+          (currentPhoneOwner.email &&
+            currentPhoneOwner.email.trim().toLowerCase() !== email) ||
+          (currentEmailIdentity &&
+            currentEmailIdentity.userId !== currentPhoneOwner.id) ||
+          (currentPhoneIdentity &&
+            currentPhoneIdentity.userId !== currentPhoneOwner.id)
+        ) {
+          throw new ConflictException({
+            code: 'ACCOUNT_LINK_MANUAL_REVIEW',
+            message:
+              'These sign-in methods have conflicting account details. Contact support for review.',
+          });
+        }
+
+        if (currentEmailIdentity) {
+          await tx.userAuthIdentity.update({
+            where: { id: currentEmailIdentity.id },
+            data: { email, identityType: 'email' },
+          });
+        } else {
+          await tx.userAuthIdentity.create({
+            data: {
+              userId: currentPhoneOwner.id,
+              provider: 'firebase',
+              providerUserId: firebaseUid,
+              identityType: 'email',
+              email,
+              isPrimary: false,
+            },
+          });
+        }
+
+        if (!currentPhoneOwner.email) {
+          await tx.user.update({
+            where: { id: currentPhoneOwner.id },
+            data: { email },
+          });
+        }
+      },
+      {
+        isolationLevel: 'Serializable',
+        maxWait: 5000,
+        timeout: 15000,
+      },
+    );
+
+    return {
+      success: true,
+      message: 'Firebase email sign-in linked to the verified phone account.',
+      data: { accountLinked: true, canonicalUserId: phoneOwner.id },
     };
   }
   async linkFirebaseVerifiedProfilePhone(
@@ -1909,6 +2918,8 @@ export class UserService {
             calls,
             marketplace,
             conversations,
+            customerProfile,
+            kundliProfiles,
           ] = await Promise.all([
             tx.wallet.findUnique({
               where: { userId: canonicalUserId },
@@ -1945,6 +2956,11 @@ export class UserService {
             tx.aiAstroConversation.count({
               where: { userId: canonicalUserId },
             }),
+            tx.userProfile.findUnique({
+              where: { userId: canonicalUserId },
+              select: { id: true },
+            }),
+            tx.profile.count({ where: { userId: canonicalUserId } }),
           ]);
 
           const hasWalletValue = wallet
@@ -1966,7 +2982,9 @@ export class UserService {
             chats > 0 ||
             calls > 0 ||
             marketplace > 0 ||
-            conversations > 0
+            conversations > 0 ||
+            customerProfile !== null ||
+            kundliProfiles > 0
           ) {
             throw new ConflictException({
               code: 'ACCOUNT_LINK_MANUAL_REVIEW',
@@ -2068,7 +3086,8 @@ export class UserService {
           if (existingPhoneGoogleIdentity) {
             throw new ConflictException({
               code: 'ACCOUNT_LINK_IDENTITY_CONFLICT',
-              message: 'This phone account is already linked to another sign-in identity.',
+              message:
+                'This phone account is already linked to another sign-in identity.',
             });
           }
 

@@ -11,6 +11,12 @@ import { SendEmailOtpDto } from './dto/send-email-otp.dto';
 import { VerifyEmailOtpDto } from './dto/verify-email-otp.dto';
 import { EmailLoginDto } from './dto/email-login.dto';
 import { EmailSignupDto } from './dto/email-signup.dto';
+import { LinkGooglePhoneDto } from './dto/link-google-phone.dto';
+import { LinkFirebaseEmailPhoneDto } from './dto/link-firebase-email-phone.dto';
+import { FirebaseGoogleLoginDto } from './dto/firebase-google-login.dto';
+import { LinkFirebaseGoogleLegacyDto } from './dto/link-firebase-google-legacy.dto';
+import { LinkFirebaseGooglePhoneDto } from './dto/link-firebase-google-phone.dto';
+import { LinkFirebaseEmailGoogleDto } from './dto/link-firebase-email-google.dto';
 import { Public } from '../../common/decorators/public.decorator';
 
 @Public()
@@ -127,6 +133,65 @@ export class AuthController {
     return this.authService.loginWithGoogle(
       dto.accessToken,
       dto.portal ?? 'customer',
+    );
+  }
+  @Post('firebase/google')
+  async firebaseGoogleLogin(@Body() dto: FirebaseGoogleLoginDto) {
+    return this.authService.loginWithFirebaseGoogle(
+      dto.idToken,
+      dto.portal ?? 'customer',
+    );
+  }
+
+  @Post('link/firebase-email-google')
+  async linkFirebaseGoogleToEmailAccount(
+    @Body() dto: LinkFirebaseEmailGoogleDto,
+  ) {
+    return this.authService.linkFirebaseGoogleToEmailAccount(
+      dto.idToken,
+      dto.confirmAccountLink,
+    );
+  }
+
+  @Post('link/firebase-google-legacy')
+  async linkFirebaseGoogleToLegacyAccount(
+    @Body() dto: LinkFirebaseGoogleLegacyDto,
+  ) {
+    return this.authService.linkFirebaseGoogleToLegacyAccount(
+      dto.firebaseIdToken,
+      dto.legacySupabaseAccessToken,
+      dto.confirmAccountLink,
+    );
+  }
+
+  @Post('link/firebase-google-phone')
+  async linkFirebaseGoogleToVerifiedPhone(
+    @Body() dto: LinkFirebaseGooglePhoneDto,
+  ) {
+    return this.authService.linkFirebaseGoogleToVerifiedPhone(
+      dto.firebaseGoogleIdToken,
+      dto.firebasePhoneIdToken,
+      dto.confirmAccountLink,
+    );
+  }
+
+  @Post('link/google-phone')
+  async linkGoogleIdentityToVerifiedPhone(@Body() body: LinkGooglePhoneDto) {
+    return this.authService.linkGoogleIdentityToVerifiedPhone(
+      body.googleAccessToken,
+      body.firebaseIdToken,
+      body.confirmAccountLink === true,
+    );
+  }
+
+  @Post('link/firebase-email-phone')
+  async linkFirebaseEmailToVerifiedPhone(
+    @Body() body: LinkFirebaseEmailPhoneDto,
+  ) {
+    return this.authService.linkFirebaseEmailToVerifiedPhone(
+      body.firebaseEmailToken,
+      body.firebasePhoneToken,
+      body.confirmAccountLink === true,
     );
   }
 

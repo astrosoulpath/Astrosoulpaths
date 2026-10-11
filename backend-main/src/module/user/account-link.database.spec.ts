@@ -51,7 +51,25 @@ describe('Account linking - isolated PostgreSQL integration', () => {
     prisma = new PrismaClient();
     await prisma.$connect();
 
-    service = new UserService(prisma as any, {} as any);
+    const supabaseService = {
+      getClient: () => ({
+        auth: {
+          getUser: jest.fn().mockResolvedValue({
+            data: {
+              user: {
+                id: 'asp-test-google-supabase',
+                email: 'google-test@example.invalid',
+                app_metadata: { provider: 'google', providers: ['google'] },
+                identities: [],
+              },
+            },
+            error: null,
+          }),
+        },
+      }),
+    };
+
+    service = new UserService(prisma as any, supabaseService as any);
   });
 
   // ACCOUNT_LINK_TEST_FIXTURE_RESET_V1
@@ -261,6 +279,197 @@ describe('Account linking - isolated PostgreSQL integration', () => {
       expect(googleAccount.subscriptionStatus).toBe('FREE');
     } finally {
       verifySpy.mockRestore();
+    }
+  });
+
+  it('preserves canonical user and customer data when Google is added to an existing Firebase email UID', async () => {
+    const userId = 'asp-test-phone-user';
+    const firebaseUid = 'asp-test-email-google-same-uid';
+    const userBefore = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { id: true, email: true },
+    });
+    const [walletBefore, kundlisBefore, subscriptionsBefore, paymentsBefore] =
+      await Promise.all([
+        prisma.wallet.findUniqueOrThrow({ where: { userId } }),
+        prisma.kundliSavedRecord.count({ where: { customerUserId: userId } }),
+        prisma.subscription.count({ where: { userId } }),
+        prisma.paymentOrder.count({ where: { userId } }),
+      ]);
+
+    await prisma.userAuthIdentity.create({
+      data: {
+        userId,
+        provider: 'firebase',
+        providerUserId: firebaseUid,
+        identityType: 'email',
+        email: userBefore.email ?? 'asp-test-customer@example.invalid',
+        isPrimary: true,
+      },
+    });
+
+    const linkedEmail = userBefore.email ?? 'asp-test-customer@example.invalid';
+
+    try {
+      const result = await service.syncFirebaseEmailUser({
+        firebaseUid,
+        email: linkedEmail,
+        identityType: 'google',
+      });
+
+      expect(result.user.id).toBe(userId);
+
+      const [walletAfter, kundlisAfter, subscriptionsAfter, paymentsAfter] =
+        await Promise.all([
+          prisma.wallet.findUniqueOrThrow({ where: { userId } }),
+          prisma.kundliSavedRecord.count({ where: { customerUserId: userId } }),
+          prisma.subscription.count({ where: { userId } }),
+          prisma.paymentOrder.count({ where: { userId } }),
+        ]);
+
+      expect(walletAfter.balance.toString()).toBe(
+        walletBefore.balance.toString(),
+      );
+      expect(walletAfter.paidBalance.toString()).toBe(
+        walletBefore.paidBalance.toString(),
+      );
+      expect(kundlisAfter).toBe(kundlisBefore);
+      expect(subscriptionsAfter).toBe(subscriptionsBefore);
+      expect(paymentsAfter).toBe(paymentsBefore);
+
+      const identity = await prisma.userAuthIdentity.findUniqueOrThrow({
+        where: {
+          provider_providerUserId: {
+            provider: 'firebase',
+            providerUserId: firebaseUid,
+          },
+        },
+      });
+      expect(identity.userId).toBe(userId);
+      expect(identity.identityType).toBe('google');
+    } finally {
+      await prisma.userAuthIdentity.deleteMany({
+        where: { provider: 'firebase', providerUserId: firebaseUid },
+      });
+      await prisma.user.update({
+        where: { id: userId },
+        data: { email: userBefore.email },
+      });
+    }
+  });
+
+  it('links phone-first account to Google without moving customer assets', async () => {
+    const phoneUserId = 'asp-test-phone-user';
+    const googleUserId = 'asp-test-google-user';
+    const firebaseUid = 'asp-test-google-link-phone-identity';
+    const beforeWallet = await prisma.wallet.findUniqueOrThrow({
+      where: { userId: phoneUserId },
+    });
+
+    const verifySpy = jest
+      .spyOn(service, 'verifyFirebaseProfilePhoneToken')
+      .mockResolvedValue({
+        phone: '+919999999999',
+        firebaseUid,
+      });
+
+    try {
+      const result = await service.linkGoogleIdentityToVerifiedPhone(
+        'isolated-test-google-token',
+        'isolated-test-firebase-token',
+        true,
+      );
+
+      expect(result.data.canonicalUserId).toBe(phoneUserId);
+
+      const googleIdentity = await prisma.userAuthIdentity.findUniqueOrThrow({
+        where: {
+          provider_providerUserId: {
+            provider: 'supabase',
+            providerUserId: 'asp-test-google-supabase',
+          },
+        },
+      });
+      expect(googleIdentity.userId).toBe(phoneUserId);
+
+      const firebaseIdentity = await prisma.userAuthIdentity.findUniqueOrThrow({
+        where: {
+          provider_providerUserId: {
+            provider: 'firebase',
+            providerUserId: firebaseUid,
+          },
+        },
+      });
+      expect(firebaseIdentity.userId).toBe(phoneUserId);
+
+      const afterWallet = await prisma.wallet.findUniqueOrThrow({
+        where: { userId: phoneUserId },
+      });
+      expect(afterWallet.balance.toNumber()).toBe(
+        beforeWallet.balance.toNumber(),
+      );
+      expect(afterWallet.paidBalance.toNumber()).toBe(
+        beforeWallet.paidBalance.toNumber(),
+      );
+      expect(
+        await prisma.subscription.count({
+          where: { userId: phoneUserId, subscriptionStatus: 'ACTIVE' },
+        }),
+      ).toBe(1);
+      expect(
+        await prisma.kundliSavedRecord.count({
+          where: { customerUserId: phoneUserId },
+        }),
+      ).toBe(1);
+
+      const untouchedGoogleAccount = await prisma.user.findUniqueOrThrow({
+        where: { id: googleUserId },
+      });
+      expect(untouchedGoogleAccount.subscriptionStatus).toBe('FREE');
+    } finally {
+      verifySpy.mockRestore();
+      await prisma.userAuthIdentity.deleteMany({
+        where: { provider: 'firebase', providerUserId: firebaseUid },
+      });
+      await resetGoogleFixture();
+    }
+  });
+
+  it('does not duplicate a user or identity during simultaneous first phone logins', async () => {
+    const phone = '+919888881111';
+    const firebaseUid = 'asp-test-concurrent-first-phone-login';
+
+    try {
+      const results = await Promise.allSettled([
+        service.syncFirebasePhoneUser({ firebaseUid, phone }),
+        service.syncFirebasePhoneUser({ firebaseUid, phone }),
+      ]);
+
+      expect(results.some((result) => result.status === 'fulfilled')).toBe(
+        true,
+      );
+
+      const users = await prisma.user.findMany({
+        where: { phone },
+        select: { id: true },
+      });
+      expect(users).toHaveLength(1);
+
+      const identities = await prisma.userAuthIdentity.findMany({
+        where: { provider: 'firebase', providerUserId: firebaseUid },
+        select: { userId: true },
+      });
+      expect(identities).toHaveLength(1);
+      expect(identities[0].userId).toBe(users[0].id);
+    } finally {
+      const user = await prisma.user.findUnique({
+        where: { phone },
+        select: { id: true },
+      });
+
+      if (user) {
+        await prisma.user.delete({ where: { id: user.id } });
+      }
     }
   });
 });

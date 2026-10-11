@@ -17,6 +17,17 @@ describe('Account linking - real UserService', () => {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
     },
+    userAuthIdentity: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    userProfile: {
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
+    profile: {
+      count: jest.fn().mockResolvedValue(0),
+    },
   };
 
   const service = new UserService(prisma, {} as any);
@@ -25,22 +36,186 @@ describe('Account linking - real UserService', () => {
     jest.clearAllMocks();
   });
 
-  it('requires explicit confirmation before linking', async () => {
-    jest.spyOn(service, 'verifyFirebaseProfilePhoneToken')
-      .mockResolvedValue({
-        phone: '+919999999999',
-        firebaseUid: 'firebase-test-uid',
-      });
+  it('requires explicit linking when Firebase email matches another account', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'existing-google-user',
+      email: 'customer@example.com',
+      isActive: true,
+      isBlocked: false,
+    });
 
-    jest.spyOn(service as any, 'resolveCanonicalUserId')
+    await expect(
+      service.syncFirebaseEmailUser({
+        firebaseUid: 'new-firebase-uid',
+        email: 'customer@example.com',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'FIREBASE_EMAIL_LINK_REQUIRED',
+        accountLinkRequired: true,
+      },
+    });
+
+    expect(prisma.userAuthIdentity.create).not.toHaveBeenCalled();
+  });
+
+  it('does not attach Google by matching email alone', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'existing-email-password-user',
+      email: 'customer@example.com',
+      isActive: true,
+      isBlocked: false,
+    });
+
+    await expect(
+      service.syncFirebaseEmailUser({
+        firebaseUid: 'different-google-firebase-uid',
+        email: 'customer@example.com',
+        identityType: 'google',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'FIREBASE_GOOGLE_LINK_REQUIRED',
+        accountLinkRequired: true,
+      },
+    });
+
+    expect(prisma.userAuthIdentity.create).not.toHaveBeenCalled();
+  });
+
+  it('keeps the existing canonical user when Google is linked to its Firebase email UID', async () => {
+    const canonicalUser = {
+      id: 'canonical-email-customer-id',
+      email: 'customer@example.com',
+      isActive: true,
+      isBlocked: false,
+    };
+    prisma.userAuthIdentity.findUnique.mockResolvedValue({
+      id: 'firebase-email-identity',
+      userId: canonicalUser.id,
+      email: canonicalUser.email,
+      identityType: 'email',
+    });
+    prisma.user.findUnique.mockResolvedValue(canonicalUser);
+
+    const result = await service.syncFirebaseEmailUser({
+      firebaseUid: 'existing-email-uid',
+      email: 'customer@example.com',
+      identityType: 'google',
+    });
+
+    expect(result.user.id).toBe(canonicalUser.id);
+    expect(result.isNewUser).toBe(false);
+    expect(prisma.userAuthIdentity.update).toHaveBeenCalledWith({
+      where: { id: 'firebase-email-identity' },
+      data: { email: 'customer@example.com', identityType: 'google' },
+    });
+    expect(prisma.userAuthIdentity.create).not.toHaveBeenCalled();
+  });
+
+  it('preserves Firebase phone identity type when that UID also has Google linked', async () => {
+    const canonicalUser = {
+      id: 'canonical-phone-customer-id',
+      email: 'customer@example.com',
+      isActive: true,
+      isBlocked: false,
+    };
+    prisma.userAuthIdentity.findUnique.mockResolvedValue({
+      id: 'firebase-phone-identity',
+      userId: canonicalUser.id,
+      email: canonicalUser.email,
+      identityType: 'phone',
+    });
+    prisma.user.findUnique.mockResolvedValue(canonicalUser);
+
+    const result = await service.syncFirebaseEmailUser({
+      firebaseUid: 'existing-phone-google-uid',
+      email: 'customer@example.com',
+      identityType: 'google',
+    });
+
+    expect(result.user.id).toBe(canonicalUser.id);
+    expect(prisma.userAuthIdentity.update).not.toHaveBeenCalled();
+    expect(prisma.userAuthIdentity.create).not.toHaveBeenCalled();
+  });
+
+  it('requires consent before starting Google-to-phone linking', async () => {
+    await expect(
+      service.linkGoogleIdentityToVerifiedPhone('google-token', 'phone-token'),
+    ).rejects.toMatchObject({
+      response: { code: 'ACCOUNT_LINK_CONFIRMATION_REQUIRED' },
+    });
+  });
+
+  it('keeps Google-to-phone linking disabled unless explicitly enabled', async () => {
+    const previousFlag = process.env.ACCOUNT_LINKING_ENABLED;
+    delete process.env.ACCOUNT_LINKING_ENABLED;
+
+    try {
+      await expect(
+        service.linkGoogleIdentityToVerifiedPhone(
+          'google-token',
+          'phone-token',
+          true,
+        ),
+      ).rejects.toMatchObject({
+        response: { code: 'ACCOUNT_LINK_TEMPORARILY_UNAVAILABLE' },
+      });
+    } finally {
+      if (previousFlag === undefined) {
+        delete process.env.ACCOUNT_LINKING_ENABLED;
+      } else {
+        process.env.ACCOUNT_LINKING_ENABLED = previousFlag;
+      }
+    }
+  });
+
+  it('requires consent before starting Firebase email-to-phone linking', async () => {
+    await expect(
+      service.linkFirebaseEmailToVerifiedPhone('email-token', 'phone-token'),
+    ).rejects.toMatchObject({
+      response: { code: 'ACCOUNT_LINK_CONFIRMATION_REQUIRED' },
+    });
+  });
+
+  it('keeps Firebase email-to-phone linking disabled unless explicitly enabled', async () => {
+    const previousFlag = process.env.ACCOUNT_LINKING_ENABLED;
+    delete process.env.ACCOUNT_LINKING_ENABLED;
+
+    try {
+      await expect(
+        service.linkFirebaseEmailToVerifiedPhone(
+          'email-token',
+          'phone-token',
+          true,
+        ),
+      ).rejects.toMatchObject({
+        response: { code: 'ACCOUNT_LINK_TEMPORARILY_UNAVAILABLE' },
+      });
+    } finally {
+      if (previousFlag === undefined) {
+        delete process.env.ACCOUNT_LINKING_ENABLED;
+      } else {
+        process.env.ACCOUNT_LINKING_ENABLED = previousFlag;
+      }
+    }
+  });
+
+  it('requires explicit confirmation before linking', async () => {
+    jest.spyOn(service, 'verifyFirebaseProfilePhoneToken').mockResolvedValue({
+      phone: '+919999999999',
+      firebaseUid: 'firebase-test-uid',
+    });
+
+    jest
+      .spyOn(service as any, 'resolveCanonicalUserId')
       .mockResolvedValue('google-user-id');
 
-    jest.spyOn(service, 'inspectAccountLinkSafety')
-      .mockResolvedValue({
-        userId: 'google-user-id',
-        requiresManualReview: false,
-        checks: {} as any,
-      });
+    jest.spyOn(service, 'inspectAccountLinkSafety').mockResolvedValue({
+      userId: 'google-user-id',
+      requiresManualReview: false,
+      checks: {} as any,
+    });
 
     prisma.user.findFirst.mockResolvedValue({
       id: 'phone-user-id',
@@ -70,32 +245,31 @@ describe('Account linking - real UserService', () => {
 
   // ACCOUNT_LINK_ASSET_TEST_V1
   it('blocks linking when Google account has existing assets', async () => {
-    jest.spyOn(service, 'verifyFirebaseProfilePhoneToken')
-      .mockResolvedValue({
-        phone: '+919999999999',
-        firebaseUid: 'firebase-test-uid',
-      });
+    jest.spyOn(service, 'verifyFirebaseProfilePhoneToken').mockResolvedValue({
+      phone: '+919999999999',
+      firebaseUid: 'firebase-test-uid',
+    });
 
-    jest.spyOn(service as any, 'resolveCanonicalUserId')
+    jest
+      .spyOn(service as any, 'resolveCanonicalUserId')
       .mockResolvedValue('google-user-id');
 
-    jest.spyOn(service, 'inspectAccountLinkSafety')
-      .mockResolvedValue({
-        userId: 'google-user-id',
-        requiresManualReview: true,
-        checks: {
-          hasWalletValue: true,
-          subscriptions: 1,
-          paymentOrders: 1,
-          savedKundlis: 1,
-          kundliOrders: 0,
-          walletLedger: 1,
-          chatMessages: 0,
-          callSessions: 0,
-          marketplaceOrders: 0,
-          aiConversations: 0,
-        },
-      });
+    jest.spyOn(service, 'inspectAccountLinkSafety').mockResolvedValue({
+      userId: 'google-user-id',
+      requiresManualReview: true,
+      checks: {
+        hasWalletValue: true,
+        subscriptions: 1,
+        paymentOrders: 1,
+        savedKundlis: 1,
+        kundliOrders: 0,
+        walletLedger: 1,
+        chatMessages: 0,
+        callSessions: 0,
+        marketplaceOrders: 0,
+        aiConversations: 0,
+      },
+    });
 
     prisma.user.findFirst.mockResolvedValue({
       id: 'phone-user-id',
@@ -128,21 +302,20 @@ describe('Account linking - real UserService', () => {
     process.env.ACCOUNT_LINKING_ENABLED = 'true';
 
     try {
-      jest.spyOn(service, 'verifyFirebaseProfilePhoneToken')
-        .mockResolvedValue({
-          phone: '+919999999999',
-          firebaseUid: 'firebase-third-party-uid',
-        });
+      jest.spyOn(service, 'verifyFirebaseProfilePhoneToken').mockResolvedValue({
+        phone: '+919999999999',
+        firebaseUid: 'firebase-third-party-uid',
+      });
 
-      jest.spyOn(service as any, 'resolveCanonicalUserId')
+      jest
+        .spyOn(service as any, 'resolveCanonicalUserId')
         .mockResolvedValue('google-user-id');
 
-      jest.spyOn(service, 'inspectAccountLinkSafety')
-        .mockResolvedValue({
-          userId: 'google-user-id',
-          requiresManualReview: false,
-          checks: {} as any,
-        });
+      jest.spyOn(service, 'inspectAccountLinkSafety').mockResolvedValue({
+        userId: 'google-user-id',
+        requiresManualReview: false,
+        checks: {} as any,
+      });
 
       prisma.user.findFirst.mockResolvedValue({
         id: 'phone-user-id',
@@ -175,8 +348,11 @@ describe('Account linking - real UserService', () => {
         callSession: { count: jest.fn().mockResolvedValue(0) },
         marketplaceOrder: { count: jest.fn().mockResolvedValue(0) },
         aiAstroConversation: { count: jest.fn().mockResolvedValue(0) },
+        userProfile: { findUnique: jest.fn().mockResolvedValue(null) },
+        profile: { count: jest.fn().mockResolvedValue(0) },
         user: {
-          findUnique: jest.fn()
+          findUnique: jest
+            .fn()
             .mockResolvedValueOnce({
               id: 'phone-user-id',
               phone: '+919999999999',
@@ -194,7 +370,8 @@ describe('Account linking - real UserService', () => {
         },
         userAuthIdentity: {
           findFirst: jest.fn().mockResolvedValue(null),
-          findUnique: jest.fn()
+          findUnique: jest
+            .fn()
             .mockResolvedValueOnce({
               id: 'google-identity-id',
               userId: 'google-user-id',
@@ -243,21 +420,20 @@ describe('Account linking - real UserService', () => {
     process.env.ACCOUNT_LINKING_ENABLED = 'true';
 
     try {
-      jest.spyOn(service, 'verifyFirebaseProfilePhoneToken')
-        .mockResolvedValue({
-          phone: '+919999999999',
-          firebaseUid: 'firebase-phone-uid',
-        });
+      jest.spyOn(service, 'verifyFirebaseProfilePhoneToken').mockResolvedValue({
+        phone: '+919999999999',
+        firebaseUid: 'firebase-phone-uid',
+      });
 
-      jest.spyOn(service as any, 'resolveCanonicalUserId')
+      jest
+        .spyOn(service as any, 'resolveCanonicalUserId')
         .mockResolvedValue('google-user-id');
 
-      jest.spyOn(service, 'inspectAccountLinkSafety')
-        .mockResolvedValue({
-          userId: 'google-user-id',
-          requiresManualReview: false,
-          checks: {} as any,
-        });
+      jest.spyOn(service, 'inspectAccountLinkSafety').mockResolvedValue({
+        userId: 'google-user-id',
+        requiresManualReview: false,
+        checks: {} as any,
+      });
 
       prisma.user.findFirst.mockResolvedValue({
         id: 'phone-user-id',
@@ -290,8 +466,11 @@ describe('Account linking - real UserService', () => {
         callSession: { count: jest.fn().mockResolvedValue(0) },
         marketplaceOrder: { count: jest.fn().mockResolvedValue(0) },
         aiAstroConversation: { count: jest.fn().mockResolvedValue(0) },
+        userProfile: { findUnique: jest.fn().mockResolvedValue(null) },
+        profile: { count: jest.fn().mockResolvedValue(0) },
         user: {
-          findUnique: jest.fn()
+          findUnique: jest
+            .fn()
             .mockResolvedValueOnce({
               id: 'phone-user-id',
               phone: '+919999999999',
@@ -309,7 +488,8 @@ describe('Account linking - real UserService', () => {
           update: jest.fn(),
         },
         userAuthIdentity: {
-          findUnique: jest.fn()
+          findUnique: jest
+            .fn()
             .mockResolvedValueOnce({
               id: 'incoming-google-identity',
               userId: 'google-user-id',
@@ -366,21 +546,20 @@ describe('Account linking - real UserService', () => {
     process.env.ACCOUNT_LINKING_ENABLED = 'true';
 
     try {
-      jest.spyOn(service, 'verifyFirebaseProfilePhoneToken')
-        .mockResolvedValue({
-          phone: '+919999999999',
-          firebaseUid: 'firebase-phone-uid',
-        });
+      jest.spyOn(service, 'verifyFirebaseProfilePhoneToken').mockResolvedValue({
+        phone: '+919999999999',
+        firebaseUid: 'firebase-phone-uid',
+      });
 
-      jest.spyOn(service as any, 'resolveCanonicalUserId')
+      jest
+        .spyOn(service as any, 'resolveCanonicalUserId')
         .mockResolvedValue('google-user-id');
 
-      jest.spyOn(service, 'inspectAccountLinkSafety')
-        .mockResolvedValue({
-          userId: 'google-user-id',
-          requiresManualReview: false,
-          checks: {} as any,
-        });
+      jest.spyOn(service, 'inspectAccountLinkSafety').mockResolvedValue({
+        userId: 'google-user-id',
+        requiresManualReview: false,
+        checks: {} as any,
+      });
 
       prisma.user.findFirst.mockResolvedValue({
         id: 'phone-user-id',
@@ -414,8 +593,11 @@ describe('Account linking - real UserService', () => {
         callSession: { count: jest.fn().mockResolvedValue(0) },
         marketplaceOrder: { count: jest.fn().mockResolvedValue(0) },
         aiAstroConversation: { count: jest.fn().mockResolvedValue(0) },
+        userProfile: { findUnique: jest.fn().mockResolvedValue(null) },
+        profile: { count: jest.fn().mockResolvedValue(0) },
         user: {
-          findUnique: jest.fn()
+          findUnique: jest
+            .fn()
             .mockResolvedValueOnce({
               id: 'phone-user-id',
               phone: '+919999999999',
@@ -434,7 +616,8 @@ describe('Account linking - real UserService', () => {
         },
         userAuthIdentity: {
           findFirst: jest.fn().mockResolvedValue(null),
-          findUnique: jest.fn()
+          findUnique: jest
+            .fn()
             .mockResolvedValueOnce({
               id: 'google-identity-id',
               userId: 'google-user-id',
@@ -484,22 +667,23 @@ describe('Account linking - real UserService', () => {
         process.env.ACCOUNT_LINKING_ENABLED = previousFlag;
       }
     }
-  });  // PHONE_OWNER_CANONICAL_ASSET_LINK_TEST_V2
+  }); // PHONE_OWNER_CANONICAL_ASSET_LINK_TEST_V2
   it('preserves phone owner assets while linking Google identity', async () => {
     const previousFlag = process.env.ACCOUNT_LINKING_ENABLED;
     process.env.ACCOUNT_LINKING_ENABLED = 'true';
 
     try {
-      jest.spyOn(service, 'verifyFirebaseProfilePhoneToken')
-        .mockResolvedValue({
-          phone: '+919999999999',
-          firebaseUid: 'firebase-phone-uid',
-        });
+      jest.spyOn(service, 'verifyFirebaseProfilePhoneToken').mockResolvedValue({
+        phone: '+919999999999',
+        firebaseUid: 'firebase-phone-uid',
+      });
 
-      jest.spyOn(service as any, 'resolveCanonicalUserId')
+      jest
+        .spyOn(service as any, 'resolveCanonicalUserId')
         .mockResolvedValue('google-user-id');
 
-      const safety = jest.spyOn(service, 'inspectAccountLinkSafety')
+      const safety = jest
+        .spyOn(service, 'inspectAccountLinkSafety')
         .mockImplementation(async (_supabaseId, userId) => ({
           userId: userId ?? 'google-user-id',
           requiresManualReview: userId === 'phone-user-id',
@@ -538,8 +722,11 @@ describe('Account linking - real UserService', () => {
         callSession: { count: jest.fn().mockResolvedValue(0) },
         marketplaceOrder: { count: jest.fn().mockResolvedValue(0) },
         aiAstroConversation: { count: jest.fn().mockResolvedValue(0) },
+        userProfile: { findUnique: jest.fn().mockResolvedValue(null) },
+        profile: { count: jest.fn().mockResolvedValue(0) },
         user: {
-          findUnique: jest.fn()
+          findUnique: jest
+            .fn()
             .mockResolvedValueOnce({
               id: 'phone-user-id',
               phone: '+919999999999',
@@ -558,7 +745,8 @@ describe('Account linking - real UserService', () => {
         },
         userAuthIdentity: {
           findFirst: jest.fn().mockResolvedValue(null),
-          findUnique: jest.fn()
+          findUnique: jest
+            .fn()
             .mockResolvedValueOnce({
               id: 'google-identity-id',
               userId: 'google-user-id',
@@ -620,6 +808,8 @@ describe('Account linking - real UserService', () => {
       callSession: { count: jest.fn().mockResolvedValue(0) },
       marketplaceOrder: { count: jest.fn().mockResolvedValue(0) },
       aiAstroConversation: { count: jest.fn().mockResolvedValue(0) },
+      userProfile: { findUnique: jest.fn().mockResolvedValue(null) },
+      profile: { count: jest.fn().mockResolvedValue(0) },
     };
 
     const realService = new UserService(db, {} as any);
@@ -667,9 +857,7 @@ describe('Account linking - real UserService', () => {
 
     const realService = new UserService(db, {} as any);
 
-    const user = await realService.getUserWithRelations(
-      'google-supabase-id',
-    );
+    const user = await realService.getUserWithRelations('google-supabase-id');
 
     expect(user?.id).toBe('phone-user-id');
     expect(user?.supabaseId).toBe('phone-original-supabase-id');
@@ -697,46 +885,44 @@ describe('Account linking - real UserService', () => {
 
   // SYNC_USER_UNVERIFIED_IDENTITY_REGRESSION_V1
   describe('PHONE_OWNERSHIP_CONFLICT_REGRESSION_V1', () => {
-  it('rejects another account phone without changing Firebase metadata', async () => {
-    const db: any = {
-      userAuthIdentity: {
-        findUnique: jest.fn().mockResolvedValue({
-          userId: 'account-a',
-          identityType: 'phone',
-          phone: '+911111111111',
-        }),
-        update: jest.fn(),
-      },
-      user: {
-        findUnique: jest.fn()
-          .mockResolvedValueOnce({
-            id: 'account-a',
+    it('rejects another account phone without changing Firebase metadata', async () => {
+      const db: any = {
+        userAuthIdentity: {
+          findUnique: jest.fn().mockResolvedValue({
+            userId: 'account-a',
+            identityType: 'phone',
             phone: '+911111111111',
-            isActive: true,
-            isBlocked: false,
-          })
-          .mockResolvedValueOnce({
-            id: 'account-b',
-            phone: '+922222222222',
           }),
-        update: jest.fn(),
-      },
-    };
+          update: jest.fn(),
+        },
+        user: {
+          findUnique: jest
+            .fn()
+            .mockResolvedValueOnce({
+              id: 'account-a',
+              phone: '+911111111111',
+              isActive: true,
+              isBlocked: false,
+            })
+            .mockResolvedValueOnce({
+              id: 'account-b',
+              phone: '+922222222222',
+            }),
+          update: jest.fn(),
+        },
+      };
 
-    const service = new UserService(db, {} as any);
+      const service = new UserService(db, {} as any);
 
-    await expect(
-      service.syncFirebasePhoneUser(
-        'firebase-account-a',
-        '+922222222222',
-      ),
-    ).rejects.toThrow();
+      await expect(
+        service.syncFirebasePhoneUser('firebase-account-a', '+922222222222'),
+      ).rejects.toThrow();
 
-    expect(db.userAuthIdentity.update).not.toHaveBeenCalled();
-    expect(db.user.update).not.toHaveBeenCalled();
+      expect(db.userAuthIdentity.update).not.toHaveBeenCalled();
+      expect(db.user.update).not.toHaveBeenCalled();
+    });
   });
-});
-describe('syncUser unknown identity collision protection', () => {
+  describe('syncUser unknown identity collision protection', () => {
     const createSyncService = (ownerLookup: 'email' | 'phone') => {
       const db: any = {
         role: {
@@ -765,10 +951,7 @@ describe('syncUser unknown identity collision protection', () => {
               return Promise.resolve({ id: 'original-phone-account' });
             }
 
-            if (
-              ownerLookup === 'phone' &&
-              where.phone === '+919999999999'
-            ) {
+            if (ownerLookup === 'phone' && where.phone === '+919999999999') {
               return Promise.resolve({ id: 'original-phone-account' });
             }
 
@@ -792,9 +975,12 @@ describe('syncUser unknown identity collision protection', () => {
           supabaseId: 'unknown-google-supabase-id',
           email: 'owner@example.com',
         }),
-      ).rejects.toThrow(
-        'An account already uses these details. Verify ownership before linking.',
-      );
+      ).rejects.toMatchObject({
+        response: {
+          code: 'ACCOUNT_LINK_REQUIRED',
+          accountLinkRequired: true,
+        },
+      });
 
       expect(db.user.update).not.toHaveBeenCalled();
       expect(db.user.create).not.toHaveBeenCalled();
@@ -809,9 +995,12 @@ describe('syncUser unknown identity collision protection', () => {
           supabaseId: 'unknown-supabase-id',
           phone: '+919999999999',
         }),
-      ).rejects.toThrow(
-        'An account already uses these details. Verify ownership before linking.',
-      );
+      ).rejects.toMatchObject({
+        response: {
+          code: 'ACCOUNT_LINK_REQUIRED',
+          accountLinkRequired: true,
+        },
+      });
 
       expect(db.user.update).not.toHaveBeenCalled();
       expect(db.user.create).not.toHaveBeenCalled();

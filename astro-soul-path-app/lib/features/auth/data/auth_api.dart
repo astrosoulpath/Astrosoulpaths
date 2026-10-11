@@ -6,9 +6,10 @@ import '../../../core/config/api_config.dart';
 import 'auth_portal.dart';
 
 class AuthApiException implements Exception {
-  const AuthApiException(this.message);
+  const AuthApiException(this.message, {this.code});
 
   final String message;
+  final String? code;
 
   @override
   String toString() => message;
@@ -364,6 +365,163 @@ class AuthApi {
     );
   }
 
+  Future<VerifyOtpResult> firebaseGoogleLogin({
+    required String idToken,
+    required AuthPortal portal,
+  }) async {
+    final normalizedToken = idToken.trim();
+
+    if (normalizedToken.isEmpty) {
+      throw const AuthApiException('Firebase authentication token is missing.');
+    }
+
+    final body = await _post(
+      endpoint: '/auth/firebase/google',
+      payload: {'idToken': normalizedToken, 'portal': portal.name},
+      fallbackError: 'Firebase Google login failed.',
+    );
+
+    final user = _readMap(body['user']);
+    final role = body['role']?.toString() ?? user['role']?.toString() ?? '';
+    final responsePortal =
+        body['portal']?.toString() ?? user['portal']?.toString() ?? '';
+    final nextStep = body['nextStep']?.toString() ?? '';
+
+    if (role.isEmpty || responsePortal.isEmpty || nextStep.isEmpty) {
+      throw const AuthApiException(
+        'The server returned an incomplete Firebase Google login response.',
+      );
+    }
+
+    return VerifyOtpResult(
+      message: _readMessage(body, fallback: 'Google login successful.'),
+      portal: responsePortal,
+      role: role,
+      accessToken: normalizedToken,
+      user: user,
+      session: {
+        'accessToken': normalizedToken,
+        'refreshToken': '',
+        'expiresIn': 3600,
+        'tokenType': 'bearer',
+        'authProvider': 'firebase',
+      },
+      nextStep: nextStep,
+    );
+  }
+
+  Future<VerifyOtpResult> confirmFirebaseEmailGoogleLink({
+    required String idToken,
+    required bool confirmAccountLink,
+  }) async {
+    final normalizedToken = idToken.trim();
+
+    if (normalizedToken.isEmpty) {
+      throw const AuthApiException('Firebase authentication token is missing.');
+    }
+
+    final body = await _post(
+      endpoint: '/auth/link/firebase-email-google',
+      payload: {
+        'idToken': normalizedToken,
+        'confirmAccountLink': confirmAccountLink,
+      },
+      fallbackError: 'Unable to link Google to this email account.',
+    );
+
+    final user = _readMap(body['user']);
+    final role = body['role']?.toString() ?? user['role']?.toString() ?? '';
+    final portal =
+        body['portal']?.toString() ?? user['portal']?.toString() ?? '';
+    final nextStep = body['nextStep']?.toString() ?? '';
+
+    if (role.isEmpty || portal.isEmpty || nextStep.isEmpty) {
+      throw const AuthApiException(
+        'The server returned an incomplete account-link response.',
+      );
+    }
+
+    return VerifyOtpResult(
+      message: _readMessage(body, fallback: 'Google linked successfully.'),
+      portal: portal,
+      role: role,
+      accessToken: normalizedToken,
+      user: user,
+      session: {
+        'accessToken': normalizedToken,
+        'refreshToken': '',
+        'expiresIn': 3600,
+        'tokenType': 'bearer',
+        'authProvider': 'firebase',
+      },
+      nextStep: nextStep,
+    );
+  }
+
+  Future<Map<String, dynamic>> linkFirebaseGoogleToLegacyAccount({
+    required String firebaseIdToken,
+    required String legacySupabaseAccessToken,
+    required bool confirmAccountLink,
+  }) {
+    return _post(
+      endpoint: '/auth/link/firebase-google-legacy',
+      payload: {
+        'firebaseIdToken': firebaseIdToken.trim(),
+        'legacySupabaseAccessToken': legacySupabaseAccessToken.trim(),
+        'confirmAccountLink': confirmAccountLink,
+      },
+      fallbackError: 'Unable to migrate the existing Google account.',
+    );
+  }
+
+  Future<Map<String, dynamic>> linkFirebaseGoogleToPhone({
+    required String firebaseGoogleIdToken,
+    required String firebasePhoneIdToken,
+    required bool confirmAccountLink,
+  }) {
+    return _post(
+      endpoint: '/auth/link/firebase-google-phone',
+      payload: {
+        'firebaseGoogleIdToken': firebaseGoogleIdToken.trim(),
+        'firebasePhoneIdToken': firebasePhoneIdToken.trim(),
+        'confirmAccountLink': confirmAccountLink,
+      },
+      fallbackError: 'Unable to link the verified phone account.',
+    );
+  }
+
+  Future<Map<String, dynamic>> linkGoogleToVerifiedPhone({
+    required String googleAccessToken,
+    required String firebaseIdToken,
+    required bool confirmAccountLink,
+  }) {
+    return _post(
+      endpoint: '/auth/link/google-phone',
+      payload: {
+        'googleAccessToken': googleAccessToken.trim(),
+        'firebaseIdToken': firebaseIdToken.trim(),
+        'confirmAccountLink': confirmAccountLink,
+      },
+      fallbackError: 'Unable to link these sign-in methods.',
+    );
+  }
+
+  Future<Map<String, dynamic>> linkFirebaseEmailToVerifiedPhone({
+    required String firebaseEmailToken,
+    required String firebasePhoneToken,
+    required bool confirmAccountLink,
+  }) {
+    return _post(
+      endpoint: '/auth/link/firebase-email-phone',
+      payload: {
+        'firebaseEmailToken': firebaseEmailToken.trim(),
+        'firebasePhoneToken': firebasePhoneToken.trim(),
+        'confirmAccountLink': confirmAccountLink,
+      },
+      fallbackError: 'Unable to link these sign-in methods.',
+    );
+  }
+
   Future<Map<String, dynamic>> _post({
     required String endpoint,
     required Map<String, dynamic> payload,
@@ -386,7 +544,10 @@ class AuthApi {
       if (response.statusCode < 200 ||
           response.statusCode >= 300 ||
           body['success'] != true) {
-        throw AuthApiException(_readMessage(body, fallback: fallbackError));
+        throw AuthApiException(
+          _readMessage(body, fallback: fallbackError),
+          code: _readCode(body),
+        );
       }
 
       return body;
@@ -457,6 +618,26 @@ class AuthApi {
     }
 
     return fallback;
+  }
+
+  String? _readCode(Map<String, dynamic> body) {
+    final directCode = body['code'];
+
+    if (directCode is String && directCode.trim().isNotEmpty) {
+      return directCode.trim();
+    }
+
+    final response = body['response'];
+
+    if (response is Map) {
+      final code = response['code'];
+
+      if (code is String && code.trim().isNotEmpty) {
+        return code.trim();
+      }
+    }
+
+    return null;
   }
 
   void close() {

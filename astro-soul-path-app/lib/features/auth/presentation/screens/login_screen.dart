@@ -619,6 +619,23 @@ class _LoginScreenState extends State<LoginScreen> {
             backgroundColor: Colors.red.shade700,
           ),
         );
+    } on FirebaseException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      final message = error.code == 'too-many-requests'
+          ? 'Too many verification attempts. Wait before requesting another code.'
+          : 'Unable to send a verification code. Please try again.';
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
     } finally {
       if (mounted) {
         setState(() {
@@ -738,6 +755,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (credentials == null || !mounted) return;
 
+    String? firebaseEmailToken;
+
     try {
       final firebaseCredential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(
@@ -778,8 +797,10 @@ class _LoginScreenState extends State<LoginScreen> {
         throw const AuthApiException('Firebase did not return an ID token.');
       }
 
-      final verifyResult = await _authApi.firebaseEmailLogin(
-        idToken: idToken.trim(),
+      firebaseEmailToken = idToken.trim();
+
+      var verifyResult = await _authApi.firebaseEmailLogin(
+        idToken: firebaseEmailToken,
       );
 
       if (!mounted) return;
@@ -789,6 +810,48 @@ class _LoginScreenState extends State<LoginScreen> {
         throw const AuthApiException(
           'This account is not authorized for customer login.',
         );
+      }
+
+      final hasGoogleProvider = firebaseUser.providerData.any(
+        (provider) => provider.providerId == 'google.com',
+      );
+      final shouldLinkGoogle = hasGoogleProvider
+          ? false
+          : await _confirmEmailGoogleLink();
+
+      if (shouldLinkGoogle && mounted) {
+        try {
+          final linkedGoogle = await GoogleAuthService.instance
+              .linkGoogleToCurrentEmailAccount();
+          verifyResult = await _authApi.confirmFirebaseEmailGoogleLink(
+            idToken: linkedGoogle.firebaseIdToken,
+            confirmAccountLink: true,
+          );
+        } on GoogleAuthCancelledException {
+          // Keep the verified Email/Password session and continue sign-in.
+        } on GoogleAuthException catch (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(error.message),
+                  backgroundColor: Colors.red,
+                ),
+              );
+          }
+        } on AuthApiException catch (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(error.message),
+                  backgroundColor: Colors.red,
+                ),
+              );
+          }
+        }
       }
 
       await _sessionStore.save(verifyResult);
@@ -815,6 +878,40 @@ class _LoginScreenState extends State<LoginScreen> {
     } on AuthApiException catch (error) {
       if (!mounted) return;
 
+      if (error.code == 'FIREBASE_EMAIL_LINK_REQUIRED' &&
+          firebaseEmailToken != null) {
+        try {
+          await _linkFirebaseEmailWithVerifiedPhone(firebaseEmailToken);
+        } on AuthApiException catch (linkError) {
+          if (mounted) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(linkError.message),
+                  backgroundColor: Colors.red,
+                ),
+              );
+          }
+        } on FirebaseException catch (linkError) {
+          if (mounted) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(
+                    linkError.code == 'too-many-requests'
+                        ? 'Too many verification attempts. Wait before trying again.'
+                        : 'Phone verification failed. Please try again.',
+                  ),
+                  backgroundColor: Colors.red,
+                ),
+              );
+          }
+        }
+        return;
+      }
+
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -829,6 +926,361 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<bool> _confirmEmailGoogleLink() async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text('Link Google sign-in?'),
+            content: const Text(
+              'Google will be added to this verified email account. Both methods will continue to use the same Astro Soul Path account and its data.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Not now'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Link Google'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<String?> _verifyPhoneForGoogleLink({
+    String linkedProvider = 'Google',
+    bool useIsolatedFirebaseAuth = false,
+  }) async {
+    final consent = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Link sign-in methods?'),
+        content: const Text(
+          'Verify the phone account you already use. Both sign-in methods will then open that same account. Wallet funds and customer data will not be moved.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+
+    if (consent != true || !mounted) {
+      return null;
+    }
+
+    final phoneController = TextEditingController();
+    final phone = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Verify your phone account'),
+        content: TextField(
+          controller: phoneController,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(
+            labelText: 'Phone number with country code',
+            hintText: '+919876543210',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = phoneController.text.trim();
+              if (!RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(value)) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Enter a valid number with country code.'),
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Send code'),
+          ),
+        ],
+      ),
+    );
+    phoneController.dispose();
+
+    if (phone == null || !mounted) {
+      return null;
+    }
+
+    final FirebasePhoneCode code;
+    try {
+      code = useIsolatedFirebaseAuth
+          ? await FirebasePhoneAuthService.instance.sendProfileCode(
+              phone: phone,
+            )
+          : await FirebasePhoneAuthService.instance.sendCode(phone: phone);
+    } on FirebaseException catch (error) {
+      final message = error.code == 'too-many-requests'
+          ? 'Too many verification attempts. Wait before trying again.'
+          : 'Unable to send a verification code. Please try again.';
+      throw AuthApiException(message, code: error.code);
+    }
+
+    if (!mounted) {
+      return null;
+    }
+
+    final otpController = TextEditingController();
+    final token = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        var verifying = false;
+        String? errorMessage;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text('Enter verification code'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '$linkedProvider will use this verified phone account. Code sent to ${phone.replaceAll(RegExp(r'(?<=.{4}).(?=.{2})'), '*')}',
+                ),
+                TextField(
+                  controller: otpController,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  decoration: InputDecoration(
+                    labelText: 'SMS code',
+                    errorText: errorMessage,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: verifying
+                    ? null
+                    : () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: verifying
+                    ? null
+                    : () async {
+                        setDialogState(() {
+                          verifying = true;
+                          errorMessage = null;
+                        });
+                        try {
+                          final verifiedToken = useIsolatedFirebaseAuth
+                              ? await FirebasePhoneAuthService.instance
+                                    .verifyProfilePhoneCode(
+                                      verificationId: code.verificationId,
+                                      smsCode: otpController.text.trim(),
+                                    )
+                              : await FirebasePhoneAuthService.instance
+                                    .verifyCode(
+                                      verificationId: code.verificationId,
+                                      smsCode: otpController.text.trim(),
+                                    );
+                          if (dialogContext.mounted) {
+                            Navigator.pop(dialogContext, verifiedToken);
+                          }
+                        } on FirebaseException catch (error) {
+                          setDialogState(() {
+                            verifying = false;
+                            errorMessage = error.code == 'too-many-requests'
+                                ? 'Too many attempts. Wait before trying again.'
+                                : 'The code could not be verified. Check it and retry.';
+                          });
+                        }
+                      },
+                child: verifying
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Verify'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    otpController.dispose();
+    return token;
+  }
+
+  Future<void> _linkGoogleWithVerifiedPhone(
+    GoogleAuthResult googleResult,
+  ) async {
+    final firebaseIdToken = await _verifyPhoneForGoogleLink(
+      linkedProvider: 'Google sign-in',
+      useIsolatedFirebaseAuth: true,
+    );
+
+    if (firebaseIdToken == null || !mounted) {
+      return;
+    }
+
+    await _authApi.linkFirebaseGoogleToPhone(
+      firebaseGoogleIdToken: googleResult.firebaseIdToken,
+      firebasePhoneIdToken: firebaseIdToken,
+      confirmAccountLink: true,
+    );
+
+    final result = await _authApi.firebaseGoogleLogin(
+      idToken: googleResult.firebaseIdToken,
+      portal: AuthPortal.customer,
+    );
+
+    await _sessionStore.save(result);
+
+    if (mounted) {
+      await _openCustomerHomeWithFreeChat(result);
+    }
+  }
+
+  Future<bool> _confirmLegacyGoogleMigration() async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text('Migrate your Google sign-in?'),
+            content: const Text(
+              'Your existing Astro Soul Path Google account uses our earlier sign-in system. Verify the same Google identity in both systems to keep your existing account and data. No customer data will be moved.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Verify and migrate'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _migrateLegacyGoogleAccount(
+    GoogleAuthResult googleResult,
+  ) async {
+    if (!await _confirmLegacyGoogleMigration() || !mounted) {
+      return;
+    }
+
+    final legacySession = await GoogleAuthService.instance
+        .signInToLegacySupabase(
+          googleIdToken: googleResult.googleIdToken,
+          googleAccessToken: googleResult.googleAccessToken,
+        );
+    final legacyAccessToken = legacySession?.accessToken.trim() ?? '';
+
+    if (legacyAccessToken.isEmpty) {
+      throw const AuthApiException(
+        'The existing Google account could not be verified.',
+      );
+    }
+
+    await _authApi.linkFirebaseGoogleToLegacyAccount(
+      firebaseIdToken: googleResult.firebaseIdToken,
+      legacySupabaseAccessToken: legacyAccessToken,
+      confirmAccountLink: true,
+    );
+
+    final result = await _authApi.firebaseGoogleLogin(
+      idToken: googleResult.firebaseIdToken,
+      portal: widget.portal,
+    );
+
+    await _sessionStore.save(result);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (widget.portal == AuthPortal.customer) {
+      await _openCustomerHomeWithFreeChat(result);
+    } else {
+      _showGooglePortalResult(result);
+    }
+  }
+
+  void _showGooglePortalResult(VerifyOtpResult result) {
+    if (result.portal == 'astrologer' &&
+        result.nextStep == 'OPEN_ASTROLOGER_DASHBOARD') {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(
+          builder: (_) => const AstrologerDashboardScreen(),
+        ),
+        (route) => false,
+      );
+      return;
+    }
+
+    if (result.nextStep == 'WAIT_FOR_ADMIN_APPROVAL') {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              AstrologerPendingApprovalScreen(message: result.message),
+        ),
+        (route) => false,
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text(result.message)));
+  }
+
+  Future<void> _linkFirebaseEmailWithVerifiedPhone(
+    String firebaseEmailToken,
+  ) async {
+    final firebasePhoneToken = await _verifyPhoneForGoogleLink(
+      linkedProvider: 'Email sign-in',
+      useIsolatedFirebaseAuth: true,
+    );
+
+    if (firebasePhoneToken == null || !mounted) {
+      return;
+    }
+
+    await _authApi.linkFirebaseEmailToVerifiedPhone(
+      firebaseEmailToken: firebaseEmailToken,
+      firebasePhoneToken: firebasePhoneToken,
+      confirmAccountLink: true,
+    );
+
+    final result = await _authApi.firebaseEmailLogin(
+      idToken: firebaseEmailToken,
+    );
+
+    await _sessionStore.save(result);
+
+    if (mounted) {
+      await _openCustomerHomeWithFreeChat(result);
+    }
+  }
+
   Future<void> _continueWithGoogle() async {
     FocusScope.of(context).unfocus();
 
@@ -840,16 +1292,47 @@ class _LoginScreenState extends State<LoginScreen> {
       _isSendingOtp = true;
     });
 
-    try {
-      final googleResult = await GoogleAuthService.instance.signIn();
-      final supabaseSession = googleResult.session;
+    GoogleAuthResult? googleResult;
 
-      final verifyResult = await _authApi.googleLogin(
-        accessToken: supabaseSession.accessToken,
-        refreshToken: supabaseSession.refreshToken ?? '',
-        expiresIn: supabaseSession.expiresIn ?? 0,
+    try {
+      googleResult = await GoogleAuthService.instance.signIn();
+      var verifyResult = await _authApi.firebaseGoogleLogin(
+        idToken: googleResult.firebaseIdToken,
         portal: widget.portal,
       );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (widget.portal == AuthPortal.customer &&
+          verifyResult.user['isNewUser'] == true) {
+        final shouldLinkPhone = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text('Already have an account?'),
+            content: const Text(
+              'Verify the phone number on your existing account to use it with Google. You can also continue with a separate Google account.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Continue with Google'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Link phone account'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldLinkPhone == true) {
+          await _linkGoogleWithVerifiedPhone(googleResult);
+          return;
+        }
+      }
 
       await _sessionStore.save(verifyResult);
 
@@ -1008,6 +1491,41 @@ class _LoginScreenState extends State<LoginScreen> {
         );
     } on AuthApiException catch (error) {
       if (!mounted) {
+        return;
+      }
+
+      if (error.code == 'FIREBASE_GOOGLE_LINK_REQUIRED' &&
+          widget.portal == AuthPortal.customer &&
+          googleResult != null) {
+        try {
+          await _migrateLegacyGoogleAccount(googleResult);
+        } on AuthApiException catch (linkError) {
+          if (mounted) {
+            ScaffoldMessenger.of(context)
+              ..clearSnackBars()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(linkError.message),
+                  backgroundColor: Colors.red.shade700,
+                ),
+              );
+          }
+        } on FirebaseException catch (linkError) {
+          if (mounted) {
+            ScaffoldMessenger.of(context)
+              ..clearSnackBars()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(
+                    linkError.code == 'too-many-requests'
+                        ? 'Too many verification attempts. Wait before trying again.'
+                        : 'Phone verification failed. Please try again.',
+                  ),
+                  backgroundColor: Colors.red.shade700,
+                ),
+              );
+          }
+        }
         return;
       }
 
