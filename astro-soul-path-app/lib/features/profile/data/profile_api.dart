@@ -7,10 +7,15 @@ import '../../auth/data/auth_session_store.dart';
 import 'customer_profile.dart';
 
 class ProfileApiException implements Exception {
-  const ProfileApiException(this.message, {this.loginRequired = false});
+  const ProfileApiException(
+    this.message, {
+    this.loginRequired = false,
+    this.code,
+  });
 
   final String message;
   final bool loginRequired;
+  final String? code;
 
   @override
   String toString() => message;
@@ -383,7 +388,15 @@ class ProfileApi {
       if (response.statusCode < 200 ||
           response.statusCode >= 300 ||
           body['success'] != true) {
-        throw ProfileApiException(_readMessage(body, fallback: fallbackError));
+        throw ProfileApiException(
+          _readMessage(body, fallback: fallbackError),
+          code:
+              (body['code'] ??
+                      (body['response'] is Map
+                          ? (body['response'] as Map)['code']
+                          : null))
+                  ?.toString(),
+        );
       }
 
       return body;

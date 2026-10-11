@@ -379,9 +379,7 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                 }
               } on ProfileApiException catch (error) {
                 if (dialogContext.mounted) {
-                  if (error.message.contains(
-                    'Account linking requires explicit confirmation',
-                  )) {
+                  if (error.code == 'PHONE_ACCOUNT_LINK_REQUIRED') {
                     await showDialog<void>(
                       context: dialogContext,
                       builder: (context) => AlertDialog(

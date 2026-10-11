@@ -344,6 +344,7 @@ describe('Account linking - real UserService', () => {
           userId: 'phone-user-id',
           provider: 'supabase',
           providerUserId: { not: 'google-supabase-id' },
+          identityType: { not: 'phone' },
         },
         select: { id: true },
       });

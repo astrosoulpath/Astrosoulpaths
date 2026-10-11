@@ -2060,6 +2060,7 @@ export class UserService {
                 userId: phoneOwner.id,
                 provider: 'supabase',
                 providerUserId: { not: supabaseId },
+                identityType: { not: 'phone' },
               },
               select: { id: true },
             });
