@@ -54,8 +54,60 @@ describe('Account linking - isolated PostgreSQL integration', () => {
     service = new UserService(prisma as any, {} as any);
   });
 
+  // ACCOUNT_LINK_TEST_FIXTURE_RESET_V1
+  // Only isolated test database fixtures may be modified.
+  const resetGoogleFixture = async () => {
+    const url = new URL(process.env.DATABASE_URL ?? '');
+
+    if (
+      url.hostname !== '127.0.0.1' ||
+      url.port !== '55432' ||
+      url.pathname !== '/asp_account_link_test' ||
+      url.username !== 'asp_test'
+    ) {
+      throw new Error('Fixture reset blocked: unsafe database');
+    }
+
+    const identity = await prisma.userAuthIdentity.findUniqueOrThrow({
+      where: {
+        provider_providerUserId: {
+          provider: 'supabase',
+          providerUserId: 'asp-test-google-supabase',
+        },
+      },
+    });
+
+    if (
+      identity.userId !== 'asp-test-google-user' &&
+      identity.userId !== 'asp-test-phone-user'
+    ) {
+      throw new Error('Fixture reset blocked: unexpected account owner');
+    }
+
+    await prisma.userAuthIdentity.update({
+      where: {
+        provider_providerUserId: {
+          provider: 'supabase',
+          providerUserId: 'asp-test-google-supabase',
+        },
+      },
+      data: {
+        userId: 'asp-test-google-user',
+      },
+    });
+  };
+
+  beforeEach(async () => {
+    await resetGoogleFixture();
+  });
   afterAll(async () => {
-    await prisma?.$disconnect();
+    try {
+      if (prisma) {
+        await resetGoogleFixture();
+      }
+    } finally {
+      await prisma?.$disconnect();
+    }
   });
 
   it('preserves phone account INR 500 wallet', async () => {

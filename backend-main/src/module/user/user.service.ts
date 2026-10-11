@@ -998,6 +998,7 @@ export class UserService {
         );
       }
 
+
       if (!mappedPhone) {
         const phoneOwner = await this.prisma.user.findUnique({
           where: { phone },
@@ -1016,11 +1017,40 @@ export class UserService {
           include: authUserInclude,
         });
 
+        // Repair Firebase metadata only after verified phone ownership.
+        await this.prisma.userAuthIdentity.update({
+          where: {
+            provider_providerUserId: {
+              provider: 'firebase',
+              providerUserId: firebaseUid,
+            },
+          },
+          data: {
+            identityType: 'phone',
+            phone,
+          },
+        });
+
         return {
           user: updatedUser,
           isNewUser: false,
         };
       }
+
+      // Repair verified Firebase phone metadata for the canonical account.
+      // This method must only receive a server-verified Firebase phone.
+      await this.prisma.userAuthIdentity.update({
+        where: {
+          provider_providerUserId: {
+            provider: 'firebase',
+            providerUserId: firebaseUid,
+          },
+        },
+        data: {
+          identityType: 'phone',
+          phone,
+        },
+      });
 
       return {
         user: mappedUser,

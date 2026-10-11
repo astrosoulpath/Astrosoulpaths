@@ -570,7 +570,47 @@ describe('Account linking - real UserService', () => {
   });
 
   // SYNC_USER_UNVERIFIED_IDENTITY_REGRESSION_V1
-  describe('syncUser unknown identity collision protection', () => {
+  describe('PHONE_OWNERSHIP_CONFLICT_REGRESSION_V1', () => {
+  it('rejects another account phone without changing Firebase metadata', async () => {
+    const db: any = {
+      userAuthIdentity: {
+        findUnique: jest.fn().mockResolvedValue({
+          userId: 'account-a',
+          identityType: 'phone',
+          phone: '+911111111111',
+        }),
+        update: jest.fn(),
+      },
+      user: {
+        findUnique: jest.fn()
+          .mockResolvedValueOnce({
+            id: 'account-a',
+            phone: '+911111111111',
+            isActive: true,
+            isBlocked: false,
+          })
+          .mockResolvedValueOnce({
+            id: 'account-b',
+            phone: '+922222222222',
+          }),
+        update: jest.fn(),
+      },
+    };
+
+    const service = new UserService(db, {} as any);
+
+    await expect(
+      service.syncFirebasePhoneUser(
+        'firebase-account-a',
+        '+922222222222',
+      ),
+    ).rejects.toThrow();
+
+    expect(db.userAuthIdentity.update).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+});
+describe('syncUser unknown identity collision protection', () => {
     const createSyncService = (ownerLookup: 'email' | 'phone') => {
       const db: any = {
         role: {
