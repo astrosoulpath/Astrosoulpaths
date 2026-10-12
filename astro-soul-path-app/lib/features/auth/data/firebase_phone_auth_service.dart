@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'phone_otp_send_cooldown.dart';
 
 class FirebasePhoneCode {
   const FirebasePhoneCode({required this.verificationId, this.resendToken});
@@ -64,6 +65,16 @@ class FirebasePhoneAuthService {
   Future<FirebasePhoneCode> sendProfileCode({
     required String phone,
     int? forceResendingToken,
+  }) => PhoneOtpSendCooldown.shared.send(
+    () => _sendProfileCode(
+      phone: phone,
+      forceResendingToken: forceResendingToken,
+    ),
+  );
+
+  Future<FirebasePhoneCode> _sendProfileCode({
+    required String phone,
+    int? forceResendingToken,
   }) async {
     final auth = await profileVerificationAuth();
     final completer = Completer<FirebasePhoneCode>();
@@ -116,6 +127,13 @@ class FirebasePhoneAuthService {
   }
 
   Future<FirebasePhoneCode> sendCode({
+    required String phone,
+    int? forceResendingToken,
+  }) => PhoneOtpSendCooldown.shared.send(
+    () => _sendCode(phone: phone, forceResendingToken: forceResendingToken),
+  );
+
+  Future<FirebasePhoneCode> _sendCode({
     required String phone,
     int? forceResendingToken,
   }) async {

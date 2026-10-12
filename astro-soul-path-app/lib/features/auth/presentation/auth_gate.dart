@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import '../../astrologer/presentation/screens/astrologer_dashboard_screen.dart';
 import '../../customer/presentation/screens/customer_shell_screen.dart';
 import '../data/auth_session_store.dart';
+import '../data/customer_onboarding_flow.dart';
+import '../../profile/data/profile_api.dart';
+import '../../customer/presentation/screens/customer_birth_onboarding_screen.dart';
 import 'screens/welcome_screen.dart';
 
 class AuthGate extends StatefulWidget {
@@ -34,6 +37,30 @@ class _AuthGateState extends State<AuthGate> {
     });
     try {
       final session = await _sessionStore.restore();
+
+      if (mounted &&
+          session?.role == 'CUSTOMER' &&
+          session?.portal == 'customer') {
+        final profiles = ProfileApi();
+        try {
+          final completed = await completeCustomerOnboarding(
+            sessions: _sessionStore,
+            loadProfiles: profiles.getProfiles,
+            showForm: (profile) async {
+              if (!mounted) return false;
+              return Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      CustomerBirthOnboardingScreen(existingProfile: profile),
+                ),
+              );
+            },
+          );
+          if (!completed) throw StateError('Birth profile is not complete');
+        } finally {
+          profiles.close();
+        }
+      }
 
       if (!mounted) {
         return;

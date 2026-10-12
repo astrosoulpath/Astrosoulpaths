@@ -471,6 +471,10 @@ class _CustomerBirthOnboardingScreenState
       }
 
       _showMessage(error.message);
+    } catch (_) {
+      if (mounted) {
+        _showMessage('Unable to save your birth profile. Please retry.');
+      }
     } finally {
       if (mounted) {
         setState(() {

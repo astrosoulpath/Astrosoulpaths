@@ -5,6 +5,8 @@ import '../../../auth/presentation/screens/welcome_screen.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/astrologer_portal_api.dart';
 import 'astrologer_pending_approval_screen.dart';
+import 'astrologer_application_screen.dart';
+import '../../../auth/data/auth_session_store.dart';
 
 // The registration contract calls the bucket-relative storage path url.
 Map<String, String> kycDocumentFromUpload(
@@ -42,12 +44,16 @@ class AstrologerRegistrationScreen extends StatefulWidget {
     required this.phone,
     required this.accessToken,
     this.canonicalEmail,
+    this.canonicalUserId,
+    this.sessionStore,
     super.key,
   });
 
   final String phone;
   final String accessToken;
   final String? canonicalEmail;
+  final String? canonicalUserId;
+  final AuthSessionStore? sessionStore;
 
   @override
   State<AstrologerRegistrationScreen> createState() =>
@@ -58,6 +64,10 @@ class _AstrologerRegistrationScreenState
     extends State<AstrologerRegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _api = AstrologerPortalApi();
+  late final _sessions = widget.sessionStore ?? AuthSessionStore();
+  StoredAuthSession? _verifiedSession;
+  String? _canonicalId;
+  bool _checkingPhone = false;
 
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -112,6 +122,7 @@ class _AstrologerRegistrationScreenState
   void initState() {
     super.initState();
     _emailController.text = widget.canonicalEmail ?? '';
+    _canonicalId = widget.canonicalUserId;
   }
 
   @override
@@ -136,7 +147,70 @@ class _AstrologerRegistrationScreenState
         .toList();
   }
 
+  Future<StoredAuthSession> _restoreApplicant() async {
+    final session = await _sessions.restore(
+      portal: 'joinAstrologer',
+      persist: false,
+    );
+    if (session == null ||
+        session.user['id'] == null ||
+        (_canonicalId != null && session.user['id'] != _canonicalId)) {
+      throw StateError('Sign in to the original account to continue.');
+    }
+    _canonicalId ??= session.user['id'].toString();
+    return session;
+  }
+
+  Future<void> _verifyPhoneAfterDetails() async {
+    if (_checkingPhone || !_formKey.currentState!.validate()) return;
+    setState(() {
+      _checkingPhone = true;
+    });
+    try {
+      var session = await _restoreApplicant();
+      if (session.user['isPhoneVerified'] != true) {
+        if (!mounted) return;
+        final result = await Navigator.of(context).push<StoredAuthSession>(
+          MaterialPageRoute(
+            builder: (_) => AstrologerApplicationScreen(
+              phoneVerificationOnly: true,
+              canonicalUserId: _canonicalId,
+              sessionStore: _sessions,
+            ),
+          ),
+        );
+        if (result == null) return;
+        session = await _restoreApplicant();
+      }
+      if (session.user['isPhoneVerified'] != true) {
+        throw StateError('Verify phone ownership first.');
+      }
+      if (mounted) {
+        setState(() {
+          _verifiedSession = session;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unable to confirm phone ownership. Retry using the same account.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _checkingPhone = false;
+        });
+      }
+    }
+  }
+
   Future<void> _pickAndUploadKyc(String type) async {
+    if (_verifiedSession == null || _checkingPhone) return;
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: false,
       withData: false,
@@ -172,7 +246,7 @@ class _AstrologerRegistrationScreenState
 
     try {
       final response = await _api.uploadKycDocument(
-        accessToken: widget.accessToken,
+        accessToken: _verifiedSession!.accessToken,
         filePath: path,
         documentType: type,
       );
@@ -221,7 +295,9 @@ class _AstrologerRegistrationScreenState
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
 
-    if (_submitting ||
+    if (_verifiedSession == null ||
+        _checkingPhone ||
+        _submitting ||
         _uploadingIdentity ||
         _uploadingCertificate ||
         _uploadingExperience ||
@@ -256,11 +332,16 @@ class _AstrologerRegistrationScreenState
     });
 
     try {
+      final session = await _restoreApplicant();
+      if (session.user['isPhoneVerified'] != true ||
+          session.user['phone'] is! String) {
+        throw StateError('Verified phone required.');
+      }
       final response = await _api.register(
-        accessToken: widget.accessToken,
+        accessToken: session.accessToken,
         fullName: _nameController.text,
         email: _emailController.text,
-        phoneNumber: widget.phone,
+        phoneNumber: session.user['phone'] as String,
         languages: languages,
         expertise: expertise,
         experienceYears: int.parse(_experienceController.text.trim()),
@@ -302,6 +383,16 @@ class _AstrologerRegistrationScreenState
             backgroundColor: Colors.red.shade700,
           ),
         );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unable to verify the original account. Please retry.',
+            ),
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -470,6 +561,17 @@ class _AstrologerRegistrationScreenState
                     ),
                     const SizedBox(height: 16),
 
+                    FilledButton(
+                      onPressed: _checkingPhone || _submitting
+                          ? null
+                          : _verifyPhoneAfterDetails,
+                      child: Text(
+                        _verifiedSession == null
+                            ? 'Continue to phone verification'
+                            : 'Phone verified',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     _kycTile(
                       title: 'Identity Proof',
                       subtitle: _identityProofName ?? 'Required',

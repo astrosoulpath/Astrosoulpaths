@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../auth/data/auth_session_store.dart';
 import '../../../auth/data/firebase_phone_auth_service.dart';
 import '../../../profile/data/profile_api.dart';
+import '../../../auth/data/phone_otp_send_cooldown.dart';
+import '../../data/astrologer_portal_api.dart';
 import '../../../customer/presentation/screens/customer_shell_screen.dart';
 import 'astrologer_dashboard_screen.dart';
 import 'astrologer_qualification_screen.dart';
@@ -12,11 +15,19 @@ class AstrologerApplicationScreen extends StatefulWidget {
   const AstrologerApplicationScreen({
     super.key,
     this.sessionStore,
+    this.phoneVerificationOnly = false,
+    this.canonicalUserId,
+    this.portalApi,
+    this.openQualification,
     this.profileApi,
     this.sendPhoneCode,
     this.verifyPhoneCode,
   });
   final AuthSessionStore? sessionStore;
+  final bool phoneVerificationOnly;
+  final String? canonicalUserId;
+  final AstrologerPortalApi? portalApi;
+  final Future<bool?> Function(BuildContext, String)? openQualification;
   final ProfileApi? profileApi;
   final Future<FirebasePhoneCode> Function(String phone)? sendPhoneCode;
   final Future<String> Function(String verificationId, String smsCode)?
@@ -29,6 +40,7 @@ class AstrologerApplicationScreen extends StatefulWidget {
 class _AstrologerApplicationScreenState
     extends State<AstrologerApplicationScreen> {
   late final _sessions = widget.sessionStore ?? AuthSessionStore();
+  late final _api = widget.portalApi ?? AstrologerPortalApi();
   late final _profile = widget.profileApi ?? ProfileApi();
   final _phone = TextEditingController();
   final _otp = TextEditingController();
@@ -36,32 +48,85 @@ class _AstrologerApplicationScreenState
   String? _verificationId;
   String? _error;
   bool _busy = false;
+  int? _resendToken;
+  int _remainingSeconds = 0;
+  Timer? _cooldownTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    if (widget.phoneVerificationOnly && widget.sendPhoneCode == null) {
+      _restoreCooldown();
+    }
   }
 
   @override
   void dispose() {
+    _cooldownTimer?.cancel();
     _phone.dispose();
     _otp.dispose();
     _profile.close();
+    _api.close();
     super.dispose();
+  }
+
+  Future<void> _restoreCooldown() async {
+    try {
+      await PhoneOtpSendCooldown.shared.load();
+      if (!mounted) return;
+      _updateCountdown();
+      _cooldownTimer ??= Timer.periodic(
+        const Duration(seconds: 1),
+        (_) => _updateCountdown(),
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _error = 'Unable to restore OTP cooldown. Please retry.';
+        });
+      }
+    }
+  }
+
+  void _updateCountdown() {
+    final remaining = PhoneOtpSendCooldown.shared.remainingSeconds;
+    if (mounted && remaining != _remainingSeconds) {
+      setState(() {
+        _remainingSeconds = remaining;
+      });
+    }
   }
 
   Future<void> _load() async {
     setState(() {
       _busy = true;
       _error = null;
+      _state = null;
     });
     try {
       final session = await _sessions.restore(
         portal: 'joinAstrologer',
         persist: false,
       );
-      if (session == null) throw StateError('Please sign in to continue.');
+      if (session == null) {
+        if (mounted) {
+          setState(() {
+            _state = null;
+            _error = 'Sign in with Google or Email before qualification.';
+          });
+        }
+        return;
+      }
+      if (widget.canonicalUserId != null &&
+          session.user['id'] != widget.canonicalUserId) {
+        throw StateError('Account changed.');
+      }
+      if (widget.phoneVerificationOnly &&
+          session.user['isPhoneVerified'] == true) {
+        if (mounted) Navigator.of(context).pop(session);
+        return;
+      }
       if (!mounted) return;
       setState(() {
         _state = session;
@@ -83,6 +148,7 @@ class _AstrologerApplicationScreenState
   }
 
   Future<void> _sendOtp() async {
+    if (_busy || _remainingSeconds > 0) return;
     if (!RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(_phone.text.trim())) {
       setState(() {
         _error =
@@ -99,16 +165,21 @@ class _AstrologerApplicationScreenState
           ? await widget.sendPhoneCode!(_phone.text.trim())
           : await FirebasePhoneAuthService.instance.sendProfileCode(
               phone: _phone.text.trim(),
+              forceResendingToken: _resendToken,
             );
       if (mounted) {
         setState(() {
           _verificationId = code.verificationId;
+          _resendToken = code.resendToken ?? _resendToken;
         });
       }
-    } on FirebaseException {
+    } on FirebaseException catch (error) {
       if (mounted) {
         setState(() {
-          _error = 'Unable to send OTP. Please wait and retry.';
+          _error = phoneOtpWaitMessage(
+            error,
+            'Unable to send OTP. Please wait and retry.',
+          );
         });
       }
     } catch (_) {
@@ -118,6 +189,7 @@ class _AstrologerApplicationScreenState
         });
       }
     } finally {
+      _updateCountdown();
       if (mounted) {
         setState(() {
           _busy = false;
@@ -127,6 +199,7 @@ class _AstrologerApplicationScreenState
   }
 
   Future<void> _verifyOtp() async {
+    if (_busy || _verificationId == null) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -138,6 +211,13 @@ class _AstrologerApplicationScreenState
               verificationId: _verificationId!,
               smsCode: _otp.text.trim(),
             );
+      final current = await _sessions.restore(
+        portal: 'joinAstrologer',
+        persist: false,
+      );
+      if (current == null || current.user['id'] != widget.canonicalUserId) {
+        throw StateError('Account changed before phone attachment.');
+      }
       await _profile.attachVerifiedFirebasePhone(token);
       if (!mounted) return;
       _verificationId = null;
@@ -165,26 +245,37 @@ class _AstrologerApplicationScreenState
 
   Future<void> _continue() async {
     final state = _state;
-    if (state == null || state.user['isPhoneVerified'] != true) return;
-    final passed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) =>
-            AstrologerQualificationScreen(accessToken: state.accessToken),
-      ),
-    );
+    if (_busy || state == null) return;
+    final passed = widget.openQualification != null
+        ? await widget.openQualification!(context, state.accessToken)
+        : await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) =>
+                  AstrologerQualificationScreen(accessToken: state.accessToken),
+            ),
+          );
     if (!mounted || passed != true) return;
     try {
       final fresh = await _sessions.restore(
         portal: 'joinAstrologer',
         persist: false,
       );
-      if (!mounted || fresh == null || fresh.user['isPhoneVerified'] != true) {
+      if (!mounted || fresh == null || fresh.user['id'] != state.user['id']) {
         return;
       }
+      final status = await _api.getQualificationStatus(
+        accessToken: fresh.accessToken,
+      );
+      if (status['data'] is! Map || status['data']['passed'] != true) {
+        throw StateError('Qualification pass is not persisted.');
+      }
+      if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => AstrologerRegistrationScreen(
-            phone: fresh.user['phone'].toString(),
+            phone: fresh.user['phone']?.toString() ?? '',
+            canonicalUserId: fresh.user['id'].toString(),
+            sessionStore: _sessions,
             accessToken: fresh.accessToken,
             canonicalEmail: fresh.user['email']?.toString(),
           ),
@@ -254,7 +345,8 @@ class _AstrologerApplicationScreenState
               child: const Text('Retry'),
             ),
           ],
-          if (step == 'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING') ...[
+          if (widget.phoneVerificationOnly &&
+              step == 'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING') ...[
             const Text('Verify your phone to continue your application.'),
             TextField(
               controller: _phone,
@@ -266,8 +358,12 @@ class _AstrologerApplicationScreenState
             ),
             if (_verificationId == null)
               FilledButton(
-                onPressed: _busy ? null : _sendOtp,
-                child: const Text('Send OTP'),
+                onPressed: _busy || _remainingSeconds > 0 ? null : _sendOtp,
+                child: Text(
+                  _remainingSeconds > 0
+                      ? 'Wait ${_remainingSeconds}s'
+                      : 'Send OTP',
+                ),
               ),
             if (_verificationId != null) ...[
               TextField(
@@ -282,11 +378,24 @@ class _AstrologerApplicationScreenState
                 onPressed: _busy ? null : _verifyOtp,
                 child: const Text('Verify and continue'),
               ),
+              TextButton(
+                onPressed: _busy || _remainingSeconds > 0 ? null : _sendOtp,
+                child: Text(
+                  _remainingSeconds > 0
+                      ? 'Resend in ${_remainingSeconds}s'
+                      : 'Resend OTP',
+                ),
+              ),
+              const Text(
+                'Firebase may require a longer wait than this local countdown.',
+              ),
             ],
           ],
-          if (step == 'COMPLETE_ASTROLOGER_ONBOARDING') ...[
+          if (!widget.phoneVerificationOnly &&
+              (step == 'COMPLETE_ASTROLOGER_ONBOARDING' ||
+                  step == 'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING')) ...[
             const Text(
-              'Continue your application using your existing account and verified phone.',
+              'Start qualification using your authenticated account. Phone verification follows registration details.',
             ),
             FilledButton(
               onPressed: _busy ? null : _continue,

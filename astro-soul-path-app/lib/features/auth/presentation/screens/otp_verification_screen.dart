@@ -12,6 +12,8 @@ import '../../data/auth_api.dart';
 import '../../data/firebase_phone_auth_service.dart';
 import '../../data/auth_portal.dart';
 import '../../data/auth_session_store.dart';
+import '../../data/customer_onboarding_flow.dart';
+import '../../data/phone_otp_send_cooldown.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   const OtpVerificationScreen({
@@ -56,11 +58,16 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     _startResendCooldown();
   }
 
-  void _startResendCooldown() {
+  Future<void> _startResendCooldown() async {
     _resendTimer?.cancel();
-
+    try {
+      await PhoneOtpSendCooldown.shared.load();
+    } catch (_) {
+      // The send guard fails closed if persistent storage is unavailable.
+    }
+    if (!mounted) return;
     setState(() {
-      _resendSeconds = 60;
+      _resendSeconds = PhoneOtpSendCooldown.shared.remainingSeconds;
     });
 
     _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -69,7 +76,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         return;
       }
 
-      if (_resendSeconds <= 1) {
+      final remaining = PhoneOtpSendCooldown.shared.remainingSeconds;
+      if (remaining == 0) {
         timer.cancel();
 
         setState(() {
@@ -80,7 +88,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       }
 
       setState(() {
-        _resendSeconds--;
+        _resendSeconds = remaining;
       });
     });
   }
@@ -96,7 +104,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   Future<void> _verifyOtp() async {
     FocusScope.of(context).unfocus();
 
-    if (!_formKey.currentState!.validate() || _isVerifying) {
+    if (!_formKey.currentState!.validate() || _isVerifying || _isResending) {
       return;
     }
 
@@ -138,66 +146,24 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       // CUSTOMER only - astrologer flows remain untouched.
       // ------------------------------------------------------
       if (widget.portal == AuthPortal.customer) {
-        final profileApi = ProfileApi();
-
+        final profiles = ProfileApi();
         try {
-          final profiles = await profileApi.getProfiles();
-
-          if (!mounted) {
-            return;
-          }
-
-          final existingProfile = profiles.isEmpty ? null : profiles.first;
-
-          final serverProfileComplete =
-              result.user['isProfileComplete'] == true;
-
-          final profileHasRequiredData =
-              existingProfile != null &&
-              (existingProfile.fullName ?? existingProfile.name)
-                  .trim()
-                  .isNotEmpty &&
-              existingProfile.city?.trim().isNotEmpty == true &&
-              existingProfile.countryCode?.trim().isNotEmpty == true &&
-              existingProfile.gender.trim().isNotEmpty &&
-              (!existingProfile.birthTimeKnown ||
-                  existingProfile.birthTime.trim().isNotEmpty) &&
-              existingProfile.timezoneName?.trim().isNotEmpty == true;
-
-          if (!serverProfileComplete || !profileHasRequiredData) {
-            final completed = await Navigator.of(context).push<bool>(
-              MaterialPageRoute<bool>(
-                builder: (_) => CustomerBirthOnboardingScreen(
-                  existingProfile: existingProfile,
+          final completed = await completeCustomerOnboarding(
+            sessions: _sessionStore,
+            loadProfiles: profiles.getProfiles,
+            showForm: (profile) async {
+              if (!mounted) return false;
+              return Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      CustomerBirthOnboardingScreen(existingProfile: profile),
                 ),
-              ),
-            );
-
-            if (!mounted) {
-              return;
-            }
-
-            if (completed != true) {
-              return;
-            }
-          }
-        } on ProfileApiException catch (error) {
-          if (!mounted) {
-            return;
-          }
-
-          ScaffoldMessenger.of(context)
-            ..clearSnackBars()
-            ..showSnackBar(
-              SnackBar(
-                content: Text(error.message),
-                backgroundColor: Colors.red,
-              ),
-            );
-
-          return;
+              );
+            },
+          );
+          if (!mounted || !completed) return;
         } finally {
-          profileApi.close();
+          profiles.close();
         }
       }
 
@@ -313,9 +279,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         _startResendCooldown();
       }
 
-      final message = error.code == 'too-many-requests'
-          ? 'Too many code requests. Wait before trying again.'
-          : 'A new verification code could not be sent.';
+      final message = phoneOtpWaitMessage(
+        error,
+        'A new verification code could not be sent.',
+      );
 
       ScaffoldMessenger.of(context)
         ..clearSnackBars()

@@ -16,6 +16,10 @@ import '../../data/firebase_phone_auth_service.dart';
 import '../../data/auth_portal.dart';
 import '../../data/google_auth_service.dart';
 import '../../data/auth_session_store.dart';
+import '../../data/customer_onboarding_flow.dart';
+import '../../../profile/data/profile_api.dart';
+import '../../../customer/presentation/screens/customer_birth_onboarding_screen.dart';
+import '../../data/phone_otp_send_cooldown.dart';
 import 'otp_verification_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -47,6 +51,25 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _openCustomerHomeWithFreeChat(
     VerifyOtpResult verifyResult,
   ) async {
+    final profiles = ProfileApi();
+    try {
+      final completed = await completeCustomerOnboarding(
+        sessions: _sessionStore,
+        loadProfiles: profiles.getProfiles,
+        showForm: (profile) async {
+          if (!mounted) return false;
+          return Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) =>
+                  CustomerBirthOnboardingScreen(existingProfile: profile),
+            ),
+          );
+        },
+      );
+      if (!mounted || !completed) return;
+    } finally {
+      profiles.close();
+    }
     bool startFreeChat = false;
 
     if (verifyResult.showFreeChatPopup && verifyResult.freeChatEligible) {
@@ -592,9 +615,10 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      final message = error.code == 'too-many-requests'
-          ? 'Too many verification attempts. Wait before requesting another code.'
-          : 'Unable to send a verification code. Please try again.';
+      final message = phoneOtpWaitMessage(
+        error,
+        'Unable to send a verification code. Please try again.',
+      );
 
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
@@ -998,9 +1022,10 @@ class _LoginScreenState extends State<LoginScreen> {
             )
           : await FirebasePhoneAuthService.instance.sendCode(phone: phone);
     } on FirebaseException catch (error) {
-      final message = error.code == 'too-many-requests'
-          ? 'Too many verification attempts. Wait before trying again.'
-          : 'Unable to send a verification code. Please try again.';
+      final message = phoneOtpWaitMessage(
+        error,
+        'Unable to send a verification code. Please try again.',
+      );
       throw AuthApiException(message, code: error.code);
     }
 
