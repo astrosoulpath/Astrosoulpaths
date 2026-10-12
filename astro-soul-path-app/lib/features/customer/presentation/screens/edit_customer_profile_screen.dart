@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../profile/data/customer_profile.dart';
@@ -9,7 +10,20 @@ import '../../../auth/data/firebase_phone_auth_service.dart';
 import '../../../profile/data/profile_api.dart';
 
 class EditCustomerProfileScreen extends StatefulWidget {
-  const EditCustomerProfileScreen({required this.profile, super.key});
+  const EditCustomerProfileScreen({
+    required this.profile,
+    super.key,
+    this.profileApi,
+    this.sendPhoneCode,
+    this.verifyPhoneCode,
+    this.now,
+  });
+  final ProfileApi? profileApi;
+  final DateTime Function()? now;
+  final Future<FirebasePhoneCode> Function(String phone, int? resendToken)?
+  sendPhoneCode;
+  final Future<String> Function(String verificationId, String smsCode)?
+  verifyPhoneCode;
 
   final CustomerProfile? profile;
 
@@ -20,7 +34,7 @@ class EditCustomerProfileScreen extends StatefulWidget {
 
 class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  final ProfileApi _profileApi = ProfileApi();
+  late final ProfileApi _profileApi = widget.profileApi ?? ProfileApi();
   final GeoApi _geoApi = GeoApi();
 
   late final TextEditingController _fullNameController;
@@ -34,6 +48,42 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
 
   bool _isPhoneVerified = false;
   bool _isSendingPhoneOtp = false;
+  DateTime? _phoneOtpCooldownUntil;
+  Timer? _phoneOtpCooldownTimer;
+  int get _phoneOtpSeconds => _phoneOtpCooldownUntil == null
+      ? 0
+      : ((_phoneOtpCooldownUntil!
+                        .difference((widget.now ?? DateTime.now)())
+                        .inMilliseconds /
+                    1000)
+                .ceil())
+            .clamp(0, 60);
+
+  void _startPhoneOtpCooldown() {
+    _phoneOtpCooldownUntil = (widget.now ?? DateTime.now)().add(
+      const Duration(seconds: 60),
+    );
+    _phoneOtpCooldownTimer?.cancel();
+    _phoneOtpCooldownTimer = Timer.periodic(const Duration(seconds: 1), (
+      timer,
+    ) {
+      if (!mounted || _phoneOtpSeconds == 0) timer.cancel();
+      if (mounted) setState(() {});
+    });
+  }
+
+  Future<FirebasePhoneCode> _sendPhoneCode(String phone, int? resendToken) =>
+      widget.sendPhoneCode != null
+      ? widget.sendPhoneCode!(phone, resendToken)
+      : FirebasePhoneAuthService.instance.sendProfileCode(
+          phone: phone,
+          forceResendingToken: resendToken,
+        );
+
+  String _firebasePhoneError(FirebaseException error) =>
+      error.code == 'too-many-requests'
+      ? 'Too many code requests. Wait before trying again.'
+      : 'Phone verification failed. Please check the code or retry later.';
 
   Timer? _cityDebounce;
 
@@ -92,6 +142,7 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
   @override
   void dispose() {
     _cityDebounce?.cancel();
+    _phoneOtpCooldownTimer?.cancel();
 
     _profileApi.close();
     _geoApi.close();
@@ -126,7 +177,7 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
       context: context,
       initialDate: current,
       firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
+      lastDate: (widget.now ?? DateTime.now)(),
     );
 
     if (selected == null) {
@@ -257,7 +308,7 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
   }
 
   Future<void> _sendPhoneVerificationOtp() async {
-    if (_isSendingPhoneOtp) {
+    if (_isSendingPhoneOtp || _phoneOtpSeconds > 0) {
       return;
     }
 
@@ -275,14 +326,20 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
     });
 
     try {
-      final firebaseCode = await FirebasePhoneAuthService.instance
-          .sendProfileCode(phone: phone);
+      _startPhoneOtpCooldown();
+      final firebaseCode = await _sendPhoneCode(phone, null);
 
       if (!mounted) {
         return;
       }
 
-      await _showPhoneOtpDialog(phone, firebaseCode.verificationId);
+      await _showPhoneOtpDialog(phone, firebaseCode);
+    } on FirebaseException catch (error) {
+      if (!mounted) return;
+      if (error.code == 'too-many-requests') _startPhoneOtpCooldown();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_firebasePhoneError(error))));
     } on ProfileApiException catch (error) {
       if (!mounted) {
         return;
@@ -301,7 +358,7 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Phone OTP failed: $details'),
+          content: const Text('Unable to send phone OTP. Please retry later.'),
           duration: const Duration(seconds: 12),
         ),
       );
@@ -314,20 +371,30 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
     }
   }
 
-  Future<void> _showPhoneOtpDialog(String phone, String verificationId) async {
+  Future<void> _showPhoneOtpDialog(String phone, FirebasePhoneCode code) async {
     final otpController = TextEditingController();
 
     var verifying = false;
     var resending = false;
-    var currentVerificationId = verificationId;
+    var currentVerificationId = code.verificationId;
+    var currentResendToken = code.resendToken;
+    StateSetter? refreshDialog;
+    var dialogOpen = true;
+    final cooldownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && dialogOpen) refreshDialog?.call(() {});
+    });
 
-    await showDialog<void>(
+    final otpRoute = DialogRoute<void>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (dialogContext, setDialogState) {
+            refreshDialog = (callback) {
+              if (dialogContext.mounted) setDialogState(callback);
+            };
             Future<void> verify() async {
+              if (verifying || resending) return;
               final otp = otpController.text.trim();
 
               if (otp.length < 4) {
@@ -344,11 +411,13 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
               String? verifiedFirebaseToken;
 
               try {
-                final firebaseIdToken = await FirebasePhoneAuthService.instance
-                    .verifyProfilePhoneCode(
-                      verificationId: currentVerificationId,
-                      smsCode: otp,
-                    );
+                final firebaseIdToken = widget.verifyPhoneCode != null
+                    ? await widget.verifyPhoneCode!(currentVerificationId, otp)
+                    : await FirebasePhoneAuthService.instance
+                          .verifyProfilePhoneCode(
+                            verificationId: currentVerificationId,
+                            smsCode: otp,
+                          );
 
                 verifiedFirebaseToken = firebaseIdToken;
                 await _profileApi.verifyFirebaseProfilePhone(
@@ -375,6 +444,13 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                     const SnackBar(
                       content: Text('Mobile number verified successfully'),
                     ),
+                  );
+                }
+              } on FirebaseException catch (error) {
+                if (error.code == 'too-many-requests') _startPhoneOtpCooldown();
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(content: Text(_firebasePhoneError(error))),
                   );
                 }
               } on ProfileApiException catch (error) {
@@ -492,7 +568,7 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
             }
 
             Future<void> resend() async {
-              if (resending) {
+              if (resending || verifying || _phoneOtpSeconds > 0) {
                 return;
               }
 
@@ -501,21 +577,33 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
               });
 
               try {
-                final newCode = await FirebasePhoneAuthService.instance
-                    .sendProfileCode(phone: phone);
+                _startPhoneOtpCooldown();
+                final newCode = await _sendPhoneCode(phone, currentResendToken);
 
                 currentVerificationId = newCode.verificationId;
+                currentResendToken = newCode.resendToken;
 
                 if (dialogContext.mounted) {
                   ScaffoldMessenger.of(dialogContext).showSnackBar(
                     const SnackBar(content: Text('OTP sent again')),
                   );
                 }
-              } on ProfileApiException catch (error) {
+              } on FirebaseException catch (error) {
+                if (error.code == 'too-many-requests') _startPhoneOtpCooldown();
                 if (dialogContext.mounted) {
-                  ScaffoldMessenger.of(
-                    dialogContext,
-                  ).showSnackBar(SnackBar(content: Text(error.message)));
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(content: Text(_firebasePhoneError(error))),
+                  );
+                }
+              } catch (_) {
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Unable to resend OTP. Please retry later.',
+                      ),
+                    ),
+                  );
                 }
               } finally {
                 if (dialogContext.mounted) {
@@ -539,7 +627,9 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                     autofocus: true,
                     keyboardType: TextInputType.number,
                     textInputAction: TextInputAction.done,
-                    onSubmitted: verifying ? null : (_) => verify(),
+                    onSubmitted: verifying || resending
+                        ? null
+                        : (_) => verify(),
                     decoration: const InputDecoration(
                       labelText: 'OTP',
                       hintText: 'Enter verification code',
@@ -548,20 +638,28 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                   ),
                   const SizedBox(height: 4),
                   TextButton(
-                    onPressed: verifying || resending ? null : resend,
-                    child: Text(resending ? 'Sending...' : 'Resend OTP'),
+                    onPressed: verifying || resending || _phoneOtpSeconds > 0
+                        ? null
+                        : resend,
+                    child: Text(
+                      resending
+                          ? 'Sending...'
+                          : _phoneOtpSeconds > 0
+                          ? 'Resend OTP in ${_phoneOtpSeconds}s'
+                          : 'Resend OTP',
+                    ),
                   ),
                 ],
               ),
               actions: [
                 TextButton(
-                  onPressed: verifying
+                  onPressed: verifying || resending
                       ? null
                       : () => Navigator.of(dialogContext).pop(),
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
-                  onPressed: verifying ? null : verify,
+                  onPressed: verifying || resending ? null : verify,
                   child: verifying
                       ? const SizedBox(
                           width: 18,
@@ -577,6 +675,10 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
       },
     );
 
+    await Navigator.of(context).push(otpRoute);
+    dialogOpen = false;
+    cooldownTimer.cancel();
+    await otpRoute.completed;
     otpController.dispose();
   }
 
@@ -841,7 +943,7 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                 suffixIcon: _isPhoneVerified
                     ? const Icon(Icons.verified_rounded, color: Colors.green)
                     : TextButton(
-                        onPressed: _isSendingPhoneOtp
+                        onPressed: _isSendingPhoneOtp || _phoneOtpSeconds > 0
                             ? null
                             : _sendPhoneVerificationOtp,
                         child: _isSendingPhoneOtp

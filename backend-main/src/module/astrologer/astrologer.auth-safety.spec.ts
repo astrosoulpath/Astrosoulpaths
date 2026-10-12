@@ -7,7 +7,8 @@ describe('Astrologer approval and application boundaries', () => {
   const account = { id: 'customer', phone: '+919876543210', email: 'customer@example.invalid',
     isActive: true, isBlocked: false, isAstrologer: false, astrologer: null };
   const application = { fullName: 'Applicant', email: account.email, phoneNumber: account.phone,
-    languages: ['English'], expertise: ['Vedic'], experienceYears: 1, consultationPrice: 10 };
+    languages: ['English'], expertise: ['Vedic'], experienceYears: 1, consultationPrice: 10,
+    documents: { identityProof: { type: 'identity', name: 'proof.pdf', url: 'customer/identity/proof.pdf' } } };
   beforeEach(() => {
     db = { userAuthIdentity: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue({ id: 'verified' }) },
       user: { findUnique: jest.fn().mockResolvedValue(account), update: jest.fn() },

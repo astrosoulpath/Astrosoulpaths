@@ -31,7 +31,8 @@ class ProfileApi {
 
   Future<void> attachVerifiedFirebasePhone(String firebaseIdToken) async {
     await _request(
-      method: 'POST', path: '/user/profile/phone/firebase-attach',
+      method: 'POST',
+      path: '/user/profile/phone/firebase-attach',
       payload: {'firebaseIdToken': firebaseIdToken},
       fallbackError: 'Unable to attach the verified phone to this account.',
     );
@@ -245,6 +246,22 @@ class ProfileApi {
     if (token.isEmpty) {
       throw const ProfileApiException(
         'Firebase verification token is required.',
+      );
+    }
+
+    final session = await _sessionStore.read();
+    if (session?.authProvider == 'firebase') {
+      if (confirmAccountLink) {
+        throw const ProfileApiException(
+          'Cross-account linking requires secure account recovery.',
+          code: 'PHONE_ACCOUNT_OWNERSHIP_REQUIRED',
+        );
+      }
+      return _request(
+        method: 'POST',
+        path: '/user/profile/phone/firebase-attach',
+        payload: {'firebaseIdToken': token},
+        fallbackError: 'Unable to attach the verified phone to this account.',
       );
     }
 

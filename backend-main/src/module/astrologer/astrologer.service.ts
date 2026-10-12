@@ -453,6 +453,35 @@ export class AstrologerService {
       }
     }
 
+    // Only bucket-relative references issued under this canonical applicant's
+    // upload namespace may be submitted. Never accept device paths or URLs.
+    if (!dto.documents?.identityProof) {
+      throw new BadRequestException('Identity proof is required');
+    }
+    const validateDocument = (
+      document: { type: string; name: string; url: string },
+      expectedType: string,
+    ) => {
+      if (!document || typeof document.type !== 'string' ||
+          document.type !== expectedType || typeof document.name !== 'string' ||
+          !document.name.trim() || typeof document.url !== 'string') {
+        throw new BadRequestException('Invalid KYC document metadata');
+      }
+      const parts = document.url.split('/');
+      if (parts.length !== 3 || parts[0] !== user.id || parts[1] !== expectedType ||
+          !parts[2] || parts[2] === '.' || parts[2] === '..' ||
+          /[\\%:?#\s\u0000-\u001f]/.test(document.url)) {
+        throw new BadRequestException('KYC storage path must belong to the authenticated applicant');
+      }
+    };
+    validateDocument(dto.documents.identityProof, 'identity');
+    for (const document of dto.documents.certificates ?? []) {
+      validateDocument(document, 'certificate');
+    }
+    for (const document of dto.documents.experienceProofs ?? []) {
+      validateDocument(document, 'experience');
+    }
+
     const languages = [
       ...new Set(
         dto.languages.map((language) => language.trim()).filter(Boolean),
