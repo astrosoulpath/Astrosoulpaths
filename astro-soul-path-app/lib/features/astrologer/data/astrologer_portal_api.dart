@@ -49,7 +49,7 @@ class AstrologerPortalApi {
           },
           body: jsonEncode({
             'fullName': fullName.trim(),
-            'email': email.trim(),
+            if (email.trim().isNotEmpty) 'email': email.trim(),
             'phoneNumber': phoneNumber.trim(),
             'languages': languages,
             'expertise': expertise,

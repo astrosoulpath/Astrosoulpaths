@@ -98,6 +98,8 @@ export class RolesGuard implements CanActivate {
             isActive: true,
             isBlocked: true,
             roleId: true,
+            isAstrologer: true,
+            astrologer: { select: { isApproved: true, isVerified: true } },
             role: {
               select: {
                 id: true,
@@ -114,6 +116,8 @@ export class RolesGuard implements CanActivate {
             isActive: true,
             isBlocked: true,
             roleId: true,
+            isAstrologer: true,
+            astrologer: { select: { isApproved: true, isVerified: true } },
             role: {
               select: {
                 id: true,
@@ -145,16 +149,19 @@ export class RolesGuard implements CanActivate {
     }
 
 
-    const userRoles = [
-      dbUser.roleId,
-      dbUser.role?.id,
-      dbUser.role?.name,
-    ]
-      .filter(Boolean)
-      .map((role) =>
-        String(role).toUpperCase(),
-      );
-
+    const permanentRole = dbUser.role?.name?.toUpperCase();
+    let userRoles = [dbUser.roleId, dbUser.role?.id, permanentRole]
+      .filter(Boolean).map((role) => String(role).toUpperCase());
+    // Customer access survives historical single-role promotions. Astrologer
+    // privileges are a separately approved capability, never a cached role.
+    if (['USER', 'CUSTOMER', 'ASTROLOGER'].includes(permanentRole ?? '')) {
+      userRoles.push('USER', 'CUSTOMER');
+    }
+    const approved = dbUser.isAstrologer && dbUser.astrologer?.isApproved && dbUser.astrologer?.isVerified;
+    if (approved) userRoles.push('ASTROLOGER');
+    else {
+      userRoles = userRoles.filter((role) => role !== 'ASTROLOGER');
+    }
 
     const allowedRoles =
       requiredRoles.map((role) =>

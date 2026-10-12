@@ -1331,6 +1331,15 @@ export class CallService {
      * Agora numeric UID must remain inside
      * a safe positive integer range.
      */
+    if (call.astrologerId === user.id) {
+      const profile = await this.prisma.astrologer.findUnique({
+        where: { userId: user.id }, select: { isApproved: true, isVerified: true,
+          user: { select: { isAstrologer: true } } },
+      });
+      if (!profile?.isApproved || !profile.isVerified || !profile.user.isAstrologer) {
+        throw new BadRequestException('Admin approval is required for astrologer calls');
+      }
+    }
     const uid = this.createAgoraUid(user.id);
 
     const agora = this.agoraService.generateRtcToken(call.channelName, uid);

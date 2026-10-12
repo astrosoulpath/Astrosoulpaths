@@ -54,8 +54,9 @@ export class RegisterAstrologerDto {
   @IsNotEmpty()
   fullName: string;
 
+  @IsOptional()
   @IsEmail()
-  email: string;
+  email?: string;
 
   @IsPhoneNumber()
   phoneNumber: string;

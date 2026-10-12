@@ -1,3 +1,5 @@
+import '../../../auth/data/auth_session_store.dart';
+import '../../../customer/presentation/screens/customer_shell_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
@@ -98,12 +100,19 @@ class AstrologerPendingApprovalScreen extends StatelessWidget {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: () {
-                          Navigator.of(
-                            context,
-                          ).popUntil((route) => route.isFirst);
+                        onPressed: () async {
+                          final state = await AuthSessionStore().restore(
+                            portal: 'customer',
+                          );
+                          if (state == null || !context.mounted) return;
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const CustomerShellScreen(),
+                            ),
+                            (_) => false,
+                          );
                         },
-                        child: const Text('Back to login'),
+                        child: const Text('Open Customer Dashboard'),
                       ),
                     ),
                   ],

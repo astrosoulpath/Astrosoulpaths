@@ -1,9 +1,8 @@
-﻿// ignore_for_file: prefer_initializing_formals
+// ignore_for_file: prefer_initializing_formals
 
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -12,9 +11,13 @@ import '../../../core/config/api_config.dart';
 import 'auth_api.dart';
 
 class AuthSessionStore {
-  AuthSessionStore({FlutterSecureStorage? storage, http.Client? refreshClient})
-    : _storage = storage ?? const FlutterSecureStorage(),
-      _refreshClient = refreshClient;
+  AuthSessionStore({
+    FlutterSecureStorage? storage,
+    http.Client? refreshClient,
+    Future<String?> Function(bool forceRefresh)? firebaseTokenLoader,
+  }) : _storage = storage ?? const FlutterSecureStorage(),
+       _refreshClient = refreshClient,
+       _firebaseTokenLoader = firebaseTokenLoader;
 
   static const _accessTokenKey = 'asp_access_token';
   static const _refreshTokenKey = 'asp_refresh_token';
@@ -33,9 +36,11 @@ class AuthSessionStore {
   // If Wallet + Notifications + Profile load together, only ONE refresh
   // request is sent to the backend.
   static Future<StoredAuthSession?>? _refreshInFlight;
+  static String? _refreshInFlightKey;
 
   final FlutterSecureStorage _storage;
   final http.Client? _refreshClient;
+  final Future<String?> Function(bool)? _firebaseTokenLoader;
 
   Future<void> save(VerifyOtpResult result) async {
     final accessToken = result.accessToken.trim();
@@ -114,11 +119,8 @@ class AuthSessionStore {
       return null;
     }
 
-    if (session.authProvider == 'firebase') {
-      return _refreshFirebaseSession(session);
-    }
-
-    if (session.refreshToken.trim().isEmpty) {
+    if (session.authProvider != 'firebase' &&
+        session.refreshToken.trim().isEmpty) {
       return null;
     }
 
@@ -154,7 +156,8 @@ class AuthSessionStore {
   }
 
   bool _shouldRefresh(StoredAuthSession session) {
-    if (session.refreshToken.trim().isEmpty) {
+    if (session.authProvider != 'firebase' &&
+        session.refreshToken.trim().isEmpty) {
       return false;
     }
 
@@ -162,7 +165,7 @@ class AuthSessionStore {
 
     // Development local tokens are intentionally not JWTs.
     if (expiresAt == null) {
-      return false;
+      return session.authProvider == 'firebase';
     }
 
     final refreshAt = DateTime.now().toUtc().add(_refreshSkew);
@@ -186,11 +189,6 @@ class AuthSessionStore {
         return null;
       }
 
-      final rawSub = payload['sub']?.toString().trim();
-      if (rawSub != null && rawSub.isNotEmpty) {
-        debugPrint('AI_AUTH_SUB=$rawSub');
-      }
-
       final rawExp = payload['exp'];
       final exp = rawExp is int
           ? rawExp
@@ -209,17 +207,40 @@ class AuthSessionStore {
   Future<StoredAuthSession?> _refreshFirebaseSession(
     StoredAuthSession current,
   ) async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
+    String? token;
+    try {
+      if (_firebaseTokenLoader != null) {
+        token = await _firebaseTokenLoader(true);
+      } else {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null || user.uid != _jwtSubject(current.accessToken)) {
+          await clear();
+          return null;
+        }
+        token = await user.getIdToken(true);
+        if (FirebaseAuth.instance.currentUser?.uid != user.uid) {
+          await clear();
+          return null;
+        }
+      }
+    } on FirebaseAuthException catch (error) {
+      if (const {
+        'user-disabled',
+        'user-token-expired',
+        'invalid-user-token',
+        'user-not-found',
+      }.contains(error.code)) {
+        await clear();
+        return null;
+      }
+      rethrow;
+    }
+    if (token == null ||
+        token.trim().isEmpty ||
+        _jwtSubject(current.accessToken) == null ||
+        _jwtSubject(token) != _jwtSubject(current.accessToken)) {
       await clear();
       return null;
-    }
-
-    final token = await user.getIdToken(true);
-
-    if (token == null || token.trim().isEmpty) {
-      return current;
     }
 
     final normalizedToken = token.trim();
@@ -245,18 +266,27 @@ class AuthSessionStore {
   ) async {
     final activeRefresh = _refreshInFlight;
 
-    if (activeRefresh != null) {
+    final refreshKey = [
+      current.authProvider,
+      _jwtSubject(current.accessToken) ?? current.accessToken,
+      current.portal,
+    ].join(':');
+    if (activeRefresh != null && _refreshInFlightKey == refreshKey) {
       return activeRefresh;
     }
 
-    final task = _refreshFromServer(current);
+    final task = current.authProvider == 'firebase'
+        ? _refreshFirebaseSession(current)
+        : _refreshFromServer(current);
     _refreshInFlight = task;
+    _refreshInFlightKey = refreshKey;
 
     try {
       return await task;
     } finally {
       if (identical(_refreshInFlight, task)) {
         _refreshInFlight = null;
+        _refreshInFlightKey = null;
       }
     }
   }
@@ -353,6 +383,83 @@ class AuthSessionStore {
       if (ownsClient) {
         client.close();
       }
+    }
+  }
+
+  String? _jwtSubject(String token) {
+    try {
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(token.split('.')[1]))),
+      );
+      return payload is Map ? payload['sub']?.toString() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<StoredAuthSession?> restore({
+    String? portal,
+    bool persist = true,
+  }) async {
+    final raw = await _readRaw();
+    if (raw == null) return null;
+    final current = raw.authProvider == 'firebase'
+        ? await forceRefresh()
+        : await read();
+    if (current == null) return null;
+    final ownsClient = _refreshClient == null;
+    final client = _refreshClient ?? http.Client();
+    try {
+      final response = await client
+          .get(
+            Uri.parse(
+              '${ApiConfig.baseUrl}/user/session',
+            ).replace(queryParameters: {'portal': portal ?? current.portal}),
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer ${current.accessToken}',
+            },
+          )
+          .timeout(ApiConfig.requestTimeout);
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        await clear();
+        return null;
+      }
+      final body = _decodeBody(response.body);
+      if (response.statusCode != 200 ||
+          body['success'] != true ||
+          body['user'] is! Map ||
+          body['role'] is! String ||
+          body['portal'] is! String ||
+          body['nextStep'] is! String) {
+        throw StateError(
+          'Unable to verify current account access. Please retry.',
+        );
+      }
+      final user = Map<String, dynamic>.from(body['user'] as Map);
+      if (current.user['id'] == null || current.user['id'] != user['id']) {
+        await clear();
+        throw StateError('Account identity changed. Please sign in again.');
+      }
+      final restored = StoredAuthSession(
+        accessToken: current.accessToken,
+        refreshToken: current.refreshToken,
+        role: body['role'] as String,
+        portal: body['portal'] as String,
+        nextStep: body['nextStep'] as String,
+        user: user,
+        expiresIn: current.expiresIn,
+        authProvider: current.authProvider,
+      );
+      if (persist) {
+        await _storage.write(key: _roleKey, value: restored.role);
+        await _storage.write(key: _portalKey, value: restored.portal);
+        await _storage.write(key: _nextStepKey, value: restored.nextStep);
+        await _storage.write(key: _userKey, value: jsonEncode(restored.user));
+      }
+      return restored;
+    } finally {
+      if (ownsClient) client.close();
     }
   }
 

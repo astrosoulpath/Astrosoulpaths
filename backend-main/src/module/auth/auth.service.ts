@@ -1623,11 +1623,25 @@ export class AuthService {
       });
     }
 
-    const { user, isNewUser } = await this.userService.syncFirebaseEmailUser({
+    const syncIdentity = () => this.userService.syncFirebaseEmailUser({
       firebaseUid: identity.uid,
       email: identity.email,
       identityType: 'google',
     });
+    let synced: Awaited<ReturnType<UserService['syncFirebaseEmailUser']>>;
+    try {
+      synced = await syncIdentity();
+    } catch (error) {
+      const response = error instanceof ConflictException ? error.getResponse() : null;
+      if (!response || typeof response !== 'object' ||
+          (response as { code?: string }).code !== 'FIREBASE_GOOGLE_LINK_REQUIRED') throw error;
+      const recovered = await this.userService.recoverLegacyFirebaseGoogleIdentity(
+        identity.uid, identity.email, identity.googleSubject,
+      );
+      if (!recovered) throw error;
+      synced = await syncIdentity();
+    }
+    const { user, isNewUser } = synced;
 
     if (!user.isActive || user.isBlocked) {
       throw new UnauthorizedException({
@@ -1700,7 +1714,9 @@ export class AuthService {
       hasAstrologerProfile &&
       Boolean(fullUser.astrologer?.isApproved) &&
       Boolean(fullUser.astrologer?.isVerified);
-    const hasMobileNumber = Boolean(fullUser.phone?.trim());
+    const hasMobileNumber = (await this.userService.getSessionState(
+      fullUser.supabaseId, 'joinAstrologer',
+    )).user.isPhoneVerified;
     const nextStep = !hasAstrologerProfile
       ? hasMobileNumber
         ? 'COMPLETE_ASTROLOGER_ONBOARDING'

@@ -915,7 +915,7 @@ describe('Account linking - real UserService', () => {
       const service = new UserService(db, {} as any);
 
       await expect(
-        service.syncFirebasePhoneUser('firebase-account-a', '+922222222222'),
+        service.syncFirebasePhoneUser({ firebaseUid: 'firebase-account-a', phone: '+922222222222' }),
       ).rejects.toThrow();
 
       expect(db.userAuthIdentity.update).not.toHaveBeenCalled();

@@ -29,6 +29,14 @@ class ProfileApi {
   final http.Client _client;
   final AuthSessionStore _sessionStore;
 
+  Future<void> attachVerifiedFirebasePhone(String firebaseIdToken) async {
+    await _request(
+      method: 'POST', path: '/user/profile/phone/firebase-attach',
+      payload: {'firebaseIdToken': firebaseIdToken},
+      fallbackError: 'Unable to attach the verified phone to this account.',
+    );
+  }
+
   Future<bool> isAuthenticatedPhoneVerified() async {
     final body = await _request(
       method: 'GET',

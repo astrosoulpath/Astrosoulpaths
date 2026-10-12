@@ -869,6 +869,26 @@ export class UserService {
       throw new UnauthorizedException('This account is unavailable');
     }
 
+    if (user && user.supabaseId === 'firebase:' + firebaseUid) {
+      const canonicalUserId = user.id;
+      await this.prisma.$transaction(async (tx) => {
+        const owner = await tx.user.findUnique({ where: { id: canonicalUserId } });
+        if (!owner || !owner.isActive || owner.isBlocked || owner.supabaseId !== 'firebase:' + firebaseUid ||
+            owner.email?.trim().toLowerCase() !== email) {
+          throw new ConflictException('Canonical Firebase account changed during recovery');
+        }
+        const identity = await tx.userAuthIdentity.findUnique({
+          where: { provider_providerUserId: { provider: 'firebase', providerUserId: firebaseUid } },
+          select: { userId: true },
+        });
+        if (identity && identity.userId !== canonicalUserId) throw new ConflictException('Firebase identity belongs to another account');
+        if (!identity) await tx.userAuthIdentity.create({
+          data: { userId: canonicalUserId, provider: 'firebase', providerUserId: firebaseUid,
+            identityType, email, phone: null, isPrimary: false },
+        });
+      }, { isolationLevel: 'Serializable' });
+      return { user, isNewUser: false };
+    }
     if (user) {
       throw new ConflictException({
         success: false,
@@ -1039,6 +1059,117 @@ export class UserService {
       isNewUser,
     };
   }
+
+  async recoverLegacyFirebaseGoogleIdentity(
+    firebaseUid: string,
+    email: string,
+    googleSubject: string,
+  ): Promise<boolean> {
+    // Email locates a candidate; only a server-verified provider subject
+    // authorizes recovery. No provider user or customer asset is created.
+    if (!this.supabaseService.hasAdminClient()) return false;
+    const candidate = await this.prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+      include: { authIdentities: true },
+    });
+    if (!candidate || !candidate.isActive || candidate.isBlocked) return false;
+    const legacyIds = new Set([
+      candidate.supabaseId,
+      ...candidate.authIdentities
+        .filter((identity) => identity.provider === 'supabase')
+        .map((identity) => identity.providerUserId),
+    ]);
+    for (const legacyId of legacyIds) {
+      if (!/^[0-9a-f-]{36}$/i.test(legacyId)) continue;
+      const { data, error } = await this.supabaseService
+        .getStorageClient().auth.admin.getUserById(legacyId);
+      const legacy = data.user;
+      if (error || !legacy) continue;
+      const sameGoogle = legacy.identities?.some((identity) =>
+        identity.provider === 'google' &&
+        identity.identity_data?.sub?.toString() === googleSubject,
+      );
+      if (!sameGoogle || legacy.email?.trim().toLowerCase() !== email) continue;
+      if (await this.resolveCanonicalUserId(legacy.id) !== candidate.id) continue;
+      await this.linkFirebaseGoogleIdentityToLegacyAccount(firebaseUid, email, legacy.id);
+      return true;
+    }
+    return false;
+  }
+  private async assertVerifiedPhoneOwner(
+    db: Prisma.TransactionClient, userId: string, phone: string,
+  ) {
+    const identity = await db.userAuthIdentity.findFirst({
+      where: { userId, phone, identityType: 'phone',
+        provider: { in: ['firebase', 'supabase_phone_verified'] } },
+      select: { id: true },
+    });
+    if (!identity) throw new ConflictException({
+      code: 'PHONE_ACCOUNT_OWNERSHIP_REQUIRED', accountLinkRequired: true,
+      message: 'Sign in to the existing account and verify this phone before linking it.',
+    });
+  }
+
+  async getSessionState(supabaseId: string, portal = 'customer') {
+    if (!['customer', 'astrologer', 'joinAstrologer'].includes(portal)) {
+      throw new BadRequestException('Invalid session portal');
+    }
+    const user = await this.getUserWithRelations(supabaseId);
+    if (!user || !user.isActive || user.isBlocked) throw new UnauthorizedException('Account unavailable');
+    const phoneIdentity = user.phone ? await this.prisma.userAuthIdentity.findFirst({
+      where: { userId: user.id, phone: user.phone, identityType: 'phone',
+        provider: { in: ['firebase', 'supabase_phone_verified'] } }, select: { id: true },
+    }) : null;
+    const approved = !!(user.isAstrologer && user.astrologer?.isApproved && user.astrologer?.isVerified);
+    const role = portal === 'customer' ? 'CUSTOMER' : approved ? 'ASTROLOGER' : 'ASTROLOGER_APPLICANT';
+    const nextStep = portal === 'customer' ? 'OPEN_HOME' : user.astrologer
+      ? approved ? 'OPEN_ASTROLOGER_DASHBOARD' : 'WAIT_FOR_ADMIN_APPROVAL'
+      : phoneIdentity ? 'COMPLETE_ASTROLOGER_ONBOARDING' : 'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING';
+    const responsePortal = approved && portal !== 'customer' ? 'astrologer' : portal;
+    return { success: true, portal: responsePortal, role, nextStep, user: {
+      id: user.id, supabaseId: user.supabaseId, email: user.email, phone: user.phone,
+      name: user.name, role, portal: responsePortal, accountRole: user.role?.name,
+      isAstrologer: approved, isPhoneVerified: !!phoneIdentity,
+      isProfileComplete: user.isProfileComplete,
+    } };
+  }
+
+  async attachVerifiedFirebasePhone(supabaseId: string, token: string) {
+    const { phone, firebaseUid } = await this.verifyFirebaseProfilePhoneToken(token, true);
+    const canonicalUserId = await this.resolveCanonicalUserId(supabaseId);
+    if (!canonicalUserId) throw new NotFoundException('User not found');
+    await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: canonicalUserId } });
+      if (!user || !user.isActive || user.isBlocked) throw new UnauthorizedException('Account unavailable');
+      if (user.phone && this.normalizePhoneIdentity(user.phone) !== phone) {
+        throw new ConflictException('This account already has a different phone');
+      }
+      const owner = await tx.user.findUnique({ where: { phone }, select: { id: true } });
+      const identity = await tx.userAuthIdentity.findUnique({
+        where: { provider_providerUserId: { provider: 'firebase', providerUserId: firebaseUid } },
+        select: { userId: true },
+      });
+      const otherIdentity = await tx.userAuthIdentity.findFirst({
+        where: { phone, identityType: 'phone', userId: { not: canonicalUserId },
+          provider: { in: ['firebase', 'supabase_phone_verified'] } }, select: { id: true },
+      });
+      if ((owner && owner.id !== canonicalUserId) ||
+          (identity && identity.userId !== canonicalUserId) || otherIdentity) {
+        throw new ConflictException({ code: 'PHONE_ACCOUNT_OWNERSHIP_REQUIRED',
+          message: 'This phone belongs to another account. Secure account recovery is required.' });
+      }
+      await tx.user.update({ where: { id: canonicalUserId }, data: { phone } });
+      await tx.userAuthIdentity.upsert({
+        where: { provider_providerUserId: { provider: 'firebase', providerUserId: firebaseUid } },
+        create: { userId: canonicalUserId, provider: 'firebase', providerUserId: firebaseUid,
+          identityType: 'phone', phone, isPrimary: false },
+        update: { identityType: 'phone', phone },
+      });
+      await tx.userProfile.updateMany({ where: { userId: canonicalUserId }, data: { phoneNumber: phone } });
+    }, { isolationLevel: 'Serializable' });
+    return { success: true, data: { canonicalUserId, phone, isPhoneVerified: true } };
+  }
+
   async syncFirebasePhoneUser(data: { firebaseUid: string; phone: string }) {
     const firebaseUid = data.firebaseUid?.trim();
     const phone = this.normalizePhoneIdentity(data.phone);
@@ -1161,6 +1292,9 @@ export class UserService {
       throw new UnauthorizedException('This account is unavailable');
     }
     if (user) {
+      if (user.supabaseId !== 'firebase:' + firebaseUid) {
+        await this.assertVerifiedPhoneOwner(this.prisma, user.id, phone);
+      }
       // Existing verified phone: reuse the canonical ASP account.
       // Do not change its permanent role and do not create another wallet.
     } else {
@@ -1221,6 +1355,9 @@ export class UserService {
             include: authUserInclude,
           });
 
+          if (currentPhoneOwner && currentPhoneOwner.supabaseId !== 'firebase:' + firebaseUid) {
+            await this.assertVerifiedPhoneOwner(tx, currentPhoneOwner.id, phone);
+          }
           const account =
             currentPhoneOwner ??
             (await tx.user.create({
@@ -1286,17 +1423,26 @@ export class UserService {
     }
 
     if (!identityCheck) {
-      await this.prisma.userAuthIdentity.create({
-        data: {
-          userId: user.id,
-          provider: 'firebase',
-          providerUserId: firebaseUid,
-          identityType: 'phone',
-          phone,
-          email: null,
-          isPrimary: false,
-        },
-      });
+      await this.prisma.$transaction(async (tx) => {
+        const owner = await tx.user.findUnique({ where: { id: user!.id } });
+        if (!owner || !owner.isActive || owner.isBlocked || owner.phone !== phone) {
+          throw new ConflictException('Phone account changed during verification');
+        }
+        if (owner.supabaseId !== 'firebase:' + firebaseUid) {
+          await this.assertVerifiedPhoneOwner(tx, owner.id, phone);
+        }
+        const concurrent = await tx.userAuthIdentity.findUnique({
+          where: { provider_providerUserId: { provider: 'firebase', providerUserId: firebaseUid } },
+          select: { userId: true },
+        });
+        if (concurrent && concurrent.userId !== owner.id) {
+          throw new ConflictException('Firebase identity belongs to another account');
+        }
+        if (!concurrent) await tx.userAuthIdentity.create({
+          data: { userId: owner.id, provider: 'firebase', providerUserId: firebaseUid,
+            identityType: 'phone', phone, email: null, isPrimary: false },
+        });
+      }, { isolationLevel: 'Serializable' });
     }
 
     const freshUser = await this.prisma.user.findUnique({
@@ -1797,7 +1943,7 @@ export class UserService {
     }
   }
 
-  async verifyFirebaseProfilePhoneToken(firebaseIdToken: string) {
+  async verifyFirebaseProfilePhoneToken(firebaseIdToken: string, requireRecentOtp = false) {
     const token = firebaseIdToken?.trim();
 
     if (!token) {
@@ -1852,6 +1998,12 @@ export class UserService {
       );
     }
 
+    if (requireRecentOtp && (decoded.firebase?.sign_in_provider !== 'phone' ||
+        typeof decoded.auth_time !== 'number' ||
+        Math.floor(Date.now() / 1000) - decoded.auth_time > 600 ||
+        decoded.auth_time > Math.floor(Date.now() / 1000) + 60)) {
+      throw new UnauthorizedException('A recent phone OTP verification is required');
+    }
     return { phone, firebaseUid };
   }
   private async hasAccountLinkActivity(
@@ -1982,22 +2134,10 @@ export class UserService {
         }
 
         if (firebaseIdentity && firebaseIdentity.userId !== target.id) {
-          if (await this.hasAccountLinkActivity(tx, firebaseIdentity.userId)) {
-            throw new ConflictException({
-              code: 'FIREBASE_GOOGLE_LINK_MANUAL_REVIEW',
-              message: 'These sign-in methods require support review.',
-            });
-          }
-
-          await tx.userAuthIdentity.update({
-            where: { id: firebaseIdentity.id },
-            data: {
-              userId: target.id,
-              email: normalizedEmail,
-              identityType: 'google',
-            },
+          throw new ConflictException({
+            code: 'FIREBASE_GOOGLE_LINK_MANUAL_REVIEW',
+            message: 'These sign-in methods require support review.',
           });
-          return;
         }
 
         if (!firebaseIdentity) {
@@ -2033,7 +2173,7 @@ export class UserService {
   ) {
     const normalizedFirebaseUid = firebaseUid?.trim();
     const normalizedEmail = email?.trim().toLowerCase();
-    const { phone } =
+    const { phone, firebaseUid: phoneFirebaseUid } =
       await this.verifyFirebaseProfilePhoneToken(firebasePhoneToken);
 
     if (!normalizedFirebaseUid || !normalizedEmail) {
@@ -2054,7 +2194,7 @@ export class UserService {
       !phoneOwner ||
       !phoneOwner.isActive ||
       phoneOwner.isBlocked ||
-      phoneOwner.role?.name !== 'CUSTOMER'
+      !['CUSTOMER', 'USER', 'ASTROLOGER'].includes(phoneOwner.role?.name?.toUpperCase() ?? '')
     ) {
       throw new ConflictException({
         code: 'ACCOUNT_LINK_UNAVAILABLE',
@@ -2062,6 +2202,7 @@ export class UserService {
       });
     }
 
+    await this.assertVerifiedPhoneOwner(this.prisma, phoneOwner.id, phone);
     await this.prisma.$transaction(
       async (tx) => {
         const [currentPhoneOwner, googleIdentity] = await Promise.all([
@@ -2091,7 +2232,7 @@ export class UserService {
           currentPhoneOwner.phone !== phone ||
           !currentPhoneOwner.isActive ||
           currentPhoneOwner.isBlocked ||
-          currentPhoneOwner.role?.name !== 'CUSTOMER'
+          !['CUSTOMER', 'USER', 'ASTROLOGER'].includes(currentPhoneOwner.role?.name?.toUpperCase() ?? '')
         ) {
           throw new ConflictException({
             code: 'ACCOUNT_LINK_UNAVAILABLE',
@@ -2099,6 +2240,14 @@ export class UserService {
           });
         }
 
+        const phoneIdentity = await tx.userAuthIdentity.findUnique({
+          where: { provider_providerUserId: { provider: 'firebase', providerUserId: phoneFirebaseUid } },
+          select: { userId: true },
+        });
+        if (phoneIdentity && phoneIdentity.userId !== currentPhoneOwner.id) {
+          throw new ConflictException('Verified phone identity belongs to another account');
+        }
+        await this.assertVerifiedPhoneOwner(tx, currentPhoneOwner.id, phone);
         if (googleIdentity && googleIdentity.userId !== currentPhoneOwner.id) {
           if (await this.hasAccountLinkActivity(tx, googleIdentity.userId)) {
             throw new ConflictException({

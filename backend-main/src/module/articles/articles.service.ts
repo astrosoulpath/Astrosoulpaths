@@ -118,7 +118,8 @@ export class ArticlesService {
       include: { astrologer: true },
     });
 
-    if (!user?.astrologer || !user.astrologer.isApproved) {
+    if (!user?.astrologer || !user.isActive || user.isBlocked || !user.isAstrologer ||
+        !user.astrologer.isApproved || !user.astrologer.isVerified) {
       throw new ForbiddenException(
         'Only approved astrologers can submit or manage articles.',
       );

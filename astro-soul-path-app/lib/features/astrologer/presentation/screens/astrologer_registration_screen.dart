@@ -6,15 +6,48 @@ import '../../../../core/theme/app_theme.dart';
 import '../../data/astrologer_portal_api.dart';
 import 'astrologer_pending_approval_screen.dart';
 
+// The registration contract calls the bucket-relative storage path url.
+Map<String, String> kycDocumentFromUpload(
+  Map<String, dynamic> response,
+  String expectedType,
+) {
+  final data = response['data'];
+  if (response['success'] != true || data is! Map) {
+    throw const AstrologerPortalApiException(
+      'Invalid KYC upload response. Please retry.',
+    );
+  }
+  final path = data['path'];
+  final name = data['fileName'];
+  final type = data['documentType'];
+  if (path is! String ||
+      name is! String ||
+      type != expectedType ||
+      !const {'identity', 'certificate', 'experience'}.contains(type) ||
+      name.trim().isEmpty ||
+      !RegExp(
+        r'^[^/\\:]+/(identity|certificate|experience)/[^/\\:]+$',
+      ).hasMatch(path) ||
+      path.split('/')[1] != type ||
+      path.split('/').any((part) => part == '.' || part == '..')) {
+    throw const AstrologerPortalApiException(
+      'Invalid KYC upload metadata. Please retry.',
+    );
+  }
+  return {'type': type as String, 'name': name.trim(), 'url': path};
+}
+
 class AstrologerRegistrationScreen extends StatefulWidget {
   const AstrologerRegistrationScreen({
     required this.phone,
     required this.accessToken,
+    this.canonicalEmail,
     super.key,
   });
 
   final String phone;
   final String accessToken;
+  final String? canonicalEmail;
 
   @override
   State<AstrologerRegistrationScreen> createState() =>
@@ -61,17 +94,25 @@ class _AstrologerRegistrationScreenState
   final List<String> _selectedLanguages = [];
   final List<String> _selectedExpertise = [];
 
-  String? _identityProofPath;
-  String? _identityProofName;
-  String? _certificatePath;
-  String? _certificateName;
-  String? _experienceProofPath;
-  String? _experienceProofName;
+  final Map<String, Map<String, String>> _documents = {};
+
+  String? get _identityProofPath => _documents['identity']?['url'];
+  String? get _identityProofName => _documents['identity']?['name'];
+  String? get _certificatePath => _documents['certificate']?['url'];
+  String? get _certificateName => _documents['certificate']?['name'];
+  String? get _experienceProofPath => _documents['experience']?['url'];
+  String? get _experienceProofName => _documents['experience']?['name'];
 
   bool _uploadingIdentity = false;
   bool _uploadingCertificate = false;
   bool _uploadingExperience = false;
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController.text = widget.canonicalEmail ?? '';
+  }
 
   @override
   void dispose() {
@@ -130,25 +171,17 @@ class _AstrologerRegistrationScreenState
     });
 
     try {
-      await _api.uploadKycDocument(
+      final response = await _api.uploadKycDocument(
         accessToken: widget.accessToken,
         filePath: path,
         documentType: type,
       );
 
+      final document = kycDocumentFromUpload(response, type);
       if (!mounted) return;
 
       setState(() {
-        if (type == 'identity') {
-          _identityProofPath = path;
-          _identityProofName = file.name;
-        } else if (type == 'certificate') {
-          _certificatePath = path;
-          _certificateName = file.name;
-        } else {
-          _experienceProofPath = path;
-          _experienceProofName = file.name;
-        }
+        _documents[type] = document;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -161,6 +194,13 @@ class _AstrologerRegistrationScreenState
         SnackBar(
           content: Text(error.message),
           backgroundColor: Colors.red.shade700,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to upload KYC document. Please retry.'),
         ),
       );
     } finally {
@@ -181,7 +221,11 @@ class _AstrologerRegistrationScreenState
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
 
-    if (_submitting || !_formKey.currentState!.validate()) {
+    if (_submitting ||
+        _uploadingIdentity ||
+        _uploadingCertificate ||
+        _uploadingExperience ||
+        !_formKey.currentState!.validate()) {
       return;
     }
 
@@ -222,6 +266,15 @@ class _AstrologerRegistrationScreenState
         experienceYears: int.parse(_experienceController.text.trim()),
         consultationPrice: double.parse(_priceController.text.trim()),
         bio: _bioController.text,
+        documents: {
+          'identityProof': _documents['identity']!,
+          'certificates': [
+            if (_documents['certificate'] != null) _documents['certificate']!,
+          ],
+          'experienceProofs': [
+            if (_documents['experience'] != null) _documents['experience']!,
+          ],
+        },
       );
 
       if (!mounted) {
@@ -311,20 +364,13 @@ class _AstrologerRegistrationScreenState
                 icon: Icons.person_outline_rounded,
               ),
 
-              _field(
+              TextFormField(
                 controller: _emailController,
-                label: 'Email',
-                icon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  final text = value?.trim() ?? '';
-
-                  if (text.isEmpty || !text.contains('@')) {
-                    return 'Enter a valid email address.';
-                  }
-
-                  return null;
-                },
+                readOnly: true,
+                decoration: _decoration(
+                  'Account email (if linked)',
+                  Icons.email_outlined,
+                ),
               ),
 
               TextFormField(

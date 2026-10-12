@@ -2,6 +2,7 @@ import { UpsertAstrologerBankAccountDto } from './dto/astrologer-bank-account.dt
 import { AstrologerPayoutProviderService } from './astrologer-payout-provider.service';
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   InternalServerErrorException,
@@ -167,7 +168,7 @@ export class AstrologerService {
    * User.supabaseId remains the legacy fallback for accounts that have
    * not yet been backfilled into UserAuthIdentity.
    */
-  private async findAstrologerBySupabaseId(supabaseId: string) {
+  private async findAstrologerBySupabaseId(supabaseId: string, requireApproval = true) {
     const normalizedSupabaseId = supabaseId?.trim();
 
     if (!normalizedSupabaseId) {
@@ -193,6 +194,9 @@ export class AstrologerService {
           },
           select: {
             id: true,
+            isActive: true,
+            isBlocked: true,
+            isAstrologer: true,
           },
         })
       : await this.prisma.user.findUnique({
@@ -201,6 +205,9 @@ export class AstrologerService {
           },
           select: {
             id: true,
+            isActive: true,
+            isBlocked: true,
+            isAstrologer: true,
           },
         });
 
@@ -216,6 +223,9 @@ export class AstrologerService {
         user: {
           select: {
             id: true,
+            isActive: true,
+            isBlocked: true,
+            isAstrologer: true,
             name: true,
             email: true,
             phone: true,
@@ -234,6 +244,10 @@ export class AstrologerService {
       throw new NotFoundException('Astrologer profile not found');
     }
 
+    if (!user.isActive || user.isBlocked) throw new ForbiddenException('Account unavailable');
+    if (requireApproval && (!user.isAstrologer || !astrologer.isApproved || !astrologer.isVerified)) {
+      throw new ForbiddenException('Admin approval is required for astrologer access');
+    }
     return astrologer;
   }
 
@@ -371,6 +385,8 @@ export class AstrologerService {
         : { supabaseId: normalizedSupabaseId },
       select: {
         id: true,
+        phone: true,
+        email: true,
         astrologer: {
           select: {
             id: true,
@@ -385,6 +401,20 @@ export class AstrologerService {
 
     if (user.astrologer) {
       throw new BadRequestException('Astrologer profile already exists');
+    }
+
+    const verifiedPhone = user.phone
+      ? await this.prisma.userAuthIdentity.findFirst({
+          where: {
+            userId: user.id, phone: user.phone, identityType: 'phone',
+            provider: { in: ['firebase', 'supabase_phone_verified'] },
+          }, select: { id: true },
+        }) : null;
+    if (!verifiedPhone || dto.phoneNumber.trim() !== user.phone) {
+      throw new ForbiddenException('Verify the account phone before applying');
+    }
+    if (dto.email && dto.email.trim().toLowerCase() !== user.email?.trim().toLowerCase()) {
+      throw new BadRequestException('Use the authenticated account email; verify email changes separately');
     }
 
     // Qualification is controlled by admin settings.
@@ -450,14 +480,20 @@ export class AstrologerService {
     }
 
     const astrologer = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.user.findUnique({ where: { id: user.id } });
+      const phoneProof = await tx.userAuthIdentity.findFirst({
+        where: { userId: user.id, phone: user.phone, identityType: 'phone',
+          provider: { in: ['firebase', 'supabase_phone_verified'] } }, select: { id: true },
+      });
+      if (!current || !current.isActive || current.isBlocked || current.phone !== user.phone || !phoneProof) {
+        throw new ForbiddenException('Verified account phone is required for this application');
+      }
       await tx.user.update({
         where: {
           id: user.id,
         },
         data: {
           name: dto.fullName.trim(),
-          email: dto.email.trim(),
-          phone: dto.phoneNumber.trim(),
 
           // Registration is only an application.
           // Admin approval enables astrologer access.
@@ -546,7 +582,7 @@ export class AstrologerService {
           },
         },
       });
-    });
+    }, { isolationLevel: 'Serializable' });
 
     return {
       success: true,
@@ -1121,26 +1157,11 @@ export class AstrologerService {
   }
 
   async getPayoutBankAccount(supabaseId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        supabaseId: supabaseId.trim(),
-      },
-      select: {
-        astrologer: {
-          select: {
-            id: true,
-          },
-        },
-      },
-    });
-
-    if (!user?.astrologer) {
-      throw new NotFoundException('Astrologer profile not found');
-    }
+    const astrologer = await this.findAstrologerBySupabaseId(supabaseId);
 
     const bankAccount = await this.prisma.astrologerBankAccount.findFirst({
       where: {
-        astrologerId: user.astrologer.id,
+        astrologerId: astrologer.id,
         isActive: true,
       },
       orderBy: {
@@ -1195,6 +1216,9 @@ export class AstrologerService {
         : { supabaseId: normalizedSupabaseId },
       select: {
         id: true,
+        isActive: true,
+        isBlocked: true,
+        isAstrologer: true,
         name: true,
         email: true,
         phone: true,
@@ -1212,7 +1236,7 @@ export class AstrologerService {
       throw new NotFoundException('Astrologer profile not found');
     }
 
-    if (!user.astrologer.isApproved) {
+    if (!user.isActive || user.isBlocked || !user.isAstrologer || !user.astrologer.isApproved || !user.astrologer.isVerified) {
       throw new BadRequestException(
         'Only approved astrologers can configure payouts',
       );
@@ -1652,7 +1676,7 @@ export class AstrologerService {
   }
 
   async getProfile(supabaseId: string) {
-    const astrologer = await this.findAstrologerBySupabaseId(supabaseId);
+    const astrologer = await this.findAstrologerBySupabaseId(supabaseId, false);
 
     const userProfile = await this.prisma.userProfile.findUnique({
       where: {
@@ -1696,7 +1720,12 @@ export class AstrologerService {
   }
 
   async updateProfile(supabaseId: string, dto: UpdateAstrologerProfileDto) {
-    const astrologer = await this.findAstrologerBySupabaseId(supabaseId);
+    const astrologer = await this.findAstrologerBySupabaseId(supabaseId, false);
+
+    if ((dto.email !== undefined && dto.email.trim().toLowerCase() !== astrologer.user.email?.trim().toLowerCase()) ||
+        (dto.phoneNumber !== undefined && dto.phoneNumber.trim() !== astrologer.user.phone)) {
+      throw new BadRequestException('Verify email or phone changes through account settings');
+    }
 
     let parsedDateOfBirth: Date | null | undefined;
 

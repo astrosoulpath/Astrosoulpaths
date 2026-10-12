@@ -13,9 +13,8 @@ import '../../../profile/data/customer_profile.dart';
 import '../../../language/presentation/screens/change_language_screen.dart';
 import '../../../preferences/presentation/screens/set_preference_screen.dart';
 import '../../../auth/data/auth_session_store.dart';
-import '../../../auth/presentation/screens/login_screen.dart';
+import '../../../astrologer/presentation/screens/astrologer_application_screen.dart';
 import '../../../auth/presentation/auth_gate.dart';
-import '../../../auth/data/auth_portal.dart';
 import '../../../astrologers/data/astrologer_api.dart';
 import '../../../astrologers/data/public_astrologer.dart';
 import '../../../astrologers/presentation/screens/astrologer_detail_screen.dart';
@@ -262,7 +261,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   }
 
   void _openDrawerJoinAstrologer() {
-    _closeDrawerThenPush(const LoginScreen(portal: AuthPortal.joinAstrologer));
+    _closeDrawerThenPush(const AstrologerApplicationScreen());
   }
 
   Future<void> _rateAppFromDrawer() async {

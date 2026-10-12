@@ -7,6 +7,7 @@ import {
   Delete,
   Get,
   Param,
+  Query,
   Patch,
   Body,
   UseGuards,
@@ -39,6 +40,18 @@ export class UserController {
       'Account deletion is temporarily unavailable',
     );
   }
+  @Get('session')
+  @UseGuards(SupabaseAuthGuard)
+  getSession(@CurrentUser() user: JWTPayload, @Query('portal') portal?: string) {
+    return this.userService.getSessionState(user.sub as string, portal);
+  }
+
+  @Post('profile/phone/firebase-attach')
+  @UseGuards(SupabaseAuthGuard)
+  attachFirebasePhone(@CurrentUser() user: JWTPayload, @Body() body: { firebaseIdToken: string }) {
+    return this.userService.attachVerifiedFirebasePhone(user.sub as string, body.firebaseIdToken);
+  }
+
   @Get('profile')
   @UseGuards(SupabaseAuthGuard)
   getProfile(@CurrentUser() user: JWTPayload) {

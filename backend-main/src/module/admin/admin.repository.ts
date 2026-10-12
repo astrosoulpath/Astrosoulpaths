@@ -474,16 +474,6 @@ export class AdminRepository {
     await this.ensureAstrologerExists(astrologerId);
 
     return this.prisma.$transaction(async (tx) => {
-      const astrologerRole = await tx.role.findUnique({
-        where: {
-          name: 'astrologer',
-        },
-      });
-
-      if (!astrologerRole) {
-        throw new NotFoundException('Astrologer role configuration missing');
-      }
-
       const astrologer = await tx.astrologer.update({
         where: {
           id: astrologerId,
@@ -500,7 +490,6 @@ export class AdminRepository {
           id: astrologer.userId,
         },
         data: {
-          roleId: astrologerRole.id,
           isAstrologer: true,
         },
       });
@@ -529,16 +518,6 @@ export class AdminRepository {
     await this.ensureAstrologerExists(astrologerId);
 
     return this.prisma.$transaction(async (tx) => {
-      const userRole = await tx.role.findUnique({
-        where: {
-          name: 'user',
-        },
-      });
-
-      if (!userRole) {
-        throw new NotFoundException('User role configuration missing');
-      }
-
       const astrologer = await tx.astrologer.update({
         where: {
           id: astrologerId,
@@ -555,7 +534,6 @@ export class AdminRepository {
           id: astrologer.userId,
         },
         data: {
-          roleId: userRole.id,
           isAstrologer: false,
         },
       });

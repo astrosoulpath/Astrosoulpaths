@@ -1,3 +1,4 @@
+import '../../../astrologer/presentation/screens/astrologer_application_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:country_picker/country_picker.dart';
@@ -542,45 +543,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       if (widget.portal == AuthPortal.joinAstrologer) {
-        if (verifyResult.nextStep == 'COMPLETE_ASTROLOGER_ONBOARDING' ||
-            verifyResult.nextStep == 'OPEN_ASTROLOGER_DASHBOARD') {
-          final qualificationPassed = await Navigator.of(context).push<bool>(
-            MaterialPageRoute<bool>(
-              builder: (_) => AstrologerQualificationScreen(
-                accessToken: verifyResult.accessToken,
-              ),
-            ),
-          );
-
-          if (!mounted || qualificationPassed != true) {
-            return;
-          }
-
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute<void>(
-              builder: (_) => AstrologerRegistrationScreen(
-                phone: phone,
-                accessToken: verifyResult.accessToken,
-              ),
-            ),
-            (route) => false,
-          );
-
-          return;
-        }
-
-        if (verifyResult.nextStep == 'WAIT_FOR_ADMIN_APPROVAL') {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute<void>(
-              builder: (_) => AstrologerPendingApprovalScreen(
-                message: verifyResult.message,
-              ),
-            ),
-            (route) => false,
-          );
-
-          return;
-        }
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => const AstrologerApplicationScreen(),
+          ),
+        );
+        return;
       }
       // CUSTOMER PHONE/OTP SUCCESS:
       // OTP screen has already completed required customer onboarding
@@ -1156,102 +1124,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<bool> _confirmLegacyGoogleMigration() async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            backgroundColor: AppColors.surface,
-            title: const Text('Migrate your Google sign-in?'),
-            content: const Text(
-              'Your existing Astro Soul Path Google account uses our earlier sign-in system. Verify the same Google identity in both systems to keep your existing account and data. No customer data will be moved.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Verify and migrate'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-  }
-
-  Future<void> _migrateLegacyGoogleAccount(
-    GoogleAuthResult googleResult,
-  ) async {
-    if (!await _confirmLegacyGoogleMigration() || !mounted) {
-      return;
-    }
-
-    final legacySession = await GoogleAuthService.instance
-        .signInToLegacySupabase(
-          googleIdToken: googleResult.googleIdToken,
-          googleAccessToken: googleResult.googleAccessToken,
-        );
-    final legacyAccessToken = legacySession?.accessToken.trim() ?? '';
-
-    if (legacyAccessToken.isEmpty) {
-      throw const AuthApiException(
-        'The existing Google account could not be verified.',
-      );
-    }
-
-    await _authApi.linkFirebaseGoogleToLegacyAccount(
-      firebaseIdToken: googleResult.firebaseIdToken,
-      legacySupabaseAccessToken: legacyAccessToken,
-      confirmAccountLink: true,
-    );
-
-    final result = await _authApi.firebaseGoogleLogin(
-      idToken: googleResult.firebaseIdToken,
-      portal: widget.portal,
-    );
-
-    await _sessionStore.save(result);
-
-    if (!mounted) {
-      return;
-    }
-
-    if (widget.portal == AuthPortal.customer) {
-      await _openCustomerHomeWithFreeChat(result);
-    } else {
-      _showGooglePortalResult(result);
-    }
-  }
-
-  void _showGooglePortalResult(VerifyOtpResult result) {
-    if (result.portal == 'astrologer' &&
-        result.nextStep == 'OPEN_ASTROLOGER_DASHBOARD') {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(
-          builder: (_) => const AstrologerDashboardScreen(),
-        ),
-        (route) => false,
-      );
-      return;
-    }
-
-    if (result.nextStep == 'WAIT_FOR_ADMIN_APPROVAL') {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(
-          builder: (_) =>
-              AstrologerPendingApprovalScreen(message: result.message),
-        ),
-        (route) => false,
-      );
-      return;
-    }
-
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text(result.message)));
-  }
-
   Future<void> _linkFirebaseEmailWithVerifiedPhone(
     String firebaseEmailToken,
   ) async {
@@ -1401,78 +1273,12 @@ class _LoginScreenState extends State<LoginScreen> {
           );
 
         case AuthPortal.joinAstrologer:
-          if (verifyResult.role != 'ASTROLOGER_APPLICANT' ||
-              verifyResult.portal != 'joinAstrologer') {
-            throw const AuthApiException(
-              'This Google account cannot continue astrologer onboarding.',
-            );
-          }
-
-          if (verifyResult.nextStep ==
-              'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING') {
-            ScaffoldMessenger.of(context)
-              ..clearSnackBars()
-              ..showSnackBar(SnackBar(content: Text(verifyResult.message)));
-            return;
-          }
-
-          if (verifyResult.nextStep == 'WAIT_FOR_ADMIN_APPROVAL') {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute<void>(
-                builder: (_) => AstrologerPendingApprovalScreen(
-                  message: verifyResult.message,
-                ),
-              ),
-              (route) => false,
-            );
-            return;
-          }
-
-          if (verifyResult.nextStep == 'COMPLETE_ASTROLOGER_ONBOARDING' ||
-              verifyResult.nextStep == 'OPEN_ASTROLOGER_DASHBOARD') {
-            final googlePhone =
-                verifyResult.user['phone']?.toString().trim() ?? '';
-
-            if (googlePhone.isEmpty) {
-              ScaffoldMessenger.of(context)
-                ..clearSnackBars()
-                ..showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Verify your mobile number before continuing astrologer onboarding.',
-                    ),
-                  ),
-                );
-              return;
-            }
-
-            final qualificationPassed = await Navigator.of(context).push<bool>(
-              MaterialPageRoute<bool>(
-                builder: (_) => AstrologerQualificationScreen(
-                  accessToken: verifyResult.accessToken,
-                ),
-              ),
-            );
-
-            if (!mounted || qualificationPassed != true) {
-              return;
-            }
-
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute<void>(
-                builder: (_) => AstrologerRegistrationScreen(
-                  phone: googlePhone,
-                  accessToken: verifyResult.accessToken,
-                ),
-              ),
-              (route) => false,
-            );
-            return;
-          }
-
-          throw AuthApiException(
-            'Unsupported astrologer onboarding state: ${verifyResult.nextStep}',
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => const AstrologerApplicationScreen(),
+            ),
           );
+          return;
       }
     } on GoogleAuthCancelledException {
       return;
@@ -1491,41 +1297,6 @@ class _LoginScreenState extends State<LoginScreen> {
         );
     } on AuthApiException catch (error) {
       if (!mounted) {
-        return;
-      }
-
-      if (error.code == 'FIREBASE_GOOGLE_LINK_REQUIRED' &&
-          widget.portal == AuthPortal.customer &&
-          googleResult != null) {
-        try {
-          await _migrateLegacyGoogleAccount(googleResult);
-        } on AuthApiException catch (linkError) {
-          if (mounted) {
-            ScaffoldMessenger.of(context)
-              ..clearSnackBars()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(linkError.message),
-                  backgroundColor: Colors.red.shade700,
-                ),
-              );
-          }
-        } on FirebaseException catch (linkError) {
-          if (mounted) {
-            ScaffoldMessenger.of(context)
-              ..clearSnackBars()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(
-                    linkError.code == 'too-many-requests'
-                        ? 'Too many verification attempts. Wait before trying again.'
-                        : 'Phone verification failed. Please try again.',
-                  ),
-                  backgroundColor: Colors.red.shade700,
-                ),
-              );
-          }
-        }
         return;
       }
 

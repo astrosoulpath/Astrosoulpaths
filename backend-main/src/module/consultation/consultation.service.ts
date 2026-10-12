@@ -86,6 +86,18 @@ export class ConsultationService {
     private readonly notificationsPushService: NotificationsPushService,
   ) {}
 
+  private async assertApprovedAstrologer(userId: string) {
+    const profile = await this.prisma.astrologer.findUnique({
+      where: { userId },
+      select: { isApproved: true, isVerified: true,
+        user: { select: { isActive: true, isBlocked: true, isAstrologer: true } } },
+    });
+    if (!profile?.isApproved || !profile.isVerified || !profile.user.isActive ||
+        profile.user.isBlocked || !profile.user.isAstrologer) {
+      throw new ForbiddenException('Admin approval is required for astrologer operations');
+    }
+  }
+
   private async getPlatformFeePercent(): Promise<number> {
     try {
       const settings = await this.prisma.platformSettings.upsert({
@@ -390,6 +402,7 @@ export class ConsultationService {
       throw new BadRequestException('Astrologer user ID is required');
     }
 
+    await this.assertApprovedAstrologer(normalizedAstrologerUserId);
     const consultations =
       await this.consultationRepository.findActiveAstrologerConsultation(
         normalizedAstrologerUserId,
@@ -512,6 +525,7 @@ export class ConsultationService {
       throw new BadRequestException('Astrologer user ID is required');
     }
 
+    await this.assertApprovedAstrologer(normalizedAstrologerUserId);
     const result =
       await this.consultationRepository.findAstrologerConsultationHistory(
         normalizedAstrologerUserId,
@@ -543,6 +557,7 @@ export class ConsultationService {
       throw new BadRequestException('Astrologer user ID is required');
     }
 
+    await this.assertApprovedAstrologer(astrologerUserId);
     const consultation =
       await this.consultationRepository.ensureConsultationExists(
         consultationId,
@@ -682,6 +697,7 @@ export class ConsultationService {
       throw new BadRequestException('Astrologer user ID is required');
     }
 
+    await this.assertApprovedAstrologer(astrologerUserId);
     const consultation =
       await this.consultationRepository.ensureConsultationExists(
         consultationId,

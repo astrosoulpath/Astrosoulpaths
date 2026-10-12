@@ -1,3 +1,4 @@
+import '../../astrologer/presentation/screens/astrologer_application_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../../astrologer/presentation/screens/astrologer_dashboard_screen.dart';
@@ -6,17 +7,19 @@ import '../data/auth_session_store.dart';
 import 'screens/welcome_screen.dart';
 
 class AuthGate extends StatefulWidget {
-  const AuthGate({super.key});
+  const AuthGate({super.key, this.sessionStore});
+  final AuthSessionStore? sessionStore;
 
   @override
   State<AuthGate> createState() => _AuthGateState();
 }
 
 class _AuthGateState extends State<AuthGate> {
-  final _sessionStore = AuthSessionStore();
+  late final _sessionStore = widget.sessionStore ?? AuthSessionStore();
 
   StoredAuthSession? _session;
   bool _isLoading = true;
+  bool _restoreFailed = false;
 
   @override
   void initState() {
@@ -25,8 +28,12 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _restoreSession() async {
+    setState(() {
+      _isLoading = true;
+      _restoreFailed = false;
+    });
     try {
-      final session = await _sessionStore.read();
+      final session = await _sessionStore.restore();
 
       if (!mounted) {
         return;
@@ -37,14 +44,13 @@ class _AuthGateState extends State<AuthGate> {
         _isLoading = false;
       });
     } catch (_) {
-      await _sessionStore.clear();
-
       if (!mounted) {
         return;
       }
 
       setState(() {
         _session = null;
+        _restoreFailed = true;
         _isLoading = false;
       });
     }
@@ -56,6 +62,22 @@ class _AuthGateState extends State<AuthGate> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    if (_restoreFailed) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Unable to verify account access.'),
+              TextButton(
+                onPressed: _restoreSession,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     final session = _session;
 
     // Any valid CUSTOMER session enters the customer app.
@@ -74,6 +96,12 @@ class _AuthGateState extends State<AuthGate> {
         session.portal == 'astrologer' &&
         session.nextStep == 'OPEN_ASTROLOGER_DASHBOARD') {
       return const AstrologerDashboardScreen();
+    }
+
+    if (session != null &&
+        (session.portal == 'joinAstrologer' ||
+            session.portal == 'astrologer')) {
+      return const AstrologerApplicationScreen();
     }
 
     // No valid session -> Welcome/Login
