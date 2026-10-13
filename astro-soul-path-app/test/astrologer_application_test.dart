@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:astro_soul_path/features/auth/data/auth_session_store.dart';
-import 'package:astro_soul_path/features/astrologer/data/astrologer_portal_api.dart';
 import 'package:astro_soul_path/features/astrologer/presentation/screens/astrologer_registration_screen.dart';
 import 'package:astro_soul_path/features/auth/data/firebase_phone_auth_service.dart';
 import 'package:astro_soul_path/features/profile/data/profile_api.dart';
@@ -10,6 +9,7 @@ import 'package:astro_soul_path/features/astrologer/presentation/screens/astrolo
 class ApplicationSessions extends AuthSessionStore {
   bool missing = false;
   String id = 'original';
+  bool changeOnContinuation = false;
   String step = 'COMPLETE_ASTROLOGER_ONBOARDING';
   final calls = <String>[];
   @override
@@ -19,6 +19,7 @@ class ApplicationSessions extends AuthSessionStore {
   }) async {
     calls.add('${portal ?? ''}:$persist');
     if (missing) return null;
+    if (changeOnContinuation && calls.length > 1) id = 'other';
     return StoredAuthSession(
       accessToken: 'test-token',
       refreshToken: '',
@@ -72,73 +73,22 @@ void main() {
     expect(find.text('Continue application'), findsNothing);
     expect(find.text('Open Customer Dashboard'), findsOneWidget);
   });
-  testWidgets(
-    'unverified authenticated applicant opens questions; FAIL blocks registration',
-    (tester) async {
-      final sessions = ApplicationSessions()
-        ..step = 'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING';
-      var questions = 0;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: AstrologerApplicationScreen(
-            sessionStore: sessions,
-            openQualification: (_, token) async {
-              expect(token, 'test-token');
-              questions++;
-              return false;
-            },
+  for (final verified in [true, false]) {
+    testWidgets(
+      'authenticated applicant opens registration without exam: $verified',
+      (tester) async {
+        final sessions = ApplicationSessions();
+        if (!verified) {
+          sessions.step = 'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING';
+        }
+        await tester.pumpWidget(
+          MaterialApp(
+            home: AstrologerApplicationScreen(sessionStore: sessions),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Send OTP'), findsNothing);
-      await tester.tap(find.text('Continue application'));
-      await tester.pumpAndSettle();
-      expect(questions, 1);
-      expect(find.byType(AstrologerRegistrationScreen), findsNothing);
-    },
-  );
-  testWidgets(
-    'unauthenticated applicant requires Google or Email authentication',
-    (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: AstrologerApplicationScreen(
-            sessionStore: ApplicationSessions()..missing = true,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Sign in with Google or Email before qualification.'),
-        findsOneWidget,
-      );
-      expect(find.text('Continue application'), findsNothing);
-    },
-  );
-  for (final persisted in [true, false]) {
-    testWidgets('registration checks persisted PASS $persisted', (
-      tester,
-    ) async {
-      final sessions = ApplicationSessions()
-        ..step = 'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING';
-      await tester.pumpWidget(
-        MaterialApp(
-          home: AstrologerApplicationScreen(
-            sessionStore: sessions,
-            portalApi: QualificationStatus(persisted),
-            openQualification: (_, _) async => true,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Continue application'));
-      await tester.pumpAndSettle();
-      expect(
-        find.byType(AstrologerRegistrationScreen),
-        persisted ? findsOneWidget : findsNothing,
-      );
-      if (persisted) {
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Continue application'));
+        await tester.pumpAndSettle();
         final form = tester.widget<AstrologerRegistrationScreen>(
           find.byType(AstrologerRegistrationScreen),
         );
@@ -149,9 +99,26 @@ void main() {
         await tester.tap(find.text('Submit for Admin Approval'));
         await tester.pumpAndSettle();
         expect(find.byType(AstrologerRegistrationScreen), findsOneWidget);
-      }
-    });
+      },
+    );
   }
+  testWidgets('unauthenticated applicant cannot open registration', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AstrologerApplicationScreen(
+          sessionStore: ApplicationSessions()..missing = true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Sign in with Google or Email before registration.'),
+      findsOneWidget,
+    );
+    expect(find.text('Continue application'), findsNothing);
+  });
   for (final verified in [true, false]) {
     testWidgets('deferred verification reuses canonical account $verified', (
       tester,
@@ -215,34 +182,13 @@ void main() {
   testWidgets('canonical account change blocks registration continuation', (
     tester,
   ) async {
-    final sessions = ApplicationSessions();
+    final sessions = ApplicationSessions()..changeOnContinuation = true;
     await tester.pumpWidget(
-      MaterialApp(
-        home: AstrologerApplicationScreen(
-          sessionStore: sessions,
-          portalApi: QualificationStatus(true),
-          openQualification: (_, _) async {
-            sessions.id = 'other';
-            return true;
-          },
-        ),
-      ),
+      MaterialApp(home: AstrologerApplicationScreen(sessionStore: sessions)),
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continue application'));
     await tester.pumpAndSettle();
     expect(find.byType(AstrologerRegistrationScreen), findsNothing);
   });
-}
-
-class QualificationStatus extends AstrologerPortalApi {
-  QualificationStatus(this.passed);
-  final bool passed;
-  @override
-  Future<Map<String, dynamic>> getQualificationStatus({
-    required String accessToken,
-  }) async => {
-    'success': true,
-    'data': {'passed': passed},
-  };
 }

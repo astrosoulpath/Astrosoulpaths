@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:country_picker/country_picker.dart';
 import '../../../astrologer/presentation/screens/astrologer_registration_screen.dart';
-import '../../../astrologer/presentation/screens/astrologer_qualification_screen.dart';
 import '../../../astrologer/presentation/screens/astrologer_pending_approval_screen.dart';
 import '../../../astrologer/presentation/screens/astrologer_dashboard_screen.dart';
 import 'package:flutter/services.dart';
@@ -539,18 +538,6 @@ class _LoginScreenState extends State<LoginScreen> {
         }
 
         if (verifyResult.nextStep == 'COMPLETE_ASTROLOGER_ONBOARDING') {
-          final qualificationPassed = await Navigator.of(context).push<bool>(
-            MaterialPageRoute<bool>(
-              builder: (_) => AstrologerQualificationScreen(
-                accessToken: verifyResult.accessToken,
-              ),
-            ),
-          );
-
-          if (!mounted || qualificationPassed != true) {
-            return;
-          }
-
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute<void>(
               builder: (_) => AstrologerRegistrationScreen(

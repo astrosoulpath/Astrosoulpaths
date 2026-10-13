@@ -36,10 +36,13 @@ describe('Qualification scoring and canonical KYC registration', () => {
       userId: user.id, passed, score, totalQuestions: 10, passingScore: 70,
     }) });
   });
-  it('blocks registration without a persisted qualification pass', async () => {
+  it('registers without an exam even when qualification is enabled and no pass exists', async () => {
     db.astrologerQualificationAttempt.findFirst.mockResolvedValue(null);
-    await expect(service.register('subject', application)).rejects.toThrow('must pass');
-    expect(db.$transaction).not.toHaveBeenCalled();
+    db.astrologerQualificationSettings.findUnique.mockResolvedValue({ isEnabled: true });
+    await service.register('subject', application);
+    expect(db.astrologerQualificationSettings.findUnique).not.toHaveBeenCalled();
+    expect(db.astrologerQualificationAttempt.findFirst).not.toHaveBeenCalled();
+    expect(db.astrologer.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ userId: user.id, isApproved: false }) }));
   });
   it('requires identity proof', async () => {
     await expect(service.register('subject', { ...application, documents: undefined })).rejects.toThrow('Identity proof');
@@ -75,5 +78,9 @@ describe('Qualification scoring and canonical KYC registration', () => {
       userId: user.id, documents, isApproved: false, isVerified: false, isOnline: false,
     }) }));
     expect(db.user.update).toHaveBeenCalledWith({ where: { id: user.id }, data: { name: 'Applicant', isAstrologer: false } });
+  });
+  it('rejects an unauthenticated registration before writes', async () => {
+    await expect(service.register('', application)).rejects.toThrow();
+    expect(db.$transaction).not.toHaveBeenCalled();
   });
 });

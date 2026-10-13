@@ -5,10 +5,8 @@ import '../../../auth/data/auth_session_store.dart';
 import '../../../auth/data/firebase_phone_auth_service.dart';
 import '../../../profile/data/profile_api.dart';
 import '../../../auth/data/phone_otp_send_cooldown.dart';
-import '../../data/astrologer_portal_api.dart';
 import '../../../customer/presentation/screens/customer_shell_screen.dart';
 import 'astrologer_dashboard_screen.dart';
-import 'astrologer_qualification_screen.dart';
 import 'astrologer_registration_screen.dart';
 
 class AstrologerApplicationScreen extends StatefulWidget {
@@ -17,8 +15,6 @@ class AstrologerApplicationScreen extends StatefulWidget {
     this.sessionStore,
     this.phoneVerificationOnly = false,
     this.canonicalUserId,
-    this.portalApi,
-    this.openQualification,
     this.profileApi,
     this.sendPhoneCode,
     this.verifyPhoneCode,
@@ -26,8 +22,6 @@ class AstrologerApplicationScreen extends StatefulWidget {
   final AuthSessionStore? sessionStore;
   final bool phoneVerificationOnly;
   final String? canonicalUserId;
-  final AstrologerPortalApi? portalApi;
-  final Future<bool?> Function(BuildContext, String)? openQualification;
   final ProfileApi? profileApi;
   final Future<FirebasePhoneCode> Function(String phone)? sendPhoneCode;
   final Future<String> Function(String verificationId, String smsCode)?
@@ -40,7 +34,6 @@ class AstrologerApplicationScreen extends StatefulWidget {
 class _AstrologerApplicationScreenState
     extends State<AstrologerApplicationScreen> {
   late final _sessions = widget.sessionStore ?? AuthSessionStore();
-  late final _api = widget.portalApi ?? AstrologerPortalApi();
   late final _profile = widget.profileApi ?? ProfileApi();
   final _phone = TextEditingController();
   final _otp = TextEditingController();
@@ -67,7 +60,6 @@ class _AstrologerApplicationScreenState
     _phone.dispose();
     _otp.dispose();
     _profile.close();
-    _api.close();
     super.dispose();
   }
 
@@ -113,7 +105,7 @@ class _AstrologerApplicationScreenState
         if (mounted) {
           setState(() {
             _state = null;
-            _error = 'Sign in with Google or Email before qualification.';
+            _error = 'Sign in with Google or Email before registration.';
           });
         }
         return;
@@ -246,15 +238,6 @@ class _AstrologerApplicationScreenState
   Future<void> _continue() async {
     final state = _state;
     if (_busy || state == null) return;
-    final passed = widget.openQualification != null
-        ? await widget.openQualification!(context, state.accessToken)
-        : await Navigator.of(context).push<bool>(
-            MaterialPageRoute(
-              builder: (_) =>
-                  AstrologerQualificationScreen(accessToken: state.accessToken),
-            ),
-          );
-    if (!mounted || passed != true) return;
     try {
       final fresh = await _sessions.restore(
         portal: 'joinAstrologer',
@@ -263,11 +246,11 @@ class _AstrologerApplicationScreenState
       if (!mounted || fresh == null || fresh.user['id'] != state.user['id']) {
         return;
       }
-      final status = await _api.getQualificationStatus(
-        accessToken: fresh.accessToken,
-      );
-      if (status['data'] is! Map || status['data']['passed'] != true) {
-        throw StateError('Qualification pass is not persisted.');
+      if (![
+        'COMPLETE_ASTROLOGER_ONBOARDING',
+        'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING',
+      ].contains(fresh.nextStep)) {
+        return;
       }
       if (!mounted) return;
       await Navigator.of(context).push(
@@ -395,7 +378,7 @@ class _AstrologerApplicationScreenState
               (step == 'COMPLETE_ASTROLOGER_ONBOARDING' ||
                   step == 'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING')) ...[
             const Text(
-              'Start qualification using your authenticated account. Phone verification follows registration details.',
+              'Complete your registration using your authenticated account. Phone verification and KYC are required before submission.',
             ),
             FilledButton(
               onPressed: _busy ? null : _continue,

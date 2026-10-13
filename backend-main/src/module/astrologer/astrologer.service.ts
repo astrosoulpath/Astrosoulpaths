@@ -417,42 +417,6 @@ export class AstrologerService {
       throw new BadRequestException('Use the authenticated account email; verify email changes separately');
     }
 
-    // Qualification is controlled by admin settings.
-    // When enabled, registration is blocked until the applicant passes.
-    const qualificationSettings =
-      await this.prisma.astrologerQualificationSettings.findUnique({
-        where: {
-          id: 'default',
-        },
-      });
-
-    const qualificationEnabled = qualificationSettings?.isEnabled ?? true;
-
-    if (qualificationEnabled) {
-      const passedQualification =
-        await this.prisma.astrologerQualificationAttempt.findFirst({
-          where: {
-            userId: user.id,
-            passed: true,
-          },
-          orderBy: {
-            completedAt: 'desc',
-          },
-          select: {
-            id: true,
-            score: true,
-            passingScore: true,
-            completedAt: true,
-          },
-        });
-
-      if (!passedQualification) {
-        throw new BadRequestException(
-          'You must pass the astrology qualification test before registration',
-        );
-      }
-    }
-
     // Only bucket-relative references issued under this canonical applicant's
     // upload namespace may be submitted. Never accept device paths or URLs.
     if (!dto.documents?.identityProof) {
