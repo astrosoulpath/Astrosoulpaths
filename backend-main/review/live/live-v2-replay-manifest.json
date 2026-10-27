@@ -1,0 +1,1975 @@
+{
+  "formatVersion": 1,
+  "target": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "database": "asp_live_v2_rehearsal_20261014_01",
+    "role": "postgres"
+  },
+  "protectedDatabase": "astro_soul_path",
+  "executionAuthorizedByThisManifest": false,
+  "historyModified": false,
+  "expectedPrismaSchema": {
+    "file": "prisma/schema.prisma",
+    "sha256": "5c6e84e5f55dae2536a101c8b8c1544f78ac89b3e5a12752951cd27059c74dc6"
+  },
+  "verification": {
+    "exactFileChecksumsPinned": true,
+    "staticTableDependencies": "PASS",
+    "issues": [],
+    "parserLimitation": "Conservative SQL text dependency scan; not a PostgreSQL parser or executed replay. Semantic/schema convergence is UNVERIFIED until rehearsal."
+  },
+  "canonicalFinance": {
+    "identity": "20260830_add_marketplace_finance_foundation",
+    "sourceAlias": "20260830150000_add_marketplace_finance_foundation",
+    "executeCount": 1,
+    "evidence": "Earlier approved original-database read-only inspections matched both history checksums to this SQL, including line-ending variants. No original database access in this preflight."
+  },
+  "excludedSql": [
+    {
+      "sqlFile": "prisma/migrations/20261008130000_add_ai_astro_personas_and_follows/migration.sql",
+      "reason": "NOT NULL arrays differ from Option A; replace in this rehearsal only, preserve original file"
+    }
+  ],
+  "replayPolicy": "Preserve directory order, replace finance identity in-place (not lexicographic resort), replace persona SQL in-place, append LiveMessage then LiveConnection. No migrate deploy or resolve. DML in historical files is flagged; it must never target existing application data. Repeatability requires another separately approved empty database, never dropping this one.",
+  "steps": [
+    {
+      "name": "20260328214408_init_migration",
+      "sqlFile": "prisma/migrations/20260328214408_init_migration/migration.sql",
+      "historicalIdentity": "20260328214408_init_migration",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 1,
+      "sha256": "92d6e7d10615095b9842ffbfa35928ff9fc85d86ea6dd4404c579ec58d1d8358",
+      "dependencies": [],
+      "createsTables": [
+        "User",
+        "Astrologer",
+        "Expertise",
+        "AstrologerExpertise",
+        "Review",
+        "Role",
+        "RolePermission",
+        "Permission",
+        "Kundli",
+        "DailyHoroscope"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260407135114_phone",
+      "sqlFile": "prisma/migrations/20260407135114_phone/migration.sql",
+      "historicalIdentity": "20260407135114_phone",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 2,
+      "sha256": "5bd3e6b81e94e863d38a42103460cfa61a26b331241b4cddd50aa025a4b32107",
+      "dependencies": [
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260408073952_kundli_implement",
+      "sqlFile": "prisma/migrations/20260408073952_kundli_implement/migration.sql",
+      "historicalIdentity": "20260408073952_kundli_implement",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 3,
+      "sha256": "4f048959f44fc0f3f736050d872ef1148fe0f42f80bcc36b0a82372ca604c774",
+      "dependencies": [
+        "20260407135114_phone",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "Profile",
+        "VedicKundli",
+        "WesternChart"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260413144728_implemented_dosha_and_dashas",
+      "sqlFile": "prisma/migrations/20260413144728_implemented_dosha_and_dashas/migration.sql",
+      "historicalIdentity": "20260413144728_implemented_dosha_and_dashas",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 4,
+      "sha256": "abca801531cbe84128e2844d9f74281b17782b4ec4aa19b2314071a56d57b786",
+      "dependencies": [
+        "20260408073952_kundli_implement",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "KundliData"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": true,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260413145700_updated_profile",
+      "sqlFile": "prisma/migrations/20260413145700_updated_profile/migration.sql",
+      "historicalIdentity": "20260413145700_updated_profile",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 5,
+      "sha256": "380c70b77fe43fcb193bbcb8dfe0813395ce94e2b3f4194bcf1c5b31e74086f0",
+      "dependencies": [
+        "20260413144728_implemented_dosha_and_dashas",
+        "20260408073952_kundli_implement"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260414154226_updated_kundli_schema",
+      "sqlFile": "prisma/migrations/20260414154226_updated_kundli_schema/migration.sql",
+      "historicalIdentity": "20260414154226_updated_kundli_schema",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 6,
+      "sha256": "0ad21716c1c2e88cbaee2727640c5e04f5c741edcb40fbced780db6dee76a3c2",
+      "dependencies": [
+        "20260413145700_updated_profile",
+        "20260328214408_init_migration",
+        "20260413144728_implemented_dosha_and_dashas"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260414212459_modify_kundli",
+      "sqlFile": "prisma/migrations/20260414212459_modify_kundli/migration.sql",
+      "historicalIdentity": "20260414212459_modify_kundli",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 7,
+      "sha256": "1912f6dbe7c021922e505a4c8c35acef024ba9824a7c98ea68c28930d872ef89",
+      "dependencies": [
+        "20260414154226_updated_kundli_schema",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260416062749_multi_lang",
+      "sqlFile": "prisma/migrations/20260416062749_multi_lang/migration.sql",
+      "historicalIdentity": "20260416062749_multi_lang",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 8,
+      "sha256": "0db567c851394c5e8becd08380d95346a876a0fa9d9738e442f77e83db31a7d5",
+      "dependencies": [
+        "20260414212459_modify_kundli",
+        "20260413144728_implemented_dosha_and_dashas",
+        "20260408073952_kundli_implement"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260416140344_add_vedic_field",
+      "sqlFile": "prisma/migrations/20260416140344_add_vedic_field/migration.sql",
+      "historicalIdentity": "20260416140344_add_vedic_field",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 9,
+      "sha256": "efaf5d00a6821fe92c2dcb3491bd66d2d2dbe3cf5cf9e005160894d628935e5e",
+      "dependencies": [
+        "20260416062749_multi_lang",
+        "20260413144728_implemented_dosha_and_dashas"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260416195919_kundlimatch",
+      "sqlFile": "prisma/migrations/20260416195919_kundlimatch/migration.sql",
+      "historicalIdentity": "20260416195919_kundlimatch",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 10,
+      "sha256": "cc130f702fda2a91e3415bff324035c4e2af9e3594e7ec57b46e6abcb6f72028",
+      "dependencies": [
+        "20260416140344_add_vedic_field",
+        "20260408073952_kundli_implement"
+      ],
+      "createsTables": [
+        "Match"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260430222359_subcription",
+      "sqlFile": "prisma/migrations/20260430222359_subcription/migration.sql",
+      "historicalIdentity": "20260430222359_subcription",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 11,
+      "sha256": "428782a55519b6fdbbf800ca1283bd2d6821df7807f0e22f7988f977de5b06ba",
+      "dependencies": [
+        "20260416195919_kundlimatch",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "Subscription",
+        "SubscriptionPlan"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260507221850_update_profile",
+      "sqlFile": "prisma/migrations/20260507221850_update_profile/migration.sql",
+      "historicalIdentity": "20260507221850_update_profile",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 12,
+      "sha256": "183d85620ad4244241f3029b66023ff1a31e23421bf2303751f02808f2eca028",
+      "dependencies": [
+        "20260430222359_subcription",
+        "20260408073952_kundli_implement"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260512021057_wallet_intergration",
+      "sqlFile": "prisma/migrations/20260512021057_wallet_intergration/migration.sql",
+      "historicalIdentity": "20260512021057_wallet_intergration",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 13,
+      "sha256": "9c9914c51bef61e9a52e72ae401e10ff4b3aab2cf1ec06bded82cb6c02fd0053",
+      "dependencies": [
+        "20260507221850_update_profile",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "wallets",
+        "payment_orders",
+        "wallet_ledger"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260512103000_payment_types_and_kundli_orders",
+      "sqlFile": "prisma/migrations/20260512103000_payment_types_and_kundli_orders/migration.sql",
+      "historicalIdentity": "20260512103000_payment_types_and_kundli_orders",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 14,
+      "sha256": "c701ed6da0ed7b29244f7fafc25638e6e00cdacd8af76e0111284f950b2c74b6",
+      "dependencies": [
+        "20260512021057_wallet_intergration",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "KundliOrder"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": true,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260513103000_add_call_end_reason",
+      "sqlFile": "prisma/migrations/20260513103000_add_call_end_reason/migration.sql",
+      "historicalIdentity": "20260513103000_add_call_end_reason",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 15,
+      "sha256": "e03cf7f918e9dfa8e01100ef4edd2032028b121a8f921bd145da24b25708984a",
+      "dependencies": [
+        "20260512103000_payment_types_and_kundli_orders"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260513120000_add_call_sessions",
+      "sqlFile": "prisma/migrations/20260513120000_add_call_sessions/migration.sql",
+      "historicalIdentity": "20260513120000_add_call_sessions",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 16,
+      "sha256": "6341f1b46cd7f3f93f36547211bb0ae17df3471cc785e4b22f3c7535638522ce",
+      "dependencies": [
+        "20260513103000_add_call_end_reason",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "CallSession"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260513123000_add_call_end_reason_to_call_session",
+      "sqlFile": "prisma/migrations/20260513123000_add_call_end_reason_to_call_session/migration.sql",
+      "historicalIdentity": "20260513123000_add_call_end_reason_to_call_session",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 17,
+      "sha256": "eed4ebca3aa095525de2ebf8dd03bb156b9ea2633981f71833c0c57d15aa8e4d",
+      "dependencies": [
+        "20260513120000_add_call_sessions"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260513160000_drop_call_sessions",
+      "sqlFile": "prisma/migrations/20260513160000_drop_call_sessions/migration.sql",
+      "historicalIdentity": "20260513160000_drop_call_sessions",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 18,
+      "sha256": "0c92c6b98260d808312a0da1b1681ee1148ea07ca251b574c66de418bf1131dc",
+      "dependencies": [
+        "20260513123000_add_call_end_reason_to_call_session"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": true,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260514075442_call_session",
+      "sqlFile": "prisma/migrations/20260514075442_call_session/migration.sql",
+      "historicalIdentity": "20260514075442_call_session",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 19,
+      "sha256": "6bcc63b2319584f0fae954cb0f5c7d40e5a570b819e0e9ca489fe8e0fb7e43b9",
+      "dependencies": [
+        "20260513160000_drop_call_sessions",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "CallSession"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260515013848_userprofile",
+      "sqlFile": "prisma/migrations/20260515013848_userprofile/migration.sql",
+      "historicalIdentity": "20260515013848_userprofile",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 20,
+      "sha256": "54b77bc4b1b68bedaf58d2e946fe8bd4f47509d20851c130204f40ba7896fc0b",
+      "dependencies": [
+        "20260514075442_call_session",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "UserProfile"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260708071230_add_profile_extra_fields",
+      "sqlFile": "prisma/migrations/20260708071230_add_profile_extra_fields/migration.sql",
+      "historicalIdentity": "20260708071230_add_profile_extra_fields",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 21,
+      "sha256": "3ba233e0a2d0156e8d0df052fc7e4623af7d7bd40e01311cc5176b0dce4264c1",
+      "dependencies": [
+        "20260515013848_userprofile",
+        "20260416195919_kundlimatch",
+        "20260408073952_kundli_implement"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260708074623_fix_match_model_fields",
+      "sqlFile": "prisma/migrations/20260708074623_fix_match_model_fields/migration.sql",
+      "historicalIdentity": "20260708074623_fix_match_model_fields",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 22,
+      "sha256": "7d529426dbb86adef738c79f2579463637759d273ced84e1443ecf18e340399a",
+      "dependencies": [
+        "20260708071230_add_profile_extra_fields",
+        "20260416195919_kundlimatch",
+        "20260408073952_kundli_implement"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260708075919_add_match_result",
+      "sqlFile": "prisma/migrations/20260708075919_add_match_result/migration.sql",
+      "historicalIdentity": "20260708075919_add_match_result",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 23,
+      "sha256": "2052e05a891880e2be34ff0ad8e76cb219593e5c11bfe37256819f64d131c920",
+      "dependencies": [
+        "20260708074623_fix_match_model_fields",
+        "20260416195919_kundlimatch"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260711190755_add_chat_messagee",
+      "sqlFile": "prisma/migrations/20260711190755_add_chat_messagee/migration.sql",
+      "historicalIdentity": "20260711190755_add_chat_messagee",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 24,
+      "sha256": "d1078a4d3171e0eac4aa8442624787ec2bf2f3d630a0f19a1bc5029c9727f666",
+      "dependencies": [
+        "20260708075919_add_match_result",
+        "20260514075442_call_session",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "chat_messages"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260716065040_add_astrologer_earnings_and_payouts",
+      "sqlFile": "prisma/migrations/20260716065040_add_astrologer_earnings_and_payouts/migration.sql",
+      "historicalIdentity": "20260716065040_add_astrologer_earnings_and_payouts",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 25,
+      "sha256": "38d38bb5189f7690d7a5ab1fe3d0a650ada22c4f2b97006fb6d18256c7cb443f",
+      "dependencies": [
+        "20260711190755_add_chat_messagee",
+        "20260328214408_init_migration",
+        "20260514075442_call_session"
+      ],
+      "createsTables": [
+        "astrologer_earnings",
+        "astrologer_payouts"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260724094554_add_consultation_mode",
+      "sqlFile": "prisma/migrations/20260724094554_add_consultation_mode/migration.sql",
+      "historicalIdentity": "20260724094554_add_consultation_mode",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 26,
+      "sha256": "1f987c30ca0109b5af0ec9c4111e827a2c916c09a2414455c44842e2a09fcf20",
+      "dependencies": [
+        "20260716065040_add_astrologer_earnings_and_payouts",
+        "20260514075442_call_session"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260728062000_add_chat_client_message_id",
+      "sqlFile": "prisma/migrations/20260728062000_add_chat_client_message_id/migration.sql",
+      "historicalIdentity": "20260728062000_add_chat_client_message_id",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 27,
+      "sha256": "7d1d0e8f73f547c9829be415f30671cbac48324b95f238ee38ec7c9318ecfe24",
+      "dependencies": [
+        "20260724094554_add_consultation_mode",
+        "20260711190755_add_chat_messagee"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260730081105_remove_invalid_user_role_default",
+      "sqlFile": "prisma/migrations/20260730081105_remove_invalid_user_role_default/migration.sql",
+      "historicalIdentity": "20260730081105_remove_invalid_user_role_default",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 28,
+      "sha256": "cabb9d823f6c833f3596fa84ac2e573e438826c91f573c79eca684d96b78a64d",
+      "dependencies": [
+        "20260728062000_add_chat_client_message_id",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260731171719_add_customer_free_chat",
+      "sqlFile": "prisma/migrations/20260731171719_add_customer_free_chat/migration.sql",
+      "historicalIdentity": "20260731171719_add_customer_free_chat",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 29,
+      "sha256": "e92eeede343a04b0e510abbf6537e745ceff3eaad6305593e17af31a6f32723a",
+      "dependencies": [
+        "20260730081105_remove_invalid_user_role_default",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260731205158_add_kundli_saved_records",
+      "sqlFile": "prisma/migrations/20260731205158_add_kundli_saved_records/migration.sql",
+      "historicalIdentity": "20260731205158_add_kundli_saved_records",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 30,
+      "sha256": "d1d60be636d14708906a08b61bae8f29318e32fc16f4287732d7c9eccb7b3d75",
+      "dependencies": [
+        "20260731171719_add_customer_free_chat",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "kundli_saved_records"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260805073057_add_one_minute_free_chat_booking",
+      "sqlFile": "prisma/migrations/20260805073057_add_one_minute_free_chat_booking/migration.sql",
+      "historicalIdentity": "20260805073057_add_one_minute_free_chat_booking",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 31,
+      "sha256": "f558dfdbfc7141a9bdb81ab1631c71461c75696902c675d67b6e0e29eda530a5",
+      "dependencies": [
+        "20260731205158_add_kundli_saved_records",
+        "20260514075442_call_session",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": true,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260808075842_add_astrologer_weekly_availability",
+      "sqlFile": "prisma/migrations/20260808075842_add_astrologer_weekly_availability/migration.sql",
+      "historicalIdentity": "20260808075842_add_astrologer_weekly_availability",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 32,
+      "sha256": "d4e3e6b01b026c051ddbd39d7b9d65ea88acc86411c15dfc72a8e5574c3506a1",
+      "dependencies": [
+        "20260805073057_add_one_minute_free_chat_booking",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "AstrologerAvailability"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260810052122_add_platform_settings",
+      "sqlFile": "prisma/migrations/20260810052122_add_platform_settings/migration.sql",
+      "historicalIdentity": "20260810052122_add_platform_settings",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 33,
+      "sha256": "502d8aca5a1aa50cf3c7087935b0526c37f2c2fdc9a1a37f526ad337447dd187",
+      "dependencies": [
+        "20260808075842_add_astrologer_weekly_availability"
+      ],
+      "createsTables": [
+        "platform_settings"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260810173249_add_chat_message_reply",
+      "sqlFile": "prisma/migrations/20260810173249_add_chat_message_reply/migration.sql",
+      "historicalIdentity": "20260810173249_add_chat_message_reply",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 34,
+      "sha256": "2f03534f6c475aac7c1a3695904938df9ce698b8bae12afbd47df7d152748a99",
+      "dependencies": [
+        "20260810052122_add_platform_settings",
+        "20260711190755_add_chat_messagee"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260811081128_add_astrology_questions",
+      "sqlFile": "prisma/migrations/20260811081128_add_astrology_questions/migration.sql",
+      "historicalIdentity": "20260811081128_add_astrology_questions",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 35,
+      "sha256": "62e632a2c4e11fab5867c5a1e75fa11ac78419a82ef795fffc83f56b7a4824b5",
+      "dependencies": [
+        "20260810173249_add_chat_message_reply"
+      ],
+      "createsTables": [
+        "AstrologyQuestionCategory",
+        "AstrologyQuestion"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260811094806_add_consultation_astrology_question_context",
+      "sqlFile": "prisma/migrations/20260811094806_add_consultation_astrology_question_context/migration.sql",
+      "historicalIdentity": "20260811094806_add_consultation_astrology_question_context",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 36,
+      "sha256": "f1d1bb584698cd119d92407b37511f5350f918536315c95f11d3a206014b9335",
+      "dependencies": [
+        "20260811081128_add_astrology_questions",
+        "20260514075442_call_session"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260811105204_add_push_devices",
+      "sqlFile": "prisma/migrations/20260811105204_add_push_devices/migration.sql",
+      "historicalIdentity": "20260811105204_add_push_devices",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 37,
+      "sha256": "f42ec310b64575de5055a987d1764d71a3791b5b280db70851949a76c6be2cff",
+      "dependencies": [
+        "20260811094806_add_consultation_astrology_question_context",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "PushDevice"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260812174629_add_payout_earning_reservation",
+      "sqlFile": "prisma/migrations/20260812174629_add_payout_earning_reservation/migration.sql",
+      "historicalIdentity": "20260812174629_add_payout_earning_reservation",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 38,
+      "sha256": "b7579e936d2510375466dd926985cb73bf16ff829552c8a3233db24fb32106bd",
+      "dependencies": [
+        "20260811105204_add_push_devices",
+        "20260716065040_add_astrologer_earnings_and_payouts"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260812202803_add_astrologer_qualification_system",
+      "sqlFile": "prisma/migrations/20260812202803_add_astrologer_qualification_system/migration.sql",
+      "historicalIdentity": "20260812202803_add_astrologer_qualification_system",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 39,
+      "sha256": "20c2fe061873e22d44fad7492f4b8410451ab41820b9bf83781c0e2a129c20c8",
+      "dependencies": [
+        "20260812174629_add_payout_earning_reservation",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "AstrologerQualificationSettings",
+        "AstrologerQualificationQuestion",
+        "AstrologerQualificationAttempt"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260815213655_add_chat_attachment_path",
+      "sqlFile": "prisma/migrations/20260815213655_add_chat_attachment_path/migration.sql",
+      "historicalIdentity": "20260815213655_add_chat_attachment_path",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 40,
+      "sha256": "b9b3410fc5675ccfed5e1f95a3a04fb71b089ccbc0fdca9d29add3a7a2eedf26",
+      "dependencies": [
+        "20260812202803_add_astrologer_qualification_system",
+        "20260711190755_add_chat_messagee"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260816055119_add_chat_e2ee_foundation",
+      "sqlFile": "prisma/migrations/20260816055119_add_chat_e2ee_foundation/migration.sql",
+      "historicalIdentity": "20260816055119_add_chat_e2ee_foundation",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 41,
+      "sha256": "b5db84c9987c06b4a6c4b5690e1daa56316b0ca68c5906993cdaf655ecd07922",
+      "dependencies": [
+        "20260815213655_add_chat_attachment_path",
+        "20260711190755_add_chat_messagee",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "chat_encryption_devices"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260816064446_add_user_block_report_moderation",
+      "sqlFile": "prisma/migrations/20260816064446_add_user_block_report_moderation/migration.sql",
+      "historicalIdentity": "20260816064446_add_user_block_report_moderation",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 42,
+      "sha256": "42adf1bc79a8cc6f7ea26df165f3a9650426c002075eb4a524425d4fedebc103",
+      "dependencies": [
+        "20260816055119_add_chat_e2ee_foundation",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "UserBlock",
+        "UserReport"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260816073224_add_review_call_session",
+      "sqlFile": "prisma/migrations/20260816073224_add_review_call_session/migration.sql",
+      "historicalIdentity": "20260816073224_add_review_call_session",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 43,
+      "sha256": "e5faeecf22a7fba1c871aaa8f6e90563de3dc35bab405281806b336810c36b3b",
+      "dependencies": [
+        "20260816064446_add_user_block_report_moderation",
+        "20260328214408_init_migration",
+        "20260514075442_call_session"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260817200709_add_ai_receptionist_persistence",
+      "sqlFile": "prisma/migrations/20260817200709_add_ai_receptionist_persistence/migration.sql",
+      "historicalIdentity": "20260817200709_add_ai_receptionist_persistence",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 44,
+      "sha256": "5018c1ee5c316667ec561c20046ab3ee5fd4988123d09a1a87a28aecc43808f5",
+      "dependencies": [
+        "20260816073224_add_review_call_session"
+      ],
+      "createsTables": [
+        "AiReceptionistSession",
+        "AiReceptionistMessage"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260818072026_add_live_astrologer_sessions",
+      "sqlFile": "prisma/migrations/20260818072026_add_live_astrologer_sessions/migration.sql",
+      "historicalIdentity": "20260818072026_add_live_astrologer_sessions",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 45,
+      "sha256": "38a6256588171a7cb3ef4cd3ff4de9406313e56408123a30196217b55019d33c",
+      "dependencies": [
+        "20260817200709_add_ai_receptionist_persistence",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "LiveSession",
+        "LiveViewer"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260818104609_add_ai_astro_pricing_and_usage",
+      "sqlFile": "prisma/migrations/20260818104609_add_ai_astro_pricing_and_usage/migration.sql",
+      "historicalIdentity": "20260818104609_add_ai_astro_pricing_and_usage",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 46,
+      "sha256": "6ed015af70d3ade1aa17e262e82237aa8a43d1ce09305912e3fe40f1b7c5a0f3",
+      "dependencies": [
+        "20260818072026_add_live_astrologer_sessions",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "ai_astro_pricing",
+        "ai_astro_usages"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260818105133_add_ai_astro_wallet_ledger_types",
+      "sqlFile": "prisma/migrations/20260818105133_add_ai_astro_wallet_ledger_types/migration.sql",
+      "historicalIdentity": "20260818105133_add_ai_astro_wallet_ledger_types",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 47,
+      "sha256": "9d974bb16b6f2168da4e557aaca24c1088c6f95177a921f0f0c6acb90047e93e",
+      "dependencies": [
+        "20260818104609_add_ai_astro_pricing_and_usage"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260818120545_add_ai_astro_request_idempotency",
+      "sqlFile": "prisma/migrations/20260818120545_add_ai_astro_request_idempotency/migration.sql",
+      "historicalIdentity": "20260818120545_add_ai_astro_request_idempotency",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 48,
+      "sha256": "5f1a21a74c14c3ecc838a5ef24499178c345d1c93299c853fc8e2d8980649f6c",
+      "dependencies": [
+        "20260818105133_add_ai_astro_wallet_ledger_types",
+        "20260818104609_add_ai_astro_pricing_and_usage"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260818191247_add_notification_inbox",
+      "sqlFile": "prisma/migrations/20260818191247_add_notification_inbox/migration.sql",
+      "historicalIdentity": "20260818191247_add_notification_inbox",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 49,
+      "sha256": "74a7fb3c2145c998c53c744c60e0189a775662f0eead2eeeb3ff63e12122d979",
+      "dependencies": [
+        "20260818120545_add_ai_astro_request_idempotency",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "app_notifications"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260820180701_add_ai_astrologer_avatar",
+      "sqlFile": "prisma/migrations/20260820180701_add_ai_astrologer_avatar/migration.sql",
+      "historicalIdentity": "20260820180701_add_ai_astrologer_avatar",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 50,
+      "sha256": "1a0351175b7c2027251fc9dfc135d3943775497b01254a94e4c6bad4d430eab5",
+      "dependencies": [
+        "20260818191247_add_notification_inbox",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260820191128_add_ai_astro_conversations",
+      "sqlFile": "prisma/migrations/20260820191128_add_ai_astro_conversations/migration.sql",
+      "historicalIdentity": "20260820191128_add_ai_astro_conversations",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 51,
+      "sha256": "331da4ef0b42622e27c1c6248ba9e11bdc3d1923f9c7247343024c90825257da",
+      "dependencies": [
+        "20260820180701_add_ai_astrologer_avatar",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "ai_astro_conversations",
+        "ai_astro_messages"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260820195433_add_user_profile_language",
+      "sqlFile": "prisma/migrations/20260820195433_add_user_profile_language/migration.sql",
+      "historicalIdentity": "20260820195433_add_user_profile_language",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 52,
+      "sha256": "be8f892c3313126d6e319a3844511d88098796148763a9a69521d4d6bb5de45f",
+      "dependencies": [
+        "20260820191128_add_ai_astro_conversations",
+        "20260515013848_userprofile"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260820205854_add_user_preferences",
+      "sqlFile": "prisma/migrations/20260820205854_add_user_preferences/migration.sql",
+      "historicalIdentity": "20260820205854_add_user_preferences",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 53,
+      "sha256": "0cf7d4c9086633889ade0566a640f3d17e5d9ac40c0bb60e481f9ace39e42eee",
+      "dependencies": [
+        "20260820195433_add_user_profile_language",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "user_preferences"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260821071752_add_daily_horoscope_history",
+      "sqlFile": "prisma/migrations/20260821071752_add_daily_horoscope_history/migration.sql",
+      "historicalIdentity": "20260821071752_add_daily_horoscope_history",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 54,
+      "sha256": "770fd219c37e0c50e2187573f5fb10ba8526ba0688542a306b67dd89b1a82f5d",
+      "dependencies": [
+        "20260820205854_add_user_preferences",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "daily_horoscope_history"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260821110306_add_support_ticket_and_assistant_chat",
+      "sqlFile": "prisma/migrations/20260821110306_add_support_ticket_and_assistant_chat/migration.sql",
+      "historicalIdentity": "20260821110306_add_support_ticket_and_assistant_chat",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 55,
+      "sha256": "5ae56683e76e15c3f58a52c1fe7073f5888e492fb91aae18f96805093b88fcd7",
+      "dependencies": [
+        "20260821071752_add_daily_horoscope_history",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "support_tickets",
+        "support_messages",
+        "assistant_conversations",
+        "assistant_messages"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260821182820_add_app_config",
+      "sqlFile": "prisma/migrations/20260821182820_add_app_config/migration.sql",
+      "historicalIdentity": "20260821182820_add_app_config",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 56,
+      "sha256": "def30c38b9078e7cc14dd42dd78052dd502559964baa09d87f9b5c32749c34fe",
+      "dependencies": [
+        "20260821110306_add_support_ticket_and_assistant_chat"
+      ],
+      "createsTables": [
+        "AppConfig"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260822034317_add_about_us_config",
+      "sqlFile": "prisma/migrations/20260822034317_add_about_us_config/migration.sql",
+      "historicalIdentity": "20260822034317_add_about_us_config",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 57,
+      "sha256": "7e70a97810f939755799dc47c5a745b97e8a56430c317cd7ac116ca702ceca29",
+      "dependencies": [
+        "20260821182820_add_app_config"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260822035857_add_customer_feedback",
+      "sqlFile": "prisma/migrations/20260822035857_add_customer_feedback/migration.sql",
+      "historicalIdentity": "20260822035857_add_customer_feedback",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 58,
+      "sha256": "853121b455c44b239383763003e79e71906d348e129a7f0f1fc539f23195723a",
+      "dependencies": [
+        "20260822034317_add_about_us_config",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "feedback"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260822054955_global_subscription_money_precision",
+      "sqlFile": "prisma/migrations/20260822054955_global_subscription_money_precision/migration.sql",
+      "historicalIdentity": "20260822054955_global_subscription_money_precision",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 59,
+      "sha256": "adb145007c68320bf12bf71b712fe288f041a204b7d585770cdda0fa0481ce0f",
+      "dependencies": [
+        "20260822035857_add_customer_feedback",
+        "20260430222359_subcription"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260823165109_add_astrologer_self_withdrawal_bank_account",
+      "sqlFile": "prisma/migrations/20260823165109_add_astrologer_self_withdrawal_bank_account/migration.sql",
+      "historicalIdentity": "20260823165109_add_astrologer_self_withdrawal_bank_account",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 60,
+      "sha256": "4523f7e07f878fc8271775cc77fddfc5e5b0da9a901eb57d85e8c8651ac4333d",
+      "dependencies": [
+        "20260822054955_global_subscription_money_precision",
+        "20260716065040_add_astrologer_earnings_and_payouts",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "astrologer_bank_accounts"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260823165646_add_astrologer_real_payout_state",
+      "sqlFile": "prisma/migrations/20260823165646_add_astrologer_real_payout_state/migration.sql",
+      "historicalIdentity": "20260823165646_add_astrologer_real_payout_state",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 61,
+      "sha256": "0c8450d06776c4f276b242eae6a8b855263a24fffff4c85d2eba1d0c4da9d253",
+      "dependencies": [
+        "20260823165109_add_astrologer_self_withdrawal_bank_account",
+        "20260716065040_add_astrologer_earnings_and_payouts"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260823203736_add_video_call_admin_control",
+      "sqlFile": "prisma/migrations/20260823203736_add_video_call_admin_control/migration.sql",
+      "historicalIdentity": "20260823203736_add_video_call_admin_control",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 62,
+      "sha256": "2876fb5b0aa06aa53a8e0c06f50c329ef3252f99527676a225d8feb2825e309e",
+      "dependencies": [
+        "20260823165646_add_astrologer_real_payout_state",
+        "20260810052122_add_platform_settings"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260829191927_add_soul_bazaar_admin_foundation",
+      "sqlFile": "prisma/migrations/20260829191927_add_soul_bazaar_admin_foundation/migration.sql",
+      "historicalIdentity": "20260829191927_add_soul_bazaar_admin_foundation",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 63,
+      "sha256": "917dd451028411bfe4bb43d8201a2cb3d89d9bb038b0fa5b84838a9ab034e11b",
+      "dependencies": [
+        "20260823203736_add_video_call_admin_control",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "MarketplaceSellerProfile",
+        "MarketplaceCategory",
+        "MarketplaceProduct",
+        "MarketplaceProductImage",
+        "MarketplaceCampaign",
+        "MarketplaceCampaignProduct",
+        "MarketplaceAdminAction"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260830142423_add_marketplace_orders_fulfillment",
+      "sqlFile": "prisma/migrations/20260830142423_add_marketplace_orders_fulfillment/migration.sql",
+      "historicalIdentity": "20260830142423_add_marketplace_orders_fulfillment",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 64,
+      "sha256": "15c420c53b02f044313a7dae8f0c5200fd39a021ac84d47781f3ff5ab3e61563",
+      "dependencies": [
+        "20260829191927_add_soul_bazaar_admin_foundation",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "MarketplaceOrder",
+        "MarketplaceSellerOrder",
+        "MarketplaceOrderItem"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260830_add_marketplace_finance_foundation",
+      "sqlFile": "prisma/migrations/20260830150000_add_marketplace_finance_foundation/migration.sql",
+      "historicalIdentity": "20260830_add_marketplace_finance_foundation",
+      "replaces": "20260830150000_add_marketplace_finance_foundation",
+      "kind": "historical_ddl",
+      "order": 65,
+      "sha256": "98a3339fe93bca68bf97d0fb1dd8d454e256806a4223faf355c322d58c84d604",
+      "dependencies": [
+        "20260830142423_add_marketplace_orders_fulfillment",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "MarketplaceSellerEarning",
+        "MarketplaceSellerPayout"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260830_add_marketplace_cart_address",
+      "sqlFile": "prisma/migrations/20260830_add_marketplace_cart_address/migration.sql",
+      "historicalIdentity": "20260830_add_marketplace_cart_address",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 66,
+      "sha256": "b60b6e131bf259e76f319edee06dba8f051efb604bc56cf0eb238f49cb0d6d4a",
+      "dependencies": [
+        "20260830_add_marketplace_finance_foundation",
+        "20260328214408_init_migration",
+        "20260829191927_add_soul_bazaar_admin_foundation"
+      ],
+      "createsTables": [
+        "MarketplaceCart",
+        "MarketplaceCartItem",
+        "MarketplaceAddress"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260831113241_add_marketplace_prepare_idempotency",
+      "sqlFile": "prisma/migrations/20260831113241_add_marketplace_prepare_idempotency/migration.sql",
+      "historicalIdentity": "20260831113241_add_marketplace_prepare_idempotency",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 67,
+      "sha256": "684f8cd95b5893655f4174d1f2d382c7241778cf607596067ec9fb227a0610e1",
+      "dependencies": [
+        "20260830_add_marketplace_cart_address",
+        "20260830142423_add_marketplace_orders_fulfillment"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260831115306_add_marketplace_payment_fields",
+      "sqlFile": "prisma/migrations/20260831115306_add_marketplace_payment_fields/migration.sql",
+      "historicalIdentity": "20260831115306_add_marketplace_payment_fields",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 68,
+      "sha256": "fe3b1b3ab79d3e68563b3078c2daf3f252cb9e6839958dfdc930e537718d38f1",
+      "dependencies": [
+        "20260831113241_add_marketplace_prepare_idempotency",
+        "20260830142423_add_marketplace_orders_fulfillment"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260831130531_add_marketplace_payment_compensation",
+      "sqlFile": "prisma/migrations/20260831130531_add_marketplace_payment_compensation/migration.sql",
+      "historicalIdentity": "20260831130531_add_marketplace_payment_compensation",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 69,
+      "sha256": "701832a1ba2e4f0d0e3c8f1afc81cc83b158655a8c1e8f0f6bcb6c930aa7de34",
+      "dependencies": [
+        "20260831115306_add_marketplace_payment_fields",
+        "20260830142423_add_marketplace_orders_fulfillment"
+      ],
+      "createsTables": [
+        "marketplace_payment_exceptions"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260831150000_add_marketplace_payment_fx_snapshot",
+      "sqlFile": "prisma/migrations/20260831150000_add_marketplace_payment_fx_snapshot/migration.sql",
+      "historicalIdentity": "20260831150000_add_marketplace_payment_fx_snapshot",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 70,
+      "sha256": "7522f888cf83e0da02373f54cf000a5152a5c7c331da0e315bbad3a641a5ef4e",
+      "dependencies": [
+        "20260831130531_add_marketplace_payment_compensation",
+        "20260830142423_add_marketplace_orders_fulfillment"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260831225546_add_database_backed_app_languages",
+      "sqlFile": "prisma/migrations/20260831225546_add_database_backed_app_languages/migration.sql",
+      "historicalIdentity": "20260831225546_add_database_backed_app_languages",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 71,
+      "sha256": "30be923e99ee35a7076d5ac7c958650309759200fa675cb12506af38a4d6e2fd",
+      "dependencies": [
+        "20260831150000_add_marketplace_payment_fx_snapshot"
+      ],
+      "createsTables": [
+        "app_languages"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260831233906_add_app_translations",
+      "sqlFile": "prisma/migrations/20260831233906_add_app_translations/migration.sql",
+      "historicalIdentity": "20260831233906_add_app_translations",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 72,
+      "sha256": "98052925868da393f673a1d638a4d093fc6b8085d6d37dcf327a069d5d133147",
+      "dependencies": [
+        "20260831225546_add_database_backed_app_languages"
+      ],
+      "createsTables": [
+        "app_translations"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260901004201_add_ai_astro_per_minute_pricing",
+      "sqlFile": "prisma/migrations/20260901004201_add_ai_astro_per_minute_pricing/migration.sql",
+      "historicalIdentity": "20260901004201_add_ai_astro_per_minute_pricing",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 73,
+      "sha256": "5881f566b69986712a8d93275f54d85952c1ad7ccbeb7a556a921cc4322fcf6d",
+      "dependencies": [
+        "20260831233906_add_app_translations",
+        "20260818104609_add_ai_astro_pricing_and_usage"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260901055720_add_ai_consultant_types",
+      "sqlFile": "prisma/migrations/20260901055720_add_ai_consultant_types/migration.sql",
+      "historicalIdentity": "20260901055720_add_ai_consultant_types",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 74,
+      "sha256": "4174314baad259609bdcfbcf14a75a8b535e90c92d0724a3e5c8eb3da43499f3",
+      "dependencies": [
+        "20260901004201_add_ai_astro_per_minute_pricing"
+      ],
+      "createsTables": [
+        "ai_consultant_types"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": true,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260901082428_add_ai_consultant_type_context",
+      "sqlFile": "prisma/migrations/20260901082428_add_ai_consultant_type_context/migration.sql",
+      "historicalIdentity": "20260901082428_add_ai_consultant_type_context",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 75,
+      "sha256": "a3fa9d59b6554623e095e5084be4a11095b97290aa0f0d533aebf236f0e9ffdd",
+      "dependencies": [
+        "20260901055720_add_ai_consultant_types",
+        "20260820191128_add_ai_astro_conversations",
+        "20260818104609_add_ai_astro_pricing_and_usage"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260901125417_add_recharge_packs",
+      "sqlFile": "prisma/migrations/20260901125417_add_recharge_packs/migration.sql",
+      "historicalIdentity": "20260901125417_add_recharge_packs",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 76,
+      "sha256": "7b37a2ab4aec7231bb86438c8d884451af9e66318b0572d61e9f6792c40bf3a4",
+      "dependencies": [
+        "20260901082428_add_ai_consultant_type_context"
+      ],
+      "createsTables": [
+        "recharge_packs"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260901140422_add_exact_recharge_bonus_amount",
+      "sqlFile": "prisma/migrations/20260901140422_add_exact_recharge_bonus_amount/migration.sql",
+      "historicalIdentity": "20260901140422_add_exact_recharge_bonus_amount",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 77,
+      "sha256": "e40b99bd3d043559b1b8b56fef4632bb740c552390a943711dde35151a32d3d1",
+      "dependencies": [
+        "20260901125417_add_recharge_packs"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260901192132_add_paid_free_wallet_balances",
+      "sqlFile": "prisma/migrations/20260901192132_add_paid_free_wallet_balances/migration.sql",
+      "historicalIdentity": "20260901192132_add_paid_free_wallet_balances",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 78,
+      "sha256": "be703bd41ab5e31be878532b55be1866cd3eee498a459e2bec3db24ef2e6b2ea",
+      "dependencies": [
+        "20260901140422_add_exact_recharge_bonus_amount",
+        "20260512021057_wallet_intergration"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": true,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260901235811_add_astrologer_consultation_categories",
+      "sqlFile": "prisma/migrations/20260901235811_add_astrologer_consultation_categories/migration.sql",
+      "historicalIdentity": "20260901235811_add_astrologer_consultation_categories",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 79,
+      "sha256": "2418cdf99cdd39604127f251a38585e1d28815512d1842184cf2827318b0d29c",
+      "dependencies": [
+        "20260901192132_add_paid_free_wallet_balances",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260901_ai_astro_timed_session",
+      "sqlFile": "prisma/migrations/20260901_ai_astro_timed_session/migration.sql",
+      "historicalIdentity": "20260901_ai_astro_timed_session",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 80,
+      "sha256": "a631f11b28a659c3bb3644696e8e41db2825c320a76f0b5db69c271a622310fd",
+      "dependencies": [
+        "20260901235811_add_astrologer_consultation_categories"
+      ],
+      "createsTables": [
+        "ai_astro_sessions"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260902230621_add_support_ticket_contact_email",
+      "sqlFile": "prisma/migrations/20260902230621_add_support_ticket_contact_email/migration.sql",
+      "historicalIdentity": "20260902230621_add_support_ticket_contact_email",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 81,
+      "sha256": "fa32ecabc7d202530809e60106d320eb4e6e3f8403968ee734bdb2e9f09a603d",
+      "dependencies": [
+        "20260901_ai_astro_timed_session",
+        "20260821110306_add_support_ticket_and_assistant_chat"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260902233137_add_support_attachments",
+      "sqlFile": "prisma/migrations/20260902233137_add_support_attachments/migration.sql",
+      "historicalIdentity": "20260902233137_add_support_attachments",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 82,
+      "sha256": "cf7032c4b7992d21b817ddf7f763f669279db34384a7bd2d7d2f0bada0348d85",
+      "dependencies": [
+        "20260902230621_add_support_ticket_contact_email",
+        "20260821110306_add_support_ticket_and_assistant_chat"
+      ],
+      "createsTables": [
+        "support_attachments"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260903074500_add_user_auth_identities",
+      "sqlFile": "prisma/migrations/20260903074500_add_user_auth_identities/migration.sql",
+      "historicalIdentity": "20260903074500_add_user_auth_identities",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 83,
+      "sha256": "28fddf4e502ef8d0a570bb62678f76779236b041722548d974551c4dea251b95",
+      "dependencies": [
+        "20260902233137_add_support_attachments",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "user_auth_identities"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260904195654_allow_general_ai_without_astrologer",
+      "sqlFile": "prisma/migrations/20260904195654_allow_general_ai_without_astrologer/migration.sql",
+      "historicalIdentity": "20260904195654_allow_general_ai_without_astrologer",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 84,
+      "sha256": "c97f143b08b5c6e649de0a889a769caf625a0e54ebaa539fdcae2ec6944fb0cb",
+      "dependencies": [
+        "20260903074500_add_user_auth_identities",
+        "20260901_ai_astro_timed_session",
+        "20260818104609_add_ai_astro_pricing_and_usage",
+        "20260820191128_add_ai_astro_conversations"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260907220000_add_astrologer_payout_payment_fx_snapshot",
+      "sqlFile": "prisma/migrations/20260907220000_add_astrologer_payout_payment_fx_snapshot/migration.sql",
+      "historicalIdentity": "20260907220000_add_astrologer_payout_payment_fx_snapshot",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 85,
+      "sha256": "4865b7904d9dafe9022b874c19ce28d05a909d4b71f89ae0fbc3b6462b07c721",
+      "dependencies": [
+        "20260904195654_allow_general_ai_without_astrologer",
+        "20260716065040_add_astrologer_earnings_and_payouts"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260907223752_add_astrologer_earning_platform_fee_percent",
+      "sqlFile": "prisma/migrations/20260907223752_add_astrologer_earning_platform_fee_percent/migration.sql",
+      "historicalIdentity": "20260907223752_add_astrologer_earning_platform_fee_percent",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 86,
+      "sha256": "331203b7b9c87141a8f2dea57c7ff1556b09d2232c778b71d74da6bb56a04443",
+      "dependencies": [
+        "20260907220000_add_astrologer_payout_payment_fx_snapshot",
+        "20260716065040_add_astrologer_earnings_and_payouts"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": true,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260908230722_add_birth_time_known",
+      "sqlFile": "prisma/migrations/20260908230722_add_birth_time_known/migration.sql",
+      "historicalIdentity": "20260908230722_add_birth_time_known",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 87,
+      "sha256": "b7099f08ee6c51031c0b1875c92b44fe7a2fbf348ba20b798e45f2b67a49e213",
+      "dependencies": [
+        "20260907223752_add_astrologer_earning_platform_fee_percent",
+        "20260515013848_userprofile"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260910113438_add_astrologer_manual_kundli_reports",
+      "sqlFile": "prisma/migrations/20260910113438_add_astrologer_manual_kundli_reports/migration.sql",
+      "historicalIdentity": "20260910113438_add_astrologer_manual_kundli_reports",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 88,
+      "sha256": "74747ba3a2ff1b08d5005a8534ec3be06000e9fc30592af551f5f27120bc8592",
+      "dependencies": [
+        "20260908230722_add_birth_time_known",
+        "20260514075442_call_session",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "astrologer_kundli_reports",
+        "astrologer_kundli_report_attachments"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260910185228_add_ai_astro_selected_duration",
+      "sqlFile": "prisma/migrations/20260910185228_add_ai_astro_selected_duration/migration.sql",
+      "historicalIdentity": "20260910185228_add_ai_astro_selected_duration",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 89,
+      "sha256": "944fcacd9e71ad2c2f23d9bc795dade09ad14a9e103e31f9d0e8d67797b3e761",
+      "dependencies": [
+        "20260910113438_add_astrologer_manual_kundli_reports",
+        "20260901_ai_astro_timed_session"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260912090055_add_chat_voice_notes",
+      "sqlFile": "prisma/migrations/20260912090055_add_chat_voice_notes/migration.sql",
+      "historicalIdentity": "20260912090055_add_chat_voice_notes",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 90,
+      "sha256": "b75aefae6d46becfb1c806fdc5775723ec4de52485cdeef55ee1e460bcdceadc",
+      "dependencies": [
+        "20260910185228_add_ai_astro_selected_duration",
+        "20260711190755_add_chat_messagee"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260914103742_add_chat_sticker_message_type",
+      "sqlFile": "prisma/migrations/20260914103742_add_chat_sticker_message_type/migration.sql",
+      "historicalIdentity": "20260914103742_add_chat_sticker_message_type",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 91,
+      "sha256": "04b320bff83e80c5d7c178c2b702ee2799358160ea44bea75dde0a0086d27f18",
+      "dependencies": [
+        "20260912090055_add_chat_voice_notes"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260917155013_add_astrology_question_answer_cache",
+      "sqlFile": "prisma/migrations/20260917155013_add_astrology_question_answer_cache/migration.sql",
+      "historicalIdentity": "20260917155013_add_astrology_question_answer_cache",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 92,
+      "sha256": "ff1004229a307454cd4d32e0236c1e523780d0756bb912743ae2b25558302830",
+      "dependencies": [
+        "20260914103742_add_chat_sticker_message_type",
+        "20260328214408_init_migration",
+        "20260811081128_add_astrology_questions"
+      ],
+      "createsTables": [
+        "astrology_question_answer_cache"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260923000000_add_astrology_videos",
+      "sqlFile": "prisma/migrations/20260923000000_add_astrology_videos/migration.sql",
+      "historicalIdentity": "20260923000000_add_astrology_videos",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 93,
+      "sha256": "0546b81b2d08a12410d1f5f41b12b70a8ca85560b1d4cef80f603e09264e2e7f",
+      "dependencies": [
+        "20260917155013_add_astrology_question_answer_cache"
+      ],
+      "createsTables": [
+        "AstrologyVideo",
+        "AstrologyVideoTranslation"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260924115453_add_global_articles",
+      "sqlFile": "prisma/migrations/20260924115453_add_global_articles/migration.sql",
+      "historicalIdentity": "20260924115453_add_global_articles",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 94,
+      "sha256": "23245568d63a9fce26ed6bd42a5127eebea59c7b1ee5b22e3be3c6063f693d16",
+      "dependencies": [
+        "20260923000000_add_astrology_videos"
+      ],
+      "createsTables": [
+        "AstrologyArticle",
+        "AstrologyArticleTranslation"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20260924123215_add_article_review_workflow",
+      "sqlFile": "prisma/migrations/20260924123215_add_article_review_workflow/migration.sql",
+      "historicalIdentity": "20260924123215_add_article_review_workflow",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 95,
+      "sha256": "86df5f78f098a359be2b1a637ebe0036110ef8e1aec452afe4da3729916c0da5",
+      "dependencies": [
+        "20260924115453_add_global_articles"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": true,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20261008000000_add_residence_country_code",
+      "sqlFile": "prisma/migrations/20261008000000_add_residence_country_code/migration.sql",
+      "historicalIdentity": "20261008000000_add_residence_country_code",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 96,
+      "sha256": "f488cad7b738fb4598354cfaf36a4788805120eb1292525931e2a78ed6fbafb5",
+      "dependencies": [
+        "20260924123215_add_article_review_workflow",
+        "20260515013848_userprofile"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "review_persona_nullable_baseline",
+      "sqlFile": "review/live/persona-reconciliation/persona-nullable-baseline.review.sql",
+      "historicalIdentity": null,
+      "replaces": "20261008130000_add_ai_astro_personas_and_follows",
+      "kind": "reviewed_clean_database_baseline",
+      "order": 97,
+      "sha256": "fe05d8222660da8de1be069891c5c595df94ef5a58db0341ce71776c03a8ba8e",
+      "dependencies": [
+        "20261008000000_add_residence_country_code",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "ai_astro_personas",
+        "AiAstroFollow"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "20261008150000_add_ai_persona_session_columns",
+      "sqlFile": "prisma/migrations/20261008150000_add_ai_persona_session_columns/migration.sql",
+      "historicalIdentity": "20261008150000_add_ai_persona_session_columns",
+      "replaces": null,
+      "kind": "historical_ddl",
+      "order": 98,
+      "sha256": "26f4c8776e5d73dcd58441ed4dde8d984a1538cb8d464f634f72bf202fc6c5e7",
+      "dependencies": [
+        "review_persona_nullable_baseline",
+        "20260901_ai_astro_timed_session",
+        "20260820191128_add_ai_astro_conversations",
+        "20260818104609_add_ai_astro_pricing_and_usage"
+      ],
+      "createsTables": [],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "review_live_message_baseline",
+      "sqlFile": "review/live/live-message-baseline.review.sql",
+      "historicalIdentity": null,
+      "replaces": null,
+      "kind": "reviewed_clean_database_baseline",
+      "order": 99,
+      "sha256": "1754af2859a549b8fb34ded9bc05faa910ee63eb4dbd5d1eeab168571b82a971",
+      "dependencies": [
+        "20261008150000_add_ai_persona_session_columns",
+        "20260818072026_add_live_astrologer_sessions",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "LiveMessage"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    },
+    {
+      "name": "review_live_connection_v2",
+      "sqlFile": "review/live/live-connection-migration.review.sql",
+      "historicalIdentity": null,
+      "replaces": null,
+      "kind": "additive_v2_ddl",
+      "order": 100,
+      "sha256": "c9d6789784ff5f9b2ba60fb42cb3dc962bf7cd0ad681ca70bd9c356275a43005",
+      "dependencies": [
+        "review_live_message_baseline",
+        "20260818072026_add_live_astrologer_sessions",
+        "20260328214408_init_migration"
+      ],
+      "createsTables": [
+        "LiveConnection"
+      ],
+      "emptyDatabaseAction": "Actual SQL execution required in a later approved rehearsal; no baseline/resolve metadata shortcut",
+      "containsDataStatements": false,
+      "containsDropTable": false,
+      "requires": "Execute SQL only on an empty, explicitly approved disposable database; never adopt existing objects by replay"
+    }
+  ]
+}

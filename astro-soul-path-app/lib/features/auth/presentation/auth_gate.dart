@@ -70,7 +70,9 @@ class _AuthGateState extends State<AuthGate> {
         _session = session;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('AUTH_GATE_RESTORE_FAILED: ${error.runtimeType}');
+      debugPrintStack(stackTrace: stackTrace);
       if (!mounted) {
         return;
       }

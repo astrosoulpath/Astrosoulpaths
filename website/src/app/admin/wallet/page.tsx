@@ -1,5 +1,9 @@
 ﻿"use client";
 
+import { refreshAdminSession } from "@/features/admin/auth/admin-session";
+
+import { getAdminApiBase } from "@/features/admin/auth/admin-contract";
+
 import Link from "next/link";
 import {
   useCallback,
@@ -8,10 +12,7 @@ import {
   useState,
 } from "react";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:4000";
+const API_BASE_URL = getAdminApiBase();
 
 type WalletUser = {
   id: string;
@@ -45,15 +46,8 @@ type WalletSummary = {
   totalLocked: number;
 };
 
-function getAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return (
-    localStorage.getItem("asp_admin_access_token") ??
-    localStorage.getItem("access_token")
-  );
+async function getAccessToken() {
+  return refreshAdminSession();
 }
 
 async function readJson(response: Response) {
@@ -107,7 +101,7 @@ export default function AdminWalletPage() {
         setError("");
 
         const token =
-          getAccessToken();
+          await getAccessToken();
 
         if (!token) {
           throw new Error(
@@ -293,7 +287,7 @@ export default function AdminWalletPage() {
               Total Wallets
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-[#0B1026]">
+            <p className="mt-3 text-3xl font-semibold text-[#0B1026]">
               {summary.totalWallets}
             </p>
           </article>
@@ -303,7 +297,7 @@ export default function AdminWalletPage() {
               Total Balance
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-green-700">
+            <p className="mt-3 text-3xl font-semibold text-green-700">
               {formatCurrency(summary.totalBalance)}
             </p>
           </article>
@@ -313,7 +307,7 @@ export default function AdminWalletPage() {
               Locked Balance
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-orange-600">
+            <p className="mt-3 text-3xl font-semibold text-orange-600">
               {formatCurrency(summary.totalLocked)}
             </p>
           </article>
@@ -322,7 +316,7 @@ export default function AdminWalletPage() {
         <section className="asp-admin-panel mt-8 p-5 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-2xl font-extrabold text-[#0B1026]">
+              <h2 className="text-2xl font-semibold text-[#0B1026]">
                 Customer Wallets
               </h2>
 
@@ -359,7 +353,7 @@ export default function AdminWalletPage() {
                 Ã¢â€šÂ¹
               </div>
 
-              <h3 className="mt-5 text-2xl font-extrabold text-[#0B1026]">
+              <h3 className="mt-5 text-2xl font-semibold text-[#0B1026]">
                 No wallets found
               </h3>
 
@@ -372,23 +366,23 @@ export default function AdminWalletPage() {
               <table className="min-w-full border-separate border-spacing-0">
                 <thead className="asp-admin-table-head">
                   <tr className="text-left">
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Customer
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Wallet Balance
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Locked Balance
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Available Balance
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Last Updated
                     </th>
                   </tr>
@@ -429,19 +423,19 @@ export default function AdminWalletPage() {
                         </td>
 
                         <td className="border-b border-gray-100 px-4 py-5">
-                          <p className="text-lg font-extrabold text-green-700">
+                          <p className="text-lg font-semibold text-green-700">
                             {formatCurrency(wallet.balance)}
                           </p>
                         </td>
 
                         <td className="border-b border-gray-100 px-4 py-5">
-                          <p className="text-lg font-extrabold text-orange-600">
+                          <p className="text-lg font-semibold text-orange-600">
                             {formatCurrency(wallet.lockedBalance)}
                           </p>
                         </td>
 
                         <td className="border-b border-gray-100 px-4 py-5">
-                          <p className="text-lg font-extrabold text-[#0B1026]">
+                          <p className="text-lg font-semibold text-[#0B1026]">
                             {formatCurrency(availableBalance)}
                           </p>
                         </td>

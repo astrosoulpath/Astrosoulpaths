@@ -1,17 +1,17 @@
 ﻿"use client";
 
+import { adminFetch } from "@/features/admin/auth/admin-session";
+
 import Link from "next/link";
 import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:4000";
+const ADMIN_CONSULTATION_MUTATIONS_AVAILABLE = false;
 
 type ConsultationStatus =
   | "ACTIVE"
@@ -67,6 +67,7 @@ type AdminConsultation = {
 
 type AdminConsultationsResponse = {
   success: boolean;
+  pagination?: { totalPages?: number };
   message?: string;
   data:
     | AdminConsultation[]
@@ -85,16 +86,7 @@ type StatusFilter =
   | "CANCELLED"
   | "EXPIRED";
 
-function getAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
 
-  return (
-    window.localStorage.getItem("asp_admin_access_token") ??
-    window.localStorage.getItem("access_token")
-  );
-}
 
 function getSafeNumber(value: unknown) {
   const parsed = Number(value ?? 0);
@@ -246,8 +238,13 @@ export default function AdminConsultationsPage() {
   const [successMessage, setSuccessMessage] =
     useState<string | null>(null);
 
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const requestVersion = useRef(0);
+
   const loadConsultations = useCallback(
     async (showRefreshState = false) => {
+      const version = ++requestVersion.current;
       try {
         if (showRefreshState) {
           setIsRefreshing(true);
@@ -257,24 +254,12 @@ export default function AdminConsultationsPage() {
 
         setErrorMessage(null);
 
-        const token = getAccessToken();
-
-        if (!token) {
-          throw new Error(
-            "Admin login token is missing. Please log in as an admin.",
-          );
-        }
-
-        const response = await fetch(
-          `${API_BASE_URL.replace(
-            /\/+$/,
-            "",
-          )}/admin/consultations`,
+        const response = await adminFetch(
+          `/admin/consultations?${new URLSearchParams({page: String(page), limit: "20", search, status: statusFilter})}`,
           {
             method: "GET",
             headers: {
               Accept: "application/json",
-              Authorization: `Bearer ${token}`,
             },
             cache: "no-store",
           },
@@ -285,6 +270,7 @@ export default function AdminConsultationsPage() {
             response,
           )) as AdminConsultationsResponse | null;
 
+        if (version !== requestVersion.current) return;
         if (!response.ok) {
           const rawMessage = (
             data as {
@@ -302,87 +288,29 @@ export default function AdminConsultationsPage() {
           );
         }
 
-        setConsultations(
-          normalizeConsultations(data),
-        );
+        setConsultations(normalizeConsultations(data));
+        setTotalPages(Math.max(1, data?.pagination?.totalPages ?? 1));
       } catch (error) {
+        if (version !== requestVersion.current) return;
         setConsultations([]);
         setErrorMessage(getErrorMessage(error));
       } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
+        if (version === requestVersion.current) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
     },
-    [],
+    [page, search, statusFilter],
   );
 
   useEffect(() => {
-    void loadConsultations();
+    const lifetime = requestVersion;
+    const timer = setTimeout(() => { void loadConsultations(); }, 250);
+    return () => { clearTimeout(timer); lifetime.current++; };
   }, [loadConsultations]);
 
-  const filteredConsultations = useMemo(() => {
-    const normalizedSearch = search
-      .trim()
-      .toLowerCase();
-
-    return consultations.filter((consultation) => {
-      const userName = getParticipantName(
-        consultation.user,
-        "Customer",
-      ).toLowerCase();
-
-      const astrologerName = getParticipantName(
-        consultation.astrologer,
-        "Astrologer",
-      ).toLowerCase();
-
-      const matchesSearch =
-        !normalizedSearch ||
-        consultation.id
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        consultation.channelName
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        consultation.userId
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        consultation.astrologerId
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        userName.includes(normalizedSearch) ||
-        astrologerName.includes(normalizedSearch);
-
-      if (!matchesSearch) {
-        return false;
-      }
-
-      const normalizedStatus =
-        consultation.status.toUpperCase();
-
-      switch (statusFilter) {
-        case "ACTIVE":
-          return ["ACTIVE", "ONGOING"].includes(
-            normalizedStatus,
-          );
-
-        case "COMPLETED":
-          return normalizedStatus === "COMPLETED";
-
-        case "CANCELLED":
-          return normalizedStatus === "CANCELLED";
-
-        case "EXPIRED":
-          return ["EXPIRED", "ENDED"].includes(
-            normalizedStatus,
-          );
-
-        case "ALL":
-        default:
-          return true;
-      }
-    });
-  }, [consultations, search, statusFilter]);
+  const filteredConsultations = consultations;
 
   const stats = useMemo(() => {
     const active = consultations.filter((item) =>
@@ -401,23 +329,14 @@ export default function AdminConsultationsPage() {
         item.status.toUpperCase() === "CANCELLED",
     ).length;
 
-    const totalRevenue = consultations
-      .filter(
-        (item) =>
-          item.status.toUpperCase() === "COMPLETED",
-      )
-      .reduce(
-        (sum, item) =>
-          sum + getSafeNumber(item.amountCharged),
-        0,
-      );
+
 
     return {
       total: consultations.length,
       active,
       completed,
       cancelled,
-      totalRevenue,
+
     };
   }, [consultations]);
 
@@ -425,31 +344,23 @@ export default function AdminConsultationsPage() {
     consultationId: string,
     action: "complete" | "cancel",
   ) {
+    if (!ADMIN_CONSULTATION_MUTATIONS_AVAILABLE) {
+      setErrorMessage("Admin completion and cancellation are currently unavailable.");
+      return;
+    }
     try {
       setUpdatingId(consultationId);
       setErrorMessage(null);
       setSuccessMessage(null);
 
-      const token = getAccessToken();
-
-      if (!token) {
-        throw new Error(
-          "Admin login token is missing. Please log in as an admin.",
-        );
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL.replace(
-          /\/+$/,
-          "",
-        )}/admin/consultations/${encodeURIComponent(
+      const response = await adminFetch(
+        `/admin/consultations/${encodeURIComponent(
           consultationId,
         )}/${action}`,
         {
           method: "PATCH",
           headers: {
             Accept: "application/json",
-            Authorization: `Bearer ${token}`,
           },
         },
       );
@@ -565,7 +476,7 @@ export default function AdminConsultationsPage() {
               Total Sessions
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-[#0B1026]">
+            <p className="mt-3 text-3xl font-semibold text-[#0B1026]">
               {stats.total}
             </p>
           </article>
@@ -575,7 +486,7 @@ export default function AdminConsultationsPage() {
               Active
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-green-700">
+            <p className="mt-3 text-3xl font-semibold text-green-700">
               {stats.active}
             </p>
           </article>
@@ -585,7 +496,7 @@ export default function AdminConsultationsPage() {
               Completed
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-blue-700">
+            <p className="mt-3 text-3xl font-semibold text-blue-700">
               {stats.completed}
             </p>
           </article>
@@ -595,18 +506,18 @@ export default function AdminConsultationsPage() {
               Cancelled
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-red-700">
+            <p className="mt-3 text-3xl font-semibold text-red-700">
               {stats.cancelled}
             </p>
           </article>
 
           <article className="asp-admin-stat-card">
             <p className="asp-admin-stat-label">
-              Completed Revenue
+              Financial Overview
             </p>
 
-            <p className="mt-3 text-2xl font-extrabold text-[#0B1026]">
-              {formatCurrency(stats.totalRevenue)}
+            <p className="mt-3 text-2xl font-semibold text-[#0B1026]">
+              <Link href="/admin/finance">View by currency</Link>
             </p>
           </article>
         </section>
@@ -617,7 +528,7 @@ export default function AdminConsultationsPage() {
               type="search"
               value={search}
               onChange={(event) =>
-                setSearch(event.target.value)
+                { setPage(1); setSearch(event.target.value); }
               }
               placeholder="Search by session, customer, astrologer or channel"
               className="asp-admin-input px-4 py-3"
@@ -626,9 +537,7 @@ export default function AdminConsultationsPage() {
             <select
               value={statusFilter}
               onChange={(event) =>
-                setStatusFilter(
-                  event.target.value as StatusFilter,
-                )
+                { setPage(1); setStatusFilter(event.target.value as StatusFilter); }
               }
               className="asp-admin-input px-4 py-3 font-semibold"
             >
@@ -654,6 +563,11 @@ export default function AdminConsultationsPage() {
             </select>
           </div>
 
+          <div className="my-4 flex items-center gap-4" aria-label="Consultation pages">
+            <button className="asp-admin-button" disabled={isLoading || page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
+            <span>Page {page} of {totalPages}</span>
+            <button className="asp-admin-button" disabled={isLoading || page >= totalPages} onClick={() => setPage(page + 1)}>Next</button>
+          </div>
           {isLoading ? (
             <div className="py-16 text-center">
               <p className="font-semibold text-[#4B5C73]">
@@ -662,7 +576,7 @@ export default function AdminConsultationsPage() {
             </div>
           ) : filteredConsultations.length === 0 ? (
             <div className="py-16 text-center">
-              <h2 className="text-2xl font-extrabold text-[#0B1026]">
+              <h2 className="text-2xl font-semibold text-[#0B1026]">
                 No consultations found
               </h2>
 
@@ -676,31 +590,31 @@ export default function AdminConsultationsPage() {
               <table className="min-w-full border-separate border-spacing-0">
                 <thead className="asp-admin-table-head">
                   <tr className="text-left">
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Session
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Customer
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Astrologer
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Duration
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Amount
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Status
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-right text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-right text-xs font-semibold text-[#243650]">
                       Actions
                     </th>
                   </tr>
@@ -834,8 +748,9 @@ export default function AdminConsultationsPage() {
                                         "complete",
                                       )
                                     }
+                                    title="Admin completion and cancellation are currently unavailable"
                                     disabled={
-                                      updatingId ===
+                                      !ADMIN_CONSULTATION_MUTATIONS_AVAILABLE || updatingId ===
                                       consultation.id
                                     }
                                     className="rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-green-700 disabled:opacity-50"
@@ -854,8 +769,9 @@ export default function AdminConsultationsPage() {
                                         "cancel",
                                       )
                                     }
+                                    title="Admin completion and cancellation are currently unavailable"
                                     disabled={
-                                      updatingId ===
+                                      !ADMIN_CONSULTATION_MUTATIONS_AVAILABLE || updatingId ===
                                       consultation.id
                                     }
                                     className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700 disabled:opacity-50"

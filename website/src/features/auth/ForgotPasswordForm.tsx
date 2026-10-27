@@ -1,36 +1,38 @@
-import Link from "next/link";
-
+﻿import Link from "next/link";
+import { AuthShell } from "./AuthShell";
+import s from "./auth-premium.module.css";
 export function ForgotPasswordForm() {
   return (
-    <main className="min-h-screen bg-[#FAF7F0] py-20">
-      <div className="mx-auto max-w-md rounded-3xl bg-white p-8 shadow-lg">
-        <h1 className="text-3xl font-bold text-[#0B1026]">
-          Forgot Password
-        </h1>
-
-        <p className="mt-2 text-[#374151]">
-          Enter your email address. We will send you reset instructions.
-        </p>
-
-        <form className="mt-8 space-y-5">
-          <input
-            type="email"
-            placeholder="Email address"
-            className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-[#D4AF37]"
-          />
-
-          <button className="w-full rounded-xl bg-[#D4AF37] py-3 font-semibold text-[#0B1026]">
-            Send Reset Link
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-[#374151]">
-          Remember password?{" "}
-          <Link href="/login" className="font-semibold text-[#D4AF37]">
-            Login
-          </Link>
-        </p>
+    <AuthShell
+      eyebrow="Account access"
+      title="Let’s find your way back"
+      description="Use an existing verified sign-in method or contact support for account-specific recovery."
+    >
+      <div className={s.choices}>
+        <Link href="/login" className={s.choice}>
+          <span aria-hidden="true">↗</span>
+          <span>
+            <strong>Use phone verification or Google</strong>
+            <small>
+              Return to Customer Login and choose an existing method linked to
+              your account.
+            </small>
+          </span>
+        </Link>
+        <Link href="/contact" className={s.choice}>
+          <span aria-hidden="true">✧</span>
+          <span>
+            <strong>Contact support</strong>
+            <small>
+              A complete website password-reset flow is not currently connected.
+              No reset email has been requested.
+            </small>
+          </span>
+        </Link>
       </div>
-    </main>
+      <p className={s.alternate}>
+        <Link href="/login">Back to Customer Login</Link>
+      </p>
+    </AuthShell>
   );
 }

@@ -1,6 +1,8 @@
 import { AstrologerService } from './astrologer.service';
 import { AdminRepository } from '../admin/admin.repository';
 import { RolesGuard } from '../../common/guards/roles.guard';
+// Unit tests verify canonical guards, not the live Firebase SDK/provider.
+jest.mock('firebase-admin/auth', () => ({ getAuth: jest.fn() }));
 
 describe('Astrologer approval and application boundaries', () => {
   let db: any, service: AstrologerService;

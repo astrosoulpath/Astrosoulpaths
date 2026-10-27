@@ -1,17 +1,19 @@
-﻿"use client";
+"use client";
+import { ModerationDialog, type ModerationAction } from '@/features/admin/moderation/ModerationDialog';
+﻿
+
+import { adminFetch } from "@/features/admin/auth/admin-session";
 
 import Link from "next/link";
 import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:4000";
+
 
 type AdminAstrologer = {
   id: string;
@@ -50,6 +52,7 @@ type AdminAstrologer = {
 type AdminAstrologersResponse = {
   success: boolean;
   data: AdminAstrologer[];
+  pagination?: { totalPages?: number };
   message?: string;
 };
 
@@ -59,17 +62,6 @@ type StatusFilter =
   | "APPROVED"
   | "SUSPENDED"
   | "ONLINE";
-
-function getAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return (
-    window.localStorage.getItem("asp_admin_access_token") ??
-    window.localStorage.getItem("access_token")
-  );
-}
 
 function getAstrologerName(astrologer: AdminAstrologer) {
   return (
@@ -104,10 +96,10 @@ function getStatusLabel(astrologer: AdminAstrologer) {
     !astrologer.isApproved &&
     !astrologer.isVerified
   ) {
-    return "Pending";
+    return "Not approved";
   }
 
-  return "Suspended";
+  return "Review required";
 }
 
 function getStatusClasses(astrologer: AdminAstrologer) {
@@ -163,8 +155,13 @@ export default function AdminAstrologersPage() {
     string | null
   >(null);
 
+  const [moderation,setModeration]=useState<{id:string;action:ModerationAction}|null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const sequence = useRef(0);
   const loadAstrologers = useCallback(
     async (showRefreshState = false) => {
+      const version = ++sequence.current;
       try {
         if (showRefreshState) {
           setIsRefreshing(true);
@@ -174,21 +171,12 @@ export default function AdminAstrologersPage() {
 
         setErrorMessage(null);
 
-        const token = getAccessToken();
-
-        if (!token) {
-          throw new Error(
-            "Admin login token is missing. Please log in as an admin.",
-          );
-        }
-
-        const response = await fetch(
-          `${API_BASE_URL.replace(/\/+$/, "")}/admin/astrologers`,
+        const response = await adminFetch(
+          `/admin/astrologers?${new URLSearchParams({page:String(page),limit:"20",search,approval:statusFilter === "PENDING" || statusFilter === "APPROVED" ? statusFilter : "ALL",onlineOnly:String(statusFilter === "ONLINE")})}`,
           {
             method: "GET",
             headers: {
               Accept: "application/json",
-              Authorization: `Bearer ${token}`,
             },
             cache: "no-store",
           },
@@ -199,6 +187,7 @@ export default function AdminAstrologersPage() {
             response,
           )) as AdminAstrologersResponse | null;
 
+        if (version !== sequence.current) return;
         if (!response.ok) {
           const rawMessage = (data as { message?: unknown })?.message;
 
@@ -213,81 +202,26 @@ export default function AdminAstrologersPage() {
           );
         }
 
-        setAstrologers(
-          Array.isArray(data?.data) ? data.data : [],
-        );
+        setAstrologers(Array.isArray(data?.data) ? data.data : []);
+        setTotalPages(Math.max(1,data?.pagination?.totalPages ?? 1));
       } catch (error) {
+        if (version !== sequence.current) return;
         setAstrologers([]);
         setErrorMessage(getErrorMessage(error));
       } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
+        if (version === sequence.current) {setIsLoading(false);setIsRefreshing(false); }
       }
     },
-    [],
+    [page,search,statusFilter],
   );
 
   useEffect(() => {
-    void loadAstrologers();
+    const lifetime = sequence;
+    const timer=setTimeout(()=>{void loadAstrologers();},250);
+    return ()=>{clearTimeout(timer);lifetime.current++;};
   }, [loadAstrologers]);
 
-  const filteredAstrologers = useMemo(() => {
-    const normalizedSearch = search
-      .trim()
-      .toLowerCase();
-
-    return astrologers.filter((astrologer) => {
-      const matchesSearch =
-        !normalizedSearch ||
-        getAstrologerName(astrologer)
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        astrologer.id
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        astrologer.userId
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        getExpertise(astrologer)
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        (astrologer.languages ?? [])
-          .join(" ")
-          .toLowerCase()
-          .includes(normalizedSearch);
-
-      if (!matchesSearch) {
-        return false;
-      }
-
-      switch (statusFilter) {
-        case "PENDING":
-          return (
-            !astrologer.isApproved &&
-            !astrologer.isVerified
-          );
-
-        case "APPROVED":
-          return (
-            astrologer.isApproved &&
-            astrologer.isVerified
-          );
-
-        case "SUSPENDED":
-          return (
-            !astrologer.isApproved &&
-            astrologer.isVerified
-          );
-
-        case "ONLINE":
-          return astrologer.isOnline;
-
-        case "ALL":
-        default:
-          return true;
-      }
-    });
-  }, [astrologers, search, statusFilter]);
+  const filteredAstrologers = astrologers;
 
   const stats = useMemo(() => {
     return {
@@ -309,86 +243,11 @@ export default function AdminAstrologersPage() {
     };
   }, [astrologers]);
 
-  async function updateAstrologer(
-    astrologerId: string,
-    action: "approve" | "reject" | "suspend",
-  ) {
-    try {
-      setUpdatingId(astrologerId);
-      setErrorMessage(null);
-      setSuccessMessage(null);
-
-      const token = getAccessToken();
-
-      if (!token) {
-        throw new Error(
-          "Admin login token is missing. Please log in as an admin.",
-        );
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL.replace(
-          /\/+$/,
-          "",
-        )}/admin/astrologers/${encodeURIComponent(
-          astrologerId,
-        )}/${action}`,
-        {
-          method: "PATCH",
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      const data = await readJson(response);
-
-      if (!response.ok) {
-        const message = Array.isArray(data?.message)
-          ? data.message.join(", ")
-          : data?.message;
-
-        throw new Error(
-          message ||
-            `Unable to ${action} astrologer.`,
-        );
-      }
-
-      setAstrologers((current) =>
-        current.map((item) => {
-          if (item.id !== astrologerId) {
-            return item;
-          }
-
-          return {
-            ...item,
-            isApproved: action === "approve",
-            isVerified: action === "approve",
-            isOnline:
-              action === "approve"
-                ? item.isOnline
-                : false,
-          };
-        }),
-      );
-
-      setSuccessMessage(
-        action === "approve"
-          ? "Astrologer approved successfully."
-          : action === "reject"
-            ? "Astrologer rejected successfully."
-            : "Astrologer suspended successfully.",
-      );
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error));
-    } finally {
-      setUpdatingId(null);
-    }
-  }
+  async function updateAstrologer(astrologerId:string,action:'approve'|'reject'|'suspend') { setModeration({id:astrologerId,action:action.toUpperCase() as ModerationAction}); }
 
   return (
     <main className="asp-admin-page px-4 py-10 sm:px-6 lg:px-8">
+      {moderation && <ModerationDialog kind="astrologers" {...moderation} onClose={()=>setModeration(null)} onDone={()=>{setModeration(null);setUpdatingId(null);setSuccessMessage('Audited moderation confirmed.');void loadAstrologers(true);}} />}
       <div className="asp-admin-shell">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -453,7 +312,7 @@ export default function AdminAstrologersPage() {
             <p className="asp-admin-stat-label">
               Total Astrologers
             </p>
-            <p className="mt-3 text-3xl font-extrabold text-[#0B1026]">
+            <p className="mt-3 text-3xl font-semibold text-[#0B1026]">
               {stats.total}
             </p>
           </article>
@@ -462,7 +321,7 @@ export default function AdminAstrologersPage() {
             <p className="asp-admin-stat-label">
               Pending Approval
             </p>
-            <p className="mt-3 text-3xl font-extrabold text-amber-700">
+            <p className="mt-3 text-3xl font-semibold text-amber-700">
               {stats.pending}
             </p>
           </article>
@@ -471,7 +330,7 @@ export default function AdminAstrologersPage() {
             <p className="asp-admin-stat-label">
               Approved
             </p>
-            <p className="mt-3 text-3xl font-extrabold text-green-700">
+            <p className="mt-3 text-3xl font-semibold text-green-700">
               {stats.approved}
             </p>
           </article>
@@ -480,7 +339,7 @@ export default function AdminAstrologersPage() {
             <p className="asp-admin-stat-label">
               Online
             </p>
-            <p className="mt-3 text-3xl font-extrabold text-blue-700">
+            <p className="mt-3 text-3xl font-semibold text-blue-700">
               {stats.online}
             </p>
           </article>
@@ -492,7 +351,7 @@ export default function AdminAstrologersPage() {
               type="search"
               value={search}
               onChange={(event) =>
-                setSearch(event.target.value)
+                {setPage(1);setSearch(event.target.value);}
               }
               placeholder="Search by name, language, expertise or ID"
               className="asp-admin-input px-4 py-3"
@@ -501,9 +360,7 @@ export default function AdminAstrologersPage() {
             <select
               value={statusFilter}
               onChange={(event) =>
-                setStatusFilter(
-                  event.target.value as StatusFilter,
-                )
+                {setPage(1);setStatusFilter(event.target.value as StatusFilter);}
               }
               className="asp-admin-input px-4 py-3 font-semibold"
             >
@@ -516,8 +373,8 @@ export default function AdminAstrologersPage() {
               <option value="APPROVED">
                 Approved
               </option>
-              <option value="SUSPENDED">
-                Suspended
+              <option value="SUSPENDED" disabled>
+                Suspension state not recorded
               </option>
               <option value="ONLINE">
                 Online
@@ -525,6 +382,7 @@ export default function AdminAstrologersPage() {
             </select>
           </div>
 
+          <div className="my-4 flex gap-4 items-center" aria-label="Astrologer pages"><button disabled={isLoading || page <= 1} onClick={()=>setPage(page-1)}>Previous</button><span>Page {page} of {totalPages}</span><button disabled={isLoading || page >= totalPages} onClick={()=>setPage(page+1)}>Next</button></div>
           {isLoading ? (
             <div className="py-16 text-center">
               <p className="font-semibold text-[#4B5C73]">
@@ -533,7 +391,7 @@ export default function AdminAstrologersPage() {
             </div>
           ) : filteredAstrologers.length === 0 ? (
             <div className="py-16 text-center">
-              <h2 className="text-2xl font-extrabold text-[#0B1026]">
+              <h2 className="text-2xl font-semibold text-[#0B1026]">
                 No astrologers found
               </h2>
 
@@ -546,22 +404,22 @@ export default function AdminAstrologersPage() {
               <table className="min-w-full border-separate border-spacing-0">
                 <thead className="asp-admin-table-head">
                   <tr className="text-left">
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Astrologer
                     </th>
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Expertise
                     </th>
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Price
                     </th>
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Status
                     </th>
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Availability
                     </th>
-                    <th className="border-b border-gray-200 px-4 py-3 text-right text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-right text-xs font-semibold text-[#243650]">
                       Actions
                     </th>
                   </tr>
@@ -686,7 +544,7 @@ export default function AdminAstrologersPage() {
                                   updatingId ===
                                   astrologer.id
                                 }
-                                className="rounded-lg bg-gray-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-gray-800 disabled:opacity-50"
+                                className="rounded-lg bg-[#10233D] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#10233D] disabled:opacity-50"
                               >
                                 {updatingId ===
                                 astrologer.id

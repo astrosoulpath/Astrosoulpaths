@@ -7,6 +7,8 @@ import '../../data/live_api.dart';
 import '../../data/live_models.dart';
 import '../../data/live_rtc_service.dart';
 import '../../data/live_socket_service.dart';
+import '../../data/live_v2_api.dart';
+import '../../data/live_v2_flow.dart';
 
 class AstrologerLiveScreen extends StatefulWidget {
   const AstrologerLiveScreen({super.key, this.initialTitle});
@@ -17,10 +19,12 @@ class AstrologerLiveScreen extends StatefulWidget {
   State<AstrologerLiveScreen> createState() => _AstrologerLiveScreenState();
 }
 
-class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
+class _AstrologerLiveScreenState extends State<AstrologerLiveScreen>
+    with WidgetsBindingObserver {
   final LiveApi _api = LiveApi();
   final LiveRtcService _rtc = LiveRtcService();
-  final LiveSocketService _chat = LiveSocketService();
+  late final LiveSocketService _chat;
+  LiveV2Flow? _v2;
   final ScrollController _liveMessageScrollController = ScrollController();
 
   final List<Map<String, dynamic>> _liveMessages = <Map<String, dynamic>>[];
@@ -39,6 +43,18 @@ class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
   @override
   void initState() {
     super.initState();
+    if (liveV2Enabled) {
+      final flow = LiveV2Flow(host: true, rtc: _rtc);
+      _v2 = flow;
+      _chat = flow.chat;
+      flow.onSession = (session) {
+        if (mounted && !_disposed) setState(() => _session = session);
+      };
+      flow.onError = _handleRtcError;
+      WidgetsBinding.instance.addObserver(this);
+    } else {
+      _chat = LiveSocketService();
+    }
 
     _rtc.onChanged = _handleRtcChanged;
     _rtc.onError = _handleRtcError;
@@ -145,6 +161,12 @@ class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
 
   Future<void> _startLive() async {
     try {
+      if (_v2 != null) {
+        await _v2!.open(title: widget.initialTitle);
+        return;
+      }
+      await _rtc.ensureHostPermissions();
+      if (!mounted || _disposed) return;
       final result = await _api.startLive(title: widget.initialTitle);
 
       if (!mounted || _disposed) {
@@ -178,6 +200,7 @@ class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
   }
 
   Future<String?> _renewPublisherToken() async {
+    if (_v2 != null) return _v2!.renewToken();
     final result = await _api.startLive(title: _session?.title);
 
     _session = result.session;
@@ -225,6 +248,11 @@ class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
     });
 
     try {
+      if (_v2 != null) {
+        await _v2!.finish();
+        if (mounted) Navigator.of(context).pop(true);
+        return;
+      }
       await _rtc.leave();
 
       if (session != null) {
@@ -256,6 +284,7 @@ class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
   }
 
   String get _statusText {
+    if (_v2?.ended == true) return 'Live ended';
     switch (_rtc.state) {
       case LiveRtcConnectionState.idle:
         return 'Preparing';
@@ -267,6 +296,7 @@ class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
         return 'Connecting';
 
       case LiveRtcConnectionState.connected:
+        if (_v2 != null && !_v2!.ready) return 'Connecting live session';
         return 'LIVE';
 
       case LiveRtcConnectionState.reconnecting:
@@ -316,7 +346,7 @@ class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: _rtc.state == LiveRtcConnectionState.left,
+      canPop: _v2?.ended == true || _rtc.state == LiveRtcConnectionState.left,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop && !_ending) {
           _endLive();
@@ -514,8 +544,22 @@ class _AstrologerLiveScreenState extends State<AstrologerLiveScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final flow = _v2;
+    if (flow != null) {
+      unawaited(
+        flow.lifecycle(state).catchError((Object _) {
+          _handleRtcError('Unable to restore Live. Reconnect to continue.');
+        }),
+      );
+    }
+  }
+
+  @override
   void dispose() {
     _disposed = true;
+    WidgetsBinding.instance.removeObserver(this);
+    _v2?.dispose();
 
     _rtc.onChanged = null;
     _rtc.onError = null;

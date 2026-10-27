@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { ClipboardEvent, KeyboardEvent, useEffect, useState } from "react";
+import { ClipboardEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import {
   sendOtp,
   verifyOtp,
   verifyAstrologerOtp,
-  verifyAdminOtp,
+  sendAstrologerOtp,
 } from "@/services/authService";
+
+import {beginPublicAuthAttempt,commitPortalSession,safeCustomerRedirect,type SessionResult} from './public-auth';
 
 type OtpContext = {
   phone: string;
@@ -23,6 +25,9 @@ const RESEND_SECONDS = 30;
 
 export function OtpForm() {
   const router = useRouter();
+  const verificationLock = useRef(false);
+  const alive = useRef(true);
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
 
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
 
@@ -139,6 +144,9 @@ export function OtpForm() {
   }
 
   async function handleVerify() {
+    if(verificationLock.current)return;
+    if(otpContext?.portal==='admin'){setError('Use the authorized Admin login page.');return;}
+    const current=beginPublicAuthAttempt();
     setError("");
 
     const code = otp.join("");
@@ -154,116 +162,24 @@ export function OtpForm() {
     }
 
     try {
+      verificationLock.current = true;
       setLoading(true);
 
-      let response: any;
+      let response: SessionResult;
 
       if (otpContext.portal === "astrologer") {
-        response = await verifyAstrologerOtp(otpContext.phone, code);
-      } else if (otpContext.portal === "admin") {
-        response = await verifyAdminOtp(otpContext.phone, code);
+        response = await verifyAstrologerOtp(otpContext.phone, code) as SessionResult;
       } else {
-        response = await verifyOtp(otpContext.phone, code);
+        response = await verifyOtp(otpContext.phone, code) as SessionResult;
       }
 
-      const accessToken =
-        response.session?.accessToken ||
-        (response as { accessToken?: string }).accessToken;
-
-      const refreshToken =
-        response.session?.refreshToken ||
-        (response as { refreshToken?: string }).refreshToken;
-
+      if(!alive.current||!current())return;
       const portal = otpContext.portal ?? "customer";
-
-      /*
-       * Keep only the active portal session. Otherwise, a stale astrologer
-       * token can be selected while a customer opens consultation/chat.
-       */
-      const portalSessionKeys = [
-        "asp_access_token",
-        "asp_refresh_token",
-        "asp_customer_access_token",
-        "asp_customer_refresh_token",
-        "asp_astrologer_access_token",
-        "asp_astrologer_refresh_token",
-        "asp_admin_access_token",
-        "asp_admin_refresh_token",
-        "access_token",
-        "refresh_token",
-      ];
-
-      portalSessionKeys.forEach((key) => {
-        localStorage.removeItem(key);
-      });
-
-      const accessTokenKey =
-        portal === "astrologer"
-          ? "asp_astrologer_access_token"
-          : portal === "admin"
-            ? "asp_admin_access_token"
-            : "asp_customer_access_token";
-
-      const refreshTokenKey =
-        portal === "astrologer"
-          ? "asp_astrologer_refresh_token"
-          : portal === "admin"
-            ? "asp_admin_refresh_token"
-            : "asp_customer_refresh_token";
-
-      if (accessToken) {
-        localStorage.setItem(accessTokenKey, accessToken);
-      }
-
-      if (refreshToken) {
-        localStorage.setItem(refreshTokenKey, refreshToken);
-      }
-
-      // Compatibility for existing customer dashboard and services.
-      // Astrologer and admin tokens are not saved in these customer keys.
-      if (portal === "customer" && accessToken) {
-        localStorage.setItem("asp_access_token", accessToken);
-      }
-
-      if (portal === "customer" && refreshToken) {
-        localStorage.setItem("asp_refresh_token", refreshToken);
-      }
-
-      let savedUser: any =
-        portal === "customer"
-          ? {
-              ...response.user,
-              role: "CUSTOMER",
-              accountRole: "USER",
-              portal: "customer",
-              isAstrologer: false,
-            }
-          : response.user;
-
-      if (portal === "astrologer") {
-        savedUser = {
-          id: response.astrologerId,
-          phone: otpContext.phone,
-          role: "ASTROLOGER",
-          portal: "astrologer",
-          astrologer: response.astrologer,
-          nextStep: response.nextStep,
-        };
-      }
-
-      if (savedUser) {
-        const userData = JSON.stringify(savedUser);
-
-        localStorage.setItem("asp_user", userData);
-
-        document.cookie = `asp_user=${encodeURIComponent(
-          userData,
-        )}; path=/; max-age=86400; SameSite=Lax`;
-      }
+      commitPortalSession(response,portal);
 
       const isCustomerLogin = portal === "customer";
 
-      if (isCustomerLogin && response.user?.freeChat?.showPopup === true) {
+      if (isCustomerLogin && response.user?.freeChat && typeof response.user.freeChat==='object' && (response.user.freeChat as {showPopup?:boolean}).showPopup === true) {
         sessionStorage.setItem(
           "asp_free_chat_popup_pending",
           JSON.stringify(response.user.freeChat),
@@ -294,18 +210,6 @@ export function OtpForm() {
         return;
       }
 
-      if (portal === "admin") {
-        localStorage.removeItem("asp_otp_context");
-
-        if (response.nextStep === "OPEN_ADMIN_DASHBOARD") {
-          router.replace("/admin");
-          return;
-        }
-
-        router.replace("/admin");
-        return;
-      }
-
       localStorage.removeItem("asp_otp_context");
 
       const postLoginRedirect = localStorage.getItem("asp_post_login_redirect");
@@ -324,7 +228,11 @@ export function OtpForm() {
         return;
       }
 
-      router.replace("/dashboard");
+      if(response.nextStep === 'COMPLETE_PROFILE'){
+        sessionStorage.setItem('asp_after_profile_redirect',JSON.stringify({userId:response.user?.id,path:safeCustomerRedirect(otpContext.redirectTo)}));
+        router.replace('/profile/complete');return;
+      }
+      router.replace(safeCustomerRedirect(otpContext.redirectTo));
       router.refresh();
       return;
     } catch (err: unknown) {
@@ -334,7 +242,8 @@ export function OtpForm() {
           : "OTP verification failed. Please try again.",
       );
     } finally {
-      setLoading(false);
+      verificationLock.current=false;
+      if(alive.current)setLoading(false);
     }
   }
 
@@ -347,7 +256,8 @@ export function OtpForm() {
       setResending(true);
       setError("");
 
-      await sendOtp(otpContext.phone);
+      if(otpContext.portal === "admin")throw new Error("Use the authorized Admin login.");
+      await (otpContext.portal === "astrologer" ? sendAstrologerOtp(otpContext.phone) : sendOtp(otpContext.phone));
 
       setOtp(["", "", "", "", "", ""]);
       setSecondsLeft(RESEND_SECONDS);

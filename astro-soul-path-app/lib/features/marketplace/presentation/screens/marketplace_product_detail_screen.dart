@@ -1,4 +1,6 @@
+import '../marketplace_palette.dart';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../data/marketplace_customer_api.dart';
 import '../../data/marketplace_public_api.dart';
@@ -17,10 +19,10 @@ class MarketplaceProductDetailScreen extends StatefulWidget {
 
 class _MarketplaceProductDetailScreenState
     extends State<MarketplaceProductDetailScreen> {
-  static const _background = Color(0xFF090909);
-  static const _surface = Color(0xFF151515);
-  static const _gold = Color(0xFFF2C94C);
-  static const _muted = Color(0xFF9A9A9A);
+  static const _background = MarketplacePalette.canvas;
+  static const _surface = MarketplacePalette.surface;
+  static const _gold = MarketplacePalette.gold;
+  static const _muted = MarketplacePalette.muted;
 
   final MarketplacePublicApi _publicApi = MarketplacePublicApi();
   final MarketplaceCustomerApi _customerApi = MarketplaceCustomerApi();
@@ -130,9 +132,27 @@ class _MarketplaceProductDetailScreenState
       backgroundColor: _background,
       appBar: AppBar(
         backgroundColor: _background,
-        foregroundColor: Colors.white,
+        foregroundColor: MarketplacePalette.ink,
         title: const Text('Product Details'),
         actions: [
+          IconButton(
+            tooltip: 'Share product',
+            icon: const Icon(Icons.share_outlined),
+            onPressed: _product == null
+                ? null
+                : () {
+                    final box = context.findRenderObject() as RenderBox?;
+                    SharePlus.instance.share(
+                      ShareParams(
+                        text:
+                            '${_text(_product?['name'])}\nFind this product in Astro Soul Path Soul Bazaar. Product ID: ${widget.productId}',
+                        sharePositionOrigin: box == null
+                            ? null
+                            : box.localToGlobal(Offset.zero) & box.size,
+                      ),
+                    );
+                  },
+          ),
           IconButton(
             tooltip: 'Cart',
             icon: const Icon(Icons.shopping_bag_outlined, color: _gold),
@@ -167,7 +187,7 @@ class _MarketplaceProductDetailScreenState
               Text(
                 _error,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: MarketplacePalette.ink),
               ),
               const SizedBox(height: 18),
               OutlinedButton(onPressed: _load, child: const Text('Retry')),
@@ -183,7 +203,7 @@ class _MarketplaceProductDetailScreenState
       return const Center(
         child: Text(
           'Product unavailable.',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: MarketplacePalette.ink),
         ),
       );
     }
@@ -204,7 +224,9 @@ class _MarketplaceProductDetailScreenState
       product['displaySellingPrice'] ?? product['sellingPrice'],
     );
     final mrp = _money(product['displayMrp'] ?? product['mrp']);
-    final shipping = _money(product['displayShippingCharge'] ?? product['shippingCharge']);
+    final shipping = _money(
+      product['displayShippingCharge'] ?? product['shippingCharge'],
+    );
     final stock = _int(product['stock']);
 
     final category = product['category'];
@@ -285,7 +307,7 @@ class _MarketplaceProductDetailScreenState
         Text(
           name.isEmpty ? 'Marketplace product' : name,
           style: const TextStyle(
-            color: Colors.white,
+            color: MarketplacePalette.ink,
             fontSize: 24,
             fontWeight: FontWeight.w900,
           ),
@@ -300,7 +322,7 @@ class _MarketplaceProductDetailScreenState
             Text(
               '${_symbol(currency)}$sellingPrice',
               style: const TextStyle(
-                color: Colors.white,
+                color: MarketplacePalette.ink,
                 fontSize: 23,
                 fontWeight: FontWeight.w900,
               ),
@@ -349,7 +371,7 @@ class _MarketplaceProductDetailScreenState
           const Text(
             'Description',
             style: TextStyle(
-              color: Colors.white,
+              color: MarketplacePalette.ink,
               fontSize: 18,
               fontWeight: FontWeight.w800,
             ),
@@ -357,7 +379,10 @@ class _MarketplaceProductDetailScreenState
           const SizedBox(height: 8),
           Text(
             description,
-            style: const TextStyle(color: Color(0xFFC7C7C7), height: 1.5),
+            style: const TextStyle(
+              color: MarketplacePalette.muted,
+              height: 1.5,
+            ),
           ),
         ],
         const SizedBox(height: 26),
@@ -375,12 +400,12 @@ class _MarketplaceProductDetailScreenState
                         ? () => setState(() => _quantity--)
                         : null,
                     icon: const Icon(Icons.remove),
-                    color: Colors.white,
+                    color: MarketplacePalette.ink,
                   ),
                   Text(
                     '$_quantity',
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: MarketplacePalette.ink,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -389,7 +414,7 @@ class _MarketplaceProductDetailScreenState
                         ? () => setState(() => _quantity++)
                         : null,
                     icon: const Icon(Icons.add),
-                    color: Colors.white,
+                    color: MarketplacePalette.ink,
                   ),
                 ],
               ),

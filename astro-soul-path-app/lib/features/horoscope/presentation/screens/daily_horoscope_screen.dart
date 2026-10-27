@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/widgets/golden_sparkle_loading.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../data/horoscope_api.dart';
@@ -158,9 +159,12 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
           ),
         ],
       ),
-      body: DecoratedBox(
-        decoration: const BoxDecoration(),
-        child: RefreshIndicator(onRefresh: _loadHoroscope, child: _body()),
+      body: GoldenSparkleLoading(
+        loading: _loading,
+        child: DecoratedBox(
+          decoration: const BoxDecoration(),
+          child: RefreshIndicator(onRefresh: _loadHoroscope, child: _body()),
+        ),
       ),
     );
   }
@@ -284,16 +288,10 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
   }
 
   Widget _body() {
-    if (_loading) {
-      return const CustomScrollView(
-        physics: AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(
-              child: CircularProgressIndicator(color: AppColors.gold),
-            ),
-          ),
+    if (_loading && _data == null) {
+      return Column(
+        children: [
+          Padding(padding: const EdgeInsets.all(16), child: _daySelector()),
         ],
       );
     }

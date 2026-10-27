@@ -1,6 +1,7 @@
+import '../marketplace_private_state.dart';
+import '../marketplace_palette.dart';
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_theme.dart';
 import '../../data/marketplace_seller_api.dart';
 
 class MarketplaceSellerOrdersScreen extends StatefulWidget {
@@ -12,7 +13,7 @@ class MarketplaceSellerOrdersScreen extends StatefulWidget {
 }
 
 class _MarketplaceSellerOrdersScreenState
-    extends State<MarketplaceSellerOrdersScreen> {
+    extends MarketplacePrivateState<MarketplaceSellerOrdersScreen> {
   final MarketplaceSellerApi _api = MarketplaceSellerApi();
 
   bool _loading = true;
@@ -61,12 +62,12 @@ class _MarketplaceSellerOrdersScreenState
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget buildMarketplace(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF090909),
+      backgroundColor: MarketplacePalette.canvas,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF090909),
-        foregroundColor: AppColors.white,
+        backgroundColor: MarketplacePalette.canvas,
+        foregroundColor: MarketplacePalette.ink,
         title: const Text(
           'Marketplace Orders',
           style: TextStyle(fontWeight: FontWeight.w800),
@@ -102,14 +103,14 @@ class _MarketplaceSellerOrdersScreenState
           const SizedBox(height: 120),
           const Icon(
             Icons.error_outline_rounded,
-            color: AppColors.gold,
+            color: MarketplacePalette.gold,
             size: 46,
           ),
           const SizedBox(height: 14),
           Text(
             _error!,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.white),
+            style: const TextStyle(color: MarketplacePalette.ink),
           ),
           const SizedBox(height: 18),
           Center(
@@ -129,13 +130,17 @@ class _MarketplaceSellerOrdersScreenState
         padding: const EdgeInsets.all(20),
         children: const [
           SizedBox(height: 120),
-          Icon(Icons.local_shipping_outlined, color: AppColors.gold, size: 52),
+          Icon(
+            Icons.local_shipping_outlined,
+            color: MarketplacePalette.gold,
+            size: 52,
+          ),
           SizedBox(height: 16),
           Text(
             'No fulfillment orders yet',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: AppColors.white,
+              color: MarketplacePalette.ink,
               fontSize: 19,
               fontWeight: FontWeight.w800,
             ),
@@ -144,7 +149,7 @@ class _MarketplaceSellerOrdersScreenState
           Text(
             'Only confirmed customer orders appear here after verified payment.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF9A9A9A), height: 1.4),
+            style: TextStyle(color: MarketplacePalette.muted, height: 1.4),
           ),
         ],
       );
@@ -174,9 +179,11 @@ class _MarketplaceSellerOrdersScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF151515),
+        color: MarketplacePalette.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.22)),
+        border: Border.all(
+          color: MarketplacePalette.gold.withValues(alpha: 0.22),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -187,7 +194,7 @@ class _MarketplaceSellerOrdersScreenState
                 child: Text(
                   orderNumber.isEmpty ? 'Marketplace Order' : orderNumber,
                   style: const TextStyle(
-                    color: AppColors.white,
+                    color: MarketplacePalette.ink,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -198,13 +205,13 @@ class _MarketplaceSellerOrdersScreenState
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.12),
+                  color: MarketplacePalette.gold.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   status,
                   style: const TextStyle(
-                    color: AppColors.gold,
+                    color: MarketplacePalette.gold,
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                   ),

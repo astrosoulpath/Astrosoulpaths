@@ -1,3 +1,5 @@
+import '../marketplace_private_state.dart';
+import '../marketplace_palette.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/marketplace_customer_api.dart';
@@ -10,11 +12,12 @@ class MarketplaceAddressScreen extends StatefulWidget {
       _MarketplaceAddressScreenState();
 }
 
-class _MarketplaceAddressScreenState extends State<MarketplaceAddressScreen> {
-  static const _background = Color(0xFF090909);
-  static const _surface = Color(0xFF151515);
-  static const _gold = Color(0xFFF2C94C);
-  static const _muted = Color(0xFF9A9A9A);
+class _MarketplaceAddressScreenState
+    extends MarketplacePrivateState<MarketplaceAddressScreen> {
+  static const _background = MarketplacePalette.canvas;
+  static const _surface = MarketplacePalette.surface;
+  static const _gold = MarketplacePalette.gold;
+  static const _muted = MarketplacePalette.muted;
 
   final MarketplaceCustomerApi _api = MarketplaceCustomerApi();
 
@@ -99,12 +102,12 @@ class _MarketplaceAddressScreenState extends State<MarketplaceAddressScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget buildMarketplace(BuildContext context) {
     return Scaffold(
       backgroundColor: _background,
       appBar: AppBar(
         backgroundColor: _background,
-        foregroundColor: Colors.white,
+        foregroundColor: MarketplacePalette.ink,
         title: const Text('Delivery Addresses'),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -125,7 +128,10 @@ class _MarketplaceAddressScreenState extends State<MarketplaceAddressScreen> {
 
     if (_error.isNotEmpty) {
       return Center(
-        child: Text(_error, style: const TextStyle(color: Colors.white)),
+        child: Text(
+          _error,
+          style: const TextStyle(color: MarketplacePalette.ink),
+        ),
       );
     }
 
@@ -162,7 +168,7 @@ class _MarketplaceAddressScreenState extends State<MarketplaceAddressScreen> {
               border: Border.all(
                 color: isDefault
                     ? _gold.withValues(alpha: 0.6)
-                    : Colors.white.withValues(alpha: 0.07),
+                    : MarketplacePalette.ink.withValues(alpha: 0.07),
               ),
             ),
             child: Column(
@@ -174,7 +180,7 @@ class _MarketplaceAddressScreenState extends State<MarketplaceAddressScreen> {
                       child: Text(
                         _text(address['fullName']),
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: MarketplacePalette.ink,
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                         ),
@@ -191,7 +197,7 @@ class _MarketplaceAddressScreenState extends State<MarketplaceAddressScreen> {
                 const SizedBox(height: 6),
                 Text(
                   _text(address['phone']),
-                  style: const TextStyle(color: Colors.white70),
+                  style: const TextStyle(color: MarketplacePalette.muted),
                 ),
                 const SizedBox(height: 14),
                 Wrap(

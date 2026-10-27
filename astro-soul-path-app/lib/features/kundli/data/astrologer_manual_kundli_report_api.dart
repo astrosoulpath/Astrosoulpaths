@@ -9,9 +9,14 @@ import '../../auth/data/auth_session_store.dart';
 import 'astrologer_manual_kundli_report.dart';
 
 class AstrologerManualKundliReportApiException implements Exception {
-  const AstrologerManualKundliReportApiException(this.message);
+  const AstrologerManualKundliReportApiException(
+    this.message, {
+    this.statusCode,
+  });
 
   final String message;
+  final int? statusCode;
+  bool get accessDenied => statusCode == 401 || statusCode == 403;
 
   @override
   String toString() => message;
@@ -36,6 +41,7 @@ class AstrologerManualKundliReportApi {
     if (token.isEmpty) {
       throw const AstrologerManualKundliReportApiException(
         'Login session not found. Please login again.',
+        statusCode: 401,
       );
     }
 
@@ -62,10 +68,17 @@ class AstrologerManualKundliReportApi {
     }
 
     try {
-      return jsonDecode(response.body);
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map && decoded['success'] == false) {
+        _throwResponse(response, decoded);
+      }
+      return decoded;
+    } on AstrologerManualKundliReportApiException {
+      rethrow;
     } catch (_) {
-      throw const AstrologerManualKundliReportApiException(
+      throw AstrologerManualKundliReportApiException(
         'Server returned an invalid response.',
+        statusCode: response.statusCode,
       );
     }
   }
@@ -87,7 +100,10 @@ class AstrologerManualKundliReportApi {
       }
     }
 
-    throw AstrologerManualKundliReportApiException(message);
+    throw AstrologerManualKundliReportApiException(
+      message,
+      statusCode: response.statusCode,
+    );
   }
 
   Map<String, dynamic> _extractReport(dynamic decoded) {

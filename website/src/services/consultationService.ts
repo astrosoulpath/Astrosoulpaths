@@ -1,3 +1,4 @@
+import { supportSession } from "@/features/support/customer-support-api";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ??
   process.env.NEXT_PUBLIC_API_URL;
@@ -185,11 +186,14 @@ function getApiErrorMessage(
   return fallback;
 }
 
+export function consultationCustomerSession(): string { try { return supportSession(); } catch { return ''; } }
 async function consultationRequest<T>(
   path: string,
   options: RequestInit = {},
+  customerOwner?: string,
 ): Promise<T> {
-  const token = getAccessToken();
+  if (customerOwner && consultationCustomerSession() !== customerOwner) throw new Error('SESSION_CHANGED');
+  const token = customerOwner ? (JSON.parse(customerOwner) as string[])[0] : getAccessToken();
 
   const response = await fetch(
     `${getApiBaseUrl()}${path}`,
@@ -208,6 +212,7 @@ async function consultationRequest<T>(
   );
 
   const data = await readJsonResponse(response);
+  if (customerOwner && consultationCustomerSession() !== customerOwner) throw new Error('SESSION_CHANGED');
 
   if (!response.ok) {
     const message = getApiErrorMessage(
@@ -298,6 +303,8 @@ export async function startConsultation(
     );
   }
 
+  const customerOwner = consultationCustomerSession();
+  if (!customerOwner) throw new Error('LOGIN_REQUIRED');
   return consultationRequest<StartConsultationResponse>(
     "/consultations/start",
     {
@@ -315,6 +322,7 @@ export async function startConsultation(
           : {}),
       }),
     },
+    customerOwner,
   );
 }
 

@@ -142,7 +142,7 @@ async function main() {
       displayName: 'Professional Kundli - Yearly',
       description:
         'Worldwide professional Kundli generation and customer chart management for astrologers',
-      price: 3000,
+      price: 3500,
       currency: 'INR',
       durationDays: 365,
       features: {
@@ -164,7 +164,7 @@ async function main() {
       displayName: 'Professional Kundli - Yearly',
       description:
         'Worldwide professional Kundli generation and customer chart management for astrologers',
-      price: 3000,
+      price: 3500,
       currency: 'INR',
       durationDays: 365,
       features: {

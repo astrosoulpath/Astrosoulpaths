@@ -1,5 +1,9 @@
 "use client";
 
+import { refreshAdminSession } from "@/features/admin/auth/admin-session";
+
+import { getAdminApiBase } from "@/features/admin/auth/admin-contract";
+
 import { useCallback, useEffect, useState } from "react";
 
 type CampaignProduct = {
@@ -31,20 +35,10 @@ type Campaign = {
   products?: CampaignProduct[];
 };
 
-const API =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.NEXT_PUBLIC_BACKEND_URL ||
-  "http://127.0.0.1:4000";
+const API = getAdminApiBase();
 
-function getToken() {
-  if (typeof window === "undefined") return "";
-  return (
-    localStorage.getItem("asp_admin_access_token") ||
-    sessionStorage.getItem("asp_admin_access_token") ||
-    localStorage.getItem("access_token") ||
-    sessionStorage.getItem("access_token") ||
-    ""
-  );
+async function getToken() {
+  return refreshAdminSession();
 }
 
 export default function MarketplaceCampaigns() {
@@ -55,7 +49,7 @@ export default function MarketplaceCampaigns() {
   const [message, setMessage] = useState("");
 
   const load = useCallback(async () => {
-    const accessToken = getToken();
+    const accessToken = await getToken();
 
     if (!accessToken) {
       setError("Admin session not found.");
@@ -98,7 +92,7 @@ export default function MarketplaceCampaigns() {
     id: string,
     action: "activate" | "pause" | "cancel",
   ) {
-    const accessToken = getToken();
+    const accessToken = await getToken();
 
     if (!accessToken) {
       setError("Admin session not found.");
@@ -149,10 +143,10 @@ export default function MarketplaceCampaigns() {
       <div className="rounded-2xl border border-yellow-500/20 bg-black/40 p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h3 className="text-xl font-bold text-yellow-300">
+            <h3 className="text-xl font-bold text-[#8A6818]">
               Festival & Campaign Management
             </h3>
-            <p className="mt-1 text-sm text-gray-400">
+            <p className="mt-1 text-sm text-[#52627A]">
               Admin-controlled marketplace campaigns from the real backend.
             </p>
           </div>
@@ -160,7 +154,7 @@ export default function MarketplaceCampaigns() {
           <button
             type="button"
             onClick={() => void load()}
-            className="rounded-xl border border-yellow-500/40 px-4 py-2 text-sm font-semibold text-yellow-300"
+            className="rounded-xl border border-yellow-500/40 px-4 py-2 text-sm font-semibold text-[#8A6818]"
           >
             Refresh
           </button>
@@ -168,25 +162,25 @@ export default function MarketplaceCampaigns() {
       </div>
 
       {message ? (
-        <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-300">
+        <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-sm text-emerald-700">
           {message}
         </div>
       ) : null}
 
       {error ? (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-700">
           {error}
         </div>
       ) : null}
 
       {loading ? (
-        <div className="rounded-2xl border border-white/10 bg-black/30 p-8 text-center text-gray-400">
+        <div className="rounded-2xl border border-white/10 bg-black/30 p-8 text-center text-[#52627A]">
           Loading campaigns...
         </div>
       ) : campaigns.length === 0 ? (
         <div className="rounded-2xl border border-white/10 bg-black/30 p-8 text-center">
-          <p className="font-semibold text-white">No campaigns yet</p>
-          <p className="mt-2 text-sm text-gray-400">
+          <p className="font-semibold text-[#14243D]">No campaigns yet</p>
+          <p className="mt-2 text-sm text-[#52627A]">
             No fake festival or promotional campaign has been created.
           </p>
         </div>
@@ -200,37 +194,37 @@ export default function MarketplaceCampaigns() {
               <div className="flex flex-wrap justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="text-lg font-bold text-white">
+                    <h4 className="text-lg font-bold text-[#14243D]">
                       {campaign.title}
                     </h4>
-                    <span className="rounded-full border border-yellow-500/30 px-3 py-1 text-xs font-semibold text-yellow-300">
+                    <span className="rounded-full border border-yellow-500/30 px-3 py-1 text-xs font-semibold text-[#8A6818]">
                       {campaign.status}
                     </span>
                   </div>
 
-                  <p className="mt-1 text-sm text-gray-400">
+                  <p className="mt-1 text-sm text-[#52627A]">
                     {campaign.name}
                     {campaign.festivalKey ? ` | ${campaign.festivalKey}` : ""}
                   </p>
                 </div>
 
                 <div className="text-right text-sm">
-                  <p className="font-semibold text-yellow-300">
+                  <p className="font-semibold text-[#8A6818]">
                     {campaign.discountType} {String(campaign.discountValue)}
                   </p>
-                  <p className="text-gray-500">
+                  <p className="text-[#52627A]">
                     Products: {campaign.products?.length ?? 0}
                   </p>
                 </div>
               </div>
 
               {campaign.subtitle ? (
-                <p className="mt-4 text-sm text-gray-300">
+                <p className="mt-4 text-sm text-[#14243D]">
                   {campaign.subtitle}
                 </p>
               ) : null}
 
-              <div className="mt-4 grid gap-3 text-sm text-gray-400 md:grid-cols-2">
+              <div className="mt-4 grid gap-3 text-sm text-[#52627A] md:grid-cols-2">
                 <div>Start: {new Date(campaign.startAt).toLocaleString()}</div>
                 <div>End: {new Date(campaign.endAt).toLocaleString()}</div>
               </div>
@@ -245,7 +239,7 @@ export default function MarketplaceCampaigns() {
                     onClick={() =>
                       void controlCampaign(campaign.id, "activate")
                     }
-                    className="rounded-xl border border-green-500/40 px-4 py-2 text-sm font-semibold text-green-300 disabled:opacity-50"
+                    className="rounded-xl border border-green-500/40 px-4 py-2 text-sm font-semibold text-emerald-700 disabled:opacity-50"
                   >
                     Activate / Schedule
                   </button>
@@ -269,7 +263,7 @@ export default function MarketplaceCampaigns() {
                     type="button"
                     disabled={working === campaign.id}
                     onClick={() => void controlCampaign(campaign.id, "cancel")}
-                    className="rounded-xl border border-red-500/40 px-4 py-2 text-sm font-semibold text-red-300 disabled:opacity-50"
+                    className="rounded-xl border border-red-500/40 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50"
                   >
                     Cancel
                   </button>

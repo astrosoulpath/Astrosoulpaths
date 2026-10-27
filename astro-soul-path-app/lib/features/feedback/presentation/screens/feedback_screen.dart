@@ -1,9 +1,13 @@
+import '../../../support/presentation/widgets/support_account_boundary.dart';
 import 'package:flutter/material.dart';
+import '../../../../core/theme/cosmic_ivory.dart';
 
 import '../../data/feedback_api.dart';
 
 class FeedbackScreen extends StatefulWidget {
-  const FeedbackScreen({super.key});
+  const FeedbackScreen({super.key, this.consultationId, this.api});
+  final String? consultationId;
+  final FeedbackApi? api;
 
   @override
   State<FeedbackScreen> createState() => _FeedbackScreenState();
@@ -12,16 +16,18 @@ class FeedbackScreen extends StatefulWidget {
 class _FeedbackScreenState extends State<FeedbackScreen> {
   final _formKey = GlobalKey<FormState>();
   final _messageController = TextEditingController();
-  final _api = FeedbackApi();
+  late final _api = widget.api ?? FeedbackApi();
 
   bool _submitting = false;
   bool _loadingHistory = true;
 
-  int _rating = 5;
+  int _rating = 0;
   String _category = 'GENERAL';
 
   String? _error;
   List<Map<String, dynamic>> _history = [];
+  int _page = 1, _loadVersion = 0;
+  bool _hasMore = true;
 
   static const _categories = <String, String>{
     'GENERAL': 'General',
@@ -42,34 +48,45 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
 
   @override
   void dispose() {
+    _api.close();
     _messageController.dispose();
     super.dispose();
   }
 
   Future<void> _loadHistory() async {
+    final version = ++_loadVersion;
+    final page = _page;
+    setState(() => _loadingHistory = true);
     try {
-      final items = await _api.getMine();
+      final items = await _api.getMine(page: _page);
 
-      if (!mounted) return;
+      if (!mounted || version != _loadVersion) return;
 
       setState(() {
-        _history = items;
+        _hasMore = items.length == 25;
+        _history = _page == 1
+            ? items
+            : {
+                for (final item in [..._history, ...items]) item['id']: item,
+              }.values.toList();
         _loadingHistory = false;
         _error = null;
       });
     } on FeedbackApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || version != _loadVersion) return;
 
       setState(() {
         _error = error.message;
         _loadingHistory = false;
+        if (page > 1) _page = page - 1;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || version != _loadVersion) return;
 
       setState(() {
         _error = 'Unable to load feedback history.';
         _loadingHistory = false;
+        if (page > 1) _page = page - 1;
       });
     }
   }
@@ -89,8 +106,9 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     try {
       await _api.submit(
         category: _category,
-        rating: _rating,
+        rating: _rating == 0 ? null : _rating,
         message: _messageController.text,
+        consultationId: widget.consultationId,
       );
 
       if (!mounted) return;
@@ -103,6 +121,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         ),
       );
 
+      _page = 1;
       await _loadHistory();
     } on FeedbackApiException catch (error) {
       if (!mounted) return;
@@ -141,11 +160,32 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      SupportAccountBoundary(child: _buildContent(context));
+
+  Widget _buildContent(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Feedback')),
+      backgroundColor: CosmicIvory.background,
+      appBar: AppBar(
+        backgroundColor: CosmicIvory.background,
+        title: const Text('Feedback'),
+        actions: [
+          if (_hasMore && _history.isNotEmpty)
+            IconButton(
+              tooltip: 'Load more feedback',
+              onPressed: _loadingHistory
+                  ? null
+                  : () {
+                      if (_loadingHistory) return;
+                      _page++;
+                      _loadHistory();
+                    },
+              icon: const Icon(Icons.expand_more),
+            ),
+        ],
+      ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _loadHistory,
@@ -205,7 +245,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                     const SizedBox(height: 22),
 
                     Text(
-                      'Your rating',
+                      'Your rating (optional)',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -221,7 +261,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                               ? null
                               : () {
                                   setState(() {
-                                    _rating = value;
+                                    _rating = _rating == value ? 0 : value;
                                   });
                                 },
                           icon: Icon(

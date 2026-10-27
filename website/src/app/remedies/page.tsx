@@ -1,177 +1,33 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
-
-export const metadata: Metadata = {
-  title: "Astrology Remedies | Astro Soul Path",
-  description:
-    "Explore personalized Vedic astrology remedies for career, relationships, finance, health, spiritual growth and planetary concerns.",
-};
-
-const remedyCategories = [
-  {
-    title: "Career & Business",
-    description:
-      "Receive personalized Vedic guidance for career delays, workplace challenges, business growth and professional decisions.",
-  },
-  {
-    title: "Love & Relationships",
-    description:
-      "Consult an astrologer for relationship concerns, emotional compatibility, marriage delays and family harmony.",
-  },
-  {
-    title: "Finance & Stability",
-    description:
-      "Get guidance for financial planning, business challenges, income stability and periods of unexpected expenditure.",
-  },
-  {
-    title: "Health & Wellbeing",
-    description:
-      "Explore spiritual and traditional Vedic remedies intended to support wellbeing alongside appropriate professional care.",
-  },
-  {
-    title: "Marriage & Compatibility",
-    description:
-      "Understand compatibility, marriage timing, relationship patterns and relevant Vedic remedies through chart analysis.",
-  },
-  {
-    title: "Spiritual Growth",
-    description:
-      "Discover personalized practices such as mantra, meditation, charity and devotional routines based on astrological guidance.",
-  },
-];
-
-const remedyMethods = [
-  "Mantra and prayer recommendations",
-  "Charity and donation guidance",
-  "Meditation and spiritual practices",
-  "Fasting recommendations where appropriate",
-  "Gemstone guidance after chart analysis",
-  "Lifestyle and behavioural suggestions",
-];
-
+import RemedyGuidance from "@/features/remedies/RemedyGuidance";
+import CustomerRemedies from "@/features/remedies/CustomerRemedies";
+import s from "@/features/remedies/remedies.module.css";
+export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "Vedic Remedies & Thoughtful Guidance | Astro Soul Path", description: "Explore traditional Vedic guidance, published educational resources and existing Kundli and astrologer services. No guaranteed outcomes.", alternates: { canonical: "/remedies" } };
+const remedyTopics = [
+    ["Career & Business", "Discuss professional decisions, workplace concerns and personal priorities with an astrologer."],
+    ["Love & Relationships", "Explore relationship concerns and emotional compatibility through a personal consultation."],
+    ["Finance & Stability", "Reflect on financial concerns without treating astrology as investment advice or a promise of returns."],
+    ["Health & Wellbeing", "Consider optional spiritual practices alongside appropriate professional care, never instead of it."],
+    ["Marriage & Compatibility", "Discuss compatibility and relationship patterns with guidance based on your circumstances."],
+    ["Spiritual Growth", "Explore reflection, meditation and devotional practices where appropriate to your beliefs."],
+] as const;
 export default function RemediesPage() {
-  return (
-    <main className="asp-premium-page min-h-screen">
-      <section className="border-b border-[#D4AF37]/20 bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-4 py-16 text-center sm:px-6 lg:px-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#B58D16]">
-            Vedic Guidance
-          </p>
-
-          <h1 className="mt-4 text-4xl font-bold tracking-tight text-[#0B1026] sm:text-5xl">
-            Personalized Astrology Remedies
-          </h1>
-
-          <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-slate-600">
-            Astrology remedies should be recommended after reviewing your birth
-            chart, current planetary periods and personal circumstances.
-          </p>
-
-          <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Link
-              href="/astrologers"
-              className="inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-[#C89513] via-[#DDB32A] to-[#C89513] shadow-[0_8px_22px_rgba(181,141,22,0.22)] px-6 py-3 font-semibold text-white transition hover:bg-[#967311]"
-            >
-              Consult an Astrologer
-            </Link>
-
-            <Link
-              href="/kundli"
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#D4AF37]/35 bg-white/90 shadow-sm backdrop-blur-sm px-6 py-3 font-semibold text-[#0B1026] transition hover:bg-slate-100"
-            >
-              Explore Kundli Services
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {remedyCategories.map((category) => (
-            <article
-              key={category.title}
-              className="rounded-3xl border border-[#D4AF37]/25 bg-white/90 p-6 shadow-[0_16px_45px_rgba(11,16,38,0.08)] backdrop-blur-md transition duration-300 hover:-translate-y-1 hover:border-[#D4AF37]/50 hover:shadow-[0_22px_55px_rgba(181,141,22,0.16)]"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#D4AF37]/20 bg-gradient-to-br from-[#FFF8DF] to-[#F8E7A7]/60 shadow-sm text-lg font-bold text-[#B58D16]">
-                {category.title.charAt(0)}
-              </div>
-
-              <h2 className="mt-5 text-xl font-semibold text-[#0B1026]">
-                {category.title}
-              </h2>
-
-              <p className="mt-3 leading-7 text-slate-600">
-                {category.description}
-              </p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="border-y border-[#D4AF37]/20 bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#B58D16]">
-              How It Works
-            </p>
-
-            <h2 className="mt-3 text-3xl font-bold text-[#0B1026]">
-              Remedies based on your personal chart
-            </h2>
-
-            <p className="mt-5 leading-8 text-slate-600">
-              A qualified astrologer may review your date, time and place of
-              birth, planetary placements, Dasha periods and current transits
-              before suggesting any remedy.
-            </p>
-
-            <p className="mt-4 leading-8 text-slate-600">
-              Recommendations can differ from person to person. Astro Soul Path
-              does not provide one universal remedy for every user.
-            </p>
-          </div>
-
-          <div className="rounded-3xl bg-[#0B1026] p-7 text-white">
-            <h2 className="text-2xl font-semibold">
-              Remedies may include
-            </h2>
-
-            <ul className="mt-6 space-y-4">
-              {remedyMethods.map((method) => (
-                <li key={method} className="flex gap-3 text-slate-200">
-                  <span
-                    aria-hidden="true"
-                    className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#D4AF37] text-xs font-bold text-[#0B1026]"
-                  >
-                    âœ“
-                  </span>
-
-                  <span>{method}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-4xl px-4 py-14 text-center sm:px-6 lg:px-8">
-        <h2 className="text-3xl font-bold text-[#0B1026]">
-          Important guidance
-        </h2>
-
-        <p className="mt-5 leading-8 text-slate-600">
-          Astrology and spiritual remedies are intended for personal guidance.
-          They are not a replacement for medical, legal, financial or mental
-          health advice.
-        </p>
-
-        <Link
-          href="/astrologers"
-          className="mt-8 inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-[#C89513] via-[#DDB32A] to-[#C89513] shadow-[0_8px_22px_rgba(181,141,22,0.22)] px-7 py-3 font-semibold text-white transition hover:bg-[#967311]"
-        >
-          Find an Astrologer
-        </Link>
-      </section>
-    </main>
-  );
+    return <main className={s.page}>
+    <section className={s.hero}><div className={s.art} aria-hidden="true"><span /><span /><span /></div><div className={s.heroContent}>
+      <p className={s.eyebrow}>VEDIC GUIDANCE · PERSONAL CHOICE</p><h1>Small practices.<br /><em>Thoughtful guidance.</em></h1>
+      <p>Explore traditional astrology remedies with clarity and care. Personal recommendations belong in the context of your chart, your circumstances and your choices.</p>
+      <div className={s.actions}><Link href="/astrologers">Explore astrologers</Link><Link href="#guidance">Read published guidance</Link></div><p className={s.note}>Educational information, not a personalized reading or a guaranteed outcome.</p>
+    </div></section>
+    <section className={s.section} aria-labelledby="topics-title"><p className={s.eyebrow}>EXPLORE YOUR CONCERNS</p><h2 id="topics-title">A considered place to begin</h2><p className={s.intro}>Choose a topic to learn how to approach a consultation. These introductions are not chart-based recommendations.</p>
+      <div className={s.grid}>{remedyTopics.map(([title, description], i) => <details className={s.topic} key={title}><summary><span className={s.number} aria-hidden="true">0{i + 1}</span><h3>{title}</h3><span aria-hidden="true">+</span></summary><p>{description}</p><Link href="/astrologers">Explore consultation options →</Link></details>)}</div>
+    </section>
+    <section className={`${s.section} ${s.personal}`} aria-labelledby="personal-title"><div><p className={s.eyebrow}>YOUR CHART, YOUR CONTEXT</p><h2 id="personal-title">Personal guidance starts with an authorized reading</h2><p>The existing Kundli experience may include suggested remedies within its interpretation. An astrologer-authored report may also include traditional guidance, subject to its existing ownership and access rules.</p><p>No birth details yet? Continue through the existing Kundli flow to see its requirements. This page does not generate a reading, purchase an entitlement or access another person’s chart.</p><Link className={s.inlineLink} href="/kundli">Open existing Kundli services →</Link></div><aside><h3>What to expect</h3><ol><li>Use your normal customer account.</li><li>Review existing service requirements and any consent request.</li><li>Read only guidance available in your authorized chart or report.</li></ol><p>AI-generated interpretations, where available in existing services, remain subject to their current consent, usage and eligibility controls.</p></aside></section>
+    <CustomerRemedies />
+    <section className={s.section} aria-labelledby="availability-title"><h2 id="availability-title">New personalized readings: availability</h2><p className={s.intro}>Existing finalized report remedies can be viewed above. A chart selector and standalone saved-remedy history are not available here. The existing website Kundli generation form uses a retired service; it cannot currently create a new reading. Explore the existing astrologer consultation options for personal guidance. No payment or consultation begins automatically.</p></section>
+    <section id="guidance" className={s.section} aria-labelledby="guidance-title"><p className={s.eyebrow}>FROM THE KNOWLEDGE CENTER</p><h2 id="guidance-title">Published remedy guidance</h2><p className={s.intro}>Educational articles from the shared catalogue. These are not personalized prescriptions.</p><Suspense fallback={<div role="status" className={s.state}>Loading published guidance…</div>}><RemedyGuidance /></Suspense></section>
+    <section className={`${s.section} ${s.safety}`} aria-labelledby="safety-title"><h2 id="safety-title">Care comes first</h2><p>Astrology and spiritual practices do not replace medical, mental-health, legal or financial advice. Do not change treatment, fast when unsafe, or purchase gemstones because of a promised cure or guaranteed result. You can decline any suggested practice.</p><Link href="/astrologers">Discuss your questions with an astrologer →</Link></section>
+  </main>;
 }

@@ -24,7 +24,7 @@ export function AstrologerCard({
   rating,
   isOnline,
   avatarUrl,
-  isVerified = true,
+  isVerified = false,
 }: AstrologerCardProps) {
   const safeId = id.trim();
 

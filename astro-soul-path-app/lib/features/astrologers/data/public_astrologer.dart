@@ -1,3 +1,5 @@
+import '../../../core/config/customer_consultation_policy.dart';
+
 class PublicAstrologer {
   const PublicAstrologer({
     required this.id,
@@ -15,6 +17,8 @@ class PublicAstrologer {
     required this.isVerified,
     required this.chatWaitMinutes,
     required this.expertise,
+    this.hasPublishedPrice = true,
+    this.availabilityKnown = true,
   });
 
   factory PublicAstrologer.fromJson(Map<String, dynamic> json) {
@@ -33,15 +37,16 @@ class PublicAstrologer {
       rating: _readNumber(json['rating']).clamp(0, 5),
       isOnline: json['isOnline'] == true,
       isBusy: json['isBusy'] == true,
-      isVerified:
-          json['isVerified'] == true ||
-          json['verified'] == true ||
-          json['isApproved'] == true ||
-          json['approved'] == true,
+      isVerified: json['isVerified'] == true || json['verified'] == true,
       chatWaitMinutes: _readNumber(
         json['chatWaitMinutes'],
       ).toInt().clamp(0, 1440),
       expertise: _readStringList(json['expertise']),
+      hasPublishedPrice:
+          json['pricePerMin'] != null &&
+          num.tryParse(json['pricePerMin'].toString())?.isFinite == true &&
+          num.parse(json['pricePerMin'].toString()) >= 0,
+      availabilityKnown: json['isOnline'] is bool,
     );
   }
 
@@ -60,9 +65,11 @@ class PublicAstrologer {
   final bool isVerified;
   final int chatWaitMinutes;
   final List<String> expertise;
+  final bool hasPublishedPrice;
+  final bool availabilityKnown;
 
   String get primaryExpertise =>
-      expertise.isEmpty ? 'Vedic Astrology' : expertise.join(', ');
+      expertise.isEmpty ? 'Expertise not specified' : expertise.join(', ');
 
   String get languageLabel =>
       languages.isEmpty ? 'Not specified' : languages.join(', ');
@@ -71,7 +78,9 @@ class PublicAstrologer {
       ? '${_formatNumber(experience)} years'
       : 'Experience not specified';
 
-  String get priceLabel => '\u{20B9}${_formatNumber(pricePerMin)}/min';
+  String get priceLabel => hasPublishedPrice
+      ? '\u{20B9}${_formatNumber(pricePerMin)}/min'
+      : 'Price not available';
 
   String get ratingLabel => rating > 0 ? rating.toStringAsFixed(1) : 'New';
 
@@ -140,6 +149,8 @@ class PublicAstrologerProfile {
       astrologer: astrologer,
       availability: availabilitySource.isNotEmpty
           ? availabilitySource
+          : !astrologer.availabilityKnown
+          ? 'Availability not provided'
           : astrologer.isOnline
           ? 'Available for consultation'
           : 'Currently offline',
@@ -154,6 +165,18 @@ class PublicAstrologerProfile {
   final PublicAstrologer astrologer;
   final String availability;
   final ConsultationOptions consultationOptions;
+
+  bool get canRequestChat => astrologer.isOnline && consultationOptions.chat;
+  bool get canRequestAudio =>
+      astrologer.isOnline &&
+      !astrologer.isBusy &&
+      consultationOptions.audioCall;
+  // Preserve parsed historical capability; do not advertise new customer video.
+  bool get canRequestVideo =>
+      CustomerConsultationPolicy.videoEnabled &&
+      astrologer.isOnline &&
+      !astrologer.isBusy &&
+      consultationOptions.videoCall;
 }
 
 class ConsultationOptions {

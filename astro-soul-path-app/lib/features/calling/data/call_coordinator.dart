@@ -48,6 +48,11 @@ class CallCoordinator {
 
   Future<void> connect(String callId) async {
     final normalizedCallId = callId.trim();
+    if (_disposed ||
+        _state == CallCoordinatorState.ending ||
+        _state == CallCoordinatorState.ended) {
+      return;
+    }
 
     if (normalizedCallId.isEmpty) {
       throw const CallApiException(
@@ -138,6 +143,7 @@ class CallCoordinator {
       }
 
       if (_disposed || generation != _connectionGeneration) {
+        await _audioService.dispose();
         return;
       }
 
@@ -148,6 +154,9 @@ class CallCoordinator {
         channelName: rtc.channelName,
         uid: rtc.uid,
       );
+      if (_disposed || generation != _connectionGeneration) {
+        await _audioService.leave();
+      }
     } catch (error) {
       if (!_disposed && generation == _connectionGeneration) {
         _errorMessage = error.toString();
@@ -369,69 +378,50 @@ class CallCoordinator {
     _notify();
   }
 
-  Future<void> end({String reason = 'USER_ENDED'}) async {
-    if (_disposed) {
-      return;
-    }
+  String? _pendingEndCallId;
+  String _pendingEndReason = 'USER_ENDED';
+  bool _backendEndInFlight = false;
+  bool get hasPendingBackendEnd => _pendingEndCallId != null;
 
-    if (_endInFlight) {
-      debugPrint('AUDIO_END_SKIPPED reason=end_in_flight callId=$_callId');
-      return;
-    }
-
-    if (_state == CallCoordinatorState.ended) {
-      await _audioService.leave();
-      return;
-    }
-
-    final currentCallId = _callId?.trim() ?? '';
-
-    _endInFlight = true;
-
-    _connectionGeneration++;
-    _tokenRenewalInFlight = false;
-
-    _setState(CallCoordinatorState.ending);
-
+  Future<void> retryBackendEnd() async {
+    final id = _pendingEndCallId;
+    if (id == null || _disposed || _backendEndInFlight) return;
+    _backendEndInFlight = true;
     try {
-      if (currentCallId.isNotEmpty) {
-        await _callApi.endCall(currentCallId, reason: reason);
-      }
-
-      await _audioService.leave();
-
-      _remoteUid = null;
-      _credentials = null;
+      await _callApi
+          .endCall(id, reason: _pendingEndReason)
+          .timeout(const Duration(seconds: 5));
+      _pendingEndCallId = null;
       _errorMessage = null;
+    } catch (_) {
+      _errorMessage =
+          'Call ended on this device. Server confirmation is pending; retry when connected.';
+    } finally {
+      _backendEndInFlight = false;
+    }
+    _notify();
+  }
 
-      _setState(CallCoordinatorState.ended);
-
-      debugPrint(
-        'AUDIO_CALL_END_COMMITTED '
-        'callId=$currentCallId '
-        'reason=$reason',
-      );
-    } catch (error) {
-      _errorMessage = 'Unable to end call safely: $error';
-
-      if (!_disposed && _audioService.isJoined) {
-        _setState(
-          _remoteUid == null
-              ? CallCoordinatorState.reconnecting
-              : CallCoordinatorState.connected,
-        );
-      } else if (!_disposed) {
-        _setState(CallCoordinatorState.failed);
+  Future<void> end({String reason = 'USER_ENDED'}) async {
+    if (_endInFlight || _disposed) return;
+    _endInFlight = true;
+    ++_connectionGeneration;
+    _tokenRenewalInFlight = false;
+    try {
+      if (_state != CallCoordinatorState.ended) {
+        _setState(CallCoordinatorState.ending);
+        _pendingEndCallId = _callId;
+        _pendingEndReason = reason;
+        try {
+          await _audioService.leave();
+        } catch (_) {
+          await _audioService.dispose();
+        }
+        _remoteUid = null;
+        _credentials = null;
+        _setState(CallCoordinatorState.ended);
       }
-
-      debugPrint(
-        'AUDIO_CALL_END_FAILED '
-        'callId=$currentCallId '
-        'reason=$reason '
-        'error=$error',
-      );
-
-      rethrow;
+      await retryBackendEnd();
     } finally {
       _endInFlight = false;
     }

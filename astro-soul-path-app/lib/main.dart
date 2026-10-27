@@ -1,3 +1,5 @@
+import 'core/branding/brand_startup_transition.dart';
+import 'core/branding/premium_startup_splash.dart';
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -29,7 +31,15 @@ class _BootstrapAppState extends State<_BootstrapApp> {
 
     _bootstrapFuture = Future.wait<void>([
       _bootstrap(),
-      Future<void>.delayed(const Duration(milliseconds: 2500)),
+      Future<void>.delayed(
+        WidgetsBinding
+                .instance
+                .platformDispatcher
+                .accessibilityFeatures
+                .disableAnimations
+            ? Duration.zero
+            : const Duration(milliseconds: 1800),
+      ),
     ]);
   }
 
@@ -75,108 +85,33 @@ class _BootstrapAppState extends State<_BootstrapApp> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.done &&
             !snapshot.hasError) {
-          return const AstroSoulPathApp();
+          return const BrandStartupTransition(child: AstroSoulPathApp());
         }
 
         if (snapshot.hasError) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            home: _StartupFailureScreen(
-              onRetry: () {
-                setState(() {
-                  _bootstrapFuture = _bootstrap();
-                });
-              },
+          return BrandStartupTransition(
+            child: MaterialApp(
+              key: const ValueKey('startup-failure'),
+              debugShowCheckedModeBanner: false,
+              home: _StartupFailureScreen(
+                onRetry: () {
+                  setState(() {
+                    _bootstrapFuture = _bootstrap();
+                  });
+                },
+              ),
             ),
           );
         }
 
-        return const MaterialApp(
-          debugShowCheckedModeBanner: false,
-          home: _StartupLoadingScreen(),
+        return const BrandStartupTransition(
+          child: MaterialApp(
+            key: ValueKey('startup-loading'),
+            debugShowCheckedModeBanner: false,
+            home: PremiumStartupSplash(),
+          ),
         );
       },
-    );
-  }
-}
-
-class _StartupLoadingScreen extends StatefulWidget {
-  const _StartupLoadingScreen();
-
-  @override
-  State<_StartupLoadingScreen> createState() => _StartupLoadingScreenState();
-}
-
-class _StartupLoadingScreenState extends State<_StartupLoadingScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _fadeAnimation;
-  late final Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 850),
-    );
-
-    _fadeAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-    );
-
-    _scaleAnimation = Tween<double>(
-      begin: 0.94,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: ScaleTransition(
-            scale: _scaleAnimation,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Image.asset(
-                  'assets/branding/AstroSoulPathEmblem.png',
-                  width: 112,
-                  height: 112,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.high,
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Astro Soul Path',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF111827),
-                    fontSize: 32,
-                    height: 1.05,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.7,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

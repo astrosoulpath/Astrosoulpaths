@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../kundli/data/consultation_kundli_api.dart';
+import '../../../kundli/presentation/screens/consultation_kundli_consent_screen.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/data/auth_session_store.dart';
@@ -6,7 +8,14 @@ import '../../data/astrologer_portal_api.dart';
 import '../../../kundli/presentation/screens/astrologer_manual_kundli_report_editor_screen.dart';
 
 class AstrologerCustomerHistoryScreen extends StatefulWidget {
-  const AstrologerCustomerHistoryScreen({super.key});
+  const AstrologerCustomerHistoryScreen({
+    super.key,
+    this.api,
+    this.sessionStore,
+  });
+
+  final AstrologerPortalApi? api;
+  final AuthSessionStore? sessionStore;
 
   @override
   State<AstrologerCustomerHistoryScreen> createState() =>
@@ -15,8 +24,8 @@ class AstrologerCustomerHistoryScreen extends StatefulWidget {
 
 class _AstrologerCustomerHistoryScreenState
     extends State<AstrologerCustomerHistoryScreen> {
-  final _api = AstrologerPortalApi();
-  final _sessionStore = AuthSessionStore();
+  late final _api = widget.api ?? AstrologerPortalApi();
+  late final _sessionStore = widget.sessionStore ?? AuthSessionStore();
 
   bool _loading = true;
   bool _loadingMore = false;
@@ -24,6 +33,9 @@ class _AstrologerCustomerHistoryScreenState
 
   int _page = 1;
   int _totalPages = 1;
+  int _revision = 0;
+  String? _owner;
+  String _search = '', _mode = '', _status = '';
 
   final List<Map<String, dynamic>> _items = [];
 
@@ -39,17 +51,16 @@ class _AstrologerCustomerHistoryScreenState
     super.dispose();
   }
 
-  Future<String> _token() async {
-    final session = await _sessionStore.read();
-    return session?.accessToken.trim() ?? '';
-  }
-
   Future<void> _load({required bool reset}) async {
+    if (!reset && (_loading || _loadingMore)) return;
+    final revision = ++_revision;
     if (reset) {
       setState(() {
         _loading = true;
         _error = '';
         _page = 1;
+        _items.clear();
+        _loadingMore = false;
       });
     } else {
       if (_loadingMore || _page >= _totalPages) {
@@ -62,11 +73,23 @@ class _AstrologerCustomerHistoryScreenState
     }
 
     try {
-      final token = await _token();
+      final session = await _sessionStore.read();
+      final token = session?.accessToken.trim() ?? '';
+      final owner = session?.user['id'];
+      if (owner is! String ||
+          owner.isEmpty ||
+          (_owner != null && _owner != owner)) {
+        throw const AstrologerPortalApiException(
+          'Account changed. Open Customer History again.',
+          statusCode: 401,
+        );
+      }
+      _owner = owner;
 
       if (token.isEmpty) {
         throw const AstrologerPortalApiException(
           'Login session not found. Please login again.',
+          statusCode: 401,
         );
       }
 
@@ -76,22 +99,35 @@ class _AstrologerCustomerHistoryScreenState
         accessToken: token,
         page: targetPage,
         limit: 20,
+        search: _search,
+        mode: _mode,
+        status: _status,
       );
+      if (!mounted || revision != _revision) return;
+      if ((await _sessionStore.read())?.user['id'] != owner) {
+        throw const AstrologerPortalApiException(
+          'Account changed. Open Customer History again.',
+          statusCode: 401,
+        );
+      }
 
       final rawData = response['data'];
+      if (rawData is! List || response['pagination'] is! Map) {
+        throw const AstrologerPortalApiException(
+          'Invalid history response. Please retry.',
+        );
+      }
       final newItems = <Map<String, dynamic>>[];
 
-      if (rawData is List) {
-        for (final item in rawData) {
-          if (item is Map) {
-            newItems.add(Map<String, dynamic>.from(item));
-          }
+      for (final item in rawData) {
+        if (item is Map) {
+          newItems.add(Map<String, dynamic>.from(item));
         }
       }
 
       final pagination = response['pagination'];
 
-      if (!mounted) {
+      if (!mounted || revision != _revision) {
         return;
       }
 
@@ -101,7 +137,8 @@ class _AstrologerCustomerHistoryScreenState
             ..clear()
             ..addAll(newItems);
         } else {
-          _items.addAll(newItems);
+          final ids = _items.map((item) => item['id']).toSet();
+          _items.addAll(newItems.where((item) => ids.add(item['id'])));
         }
 
         _page = targetPage;
@@ -114,19 +151,23 @@ class _AstrologerCustomerHistoryScreenState
         _error = '';
       });
     } on AstrologerPortalApiException catch (error) {
-      if (mounted) {
+      if (mounted && revision == _revision) {
         setState(() {
           _error = error.message;
+          if (error.accessDenied) {
+            _items.clear();
+            _totalPages = 1;
+          }
         });
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && revision == _revision) {
         setState(() {
           _error = 'Unable to load customer history.';
         });
       }
     } finally {
-      if (mounted) {
+      if (mounted && revision == _revision) {
         setState(() {
           _loading = false;
           _loadingMore = false;
@@ -230,223 +271,195 @@ class _AstrologerCustomerHistoryScreenState
 
   String _earning(Map<String, dynamic> item) {
     final earning = item['earning'];
+    if (earning is! Map) return 'Earnings not recorded';
+    final amount = num.tryParse(earning['netAmount']?.toString() ?? '');
+    final currency = earning['currency']?.toString().trim() ?? '';
+    if (amount == null || currency.isEmpty) return 'Earnings not recorded';
+    return '$currency ${amount.toStringAsFixed(2)} · ${earning['status'] ?? 'Recorded'}';
+  }
 
-    if (earning is Map) {
-      final amount =
-          double.tryParse(earning['netAmount']?.toString() ?? '') ?? 0;
-
-      return '\u20B9${amount.toStringAsFixed(2)}';
-    }
-
-    return '\u20B90.00';
+  Widget _consultation(Map<String, dynamic> item) {
+    final start = DateTime.tryParse(item['startedAt']?.toString() ?? '');
+    final end = DateTime.tryParse(item['endedAt']?.toString() ?? '');
+    final seconds = start != null && end != null
+        ? end.difference(start).inSeconds
+        : null;
+    final date = DateTime.tryParse(
+      item['createdAt']?.toString() ?? '',
+    )?.toLocal();
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${item['mode'] ?? 'Unknown type'} · ${item['status'] ?? 'UNKNOWN'}',
+          ),
+          Text(date?.toString().split('.').first ?? 'Date not recorded'),
+          if (seconds != null && seconds >= 0)
+            Text('Recorded interval: ${seconds ~/ 60}m ${seconds % 60}s'),
+          Text(_earning(item)),
+          Wrap(
+            spacing: 8,
+            children: [
+              if (consultationKundliV1Enabled &&
+                  _callSessionId(item).isNotEmpty)
+                TextButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ConsultationKundliConsentScreen(
+                        consultationId: _callSessionId(item),
+                      ),
+                    ),
+                  ),
+                  child: const Text('Kundli permission'),
+                ),
+              OutlinedButton.icon(
+                onPressed: _callSessionId(item).isEmpty
+                    ? null
+                    : () => _openManualKundliReport(item),
+                icon: const Icon(Icons.description_outlined),
+                label: const Text('Report'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final groups = <String, List<Map<String, dynamic>>>{};
+    for (final item in _items) {
+      final user = item['user'];
+      final key =
+          item['userId']?.toString() ??
+          (user is Map ? user['id']?.toString() : null) ??
+          item['id']?.toString() ??
+          '';
+      (groups[key] ??= []).add(item);
+    }
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(title: const Text('Customer History')),
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.gold),
-            )
-          : _error.isNotEmpty && _items.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _error,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppColors.white),
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: () => _load(reset: true),
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              decoration: const InputDecoration(
+                labelText: 'Search customers',
+                suffixIcon: Icon(Icons.search),
               ),
-            )
-          : RefreshIndicator(
-              onRefresh: () => _load(reset: true),
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                itemCount:
-                    _items.length +
-                    ((_page < _totalPages || _loadingMore) ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index >= _items.length) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Center(
-                        child: _loadingMore
-                            ? const CircularProgressIndicator(
-                                color: AppColors.gold,
-                              )
-                            : OutlinedButton(
-                                onPressed: () => _load(reset: false),
-                                child: const Text('Load More'),
+              onSubmitted: (value) {
+                _search = value;
+                _load(reset: true);
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: DropdownButton<String>(
+                    value: _mode,
+                    isExpanded: true,
+                    items: ['', 'chat', 'audio', 'video']
+                        .map(
+                          (v) => DropdownMenuItem(
+                            value: v,
+                            child: Text(v.isEmpty ? 'All types' : v),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      _mode = v ?? '';
+                      _load(reset: true);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButton<String>(
+                    value: _status,
+                    isExpanded: true,
+                    items:
+                        [
+                              '',
+                              'PENDING',
+                              'ACTIVE',
+                              'COMPLETED',
+                              'ENDED',
+                              'CANCELLED',
+                              'REJECTED',
+                              'EXPIRED',
+                            ]
+                            .map(
+                              (v) => DropdownMenuItem(
+                                value: v,
+                                child: Text(v.isEmpty ? 'All statuses' : v),
                               ),
-                      ),
-                    );
-                  }
-
-                  final item = _items[index];
-                  final status = item['status']?.toString().trim() ?? 'UNKNOWN';
-
-                  final count = item['_count'];
-                  final messageCount = count is Map
-                      ? count['messages']?.toString() ?? '0'
-                      : '0';
-
-                  final statusUpper = status.toUpperCase();
-
-                  final statusColor = switch (statusUpper) {
-                    'ENDED' => Colors.greenAccent,
-                    'COMPLETED' => Colors.greenAccent,
-                    'ACTIVE' => AppColors.gold,
-                    'PENDING' => Colors.orangeAccent,
-                    'CANCELLED' => Colors.redAccent,
-                    'EXPIRED' => Colors.redAccent,
-                    _ => AppColors.muted,
-                  };
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: AppColors.gold.withValues(alpha: 0.12),
-                      ),
-                    ),
-                    child: Row(
+                            )
+                            .toList(),
+                    onChanged: (v) {
+                      _status = v ?? '';
+                      _load(reset: true);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppColors.gold),
+                  )
+                : RefreshIndicator(
+                    onRefresh: () => _load(reset: true),
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16),
                       children: [
-                        Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: AppColors.gold.withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(14),
+                        if (_error.isNotEmpty) ...[
+                          Text(_error),
+                          TextButton(
+                            onPressed: () => _load(reset: true),
+                            child: const Text('Retry'),
                           ),
-                          child: const Icon(
-                            Icons.person_outline_rounded,
-                            color: AppColors.gold,
+                        ],
+                        if (_items.isEmpty && _error.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Text('No customers found.'),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _customerName(item),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppColors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w900,
-                                ),
+                        for (final entries in groups.values)
+                          Card(
+                            child: ExpansionTile(
+                              key: PageStorageKey(
+                                entries.first['userId'] ?? entries.first['id'],
                               ),
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: statusColor.withValues(
-                                        alpha: 0.10,
-                                      ),
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    child: Text(
-                                      statusUpper,
-                                      style: TextStyle(
-                                        color: statusColor,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Icon(
-                                    Icons.chat_bubble_outline_rounded,
-                                    color: AppColors.muted,
-                                    size: 14,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '$messageCount messages',
-                                    style: const TextStyle(
-                                      color: AppColors.muted,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
+                              title: Text(_customerName(entries.first)),
+                              subtitle: Text(
+                                '${entries.length} loaded consultations',
                               ),
-                            ],
+                              children: entries.map(_consultation).toList(),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            const Text(
-                              'Earned',
-                              style: TextStyle(
-                                color: AppColors.muted,
-                                fontSize: 10,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              _earning(item),
-                              style: const TextStyle(
-                                color: AppColors.gold,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            SizedBox(
-                              height: 34,
-                              child: OutlinedButton.icon(
-                                onPressed: () => _openManualKundliReport(item),
-                                icon: const Icon(
-                                  Icons.description_outlined,
-                                  size: 14,
-                                ),
-                                label: const Text(
-                                  'Report',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        if (_loadingMore)
+                          const Center(child: CircularProgressIndicator()),
+                        if (!_loadingMore && _page < _totalPages)
+                          OutlinedButton(
+                            onPressed: () => _load(reset: false),
+                            child: const Text('Load More'),
+                          ),
                       ],
                     ),
-                  );
-                },
-              ),
-            ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }

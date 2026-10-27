@@ -1,10 +1,11 @@
+import 'cosmic_astrologer_profile.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/config/api_config.dart';
-import '../../../../core/theme/app_theme.dart';
+import '../../../../core/branding/premium_customer_surfaces.dart';
 import '../../../reviews/data/astrologer_review.dart';
 import '../../../reviews/data/review_api.dart';
 import '../../data/public_astrologer.dart';
@@ -15,21 +16,25 @@ class AstrologerDetailExtras extends StatefulWidget {
     required this.onAstrologerTap,
     this.showReviews = true,
     this.showSimilar = true,
+    this.reviewApi,
+    this.client,
     super.key,
   });
 
   final PublicAstrologer astrologer;
   final ValueChanged<String> onAstrologerTap;
+  final http.Client? client;
   final bool showReviews;
   final bool showSimilar;
+  final ReviewApi? reviewApi;
 
   @override
   State<AstrologerDetailExtras> createState() => _AstrologerDetailExtrasState();
 }
 
 class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
-  final _reviewApi = ReviewApi();
-  final _client = http.Client();
+  late final _reviewApi = widget.reviewApi ?? ReviewApi();
+  late final _client = widget.client ?? http.Client();
 
   AstrologerReviewSummary? _summary;
 
@@ -37,21 +42,32 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
 
   bool _loadingReviews = true;
   bool _loadingSimilar = true;
+  bool _reviewError = false;
+  int _reviewRequest = 0;
+  int _similarRequest = 0;
+  bool _similarError = false;
 
   @override
   void initState() {
     super.initState();
 
-    _loadReviews();
-    _loadSimilarAstrologers();
+    if (widget.showReviews) {
+      _loadReviews();
+    }
+    if (widget.showSimilar) {
+      _loadSimilarAstrologers();
+    }
   }
 
   @override
   void didUpdateWidget(covariant AstrologerDetailExtras oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.astrologer.id != widget.astrologer.id) {
+    final changed = oldWidget.astrologer.id != widget.astrologer.id;
+    if (widget.showReviews && (changed || !oldWidget.showReviews)) {
       _loadReviews();
+    }
+    if (widget.showSimilar && (changed || !oldWidget.showSimilar)) {
       _loadSimilarAstrologers();
     }
   }
@@ -64,9 +80,12 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
   }
 
   Future<void> _loadReviews() async {
+    final request = ++_reviewRequest;
     if (mounted) {
       setState(() {
         _loadingReviews = true;
+        _reviewError = false;
+        _summary = null;
       });
     }
 
@@ -75,7 +94,7 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
         widget.astrologer.id,
       );
 
-      if (!mounted) {
+      if (!mounted || request != _reviewRequest) {
         return;
       }
 
@@ -83,9 +102,11 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
         _summary = result;
       });
     } catch (_) {
-      // Public review section must not block the full profile.
+      if (mounted && request == _reviewRequest) {
+        setState(() => _reviewError = true);
+      }
     } finally {
-      if (mounted) {
+      if (mounted && request == _reviewRequest) {
         setState(() {
           _loadingReviews = false;
         });
@@ -94,9 +115,12 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
   }
 
   Future<void> _loadSimilarAstrologers() async {
+    final request = ++_similarRequest;
     if (mounted) {
       setState(() {
         _loadingSimilar = true;
+        _similarError = false;
+        _similar = const [];
       });
     }
 
@@ -109,21 +133,21 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
           .timeout(ApiConfig.requestTimeout);
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        return;
+        throw const FormatException('Recommendations unavailable');
       }
 
       final decoded = jsonDecode(response.body);
 
       if (decoded is! Map) {
-        return;
+        throw const FormatException('Invalid recommendations');
       }
 
       final root = Map<String, dynamic>.from(decoded);
 
-      final rawList = root['data'] ?? root['astrologers'] ?? const <dynamic>[];
+      final rawList = root['data'] ?? root['astrologers'];
 
       if (rawList is! List) {
-        return;
+        throw const FormatException('Invalid recommendations');
       }
 
       final all = rawList
@@ -181,7 +205,7 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
         return b.rating.compareTo(a.rating);
       });
 
-      if (!mounted) {
+      if (!mounted || request != _similarRequest) {
         return;
       }
 
@@ -189,9 +213,11 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
         _similar = all.take(5).toList(growable: false);
       });
     } catch (_) {
-      // Similar astrologers are supplementary.
+      if (mounted && request == _similarRequest) {
+        setState(() => _similarError = true);
+      }
     } finally {
-      if (mounted) {
+      if (mounted && request == _similarRequest) {
         setState(() {
           _loadingSimilar = false;
         });
@@ -203,7 +229,12 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [_buildReviews(), const SizedBox(height: 26), _buildSimilar()],
+      children: [
+        if (widget.showReviews) _buildReviews(),
+        if (widget.showReviews && widget.showSimilar)
+          const SizedBox(height: 26),
+        if (widget.showSimilar) _buildSimilar(),
+      ],
     );
   }
 
@@ -219,7 +250,7 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
               child: Text(
                 'Ratings & Reviews',
                 style: TextStyle(
-                  color: AppColors.white,
+                  color: premiumInk,
                   fontSize: 20,
                   fontWeight: FontWeight.w900,
                 ),
@@ -231,7 +262,7 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
                 child: const Text(
                   'See all',
                   style: TextStyle(
-                    color: AppColors.gold,
+                    color: premiumGold,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -244,26 +275,39 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
           const Center(
             child: Padding(
               padding: EdgeInsets.all(18),
-              child: CircularProgressIndicator(color: AppColors.gold),
+              child: CircularProgressIndicator(color: premiumGold),
             ),
+          )
+        else if (_reviewError)
+          Column(
+            children: [
+              const Text(
+                'Reviews could not be loaded.',
+                style: TextStyle(color: premiumInk, fontSize: 16),
+              ),
+              TextButton(
+                onPressed: _loadReviews,
+                child: const Text('Try again'),
+              ),
+            ],
           )
         else if (summary == null || summary.totalReviews == 0)
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: Colors.white,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: premiumBorder),
             ),
             child: const Row(
               children: [
-                Icon(Icons.star_border_rounded, color: AppColors.gold),
+                Icon(Icons.star_border_rounded, color: premiumGold),
                 SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'No customer reviews yet.',
                     style: TextStyle(
-                      color: AppColors.muted,
+                      color: premiumMuted,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -294,7 +338,7 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
         const Text(
           'Similar Astrologers',
           style: TextStyle(
-            color: AppColors.white,
+            color: premiumInk,
             fontSize: 20,
             fontWeight: FontWeight.w900,
           ),
@@ -305,17 +349,34 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
           const Center(
             child: Padding(
               padding: EdgeInsets.all(18),
-              child: CircularProgressIndicator(color: AppColors.gold),
+              child: CircularProgressIndicator(color: premiumGold),
             ),
+          )
+        else if (_similarError)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Similar astrologers could not be loaded.',
+                style: TextStyle(color: premiumMuted),
+              ),
+              TextButton(
+                onPressed: _loadSimilarAstrologers,
+                child: const Text('Retry recommendations'),
+              ),
+            ],
           )
         else if (_similar.isEmpty)
           const Text(
             'No similar astrologers available right now.',
-            style: TextStyle(color: AppColors.muted),
+            style: TextStyle(color: premiumMuted),
           )
         else
           SizedBox(
-            height: 184,
+            height:
+                246 +
+                150 *
+                    (MediaQuery.textScalerOf(context).scale(1) - 1).clamp(0, 2),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _similar.length,
@@ -323,7 +384,7 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
               itemBuilder: (_, index) {
                 final astrologer = _similar[index];
 
-                return _SimilarAstrologerCard(
+                return CosmicSimilarAstrologer(
                   astrologer: astrologer,
                   onTap: () => widget.onAstrologerTap(astrologer.id),
                 );
@@ -337,7 +398,7 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
   Future<void> _showAllReviews(AstrologerReviewSummary summary) async {
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.background,
+      backgroundColor: premiumIvory,
       isScrollControlled: true,
       builder: (context) {
         return SafeArea(
@@ -353,7 +414,7 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
                         child: Text(
                           'Customer Reviews',
                           style: TextStyle(
-                            color: AppColors.white,
+                            color: premiumInk,
                             fontSize: 21,
                             fontWeight: FontWeight.w900,
                           ),
@@ -363,7 +424,7 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
                         onPressed: () => Navigator.pop(context),
                         icon: const Icon(
                           Icons.close_rounded,
-                          color: AppColors.white,
+                          color: premiumInk,
                         ),
                       ),
                     ],
@@ -397,29 +458,29 @@ class _RatingSummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.32)),
+        border: Border.all(color: premiumGold.withValues(alpha: 0.32)),
       ),
       child: Row(
         children: [
           Text(
             summary.averageRating.toStringAsFixed(1),
             style: const TextStyle(
-              color: AppColors.white,
+              color: premiumInk,
               fontSize: 34,
               fontWeight: FontWeight.w900,
             ),
           ),
           const SizedBox(width: 12),
-          const Icon(Icons.star_rounded, color: AppColors.gold, size: 30),
+          const Icon(Icons.star_rounded, color: premiumGold, size: 30),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
               '${summary.totalReviews} customer '
               '${summary.totalReviews == 1 ? 'review' : 'reviews'}',
               style: const TextStyle(
-                color: AppColors.muted,
+                color: premiumMuted,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -493,9 +554,9 @@ class _ReviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: premiumBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -505,11 +566,11 @@ class _ReviewCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 21,
-                backgroundColor: AppColors.surfaceLight,
+                backgroundColor: Colors.white,
                 child: Text(
                   name[0].toUpperCase(),
                   style: const TextStyle(
-                    color: AppColors.gold,
+                    color: premiumGold,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -528,7 +589,7 @@ class _ReviewCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: AppColors.white,
+                              color: premiumInk,
                               fontSize: 15,
                               fontWeight: FontWeight.w800,
                             ),
@@ -553,7 +614,7 @@ class _ReviewCard extends StatelessWidget {
                               ? Icons.star_rounded
                               : Icons.star_border_rounded,
                           size: 17,
-                          color: AppColors.gold,
+                          color: premiumGold,
                         ),
                       ),
                     ),
@@ -564,7 +625,7 @@ class _ReviewCard extends StatelessWidget {
               if (_dateLabel.isNotEmpty)
                 Text(
                   _dateLabel,
-                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                  style: const TextStyle(color: premiumMuted, fontSize: 11),
                 ),
             ],
           ),
@@ -574,19 +635,19 @@ class _ReviewCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
+              color: Colors.white,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: premiumBorder),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(_consultationIcon, size: 14, color: AppColors.gold),
+                Icon(_consultationIcon, size: 14, color: premiumGold),
                 const SizedBox(width: 6),
                 Text(
                   _consultationLabel,
                   style: const TextStyle(
-                    color: AppColors.white,
+                    color: premiumInk,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -600,104 +661,13 @@ class _ReviewCard extends StatelessWidget {
             Text(
               review.review,
               style: const TextStyle(
-                color: AppColors.muted,
+                color: premiumMuted,
                 fontSize: 14,
                 height: 1.55,
               ),
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _SimilarAstrologerCard extends StatelessWidget {
-  const _SimilarAstrologerCard({required this.astrologer, required this.onTap});
-
-  final PublicAstrologer astrologer;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final avatar = astrologer.avatarUrl?.trim() ?? '';
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: 154,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          children: [
-            CircleAvatar(
-              radius: 31,
-              backgroundColor: AppColors.surfaceLight,
-              backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
-              child: avatar.isEmpty
-                  ? Text(
-                      astrologer.name.isEmpty
-                          ? 'A'
-                          : astrologer.name[0].toUpperCase(),
-                      style: const TextStyle(
-                        color: AppColors.gold,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(height: 9),
-            Text(
-              astrologer.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.white,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              astrologer.primaryExpertise,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.muted, fontSize: 11),
-            ),
-            const Spacer(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.star_rounded, size: 15, color: AppColors.gold),
-                const SizedBox(width: 3),
-                Text(
-                  astrologer.ratingLabel,
-                  style: const TextStyle(
-                    color: AppColors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: astrologer.isOnline
-                        ? const Color(0xFF42D468)
-                        : AppColors.muted,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }

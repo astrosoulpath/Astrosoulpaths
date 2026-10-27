@@ -1,3 +1,4 @@
+import 'communication_socket_recovery.dart';
 import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
@@ -5,10 +6,12 @@ import '../../../core/config/api_config.dart';
 
 class ChatSocketService {
   io.Socket? socket;
+  CommunicationSocketRecovery? _recovery;
 
   void connect({
     required String token,
     required String chatSessionId,
+    String? userId,
     required Function(dynamic) onMessage,
     required Function(dynamic) onTyping,
     required Function(dynamic) onRead,
@@ -34,7 +37,8 @@ class ChatSocketService {
           .setTransports(['websocket'])
           .setAuth({'token': token})
           .disableAutoConnect()
-          .enableReconnection()
+          .disableReconnection()
+          .enableForceNew()
           .build(),
     );
 
@@ -43,11 +47,11 @@ class ChatSocketService {
         '[SOCKET_TRACE] CONNECTED session=$chatSessionId socket=${socket?.id}',
       );
 
-      onConnectionChanged?.call(true);
-
       debugPrint('[SOCKET_TRACE] JOIN_SENT session=$chatSessionId');
+    });
 
-      socket!.emit('chat:join', {'callSessionId': chatSessionId});
+    socket!.on('chat:connected', (_) {
+      socket?.emit('chat:join', {'callSessionId': chatSessionId});
     });
 
     socket!.onDisconnect((reason) {
@@ -97,6 +101,8 @@ class ChatSocketService {
     // This complements realtime chat:presence events and prevents a
     // participant who was already in the room from remaining Offline.
     socket!.on('chat:joined', (data) {
+      _recovery?.connected();
+      onConnectionChanged?.call(true);
       debugPrint(
         '[SOCKET_TRACE] JOINED_RECEIVED session=$chatSessionId data=$data',
       );
@@ -136,7 +142,23 @@ class ChatSocketService {
       onExtended?.call(data);
     });
 
-    socket!.connect();
+    final transport = socket!;
+    _recovery = CommunicationSocketRecovery(
+      initialToken: token,
+      expectedUserId: userId,
+      applyToken: (value) => transport.auth = {'token': value},
+      connect: () {
+        transport.connect();
+      },
+      disconnect: () {
+        transport.disconnect();
+      },
+    );
+    transport.on('auth:required', (_) => _recovery?.schedule(force: true));
+    transport.onDisconnect((_) => _recovery?.schedule());
+    transport.onConnectError((_) => _recovery?.schedule(force: true));
+
+    _recovery!.reconnect();
   }
 
   void sendMessage({
@@ -160,6 +182,8 @@ class ChatSocketService {
   }
 
   void dispose() {
+    _recovery?.dispose();
+    _recovery = null;
     final activeSocket = socket;
 
     if (activeSocket != null) {

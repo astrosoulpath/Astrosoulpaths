@@ -34,6 +34,10 @@ describe('AuthService', () => {
   });
 
   it('rejects an expired or revoked Firebase email token', async () => {
+    const priorContextKey=process.env.AUTH_CONTEXT_SESSION_KEY;
+    const priorFile=process.env.AUTH_CONTEXT_SESSION_KEY_FILE;
+    delete process.env.AUTH_CONTEXT_SESSION_KEY_FILE;
+    process.env.AUTH_CONTEXT_SESSION_KEY='12'.repeat(32);
     const previousProjectId = process.env.FIREBASE_PROJECT_ID;
     const previousClientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const previousPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
@@ -50,11 +54,13 @@ describe('AuthService', () => {
       await expect(
         service.verifyFirebaseEmailToken('expired-test-token'),
       ).rejects.toMatchObject({
-        response: { code: 'FIREBASE_EMAIL_TOKEN_INVALID' },
+        response: { code: 'FIREBASE_GOOGLE_TOKEN_INVALID' },
       });
 
       expect(verifyIdToken).toHaveBeenCalledWith('expired-test-token', true);
     } finally {
+      if(priorFile===undefined)delete process.env.AUTH_CONTEXT_SESSION_KEY_FILE;else process.env.AUTH_CONTEXT_SESSION_KEY_FILE=priorFile;
+      if(priorContextKey===undefined)delete process.env.AUTH_CONTEXT_SESSION_KEY;else process.env.AUTH_CONTEXT_SESSION_KEY=priorContextKey;
       if (previousProjectId === undefined) {
         delete process.env.FIREBASE_PROJECT_ID;
       } else {

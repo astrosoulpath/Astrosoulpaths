@@ -4,10 +4,14 @@ import 'package:http/http.dart' as http;
 
 import '../../../core/config/api_config.dart';
 import '../../auth/data/auth_session_store.dart';
+import 'marketplace_session_client.dart';
 
 class MarketplaceCustomerApi {
   MarketplaceCustomerApi({http.Client? client, AuthSessionStore? sessionStore})
-    : _client = client ?? http.Client(),
+    : _client = MarketplaceSessionClient(
+        client ?? http.Client(),
+        sessionStore ?? AuthSessionStore(),
+      ),
       _sessionStore = sessionStore ?? AuthSessionStore();
 
   final http.Client _client;
@@ -24,6 +28,57 @@ class MarketplaceCustomerApi {
     _ensureSuccess(response, body, fallback: 'Unable to load your cart.');
 
     return _dataMap(body);
+  }
+
+  Future<Map<String, dynamic>> getCapabilities() async {
+    final response = await _request(
+      method: 'GET',
+      endpoint: '/marketplace/capabilities',
+    );
+    _ensureSuccess(
+      response,
+      _decode(response.body),
+      fallback: 'Unable to load marketplace capabilities.',
+    );
+    return _dataMap(_decode(response.body));
+  }
+
+  Future<void> cancelOrder(String id) async {
+    final response = await _request(
+      method: 'PATCH',
+      endpoint: '/marketplace/customer/orders/$id/cancel',
+    );
+    _ensureSuccess(
+      response,
+      _decode(response.body),
+      fallback: 'This order cannot be cancelled.',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getCases() async {
+    final response = await _request(
+      method: 'GET',
+      endpoint: '/marketplace/customer/cases',
+    );
+    _ensureSuccess(
+      response,
+      _decode(response.body),
+      fallback: 'Unable to load review requests.',
+    );
+    return _dataList(_decode(response.body));
+  }
+
+  Future<void> createCase(String orderId, Map<String, dynamic> payload) async {
+    final response = await _request(
+      method: 'POST',
+      endpoint: '/marketplace/customer/orders/$orderId/cases',
+      body: payload,
+    );
+    _ensureSuccess(
+      response,
+      _decode(response.body),
+      fallback: 'Unable to submit review request.',
+    );
   }
 
   Future<Map<String, dynamic>> addCartItem({

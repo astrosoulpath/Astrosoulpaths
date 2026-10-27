@@ -1,17 +1,21 @@
 ﻿"use client";
 
+import { refreshAdminSession } from "@/features/admin/auth/admin-session";
+import { paymentTotals } from "@/features/admin/payment-totals";
+import { PaymentOperations } from "@/features/admin/payment-operations";
+
+import { getAdminApiBase } from "@/features/admin/auth/admin-contract";
+
 import Link from "next/link";
 import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:4000";
+const API_BASE_URL = getAdminApiBase();
 
 type PaymentStatus =
   | "PENDING"
@@ -59,6 +63,7 @@ type AdminPayment = {
 
 type AdminPaymentsResponse = {
   success?: boolean;
+  pagination?: {totalPages?:number};
   message?: string | string[];
   data?:
     | AdminPayment[]
@@ -77,15 +82,8 @@ type StatusFilter =
   | "FAILED"
   | "REFUNDED";
 
-function getAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return (
-    window.localStorage.getItem("asp_admin_access_token") ??
-    window.localStorage.getItem("access_token")
-  );
+async function getAccessToken() {
+  return refreshAdminSession();
 }
 
 async function readJson(response: Response) {
@@ -100,8 +98,9 @@ function getSafeNumber(value: unknown) {
 
 function formatCurrency(
   value: unknown,
-  currency = "INR",
+  currency: string,
 ) {
+  if (!/^[A-Z]{3}$/.test(currency) || !/^\d+(?:\.\d{1,2})?$/.test(String(value ?? '')) || !Number.isFinite(Number(value))) return 'Amount unavailable';
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency,
@@ -253,8 +252,13 @@ export default function AdminPaymentsPage() {
   const [errorMessage, setErrorMessage] =
     useState<string | null>(null);
 
+  const [page,setPage]=useState(1);
+  const [totalPages,setTotalPages]=useState(1);
+  const sequence=useRef(0);
+  const [workflowMessage,setWorkflowMessage]=useState('Loading reconciliation status…');
   const loadPayments = useCallback(
     async (showRefreshState = false) => {
+      const version=++sequence.current;
       try {
         if (showRefreshState) {
           setIsRefreshing(true);
@@ -264,7 +268,7 @@ export default function AdminPaymentsPage() {
 
         setErrorMessage(null);
 
-        const token = getAccessToken();
+        const token = await getAccessToken();
 
         if (!token) {
           throw new Error(
@@ -276,7 +280,7 @@ export default function AdminPaymentsPage() {
           `${API_BASE_URL.replace(
             /\/+$/,
             "",
-          )}/admin/payments`,
+          )}/admin/payments?${new URLSearchParams({page:String(page),limit:"20",search,status:statusFilter})}`,
           {
             method: "GET",
             headers: {
@@ -292,6 +296,7 @@ export default function AdminPaymentsPage() {
             response,
           )) as AdminPaymentsResponse | null;
 
+        if(version!==sequence.current)return;
         if (!response.ok) {
           const rawMessage = data?.message;
 
@@ -306,87 +311,45 @@ export default function AdminPaymentsPage() {
         }
 
         setPayments(normalizePayments(data));
+        setTotalPages(Math.max(1,data?.pagination?.totalPages??1));
+        try {
+          const monitor = await fetch(`${API_BASE_URL.replace(/\/+$/, '')}/admin/payments/workflow-monitor`, {
+            headers:{Accept:'application/json',Authorization:`Bearer ${token}`},cache:'no-store',signal:AbortSignal.timeout(10000),
+          });
+          const payload=await readJson(monitor);
+          if(version!==sequence.current)return;
+          const summary=payload?.data;
+          if(!monitor.ok || !summary) throw new Error();
+          if(!summary.schemaReady) setWorkflowMessage('Financial workflow schema is not activated. No refund execution is available.');
+          else {
+            const refunds=Array.isArray(summary.refunds)?summary.refunds:[];
+            const exceptions=Array.isArray(summary.exceptions)?summary.exceptions:[];
+            setWorkflowMessage([
+              ...refunds.map((row:{state:string;currency:string;count:number})=>`Refund ${row.state}: ${row.count} (${row.currency})`),
+              ...exceptions.map((row:{status:string;currency:string;count:number})=>`Reconciliation ${row.status}: ${row.count} (${row.currency})`),
+            ].join(' · ') || 'No workflow records in the verified schema.');
+          }
+        } catch {
+          if(version===sequence.current)setWorkflowMessage('Reconciliation monitoring unavailable. Payment history remains independently available.');
+        }
       } catch (error) {
+        if(version!==sequence.current)return;
         setPayments([]);
         setErrorMessage(getErrorMessage(error));
       } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
+        if(version===sequence.current){setIsLoading(false);setIsRefreshing(false);}
       }
     },
-    [],
+    [page,search,statusFilter],
   );
 
   useEffect(() => {
-    void loadPayments();
+    const lifetime = sequence;
+    const timer=setTimeout(()=>{void loadPayments();},250);
+    return ()=>{clearTimeout(timer);lifetime.current++;};
   }, [loadPayments]);
 
-  const filteredPayments = useMemo(() => {
-    const keyword = search
-      .trim()
-      .toLowerCase();
-
-    return payments.filter((payment) => {
-      const status = normalizeStatus(
-        payment.status,
-      );
-
-      const orderId =
-        payment.razorpayOrderId ??
-        payment.orderId ??
-        "";
-
-      const paymentId =
-        payment.razorpayPaymentId ??
-        payment.paymentId ??
-        "";
-
-      const matchesSearch =
-        !keyword ||
-        payment.id
-          .toLowerCase()
-          .includes(keyword) ||
-        payment.userId
-          ?.toLowerCase()
-          .includes(keyword) ||
-        getUserName(payment)
-          .toLowerCase()
-          .includes(keyword) ||
-        orderId.toLowerCase().includes(keyword) ||
-        paymentId.toLowerCase().includes(keyword) ||
-        payment.user?.email
-          ?.toLowerCase()
-          .includes(keyword) ||
-        payment.user?.phone
-          ?.toLowerCase()
-          .includes(keyword);
-
-      if (!matchesSearch) {
-        return false;
-      }
-
-      switch (statusFilter) {
-        case "SUCCESS":
-          return isSuccessfulStatus(status);
-
-        case "PENDING":
-          return status === "PENDING";
-
-        case "FAILED":
-          return [
-            "FAILED",
-            "CANCELLED",
-          ].includes(status);
-
-        case "REFUNDED":
-          return status === "REFUNDED";
-
-        case "ALL":
-        default:
-          return true;
-      }
-    });
-  }, [payments, search, statusFilter]);
+  const filteredPayments = payments;
 
   const stats = useMemo(() => {
     const successfulPayments = payments.filter(
@@ -413,23 +376,8 @@ export default function AdminPaymentsPage() {
         "REFUNDED",
     );
 
-    const successfulAmount =
-      successfulPayments.reduce(
-        (sum, payment) =>
-          sum + getSafeNumber(payment.amount),
-        0,
-      );
-
-    const refundedAmount =
-      refundedPayments.reduce(
-        (sum, payment) =>
-          sum +
-          getSafeNumber(
-            payment.refundAmount ??
-              payment.amount,
-          ),
-        0,
-      );
+    const successfulAmount = paymentTotals(successfulPayments);
+    const refundedAmount = paymentTotals(refundedPayments.map(payment => ({amount: payment.refundAmount, currency: payment.currency})));
 
     return {
       total: payments.length,
@@ -496,26 +444,30 @@ export default function AdminPaymentsPage() {
           </div>
         ) : null}
 
+        <section className="asp-admin-stat-card mt-6" aria-label="Reconciliation and refund monitoring">
+          <h2 className="font-semibold">Reconciliation and refund monitoring</h2>
+          <p className="mt-2 text-sm" role="status">{workflowMessage}</p>
+          <p className="mt-1 text-xs">Read-only provider workflow status; confirmation does not imply journal settlement.</p>
+        </section>
         <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <article className="asp-admin-stat-card">
             <p className="asp-admin-stat-label">
-              Total Payments
+              Payments on this page
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-[#0B1026]">
+            <p className="mt-3 text-3xl font-semibold text-[#0B1026]">
               {stats.total}
             </p>
           </article>
 
           <article className="asp-admin-stat-card">
             <p className="asp-admin-stat-label">
-              Successful Amount
+              Successful Amount · this page
             </p>
 
-            <p className="mt-3 text-2xl font-extrabold text-green-700">
-              {formatCurrency(
-                stats.successfulAmount,
-              )}
+            <p className="mt-3 text-2xl font-semibold text-green-700">
+              {stats.successfulAmount.totals.map(total => formatCurrency(total.amount, total.currency)).join(' · ') || 'No recorded amounts'}
+              {stats.successfulAmount.unavailable > 0 && <span className="block text-xs">Some amounts unavailable</span>}
             </p>
 
             <p className="mt-1 text-xs text-[#66758A]">
@@ -528,20 +480,19 @@ export default function AdminPaymentsPage() {
               Pending Payments
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-amber-700">
+            <p className="mt-3 text-3xl font-semibold text-amber-700">
               {stats.pending}
             </p>
           </article>
 
           <article className="asp-admin-stat-card">
             <p className="asp-admin-stat-label">
-              Refunded Amount
+              Refunded Amount · this page
             </p>
 
-            <p className="mt-3 text-2xl font-extrabold text-blue-700">
-              {formatCurrency(
-                stats.refundedAmount,
-              )}
+            <p className="mt-3 text-2xl font-semibold text-blue-700">
+              {stats.refundedAmount.totals.map(total => formatCurrency(total.amount, total.currency)).join(' · ') || 'No recorded refund amounts'}
+              {stats.refundedAmount.unavailable > 0 && <span className="block text-xs">Some refund amounts unavailable</span>}
             </p>
 
             <p className="mt-1 text-xs text-[#66758A]">
@@ -556,7 +507,7 @@ export default function AdminPaymentsPage() {
               Failed or Cancelled
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-red-700">
+            <p className="mt-3 text-3xl font-semibold text-red-700">
               {stats.failed}
             </p>
           </article>
@@ -566,7 +517,7 @@ export default function AdminPaymentsPage() {
               Successful Payments
             </p>
 
-            <p className="mt-3 text-3xl font-extrabold text-green-700">
+            <p className="mt-3 text-3xl font-semibold text-green-700">
               {stats.successful}
             </p>
           </article>
@@ -578,7 +529,7 @@ export default function AdminPaymentsPage() {
               type="search"
               value={search}
               onChange={(event) =>
-                setSearch(event.target.value)
+                {setPage(1);setSearch(event.target.value);}
               }
               placeholder="Search by customer, payment ID, order ID or user ID"
               className="asp-admin-input px-4 py-3"
@@ -616,6 +567,7 @@ export default function AdminPaymentsPage() {
             </select>
           </div>
 
+          <p className="my-3 text-sm">Summaries cover the loaded page and selected filters.</p><div className="my-4 flex gap-4 items-center" aria-label="Record pages"><button disabled={isLoading || page<=1} onClick={()=>setPage(page-1)}>Previous</button><span>Page {page} of {totalPages}</span><button disabled={isLoading || page>=totalPages} onClick={()=>setPage(page+1)}>Next</button></div>
           {isLoading ? (
             <div className="py-16 text-center">
               <p className="font-semibold text-[#4B5C73]">
@@ -625,11 +577,11 @@ export default function AdminPaymentsPage() {
           ) : !errorMessage &&
             filteredPayments.length === 0 ? (
             <div className="py-16 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-2xl font-extrabold text-[#0B1026]">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-2xl font-semibold text-[#0B1026]">
                 Ã¢â€šÂ¹
               </div>
 
-              <h2 className="mt-5 text-2xl font-extrabold text-[#0B1026]">
+              <h2 className="mt-5 text-2xl font-semibold text-[#0B1026]">
                 No payments found
               </h2>
 
@@ -643,27 +595,27 @@ export default function AdminPaymentsPage() {
               <table className="min-w-full border-separate border-spacing-0">
                 <thead className="asp-admin-table-head">
                   <tr className="text-left">
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Customer
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Payment
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Amount
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Type
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Status
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Created
                     </th>
                   </tr>
@@ -710,6 +662,7 @@ export default function AdminPaymentsPage() {
                             <p className="break-all text-sm font-bold text-[#0B1026]">
                               ID: {payment.id}
                             </p>
+                            <PaymentOperations id={payment.id} />
 
                             <p className="mt-1 break-all text-xs text-[#66758A]">
                               Order: {orderId}
@@ -722,11 +675,10 @@ export default function AdminPaymentsPage() {
                           </td>
 
                           <td className="border-b border-gray-100 px-4 py-5">
-                            <p className="text-lg font-extrabold text-[#0B1026]">
+                            <p className="text-lg font-semibold text-[#0B1026]">
                               {formatCurrency(
                                 payment.amount,
-                                payment.currency ||
-                                  "INR",
+                                payment.currency || "",
                               )}
                             </p>
 
@@ -737,8 +689,7 @@ export default function AdminPaymentsPage() {
                                 Refunded:{" "}
                                 {formatCurrency(
                                   payment.refundAmount,
-                                  payment.currency ||
-                                    "INR",
+                                  payment.currency || "",
                                 )}
                               </p>
                             ) : null}

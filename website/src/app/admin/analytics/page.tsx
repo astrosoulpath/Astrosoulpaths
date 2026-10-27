@@ -1,5 +1,7 @@
 ﻿"use client";
 
+import { adminFetch } from "@/features/admin/auth/admin-session";
+
 import Link from "next/link";
 import {
   useCallback,
@@ -7,10 +9,7 @@ import {
   useState,
 } from "react";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:4000";
+
 
 type AnalyticsData = {
   totalCustomers?: number;
@@ -18,19 +17,14 @@ type AnalyticsData = {
   approvedAstrologers?: number;
   activeConsultations?: number;
   completedConsultations?: number;
-  totalRevenue?: number;
-  totalWalletBalance?: number;
+  collections?: Array<{currency:string;amount:number|string|null}>;
+  wallets?: Array<{currency:string;amount:number|string|null}>;
   totalPayments?: number;
   successfulPayments?: number;
   subscriptions?: number;
 };
 
-function getToken() {
-  return (
-    window.localStorage.getItem("asp_admin_access_token") ??
-    window.localStorage.getItem("access_token")
-  );
-}
+
 
 export default function AdminAnalyticsPage() {
   const [data, setData] =
@@ -44,22 +38,10 @@ export default function AdminAnalyticsPage() {
       setLoading(true);
       setError("");
 
-      const token = getToken();
-
-      if (!token) {
-        throw new Error(
-          "Admin login token is missing.",
-        );
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL.replace(
-          /\/+$/,
-          "",
-        )}/admin/analytics`,
+      const response = await adminFetch(
+        `/admin/stats`,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
             Accept: "application/json",
           },
           cache: "no-store",
@@ -70,15 +52,20 @@ export default function AdminAnalyticsPage() {
         .json()
         .catch(() => null);
 
-      if (!response.ok) {
+      if (!response.ok || result?.success !== true || !result?.data) {
         throw new Error(
           result?.message ||
             "Unable to load analytics.",
         );
       }
 
-      setData(result?.data ?? {});
+      const stats = result.data;
+      setData({totalCustomers:stats.users?.total,totalAstrologers:stats.astrologers?.total,
+        approvedAstrologers:stats.astrologers?.approved,totalPayments:stats.payments?.totalOrders,
+        successfulPayments:stats.payments?.successfulOrders,collections:stats.payments?.successfulAmountByCurrency,
+        wallets:stats.wallets?.totalBalanceByCurrency});
     } catch (caughtError) {
+      setData({});
       setError(
         caughtError instanceof Error
           ? caughtError.message
@@ -93,42 +80,20 @@ export default function AdminAnalyticsPage() {
     void loadAnalytics();
   }, [loadAnalytics]);
 
+  const money = (rows?: Array<{currency:string;amount:number|string|null}>) => {
+    if (!rows) return "Unavailable";
+    if (!rows.length) return "No records";
+    return rows.map(({currency,amount}) => amount !== null && /^[A-Z]{3}$/.test(currency) && Number.isFinite(Number(amount))
+      ? new Intl.NumberFormat("en",{style:"currency",currency,currencyDisplay:"code"}).format(Number(amount)) : "Unavailable").join(" / ");
+  };
   const cards = [
-    ["Total Customers", data.totalCustomers ?? 0],
-    [
-      "Total Astrologers",
-      data.totalAstrologers ?? 0,
-    ],
-    [
-      "Approved Astrologers",
-      data.approvedAstrologers ?? 0,
-    ],
-    [
-      "Active Consultations",
-      data.activeConsultations ?? 0,
-    ],
-    [
-      "Completed Consultations",
-      data.completedConsultations ?? 0,
-    ],
-    [
-      "Total Revenue",
-      `Ã¢â€šÂ¹${Number(
-        data.totalRevenue ?? 0,
-      ).toFixed(2)}`,
-    ],
-    [
-      "Wallet Balance",
-      `Ã¢â€šÂ¹${Number(
-        data.totalWalletBalance ?? 0,
-      ).toFixed(2)}`,
-    ],
-    ["Total Payments", data.totalPayments ?? 0],
-    [
-      "Successful Payments",
-      data.successfulPayments ?? 0,
-    ],
-    ["Subscriptions", data.subscriptions ?? 0],
+    ["Total Users", data.totalCustomers ?? "Unavailable"],
+    ["Total Astrologers", data.totalAstrologers ?? "Unavailable"],
+    ["Approved Astrologers", data.approvedAstrologers ?? "Unavailable"],
+    ["Successful Payment Collections", money(data.collections)],
+    ["Wallet Balance", money(data.wallets)],
+    ["Total Payments", data.totalPayments ?? "Unavailable"],
+    ["Successful Payments", data.successfulPayments ?? "Unavailable"],
   ];
 
   return (
@@ -140,7 +105,7 @@ export default function AdminAnalyticsPage() {
               Admin Panel
             </p>
 
-            <h1 className="mt-2 text-4xl font-extrabold text-[#0B1026]">
+            <h1 className="mt-2 text-4xl font-semibold text-[#0B1026]">
               Platform Analytics
             </h1>
 
@@ -178,7 +143,7 @@ export default function AdminAnalyticsPage() {
           <div className="py-24 text-center font-semibold text-[#4B5C73]">
             Loading analytics...
           </div>
-        ) : (
+        ) : error ? null : (
           <section className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
             {cards.map(([label, value]) => (
               <article
@@ -189,7 +154,7 @@ export default function AdminAnalyticsPage() {
                   {label}
                 </p>
 
-                <p className="mt-4 text-3xl font-extrabold text-[#0B1026]">
+                <p className="mt-4 text-3xl font-semibold text-[#0B1026]">
                   {value}
                 </p>
               </article>
@@ -198,15 +163,13 @@ export default function AdminAnalyticsPage() {
         )}
 
         <section className="asp-admin-panel mt-8 p-8">
-          <h2 className="text-2xl font-extrabold text-[#0B1026]">
+          <h2 className="text-2xl font-semibold text-[#0B1026]">
             Analytics Overview
           </h2>
 
           <p className="mt-3 leading-7 text-[#4B5C73]">
-            Detailed charts, date filters and downloadable
-            analytics can be connected when the backend
-            analytics endpoint returns grouped daily or
-            monthly datasets.
+            Amounts are displayed in their recorded currencies.
+            Payment collections do not confirm bank settlement.
           </p>
         </section>
       </div>

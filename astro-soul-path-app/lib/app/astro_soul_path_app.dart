@@ -1,10 +1,11 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../core/notifications/notification_service.dart';
+import '../features/notifications/presentation/screens/notification_reading_screen.dart';
 import '../core/localization/app_locale_controller.dart';
 import '../core/localization/app_strings.dart';
 import '../core/theme/app_theme.dart';
@@ -19,6 +20,8 @@ import '../features/calling/presentation/screens/audio_call_screen.dart';
 import '../features/calling/presentation/screens/video_call_screen.dart';
 import '../features/consultations/presentation/screens/consultation_history_screen.dart';
 import '../features/horoscope/presentation/screens/daily_horoscope_screen.dart';
+import '../features/support/presentation/screens/support_ticket_entry_screen.dart';
+import '../features/support/data/support_operations_config.dart';
 import '../features/kundli/presentation/screens/customer_kundli_screen.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -31,6 +34,8 @@ class AstroSoulPathApp extends StatefulWidget {
 }
 
 class _AstroSoulPathAppState extends State<AstroSoulPathApp> {
+  String? _lastReadingId;
+  DateTime? _lastReadingAt;
   String? _lastChatNotificationKey;
   DateTime? _lastChatNotificationAt;
 
@@ -72,10 +77,6 @@ class _AstroSoulPathAppState extends State<AstroSoulPathApp> {
   void _handleNotificationTap(Map<String, dynamic> payload) {
     final type = payload['type']?.toString().trim().toLowerCase() ?? '';
 
-    if (kDebugMode) {
-      debugPrint('NOTIFICATION TAP PAYLOAD: $payload');
-    }
-
     final navigator = rootNavigatorKey.currentState;
 
     if (navigator == null) {
@@ -93,6 +94,17 @@ class _AstroSoulPathAppState extends State<AstroSoulPathApp> {
     }
 
     switch (type) {
+      case 'support_ticket':
+        final ticketId = payload['ticketId']?.toString() ?? '';
+        if (supportOperationsUiEnabled &&
+            RegExp(r'^[A-Za-z0-9_-]{1,120}$').hasMatch(ticketId)) {
+          navigator.push(
+            MaterialPageRoute<void>(
+              builder: (_) => SupportTicketEntryScreen(ticketId: ticketId),
+            ),
+          );
+        }
+        break;
       case 'astrologer_online':
         final astrologerId = payload['astrologerId']?.toString().trim() ?? '';
 
@@ -212,7 +224,32 @@ class _AstroSoulPathAppState extends State<AstroSoulPathApp> {
         }
         break;
 
+      case 'smart_insight':
       case 'horoscope':
+        final isSmartInsight = type == 'smart_insight';
+        final readingId =
+            payload[isSmartInsight ? 'insightId' : 'readingId']?.toString() ??
+            '';
+        if (readingId.isNotEmpty) {
+          final now = DateTime.now();
+          if (_lastReadingId == readingId &&
+              _lastReadingAt != null &&
+              now.difference(_lastReadingAt!) < const Duration(seconds: 3)) {
+            return;
+          }
+          _lastReadingId = readingId;
+          _lastReadingAt = now;
+          navigator.push(
+            MaterialPageRoute<void>(
+              builder: (_) => NotificationReadingScreen(
+                readingId: readingId,
+                smartInsight: isSmartInsight,
+              ),
+            ),
+          );
+          break;
+        }
+        if (isSmartInsight) break;
         navigator.push(
           MaterialPageRoute<void>(builder: (_) => const DailyHoroscopeScreen()),
         );

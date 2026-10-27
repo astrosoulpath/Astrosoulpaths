@@ -9,6 +9,12 @@ import 'package:astro_soul_path/features/profile/data/profile_api.dart';
 class Profile extends ProfileApi {
   final tokens = <String>[];
   @override
+  Future<Map<String, dynamic>> refreshVerifiedPhone() async => {
+    'phone': '+919876543210',
+    'isPhoneVerified': true,
+    'canonicalUserId': 'canonical',
+  };
+  @override
   Future<Map<String, dynamic>> verifyFirebaseProfilePhone({
     required String firebaseIdToken,
     bool confirmAccountLink = false,
@@ -42,6 +48,7 @@ void main() {
       await open(
         tester,
         EditCustomerProfileScreen(
+          showPhoneVerificationForTesting: true,
           profile: null,
           now: tester.binding.clock.now,
           profileApi: profile,
@@ -93,6 +100,7 @@ void main() {
       await open(
         tester,
         EditCustomerProfileScreen(
+          showPhoneVerificationForTesting: true,
           profile: null,
           now: tester.binding.clock.now,
           sendPhoneCode: (phone, token) async {
@@ -105,7 +113,10 @@ void main() {
         ),
       );
       expect(sends, 1);
-      expect(find.textContaining('Too many code requests'), findsOneWidget);
+      expect(
+        find.textContaining('Firebase has limited verification attempts'),
+        findsOneWidget,
+      );
       expect(find.text('Verify Mobile Number'), findsNothing);
       await tester.pumpWidget(const SizedBox());
       await tester.pump();
@@ -119,6 +130,7 @@ void main() {
     await open(
       tester,
       EditCustomerProfileScreen(
+        showPhoneVerificationForTesting: true,
         profile: null,
         now: tester.binding.clock.now,
         profileApi: Profile(),
@@ -152,6 +164,7 @@ void main() {
       await open(
         tester,
         EditCustomerProfileScreen(
+          showPhoneVerificationForTesting: true,
           profile: null,
           now: tester.binding.clock.now,
           profileApi: profile,
@@ -180,7 +193,10 @@ void main() {
       await tester.tap(find.text('Resend OTP'));
       await tester.pump();
       await tester.pump();
-      expect(find.textContaining('Too many code requests'), findsOneWidget);
+      expect(
+        find.textContaining('Firebase has limited verification attempts'),
+        findsOneWidget,
+      );
       expect(find.textContaining('Resend OTP in'), findsOneWidget);
       expect(sends, 2);
       await tester.enterText(find.byType(TextField).last, '123456');
@@ -190,6 +206,30 @@ void main() {
       expect(profile.tokens, ['proof']);
       await tester.pumpWidget(const SizedBox());
       await tester.pump();
+    },
+  );
+  testWidgets(
+    'OTP verification succeeds during resend cooldown and refreshes phone state',
+    (tester) async {
+      final profile = Profile();
+      await open(
+        tester,
+        EditCustomerProfileScreen(
+          showPhoneVerificationForTesting: true,
+          profile: null,
+          profileApi: profile,
+          now: tester.binding.clock.now,
+          sendPhoneCode: (_, _) async =>
+              const FirebasePhoneCode(verificationId: 'first'),
+          verifyPhoneCode: (_, _) async => 'verified-proof',
+        ),
+      );
+      expect(find.textContaining('Resend OTP in'), findsOneWidget);
+      await tester.enterText(find.byType(TextField).last, '123456');
+      await tester.tap(find.widgetWithText(FilledButton, 'Verify'));
+      await tester.pumpAndSettle();
+      expect(profile.tokens, ['verified-proof']);
+      expect(find.text('Mobile number verified successfully'), findsOneWidget);
     },
   );
 }

@@ -161,4 +161,20 @@ void main() {
       'Backend request failed',
     );
   });
+  test(
+    'invalid-number failure permits correction without automatic retry',
+    () async {
+      await expectLater(
+        guard.send(
+          () async => throw FirebaseException(
+            plugin: 'firebase_auth',
+            code: 'invalid-phone-number',
+          ),
+        ),
+        throwsA(isA<FirebaseException>()),
+      );
+      expect(guard.remainingSeconds, 0);
+      expect(await guard.send(() async => 'sent'), 'sent');
+    },
+  );
 }

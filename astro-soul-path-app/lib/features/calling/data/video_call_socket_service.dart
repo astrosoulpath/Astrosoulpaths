@@ -1,9 +1,11 @@
+import '../../chat/data/communication_socket_recovery.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import '../../../core/config/api_config.dart';
 
 class VideoCallSocketService {
   io.Socket? _socket;
+  CommunicationSocketRecovery? _recovery;
 
   bool get isConnected => _socket?.connected == true;
 
@@ -38,17 +40,21 @@ class VideoCallSocketService {
           .setTransports(['websocket'])
           .setAuth(<String, dynamic>{'token': normalizedAccessToken})
           .disableAutoConnect()
-          .enableReconnection()
+          .disableReconnection()
+          .enableForceNew()
           .build(),
     );
 
     final socket = _socket!;
 
-    socket.onConnect((_) {
+    socket.on('call:connected', (_) {
       socket.emit('call:register', {'userId': normalizedUserId});
     });
 
-    socket.on('call:registered', (_) => onRegistered?.call());
+    socket.on('call:registered', (_) {
+      _recovery?.connected();
+      onRegistered?.call();
+    });
     socket.on('call:incoming', (data) => onIncoming?.call(_map(data)));
     socket.on('call:accepted', (data) => onAccepted?.call(_map(data)));
     socket.on('call:rejected', (data) => onRejected?.call(_map(data)));
@@ -64,7 +70,22 @@ class VideoCallSocketService {
     socket.on('call:unavailable', (data) => onUnavailable?.call(_map(data)));
     socket.on('call:error', (data) => onCallError?.call(_map(data)));
 
-    socket.connect();
+    _recovery = CommunicationSocketRecovery(
+      initialToken: normalizedAccessToken,
+      expectedUserId: normalizedUserId,
+      applyToken: (value) => socket.auth = {'token': value},
+      connect: () {
+        socket.connect();
+      },
+      disconnect: () {
+        socket.disconnect();
+      },
+    );
+    socket.on('auth:required', (_) => _recovery?.schedule(force: true));
+    socket.onDisconnect((_) => _recovery?.schedule());
+    socket.onConnectError((_) => _recovery?.schedule(force: true));
+
+    _recovery!.reconnect();
   }
 
   void initiate({
@@ -121,6 +142,8 @@ class VideoCallSocketService {
   }
 
   void dispose() {
+    _recovery?.dispose();
+    _recovery = null;
     final socket = _socket;
 
     if (socket != null) {

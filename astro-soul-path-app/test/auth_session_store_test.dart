@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:astro_soul_path/features/auth/data/auth_session_store.dart';
+import 'package:astro_soul_path/features/auth/data/secure_logout.dart';
+import 'package:astro_soul_path/features/auth/data/auth_api.dart';
 
 String jwt(String uid, int exp) {
   final payload = base64Url
@@ -44,6 +46,66 @@ Map<String, dynamic> state({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(seed);
+  test(
+    'canonical Admin cannot be saved as a Customer presentation session',
+    () async {
+      final store = AuthSessionStore();
+      await expectLater(
+        store.save(
+          VerifyOtpResult(
+            message: 'synthetic',
+            portal: 'customer',
+            role: 'CUSTOMER',
+            accessToken: freshJwt(),
+            user: {'id': 'original', 'accountRole': 'ADMIN'},
+            session: {'authProvider': 'firebase'},
+            nextStep: 'OPEN_HOME',
+          ),
+        ),
+        throwsA(isA<AuthApiException>()),
+      );
+      expect(await store.read(), isNull);
+    },
+  );
+  test(
+    'previously masked Admin cache is not restored into Customer Home',
+    () async {
+      seed(portal: 'customer', role: 'CUSTOMER');
+      await const FlutterSecureStorage().write(
+        key: 'asp_user',
+        value: jsonEncode({'id': 'original', 'accountRole': 'ADMIN'}),
+      );
+      var tokenCalls = 0;
+      final store = AuthSessionStore(
+        firebaseTokenLoader: (_) async {
+          tokenCalls++;
+          return freshJwt();
+        },
+      );
+      expect(await store.read(), isNull);
+      expect(tokenCalls, 0);
+    },
+  );
+  test(
+    'server restoration cannot disguise canonical Admin as Customer',
+    () async {
+      seed(portal: 'customer', role: 'CUSTOMER');
+      final store = AuthSessionStore(
+        firebaseTokenLoader: (_) async => freshJwt(),
+        refreshClient: MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              ...state(portal: 'customer', role: 'CUSTOMER', step: 'OPEN_HOME'),
+              'user': {'id': 'original', 'accountRole': 'ADMIN'},
+            }),
+            200,
+          ),
+        ),
+      );
+      expect(await store.restore(), isNull);
+      expect(await store.read(), isNull);
+    },
+  );
   test('Firebase token refreshes despite empty refresh token', () async {
     var calls = 0;
     final store = AuthSessionStore(
@@ -155,4 +217,100 @@ void main() {
       expect(await store.read(), isNotNull);
     },
   );
+  test(
+    'logout signs out providers and late refresh cannot restore account',
+    () async {
+      final pending = Completer<String?>();
+      final store = AuthSessionStore(
+        firebaseTokenLoader: (_) => pending.future,
+      );
+      final refresh = store.forceRefresh();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      final calls = <String>[];
+      await secureLogout(
+        store,
+        signOutFirebase: () async {
+          calls.add('firebase');
+        },
+        signOutGoogle: () async {
+          calls.add('google');
+        },
+        signOutLegacy: () async {},
+      );
+      pending.complete(freshJwt());
+      expect(await refresh, isNull);
+      expect(await store.read(), isNull);
+      expect(calls, ['firebase', 'google']);
+    },
+  );
+  test('late backend session restoration cannot resurrect logout', () async {
+    final pending = Completer<http.Response>();
+    final started = Completer<void>();
+    final store = AuthSessionStore(
+      firebaseTokenLoader: (_) async => freshJwt(),
+      refreshClient: MockClient((_) {
+        started.complete();
+        return pending.future;
+      }),
+    );
+    final restore = store.restore();
+    await started.future;
+    await store.clear();
+    pending.complete(http.Response(jsonEncode(state()), 200));
+    expect(await restore, isNull);
+    expect(await store.read(), isNull);
+  });
+  test(
+    'native logout failure is reported while application session stays cleared',
+    () async {
+      final store = AuthSessionStore();
+      var googleCalled = false;
+      await expectLater(
+        secureLogout(
+          store,
+          signOutFirebase: () async => throw StateError('native'),
+          signOutGoogle: () async {
+            googleCalled = true;
+          },
+          signOutLegacy: () async {},
+        ),
+        throwsStateError,
+      );
+      expect(googleCalled, true);
+      expect(await store.read(), isNull);
+    },
+  );
+  test(
+    'storage failure still attempts every native provider and reports failure',
+    () async {
+      final store = FailingClearStore();
+      final calls = <String>[];
+      await expectLater(
+        secureLogout(
+          store,
+          signOutFirebase: () async {
+            calls.add('firebase');
+          },
+          signOutGoogle: () async {
+            calls.add('google');
+          },
+          signOutLegacy: () async {
+            calls.add('legacy');
+          },
+        ),
+        throwsStateError,
+      );
+      expect(calls, ['firebase', 'google', 'legacy']);
+      expect(store.clears, 2);
+    },
+  );
+}
+
+class FailingClearStore extends AuthSessionStore {
+  int clears = 0;
+  @override
+  Future<void> clear() async {
+    clears++;
+    throw StateError('storage unavailable');
+  }
 }

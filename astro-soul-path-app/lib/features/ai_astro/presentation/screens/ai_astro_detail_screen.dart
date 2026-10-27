@@ -29,6 +29,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
 
   bool _isFollowing = false;
   bool _followLoading = true;
+  bool _followFailed = false;
   bool _followActionLoading = false;
   int _followerCount = 0;
   final AiAstroApi _api = AiAstroApi();
@@ -42,6 +43,12 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
     super.initState();
     _loadFollowStatus();
     _loadReviews();
+  }
+
+  @override
+  void dispose() {
+    _followApi.close();
+    super.dispose();
   }
 
   Future<void> _loadReviews() async {
@@ -70,9 +77,11 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
   }
 
   Future<void> _loadFollowStatus() async {
+    if (_followActionLoading) return;
     if (mounted) {
       setState(() {
         _followLoading = true;
+        _followFailed = false;
       });
     }
 
@@ -86,6 +95,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
         _followerCount = status.followerCount;
       });
     } on FollowApiException {
+      if (mounted) setState(() => _followFailed = true);
       // Keep the AI profile usable if follow status cannot be loaded.
     } finally {
       if (mounted) {
@@ -154,7 +164,9 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           OutlinedButton.icon(
-            onPressed: busy ? null : _toggleFollow,
+            onPressed: busy
+                ? null
+                : (_followFailed ? _loadFollowStatus : _toggleFollow),
             icon: _followActionLoading
                 ? const SizedBox(
                     width: 16,
@@ -170,7 +182,9 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
             label: Text(
               _followLoading
                   ? 'Loading...'
-                  : (_isFollowing ? 'Following' : 'Follow'),
+                  : (_followFailed
+                        ? 'Retry follow status'
+                        : (_isFollowing ? 'Following' : 'Follow')),
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: _isFollowing
@@ -192,7 +206,11 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
           ),
           const SizedBox(width: 12),
           Text(
-            _followLoading ? 'â€” followers' : _followersLabel(_followerCount),
+            _followLoading
+                ? 'â€” followers'
+                : (_followFailed
+                      ? 'Followers unavailable'
+                      : _followersLabel(_followerCount)),
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,

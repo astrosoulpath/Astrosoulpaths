@@ -150,17 +150,13 @@ describe('Account linking - isolated PostgreSQL integration', () => {
   });
 
   it('resolves Google login to its separate account before linking', async () => {
-    const user = await service.resolveUserBySupabaseId(
-      'asp-test-google-supabase',
-    );
+    const user = await service.getUserWithRelations('asp-test-google-supabase');
 
     expect(user?.id).toBe('asp-test-google-user');
   });
 
   it('resolves phone login to original account', async () => {
-    const user = await service.resolveUserBySupabaseId(
-      'asp-test-phone-supabase',
-    );
+    const user = await service.getUserWithRelations('asp-test-phone-supabase');
 
     expect(user?.id).toBe('asp-test-phone-user');
   });

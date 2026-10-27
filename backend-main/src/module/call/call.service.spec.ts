@@ -154,9 +154,7 @@ describe('CallService', () => {
 
       expect(txMock.callSession.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: {
-            id: activeCall.id,
-          },
+          where: expect.objectContaining({ id: activeCall.id, status: 'ACTIVE', endedAt: null, expiresAt: { gt: expect.any(Date) } }),
           data: expect.objectContaining({
             extendedMinutes: {
               increment: 5,

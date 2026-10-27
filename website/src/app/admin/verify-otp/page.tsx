@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   ClipboardEvent,
@@ -12,6 +12,8 @@ import { useRouter } from "next/navigation";
 import { PhoneAuthProvider, signInWithCredential } from "firebase/auth";
 
 import { firebaseAuth } from "@/lib/firebaseClient";
+import { getAdminApiBase } from "@/features/admin/auth/admin-contract";
+import { establishAdminSession } from "@/features/admin/auth/admin-session";
 
 const OTP_LENGTH = 6;
 
@@ -134,9 +136,7 @@ export default function AdminVerifyOtpPage() {
 
       const idToken = await firebaseResult.user.getIdToken(true);
 
-      const apiBaseUrl =
-        process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
-        "http://localhost:4000";
+      const apiBaseUrl = getAdminApiBase();
 
       const backendResponse = await fetch(`${apiBaseUrl}/auth/firebase/phone`, {
         method: "POST",
@@ -159,19 +159,13 @@ export default function AdminVerifyOtpPage() {
         throw new Error("Access denied. This account is not an admin account.");
       }
 
-      window.localStorage.setItem("asp_admin_access_token", idToken);
-
-      window.localStorage.removeItem("asp_admin_refresh_token");
-
-      window.localStorage.setItem(
-        "asp_admin_user",
-        JSON.stringify(response.user),
-      );
+      await establishAdminSession(idToken, "existing", response.user);
 
       window.sessionStorage.removeItem("admin_phone");
       window.sessionStorage.removeItem("admin_firebase_verification_id");
 
-      router.replace("/admin/dashboard");
+      router.replace("/admin");
+      router.refresh();
     } catch (error: unknown) {
       setMessage(
         error instanceof Error ? error.message : "OTP verification failed.",

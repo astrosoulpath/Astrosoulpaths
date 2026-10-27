@@ -1,0 +1,4 @@
+﻿'use client';
+import { useEffect,useRef,type ReactNode } from 'react';
+import s from './cinematic-home.module.css';
+export function CinematicHome({children}:{children:ReactNode}){const root=useRef<HTMLDivElement>(null);useEffect(()=>{const element=root.current;if(!element||!('IntersectionObserver' in window))return;const media=matchMedia('(prefers-reduced-motion: reduce)');const observer=new IntersectionObserver(entries=>{for(const e of entries){const node=e.target as HTMLElement;node.dataset.inview=String(e.isIntersecting);if(e.isIntersecting)node.dataset.revealed='true';}},{threshold:.05});const nodes=element.querySelectorAll<HTMLElement>(':scope > section');nodes.forEach(node=>{if(!media.matches&&node.getBoundingClientRect().top>innerHeight)node.dataset.revealed='false';observer.observe(node);});return()=>observer.disconnect();},[]);return <div className={s.home} ref={root}>{children}</div>;}

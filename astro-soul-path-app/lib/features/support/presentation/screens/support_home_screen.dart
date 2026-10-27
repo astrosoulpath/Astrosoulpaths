@@ -1,4 +1,8 @@
+import 'dart:async';
+import '../widgets/support_account_boundary.dart';
+import '../widgets/support_failure.dart';
 import 'package:flutter/material.dart';
+import '../../../../core/widgets/golden_sparkle_loading.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/data/auth_session_store.dart';
@@ -10,22 +14,30 @@ import 'support_ticket_detail_screen.dart';
 import 'package:file_picker/file_picker.dart';
 
 class SupportHomeScreen extends StatefulWidget {
-  const SupportHomeScreen({super.key});
+  const SupportHomeScreen({super.key, this.sessions, this.apiFactory});
+  final AuthSessionStore? sessions;
+  final SupportApi Function(String token)? apiFactory;
 
   @override
   State<SupportHomeScreen> createState() => _SupportHomeScreenState();
 }
 
 class _SupportHomeScreenState extends State<SupportHomeScreen> {
-  final AuthSessionStore _sessionStore = AuthSessionStore();
+  late final AuthSessionStore _sessionStore =
+      widget.sessions ?? AuthSessionStore();
 
   SupportApi? _api;
+  int _requestVersion = 0, _page = 1;
+  String _search = '', _status = '';
+  bool _hasMore = true;
+  Timer? _searchDebounce;
 
   List<SupportTicketSummary> _tickets = const [];
 
   bool _loading = true;
   bool _assistantAvailable = false;
   String _error = '';
+  SupportFailure? _failure;
 
   @override
   void initState() {
@@ -35,20 +47,25 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
 
   @override
   void dispose() {
+    _requestVersion++;
+    _searchDebounce?.cancel();
     _api?.close();
     super.dispose();
   }
 
   Future<void> _load() async {
+    final request = ++_requestVersion;
     if (mounted) {
       setState(() {
         _loading = true;
         _error = '';
+        _failure = null;
       });
     }
 
     try {
       final session = await _sessionStore.read();
+      if (!mounted || request != _requestVersion) return;
 
       if (session == null || session.accessToken.trim().isEmpty) {
         throw const SupportApiException(
@@ -56,30 +73,40 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
         );
       }
 
-      final api = SupportApi(accessToken: session.accessToken);
+      final api =
+          widget.apiFactory?.call(session.accessToken) ??
+          SupportApi(accessToken: session.accessToken);
 
       _api?.close();
       _api = api;
 
       final results = await Future.wait<dynamic>([
-        api.getMyTickets(),
-        api.isAssistantAvailable(),
+        api.getMyTickets(page: _page, search: _search, status: _status),
+        // Provider health must never block the independent human ticket flow.
+        api.isAssistantAvailable().catchError((Object _) => false),
       ]);
 
-      if (!mounted) return;
+      if (!mounted || request != _requestVersion) return;
 
       setState(() {
-        _tickets = results[0] as List<SupportTicketSummary>;
+        final incoming = results[0] as List<SupportTicketSummary>;
+        _hasMore = incoming.length == 25;
+        _tickets = _page == 1
+            ? incoming
+            : {
+                for (final item in [..._tickets, ...incoming]) item.id: item,
+              }.values.toList();
 
         _assistantAvailable = results[1] as bool;
 
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || request != _requestVersion) return;
 
       setState(() {
-        _error = _messageFor(error);
+        _failure = SupportFailure.from(error);
+        _error = _failure!.message;
         _loading = false;
       });
     }
@@ -216,6 +243,24 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
                           child: Text('Technical'),
                         ),
                         DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                        DropdownMenuItem(value: 'CALL', child: Text('Calls')),
+                        DropdownMenuItem(value: 'CHAT', child: Text('Chats')),
+                        DropdownMenuItem(
+                          value: 'KUNDLI',
+                          child: Text('Kundli'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'HOROSCOPE',
+                          child: Text('Horoscope'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'SUBSCRIPTION',
+                          child: Text('Subscriptions'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'SOUL_BAZAAR',
+                          child: Text('Soul Bazaar'),
+                        ),
                       ],
                       onChanged: (value) {
                         if (value == null) return;
@@ -236,7 +281,7 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
                         hintText: 'you@example.com',
                         prefixIcon: Icon(Icons.email_outlined),
                         helperText:
-                            'Ticket replies and status updates will be sent here.',
+                            'Email delivery uses your verified account address when configured.',
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -468,7 +513,10 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      SupportAccountBoundary(child: _buildContent(context));
+
+  Widget _buildContent(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
 
     final pageBackground = dark
@@ -478,98 +526,171 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
     return Scaffold(
       backgroundColor: pageBackground,
       appBar: AppBar(
-        title: const Text('24\u00D77 Support'),
+        title: const Text('Help & Support'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(112),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: [
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Search my tickets',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: (value) {
+                    _searchDebounce?.cancel();
+                    _searchDebounce = Timer(
+                      const Duration(milliseconds: 350),
+                      () {
+                        if (mounted) {
+                          _search = value;
+                          _page = 1;
+                          _load();
+                        }
+                      },
+                    );
+                  },
+                ),
+                DropdownButton<String>(
+                  value: _status,
+                  isExpanded: true,
+                  items:
+                      const [
+                            '',
+                            'OPEN',
+                            'IN_PROGRESS',
+                            'WAITING_FOR_CUSTOMER',
+                            'RESOLVED',
+                            'CLOSED',
+                          ]
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(
+                                value.isEmpty
+                                    ? 'All statuses'
+                                    : value.replaceAll('_', ' '),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (value) {
+                    _status = value ?? '';
+                    _page = 1;
+                    _load();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
         centerTitle: false,
         actions: [
+          if (_hasMore && _tickets.isNotEmpty)
+            IconButton(
+              tooltip: 'Load more tickets',
+              onPressed: _loading || _error.isNotEmpty
+                  ? null
+                  : () {
+                      _page++;
+                      _load();
+                    },
+              icon: const Icon(Icons.expand_more),
+            ),
           IconButton(
             tooltip: 'Refresh',
-            onPressed: _loading ? null : _load,
+            onPressed: _loading
+                ? null
+                : () {
+                    _page = 1;
+                    _load();
+                  },
             icon: const Icon(Icons.refresh_rounded),
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: _loading
-            ? ListView(
-                children: [
-                  SizedBox(height: 220),
-                  Center(child: CircularProgressIndicator()),
-                ],
-              )
-            : _error.isNotEmpty
-            ? _ErrorView(message: _error, onRetry: _load)
-            : ListView(
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 30),
-                children: [
-                  _SupportHero(dark: dark),
-                  const SizedBox(height: 18),
+      body: GoldenSparkleLoading(
+        loading: _loading,
+        child: RefreshIndicator(
+          onRefresh: () {
+            _page = 1;
+            return _load();
+          },
+          child: _error.isNotEmpty
+              ? _ErrorView(message: _error, failure: _failure, onRetry: _load)
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 30),
+                  children: [
+                    _SupportHero(dark: dark),
+                    const SizedBox(height: 18),
 
-                  _SupportActionCard(
-                    dark: dark,
-                    icon: Icons.auto_awesome,
-                    title: 'AI Support Assistant',
-                    subtitle: _assistantAvailable
-                        ? 'Get instant help from our 24\u00D77 assistant.'
-                        : 'Assistant is temporarily unavailable. Human support is still available.',
-                    badge: _assistantAvailable ? 'ONLINE' : 'OFFLINE',
-                    enabled: _assistantAvailable,
-                    onTap: _openAssistant,
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  _SupportActionCard(
-                    dark: dark,
-                    icon: Icons.support_agent_rounded,
-                    title: 'Chat with Human Support',
-                    subtitle:
-                        'Create a support ticket and continue the conversation securely inside the app.',
-                    badge: '24\u00D77',
-                    onTap: _createTicket,
-                  ),
-
-                  const SizedBox(height: 26),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'My Support Tickets',
-                          style: Theme.of(
-                            context,
-                          ).textTheme.titleMedium?.copyWith(fontSize: 20),
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: _createTicket,
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: const Text('New'),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  if (_tickets.isEmpty)
-                    _EmptyTicketsCard(dark: dark, onCreate: _createTicket)
-                  else
-                    ..._tickets.map(
-                      (ticket) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _TicketCard(
-                          ticket: ticket,
-                          dark: dark,
-                          onTap: () => _openTicket(ticket.id),
-                        ),
-                      ),
+                    _SupportActionCard(
+                      dark: dark,
+                      icon: Icons.auto_awesome,
+                      title: 'AI Support Assistant',
+                      subtitle: _assistantAvailable
+                          ? 'Get instant help from our 24\u00D77 assistant.'
+                          : 'Assistant is temporarily unavailable. Human support is still available.',
+                      badge: _assistantAvailable ? 'ONLINE' : 'OFFLINE',
+                      enabled: _assistantAvailable,
+                      onTap: _openAssistant,
                     ),
 
-                  const SizedBox(height: 14),
+                    const SizedBox(height: 12),
 
-                  _PrivacyNotice(dark: dark),
-                ],
-              ),
+                    _SupportActionCard(
+                      dark: dark,
+                      icon: Icons.support_agent_rounded,
+                      title: 'Chat with Human Support',
+                      subtitle:
+                          'Create a support ticket and continue the conversation securely inside the app.',
+                      badge: '24\u00D77',
+                      onTap: _createTicket,
+                    ),
+
+                    const SizedBox(height: 26),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'My Support Tickets',
+                            style: Theme.of(
+                              context,
+                            ).textTheme.titleMedium?.copyWith(fontSize: 20),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: _createTicket,
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: const Text('New'),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    if (_tickets.isEmpty)
+                      _EmptyTicketsCard(dark: dark, onCreate: _createTicket)
+                    else
+                      ..._tickets.map(
+                        (ticket) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _TicketCard(
+                            ticket: ticket,
+                            dark: dark,
+                            onTap: () => _openTicket(ticket.id),
+                          ),
+                        ),
+                      ),
+
+                    const SizedBox(height: 14),
+
+                    _PrivacyNotice(dark: dark),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -843,6 +964,11 @@ class _TicketCard extends StatelessWidget {
                   context,
                 ).textTheme.bodyMedium?.copyWith(fontSize: 12),
               ),
+              const SizedBox(height: 6),
+              Text(
+                '${ticket.priority.replaceAll('_', ' ')} priority · Updated ${(ticket.updatedAt ?? ticket.createdAt).toLocal().toString().substring(0, 16)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -936,9 +1062,14 @@ class _PrivacyNotice extends StatelessWidget {
 }
 
 class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
+  const _ErrorView({
+    required this.message,
+    this.failure,
+    required this.onRetry,
+  });
 
   final String message;
+  final SupportFailure? failure;
   final VoidCallback onRetry;
 
   @override
@@ -953,7 +1084,15 @@ class _ErrorView extends StatelessWidget {
           color: AppColors.gold,
         ),
         const SizedBox(height: 16),
+        if (failure != null) ...[
+          Text(failure!.title, textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+        ],
         Text(message, textAlign: TextAlign.center),
+        if (failure?.requiresCustomerLogin == true) ...[
+          const SizedBox(height: 16),
+          const Center(child: CustomerSupportRecoveryButton()),
+        ],
         const SizedBox(height: 16),
         Center(
           child: FilledButton.icon(

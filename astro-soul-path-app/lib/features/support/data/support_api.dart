@@ -1,9 +1,13 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:mime/mime.dart';
+import '../../auth/data/auth_session_store.dart';
 
 import '../../../core/config/api_config.dart';
 import 'support_models.dart';
+import 'support_catalogue.dart';
 
 class SupportApiException implements Exception {
   const SupportApiException(this.message, {this.statusCode});
@@ -16,9 +20,39 @@ class SupportApiException implements Exception {
 }
 
 class SupportApi {
-  SupportApi({required String accessToken, http.Client? client})
-    : _accessToken = accessToken.trim(),
-      _client = client ?? http.Client();
+  SupportCatalogue? _catalogue;
+  DateTime? _catalogueAt;
+  Future<SupportCatalogue> getAssistantConfig({bool refresh = false}) async {
+    _ensureCurrent();
+    if (!refresh &&
+        _catalogue != null &&
+        DateTime.now().difference(_catalogueAt!).inSeconds < 60) {
+      return _catalogue!;
+    }
+    final response = await _get('/support/assistant/config');
+    final value = SupportCatalogue.fromJson(_decodeResponse(response));
+    _ensureCurrent();
+    _catalogue = value;
+    _catalogueAt = DateTime.now();
+    return value;
+  }
+
+  SupportApi({
+    required String accessToken,
+    http.Client? client,
+    AuthSessionStore? sessionStore,
+  }) : _accessToken = accessToken.trim(),
+       _client = SessionBoundSupportClient(
+         client ?? http.Client(),
+         sessionStore ?? AuthSessionStore(),
+       );
+  final int _revision = AuthSessionStore.sessionRevision;
+  bool _closed = false;
+  void _ensureCurrent() {
+    if (_closed || _revision != AuthSessionStore.sessionRevision) {
+      throw const SupportApiException('Your account changed. Reopen support.');
+    }
+  }
 
   final String _accessToken;
   final http.Client _client;
@@ -34,6 +68,7 @@ class SupportApi {
   }
 
   Map<String, dynamic> _decodeResponse(http.Response response) {
+    _ensureCurrent();
     Map<String, dynamic> body = {};
 
     if (response.body.trim().isNotEmpty) {
@@ -88,8 +123,20 @@ class SupportApi {
   // HUMAN SUPPORT TICKETS
   // =========================================================
 
-  Future<List<SupportTicketSummary>> getMyTickets() async {
-    final response = await _get('/support/tickets');
+  Future<List<SupportTicketSummary>> getMyTickets({
+    int page = 1,
+    String search = '',
+    String? status,
+  }) async {
+    final query = Uri(
+      queryParameters: {
+        'page': '$page',
+        'limit': '25',
+        if (search.trim().isNotEmpty) 'search': search.trim(),
+        if (status != null && status.isNotEmpty) 'status': status,
+      },
+    ).query;
+    final response = await _get('/support/tickets?$query');
 
     final json = _decodeResponse(response);
 
@@ -133,9 +180,21 @@ class SupportApi {
     String? relatedPaymentId,
     String? relatedWalletTxnId,
   }) async {
+    const topics = {
+      'KUNDLI': 'Kundli',
+      'HOROSCOPE': 'Horoscope',
+      'SUBSCRIPTION': 'Subscriptions',
+      'SOUL_BAZAAR': 'Soul Bazaar',
+      'CALL': 'Calls',
+      'CHAT': 'Chats',
+    };
     final payload = <String, dynamic>{
-      'subject': subject.trim(),
-      'category': category,
+      'subject': topics.containsKey(category)
+          ? '[${topics[category]}] ${subject.trim()}'
+          : subject.trim(),
+      'category': topics.containsKey(category)
+          ? (['CALL', 'CHAT'].contains(category) ? 'CONSULTATION' : 'OTHER')
+          : category,
     };
 
     final cleanDescription = description?.trim();
@@ -267,8 +326,22 @@ class SupportApi {
     required String conversationId,
     required String content,
     String? clientMessageId,
+    String? categoryId,
+    String? questionId,
+    String? paymentOrderId,
+    String? consultationId,
   }) async {
     final payload = <String, dynamic>{'content': content.trim()};
+    if (paymentOrderId?.isNotEmpty == true) {
+      payload['paymentOrderId'] = paymentOrderId;
+    }
+    if (consultationId?.isNotEmpty == true) {
+      payload['consultationId'] = consultationId;
+    }
+    if (categoryId != null && questionId != null) {
+      payload['categoryId'] = categoryId;
+      payload['questionId'] = questionId;
+    }
 
     if (clientMessageId?.trim().isNotEmpty == true) {
       payload['clientMessageId'] = clientMessageId!.trim();
@@ -306,8 +379,11 @@ class SupportApi {
     required String conversationId,
     String? subject,
     String? description,
+    bool includeConversation = false,
   }) async {
-    final payload = <String, dynamic>{};
+    final payload = <String, dynamic>{
+      'includeConversation': includeConversation,
+    };
 
     if (subject?.trim().isNotEmpty == true) {
       payload['subject'] = subject!.trim();
@@ -377,14 +453,23 @@ class SupportApi {
     });
 
     request.files.add(
-      await http.MultipartFile.fromPath('file', normalizedPath),
+      await http.MultipartFile.fromPath(
+        'file',
+        normalizedPath,
+        contentType: MediaType.parse(
+          lookupMimeType(normalizedPath) ?? 'application/octet-stream',
+        ),
+      ),
     );
 
     final streamedResponse = await _client
         .send(request)
         .timeout(ApiConfig.requestTimeout);
 
-    final response = await http.Response.fromStream(streamedResponse);
+    final response = await http.Response.fromStream(
+      streamedResponse,
+    ).timeout(ApiConfig.requestTimeout);
+    _ensureCurrent();
 
     Map<String, dynamic> json;
 
@@ -416,6 +501,41 @@ class SupportApi {
   }
 
   void close() {
+    _closed = true;
     _client.close();
+  }
+}
+
+class SessionBoundSupportClient extends http.BaseClient {
+  SessionBoundSupportClient(this.client, this.sessions);
+  final http.Client client;
+  final AuthSessionStore sessions;
+  final int revision = AuthSessionStore.sessionRevision;
+  bool closed = false;
+  void check() {
+    if (closed || revision != AuthSessionStore.sessionRevision) {
+      throw const SupportApiException('Your account changed. Reopen support.');
+    }
+  }
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    check();
+    final session = await sessions.read();
+    check();
+    if (session == null || session.accessToken.trim().isEmpty) {
+      throw const SupportApiException('Please sign in again.');
+    }
+    request.headers['Authorization'] = 'Bearer ${session.accessToken}';
+    final response = await client.send(request);
+    check();
+    return response;
+  }
+
+  @override
+  void close() {
+    closed = true;
+    client.close();
+    super.close();
   }
 }

@@ -39,7 +39,7 @@ export type CreateSubscriptionOrderPayload = {
 
 export type PaymentReconciliationResponse = {
   success: boolean;
-  status: "SUCCESS" | "FAILED";
+  status: "SUCCESS" | "FAILED" | "PENDING";
   reason:
     | "reconciled_from_gateway"
     | "already_processed"

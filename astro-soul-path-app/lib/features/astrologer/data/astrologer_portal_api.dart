@@ -1,11 +1,15 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import '../../../core/config/api_config.dart';
 
 class AstrologerPortalApiException implements Exception {
-  const AstrologerPortalApiException(this.message);
+  const AstrologerPortalApiException(this.message, {this.statusCode});
+
+  final int? statusCode;
+  bool get accessDenied => statusCode == 401 || statusCode == 403;
 
   final String message;
 
@@ -18,6 +22,19 @@ class AstrologerPortalApi {
     : _client = client ?? http.Client();
 
   final http.Client _client;
+
+  MediaType _uploadType(String path, {bool allowPdf = false}) {
+    final extension = path.split('.').last.toLowerCase();
+    return switch (extension) {
+      'pdf' when allowPdf => MediaType('application', 'pdf'),
+      'png' => MediaType('image', 'png'),
+      'jpg' || 'jpeg' => MediaType('image', 'jpeg'),
+      'webp' when !allowPdf => MediaType('image', 'webp'),
+      _ => throw const AstrologerPortalApiException(
+        'Please select a supported document or image type.',
+      ),
+    };
+  }
 
   Future<Map<String, dynamic>> register({
     required String accessToken,
@@ -114,7 +131,11 @@ class AstrologerPortalApi {
     request.fields['documentType'] = normalizedType;
 
     request.files.add(
-      await http.MultipartFile.fromPath('file', normalizedPath),
+      await http.MultipartFile.fromPath(
+        'file',
+        normalizedPath,
+        contentType: _uploadType(normalizedPath, allowPdf: true),
+      ),
     );
 
     final streamedResponse = await _client
@@ -165,7 +186,11 @@ class AstrologerPortalApi {
     });
 
     request.files.add(
-      await http.MultipartFile.fromPath('file', normalizedPath),
+      await http.MultipartFile.fromPath(
+        'file',
+        normalizedPath,
+        contentType: _uploadType(normalizedPath),
+      ),
     );
 
     final streamedResponse = await _client
@@ -306,10 +331,22 @@ class AstrologerPortalApi {
     required String accessToken,
     int page = 1,
     int limit = 20,
+    String search = '',
+    String mode = '',
+    String status = '',
   }) async {
+    final query = Uri(
+      queryParameters: {
+        'page': '$page',
+        'limit': '$limit',
+        if (search.trim().isNotEmpty) 'search': search.trim(),
+        if (mode.isNotEmpty) 'mode': mode,
+        if (status.isNotEmpty) 'status': status,
+      },
+    ).query;
     return _authorizedRequest(
       method: 'GET',
-      endpoint: '/consultations/astrologer/history?page=$page&limit=$limit',
+      endpoint: '/consultations/astrologer/history?$query',
       accessToken: accessToken,
     );
   }
@@ -317,11 +354,24 @@ class AstrologerPortalApi {
   Future<Map<String, dynamic>> getDashboard({
     required String accessToken,
   }) async {
-    return _authorizedRequest(
+    final response = await _authorizedRequest(
       method: 'GET',
       endpoint: '/astrologer/dashboard',
       accessToken: accessToken,
     );
+    final data = response['data'];
+    if (response['success'] != true ||
+        data is! Map ||
+        data['isOnline'] is! bool ||
+        data['isApproved'] is! bool ||
+        data['isVerified'] is! bool ||
+        data['userId'] is! String ||
+        data['astrologerId'] is! String) {
+      throw const AstrologerPortalApiException(
+        'Invalid dashboard response. Please retry.',
+      );
+    }
+    return response;
   }
 
   Future<Map<String, dynamic>> updateStatus({
@@ -337,6 +387,28 @@ class AstrologerPortalApi {
   }
 
   Future<Map<String, dynamic>> _authorizedRequest({
+    required String method,
+    required String endpoint,
+    required String accessToken,
+    Map<String, dynamic>? payload,
+  }) async {
+    try {
+      return await _performAuthorizedRequest(
+        method: method,
+        endpoint: endpoint,
+        accessToken: accessToken,
+        payload: payload,
+      );
+    } on AstrologerPortalApiException {
+      rethrow;
+    } catch (_) {
+      throw const AstrologerPortalApiException(
+        'Unable to reach the astrologer service. Check your connection and retry.',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> _performAuthorizedRequest({
     required String method,
     required String endpoint,
     required String accessToken,
@@ -384,9 +456,13 @@ class AstrologerPortalApi {
 
     final body = _decode(response.body);
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        body.isEmpty ||
+        body['success'] == false) {
       throw AstrologerPortalApiException(
         _message(body, 'Unable to load astrologer dashboard.'),
+        statusCode: response.statusCode,
       );
     }
 

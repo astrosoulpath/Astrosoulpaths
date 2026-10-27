@@ -151,7 +151,7 @@ export function AstrologerTable() {
             Astrologer Approval Management
           </h2>
 
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-[#52627A]">
             Review, approve and suspend astrologer accounts.
           </p>
         </div>
@@ -203,7 +203,7 @@ export function AstrologerTable() {
       )}
 
       {!loading && !error && filteredAstrologers.length === 0 && (
-        <div className="mt-8 rounded-xl border border-dashed p-8 text-center text-gray-500">
+        <div className="mt-8 rounded-xl border border-dashed p-8 text-center text-[#52627A]">
           No astrologers found.
         </div>
       )}
@@ -237,7 +237,7 @@ export function AstrologerTable() {
                       <p className="font-semibold text-[#0B1026]">
                         Astrologer
                       </p>
-                      <p className="mt-1 max-w-[220px] break-all text-xs text-gray-500">
+                      <p className="mt-1 max-w-[220px] break-all text-xs text-[#52627A]">
                         {astrologer.id}
                       </p>
                     </td>

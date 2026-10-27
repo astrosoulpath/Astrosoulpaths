@@ -1,12 +1,11 @@
 ﻿"use client";
 
+import { adminFetch } from "@/features/admin/auth/admin-session";
+
 import Link from "next/link";
 import { useState } from "react";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:4000";
+
 
 type ReportType =
   | "CUSTOMERS"
@@ -16,16 +15,7 @@ type ReportType =
   | "WALLETS"
   | "SUBSCRIPTIONS";
 
-function getToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
 
-  return (
-    window.localStorage.getItem("asp_admin_access_token") ??
-    window.localStorage.getItem("access_token")
-  );
-}
 
 export default function AdminReportsPage() {
   const [reportType, setReportType] =
@@ -55,25 +45,13 @@ export default function AdminReportsPage() {
         );
       }
 
-      const token = getToken();
-
-      if (!token) {
-        throw new Error(
-          "Admin login token is missing. Please log in again.",
-        );
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL.replace(
-          /\/+$/,
-          "",
-        )}/admin/reports`,
+      const response = await adminFetch(
+        `/admin/reports`,
         {
           method: "POST",
           headers: {
             Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, text/csv",
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             reportType,
@@ -217,7 +195,7 @@ export default function AdminReportsPage() {
               Admin Panel
             </p>
 
-            <h1 className="mt-2 text-4xl font-extrabold text-[#0B1026]">
+            <h1 className="mt-2 text-4xl font-semibold text-[#0B1026]">
               Reports
             </h1>
 
@@ -249,7 +227,7 @@ export default function AdminReportsPage() {
                   : "border-gray-200 bg-white hover:border-[#D4AF37]"
               }`}
             >
-              <h2 className="text-xl font-extrabold text-[#0B1026]">
+              <h2 className="text-xl font-semibold text-[#0B1026]">
                 {report.title}
               </h2>
 
@@ -261,7 +239,7 @@ export default function AdminReportsPage() {
         </section>
 
         <section className="mt-8 asp-admin-panel p-6 sm:p-8">
-          <h2 className="text-2xl font-extrabold text-[#0B1026]">
+          <h2 className="text-2xl font-semibold text-[#0B1026]">
             Generate Report
           </h2>
 

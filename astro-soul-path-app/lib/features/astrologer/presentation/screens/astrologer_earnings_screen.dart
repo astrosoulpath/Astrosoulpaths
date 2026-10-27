@@ -1,3 +1,4 @@
+import '../../data/earnings_currency.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
@@ -148,17 +149,21 @@ class _AstrologerEarningsScreenState extends State<AstrologerEarningsScreen> {
   }
 
   double _amount(String key) {
-    return double.tryParse(_summary[key]?.toString() ?? '') ?? 0;
+    final rows = _summary['${key}ByCurrency'];
+    if (rows is! List ||
+        rows.length != 1 ||
+        rows.first is! Map ||
+        !RegExp(
+          r'^[A-Z]{3}$',
+        ).hasMatch(rows.first['currency']?.toString() ?? '')) {
+      return 0;
+    }
+    final amount = double.tryParse(rows.first['amount']?.toString() ?? '');
+    return amount != null && amount.isFinite ? amount : 0;
   }
 
   String _money(String key) {
-    return '₹${_amount(key).toStringAsFixed(2)}';
-  }
-
-  String _valueMoney(dynamic value) {
-    final amount = double.tryParse(value?.toString() ?? '') ?? 0;
-
-    return '₹${amount.toStringAsFixed(2)}';
+    return earningsBuckets(_summary['${key}ByCurrency']);
   }
 
   Future<void> _showBankAccountDialog() async {
@@ -415,7 +420,7 @@ class _AstrologerEarningsScreenState extends State<AstrologerEarningsScreen> {
             ),
           ),
           content: Text(
-            'Withdraw ₹${available.toStringAsFixed(2)} '
+            'Withdraw ${_money('availableBalance')} '
             'to $masked?\n\n'
             'The full currently available balance will be submitted '
             'for payout.',
@@ -604,7 +609,8 @@ class _AstrologerEarningsScreenState extends State<AstrologerEarningsScreen> {
                     ..._payouts.map(
                       (payout) => _PayoutHistoryCard(
                         payout: payout,
-                        money: _valueMoney,
+                        money: (amount) =>
+                            earningsMoney(amount, payout['currency']),
                         statusColor: _statusColor,
                       ),
                     ),
@@ -621,25 +627,6 @@ class _AstrologerEarningsScreenState extends State<AstrologerEarningsScreen> {
                       final status =
                           item['status']?.toString().trim().toUpperCase() ??
                           'UNKNOWN';
-
-                      final gross =
-                          double.tryParse(
-                            item['grossAmount']?.toString() ?? '',
-                          ) ??
-                          0;
-
-                      final platformFee =
-                          double.tryParse(
-                            item['platformFee']?.toString() ?? '',
-                          ) ??
-                          0;
-
-                      final net =
-                          double.tryParse(
-                            item['netAmount']?.toString() ?? '',
-                          ) ??
-                          0;
-
                       final statusColor = _statusColor(status);
 
                       return Container(
@@ -694,7 +681,10 @@ class _AstrologerEarningsScreenState extends State<AstrologerEarningsScreen> {
                                   ),
                                 ),
                                 Text(
-                                  '₹${net.toStringAsFixed(2)}',
+                                  earningsMoney(
+                                    item['netAmount'],
+                                    item['currency'],
+                                  ),
                                   style: const TextStyle(
                                     color: AppColors.gold,
                                     fontSize: 17,
@@ -709,21 +699,30 @@ class _AstrologerEarningsScreenState extends State<AstrologerEarningsScreen> {
                                 Expanded(
                                   child: _TransactionMetric(
                                     label: 'Gross',
-                                    value: '₹${gross.toStringAsFixed(2)}',
+                                    value: earningsMoney(
+                                      item['grossAmount'],
+                                      item['currency'],
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: _TransactionMetric(
                                     label: 'Platform fee',
-                                    value: '₹${platformFee.toStringAsFixed(2)}',
+                                    value: earningsMoney(
+                                      item['platformFee'],
+                                      item['currency'],
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: _TransactionMetric(
                                     label: 'Your earning',
-                                    value: '₹${net.toStringAsFixed(2)}',
+                                    value: earningsMoney(
+                                      item['netAmount'],
+                                      item['currency'],
+                                    ),
                                     highlight: true,
                                   ),
                                 ),
@@ -1131,8 +1130,6 @@ class _EarningCard extends StatelessWidget {
                   const SizedBox(height: 5),
                   Text(
                     value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppColors.gold,
                       fontSize: 27,
@@ -1183,12 +1180,15 @@ class _EarningCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.gold,
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: const TextStyle(
+                color: AppColors.gold,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
         ],

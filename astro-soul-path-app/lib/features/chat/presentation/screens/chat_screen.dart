@@ -1,4 +1,7 @@
 import 'dart:async';
+import '../../../consultations/data/birth_sharing_api.dart';
+import '../../../consultations/presentation/widgets/birth_sharing_panel.dart';
+import '../../data/voice_recording_startup.dart';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:io';
@@ -24,6 +27,8 @@ import '../../data/chat_models.dart';
 import '../../data/chat_socket_service.dart';
 import '../../../consultations/data/consultation_api.dart';
 import '../../../wallet/presentation/screens/customer_wallet_screen.dart';
+import '../../../kundli/data/consultation_kundli_api.dart';
+import '../../../kundli/presentation/screens/consultation_kundli_consent_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({required this.consultationId, super.key});
@@ -45,6 +50,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final _scrollController = ScrollController();
 
   final AudioRecorder _voiceRecorder = AudioRecorder();
+  final _voiceStartup = VoiceRecordingStartup();
   final _connectivity = Connectivity();
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   List<ConnectivityResult> _lastConnectivity = const [];
@@ -127,7 +133,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _typingTimer?.cancel();
     _remoteTypingTimer?.cancel();
     _voiceRecordingTimer?.cancel();
-    unawaited(_voiceRecorder.dispose());
+    unawaited(_voiceStartup.close(() => _voiceRecorder.dispose()));
     _messageController.dispose();
     _scrollController.removeListener(_handleScrollPosition);
     _scrollController.dispose();
@@ -248,7 +254,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _typingTimer?.cancel();
     _remoteTypingTimer?.cancel();
     _voiceRecordingTimer?.cancel();
-    unawaited(_voiceRecorder.dispose());
+    unawaited(_cancelVoiceRecording());
   }
 
   Future<void> _handleAppResumed() async {
@@ -1180,6 +1186,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ],
           ),
           actions: [
+            if (consultationKundliV1Enabled)
+              IconButton(
+                tooltip: 'Kundli permission',
+                icon: const Icon(Icons.privacy_tip_outlined),
+                onPressed: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) => ConsultationKundliConsentScreen(
+                      consultationId: widget.consultationId,
+                    ),
+                  ),
+                ),
+              ),
             if (_chatIsActive)
               TextButton.icon(
                 onPressed: _isEnding ? null : _endConsultation,
@@ -1240,6 +1258,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ? _ChatError(message: _error, onRetry: _initializeChat)
             : Column(
                 children: [
+                  if (birthSharingEnabled && _chatIsActive)
+                    ConstrainedBox(constraints: const BoxConstraints(maxHeight: 200),
+                      child: SingleChildScrollView(child: BirthSharingPanel(consultationId: widget.consultationId))),
                   Expanded(
                     child: _messages.isEmpty
                         ? _ChatEmptyState(
@@ -1566,7 +1587,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _typingTimer?.cancel();
     _remoteTypingTimer?.cancel();
     _voiceRecordingTimer?.cancel();
-    unawaited(_voiceRecorder.dispose());
+    unawaited(_cancelVoiceRecording());
 
     setState(() {
       _consultationEnded = true;
@@ -2018,6 +2039,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       token: token,
       chatSessionId: widget.consultationId,
       onMessage: _handleSocketMessage,
+      userId: _room?.currentUser.id,
       onTyping: _handleRemoteTyping,
       onRead: _handleReadReceipt,
       onPresence: _handlePresence,
@@ -2219,8 +2241,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final typing = payload['isTyping'] == true;
 
     _remoteTypingTimer?.cancel();
-    _voiceRecordingTimer?.cancel();
-    unawaited(_voiceRecorder.dispose());
 
     setState(() {
       _otherParticipantOnline = true;
@@ -2279,8 +2299,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void _handleTyping(String value) {
     _typingTimer?.cancel();
     _remoteTypingTimer?.cancel();
-    _voiceRecordingTimer?.cancel();
-    unawaited(_voiceRecorder.dispose());
 
     if (!_chatIsActive) {
       return;
@@ -2618,121 +2636,136 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         !_safetyAllowsMessaging ||
         _isSending ||
         _isUploading ||
-        _isRecordingVoice) {
+        _isRecordingVoice ||
+        _voiceStartup.starting) {
       return;
     }
 
-    try {
-      final permission = await Permission.microphone.request();
+    await _voiceStartup.run(
+      (isCurrent) async {
+        try {
+          final permission = await Permission.microphone.request();
 
-      if (!permission.isGranted) {
-        if (mounted) {
-          _showAttachmentError(
-            'Microphone permission is required to send a voice note.',
+          if (!isCurrent() || !mounted) return;
+          if (!permission.isGranted) {
+            if (mounted) {
+              _showAttachmentError(
+                'Microphone permission is required to send a voice note.',
+              );
+            }
+            return;
+          }
+
+          final recorderPermission = await _voiceRecorder.hasPermission();
+
+          if (!isCurrent() || !mounted) return;
+          if (!recorderPermission) {
+            if (mounted) {
+              _showAttachmentError(
+                'Microphone access is not available. Please allow microphone permission and try again.',
+              );
+            }
+            return;
+          }
+
+          final directory = await getTemporaryDirectory();
+
+          if (!isCurrent() || !mounted) return;
+          if (!await directory.exists()) {
+            await directory.create(recursive: true);
+          }
+
+          if (!isCurrent() || !mounted) return;
+          final path =
+              '${directory.path}${Platform.pathSeparator}'
+              'asp_voice_${DateTime.now().microsecondsSinceEpoch}.m4a';
+
+          final supportsAac = await _voiceRecorder.isEncoderSupported(
+            AudioEncoder.aacLc,
           );
-        }
-        return;
-      }
 
-      final recorderPermission = await _voiceRecorder.hasPermission();
+          if (!isCurrent() || !mounted) return;
+          if (!supportsAac) {
+            if (mounted) {
+              _showAttachmentError(
+                'Voice recording is not supported on this device.',
+              );
+            }
+            return;
+          }
 
-      if (!recorderPermission) {
-        if (mounted) {
-          _showAttachmentError(
-            'Microphone access is not available. Please allow microphone permission and try again.',
+          await _voiceRecorder.start(
+            const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 128000),
+            path: path,
           );
-        }
-        return;
-      }
 
-      final directory = await getTemporaryDirectory();
+          if (!isCurrent() || !mounted) {
+            await _voiceRecorder.cancel();
+            return;
+          }
 
-      if (!await directory.exists()) {
-        await directory.create(recursive: true);
-      }
+          final startedAt = DateTime.now();
 
-      final path =
-          '${directory.path}${Platform.pathSeparator}'
-          'asp_voice_${DateTime.now().microsecondsSinceEpoch}.m4a';
+          setState(() {
+            _isRecordingVoice = true;
+            _isSendingVoice = false;
+            _voiceRecordingPath = path;
+            _voiceRecordingStartedAt = startedAt;
+            _voiceRecordingMs = 0;
+            _error = '';
+          });
 
-      final supportsAac = await _voiceRecorder.isEncoderSupported(
-        AudioEncoder.aacLc,
-      );
-
-      if (!supportsAac) {
-        if (mounted) {
-          _showAttachmentError(
-            'Voice recording is not supported on this device.',
-          );
-        }
-        return;
-      }
-
-      await _voiceRecorder.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 128000),
-        path: path,
-      );
-
-      if (!mounted) {
-        await _voiceRecorder.cancel();
-        return;
-      }
-
-      final startedAt = DateTime.now();
-
-      setState(() {
-        _isRecordingVoice = true;
-        _isSendingVoice = false;
-        _voiceRecordingPath = path;
-        _voiceRecordingStartedAt = startedAt;
-        _voiceRecordingMs = 0;
-        _error = '';
-      });
-
-      _voiceRecordingTimer?.cancel();
-
-      _voiceRecordingTimer = Timer.periodic(const Duration(milliseconds: 250), (
-        _,
-      ) {
-        if (!mounted || !_isRecordingVoice) {
-          return;
-        }
-
-        final started = _voiceRecordingStartedAt;
-
-        if (started == null) {
-          return;
-        }
-
-        final elapsed = DateTime.now().difference(started).inMilliseconds;
-
-        final safeElapsed = elapsed.clamp(0, 10 * 60 * 1000);
-
-        setState(() {
-          _voiceRecordingMs = safeElapsed;
-        });
-
-        if (elapsed >= 10 * 60 * 1000) {
           _voiceRecordingTimer?.cancel();
-          unawaited(_sendVoiceRecording());
-        }
-      });
-    } catch (error, stackTrace) {
-      debugPrint('[VOICE_RECORD_START_ERROR] ${error.runtimeType}: $error');
-      debugPrintStack(
-        label: '[VOICE_RECORD_START_STACK]',
-        stackTrace: stackTrace,
-      );
 
-      if (mounted) {
-        _showAttachmentError(
-          'Unable to start voice recording. Please check microphone access and try again.',
-        );
-      }
-    }
+          _voiceRecordingTimer = Timer.periodic(
+            const Duration(milliseconds: 250),
+            (_) {
+              if (!mounted || !_isRecordingVoice) {
+                return;
+              }
+
+              final started = _voiceRecordingStartedAt;
+
+              if (started == null) {
+                return;
+              }
+
+              final elapsed = DateTime.now().difference(started).inMilliseconds;
+
+              final safeElapsed = elapsed.clamp(0, 10 * 60 * 1000);
+
+              setState(() {
+                _voiceRecordingMs = safeElapsed;
+              });
+
+              if (elapsed >= 10 * 60 * 1000) {
+                _voiceRecordingTimer?.cancel();
+                unawaited(_sendVoiceRecording());
+              }
+            },
+          );
+        } catch (_, stackTrace) {
+          debugPrint('[VOICE_RECORD_START_ERROR]');
+          debugPrintStack(
+            label: '[VOICE_RECORD_START_STACK]',
+            stackTrace: stackTrace,
+          );
+
+          if (mounted) {
+            _showAttachmentError(
+              'Unable to start voice recording. Please check microphone access and try again.',
+            );
+          }
+        }
+      },
+      cancelRecorder: () async {
+        await _voiceRecorder.cancel();
+      },
+    );
   }
 
   Future<void> _cancelVoiceRecording() async {
+    _voiceStartup.cancel();
     if (!_isRecordingVoice) {
       return;
     }

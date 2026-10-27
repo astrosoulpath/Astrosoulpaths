@@ -1,3 +1,4 @@
+import '../marketplace_private_state.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
@@ -14,7 +15,7 @@ class MarketplaceSellerProfileScreen extends StatefulWidget {
 }
 
 class _MarketplaceSellerProfileScreenState
-    extends State<MarketplaceSellerProfileScreen> {
+    extends MarketplacePrivateState<MarketplaceSellerProfileScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final MarketplaceSellerApi _api = MarketplaceSellerApi();
 
@@ -88,7 +89,7 @@ class _MarketplaceSellerProfileScreenState
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget buildMarketplace(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF090909),
       appBar: AppBar(

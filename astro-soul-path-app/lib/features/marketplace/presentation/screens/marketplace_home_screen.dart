@@ -7,7 +7,9 @@ import 'marketplace_orders_screen.dart';
 import 'marketplace_product_detail_screen.dart';
 
 class MarketplaceHomeScreen extends StatefulWidget {
-  const MarketplaceHomeScreen({super.key});
+  const MarketplaceHomeScreen({super.key, this.api, this.profileApi});
+  final MarketplacePublicApi? api;
+  final ProfileApi? profileApi;
 
   @override
   State<MarketplaceHomeScreen> createState() => _MarketplaceHomeScreenState();
@@ -21,8 +23,8 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
   static const Color _marketInk = Color(0xFF14213D);
   static const Color _muted = Color(0xFF8C817A);
 
-  final MarketplacePublicApi _api = MarketplacePublicApi();
-  final ProfileApi _profileApi = ProfileApi();
+  late final MarketplacePublicApi _api = widget.api ?? MarketplacePublicApi();
+  late final ProfileApi _profileApi = widget.profileApi ?? ProfileApi();
   String? _countryCode;
   final TextEditingController _searchController = TextEditingController();
 
@@ -33,6 +35,10 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
   bool _loading = true;
   bool _productsLoading = false;
   bool _featuredOnly = false;
+  int _requestGeneration = 0;
+  int _page = 1;
+  bool _hasMore = false;
+  bool _loadingMore = false;
 
   String? _selectedCategoryId;
   String _error = '';
@@ -51,6 +57,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
   }
 
   Future<void> _loadMarketplace() async {
+    final generation = ++_requestGeneration;
     if (mounted) {
       setState(() {
         _loading = true;
@@ -75,9 +82,10 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
         categoryId: _selectedCategoryId,
         featuredOnly: _featuredOnly,
         countryCode: _countryCode,
+        page: 1,
       );
 
-      if (!mounted) {
+      if (!mounted || generation != _requestGeneration) {
         return;
       }
 
@@ -85,11 +93,14 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
         _categories = categories;
         _campaigns = campaigns;
         _products = products;
+        _page = 1;
+        _hasMore = products.length == 24;
+        _loadingMore = false;
         _loading = false;
         _error = '';
       });
     } on MarketplacePublicApiException catch (error) {
-      if (!mounted) {
+      if (!mounted || generation != _requestGeneration) {
         return;
       }
 
@@ -100,10 +111,17 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
     }
   }
 
-  Future<void> _loadProducts() async {
+  Future<void> _loadProducts({bool loadMore = false}) async {
+    if (loadMore &&
+        (_loadingMore || !_hasMore || _productsLoading || _loading)) {
+      return;
+    }
+    final generation = ++_requestGeneration;
+    final nextPage = loadMore ? _page + 1 : 1;
     if (mounted) {
       setState(() {
-        _productsLoading = true;
+        _productsLoading = !loadMore;
+        _loadingMore = loadMore;
         _error = '';
       });
     }
@@ -114,24 +132,33 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
         categoryId: _selectedCategoryId,
         featuredOnly: _featuredOnly,
         countryCode: _countryCode,
+        page: nextPage,
       );
 
-      if (!mounted) {
+      if (!mounted || generation != _requestGeneration) {
         return;
       }
 
       setState(() {
-        _products = products;
+        _products = loadMore
+            ? {
+                for (final p in [..._products, ...products]) p['id']: p,
+              }.values.toList()
+            : products;
+        _page = nextPage;
+        _hasMore = products.length == 24;
+        _loadingMore = false;
         _productsLoading = false;
         _error = '';
       });
     } on MarketplacePublicApiException catch (error) {
-      if (!mounted) {
+      if (!mounted || generation != _requestGeneration) {
         return;
       }
 
       setState(() {
         _productsLoading = false;
+        _loadingMore = false;
         _error = error.message;
       });
     }
@@ -721,7 +748,16 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
     }
 
     return Column(
-      children: _products.map(_buildProductCard).toList(growable: false),
+      children: [
+        ..._products.map(_buildProductCard),
+        if (_hasMore)
+          OutlinedButton(
+            onPressed: _loadingMore
+                ? null
+                : () => _loadProducts(loadMore: true),
+            child: Text(_loadingMore ? 'Loading...' : 'Load more products'),
+          ),
+      ],
     );
   }
 

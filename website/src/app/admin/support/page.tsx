@@ -1,15 +1,26 @@
 ﻿"use client";
 
-import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { supportRequest as requestJson } from "@/features/admin/support/support-request";
+import { SupportOperationsPanel } from "@/features/admin/support/SupportOperationsPanel";
+import { SupportCataloguePanel } from "@/features/admin/support/SupportCataloguePanel";
+import { SupportConversationReview } from "@/features/admin/support/SupportConversationReview";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:4000";
+import Link from "next/link";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 type TicketStatus =
-  "OPEN" | "IN_PROGRESS" | "WAITING_FOR_CUSTOMER" | "RESOLVED" | "CLOSED";
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "WAITING_FOR_CUSTOMER"
+  | "RESOLVED"
+  | "CLOSED";
 
 type TicketPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 
@@ -66,91 +77,6 @@ type Stats = {
   active: number;
 };
 
-function getToken() {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  return (
-    window.localStorage.getItem("asp_admin_access_token") ??
-    window.sessionStorage.getItem("asp_admin_access_token") ??
-    window.localStorage.getItem("access_token") ??
-    window.sessionStorage.getItem("access_token") ??
-    window.localStorage.getItem("asp_access_token") ??
-    window.sessionStorage.getItem("asp_access_token") ??
-    ""
-  ).trim();
-}
-
-function authHeaders() {
-  const token = getToken();
-
-  return {
-    "Content-Type": "application/json",
-    ...(token
-      ? {
-          Authorization: `Bearer ${token}`,
-        }
-      : {}),
-  };
-}
-
-async function requestJson(path: string, init?: RequestInit) {
-  const token = getToken();
-
-  if (!token) {
-    if (typeof window !== "undefined") {
-      window.location.replace("/admin/login");
-    }
-
-    throw new Error("Admin session not found. Please sign in again.");
-  }
-
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 15000);
-
-  try {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-      ...init,
-      signal: controller.signal,
-      headers: {
-        ...authHeaders(),
-        ...(init?.headers ?? {}),
-      },
-      cache: "no-store",
-    });
-
-    const data = await response.json().catch(() => null);
-
-    if (response.status === 401 || response.status === 403) {
-      window.localStorage.removeItem("asp_admin_access_token");
-      window.sessionStorage.removeItem("asp_admin_access_token");
-
-      window.location.replace("/admin/login");
-
-      throw new Error("Admin session expired. Please sign in again.");
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        data?.message || `Support request failed (${response.status})`,
-      );
-    }
-
-    return data;
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error(
-        "Support request timed out. Please check the backend connection and retry.",
-      );
-    }
-
-    throw error;
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
 function statusLabel(status: string) {
   return status.replaceAll("_", " ");
 }
@@ -198,10 +124,20 @@ function safeAttachmentUrl(value?: string | null) {
 }
 
 export default function AdminSupportPage() {
+  const requests = useRef({ list: 0, detail: 0 });
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(0);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
 
   const [selected, setSelected] = useState<SupportTicket | null>(null);
 
+  const selectedRef = useRef<SupportTicket | null>(null);
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+  const replyKey = useRef<{ ticket: string; text: string; key: string } | null>(
+    null,
+  );
   const [stats, setStats] = useState<Stats | null>(null);
 
   const [statusFilter, setStatusFilter] = useState("");
@@ -225,14 +161,15 @@ export default function AdminSupportPage() {
   }, []);
 
   const loadTickets = useCallback(async () => {
+    const current = ++requests.current.list;
     setLoading(true);
     setError("");
 
     try {
       const params = new URLSearchParams();
 
-      params.set("page", "1");
-      params.set("limit", "100");
+      params.set("page", String(page));
+      params.set("limit", "25");
 
       if (statusFilter) {
         params.set("status", statusFilter);
@@ -246,24 +183,29 @@ export default function AdminSupportPage() {
         `/admin/support/tickets?${params.toString()}`,
       );
 
+      if (current !== requests.current.list) return;
+      setPages(data?.pagination?.pages ?? 0);
       setTickets(Array.isArray(data?.tickets) ? data.tickets : []);
     } catch (err) {
+      if (current !== requests.current.list) return;
       setError(
         err instanceof Error ? err.message : "Unable to load support tickets.",
       );
     } finally {
-      setLoading(false);
+      if (current === requests.current.list) setLoading(false);
     }
-  }, [search, statusFilter]);
+  }, [search, statusFilter, page]);
 
   const openTicket = useCallback(
     async (ticketId: string) => {
+      const current = ++requests.current.detail;
       setDetailLoading(true);
       setError("");
 
       try {
         const data = await requestJson(`/admin/support/tickets/${ticketId}`);
 
+        if (current !== requests.current.detail) return;
         setSelected(data?.ticket ?? null);
 
         await requestJson(`/admin/support/tickets/${ticketId}/read`, {
@@ -272,22 +214,26 @@ export default function AdminSupportPage() {
 
         await loadStats();
       } catch (err) {
+        if (current !== requests.current.detail) return;
         setError(err instanceof Error ? err.message : "Unable to open ticket.");
       } finally {
-        setDetailLoading(false);
+        if (current === requests.current.detail) setDetailLoading(false);
       }
     },
     [loadStats],
   );
 
   useEffect(() => {
-    void Promise.all([loadStats(), loadTickets()]);
+    void Promise.all([loadStats(), loadTickets()]).catch(() => {
+      setStats(null);
+      setError("Support statistics could not be loaded. Refresh to retry.");
+    });
   }, [loadStats, loadTickets]);
 
   async function refreshSelected() {
-    if (!selected?.id) return;
-
-    await openTicket(selected.id);
+    const current = selectedRef.current;
+    if (!current?.id) return;
+    await openTicket(current.id);
   }
 
   async function assignToMe() {
@@ -302,6 +248,12 @@ export default function AdminSupportPage() {
       });
 
       await Promise.all([refreshSelected(), loadTickets(), loadStats()]);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Support update was not confirmed. Refresh before retrying.",
+      );
     } finally {
       setActionLoading(false);
     }
@@ -321,6 +273,12 @@ export default function AdminSupportPage() {
       });
 
       await Promise.all([refreshSelected(), loadTickets(), loadStats()]);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Support update was not confirmed. Refresh before retrying.",
+      );
     } finally {
       setActionLoading(false);
     }
@@ -340,6 +298,12 @@ export default function AdminSupportPage() {
       });
 
       await Promise.all([refreshSelected(), loadTickets(), loadStats()]);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Support update was not confirmed. Refresh before retrying.",
+      );
     } finally {
       setActionLoading(false);
     }
@@ -352,6 +316,16 @@ export default function AdminSupportPage() {
       return;
     }
 
+    if (
+      !replyKey.current ||
+      replyKey.current.ticket !== selected.id ||
+      replyKey.current.text !== reply.trim()
+    )
+      replyKey.current = {
+        ticket: selected.id,
+        text: reply.trim(),
+        key: crypto.randomUUID(),
+      };
     setActionLoading(true);
 
     try {
@@ -359,13 +333,20 @@ export default function AdminSupportPage() {
         method: "POST",
         body: JSON.stringify({
           content: reply.trim(),
-          clientMessageId: `admin-web-${Date.now()}`,
+          clientMessageId: replyKey.current!.key,
         }),
       });
 
-      setReply("");
+      replyKey.current = null;
+      if (selectedRef.current?.id === selected.id) setReply("");
 
       await Promise.all([refreshSelected(), loadTickets(), loadStats()]);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Support update was not confirmed. Refresh before retrying.",
+      );
     } finally {
       setActionLoading(false);
     }
@@ -373,60 +354,84 @@ export default function AdminSupportPage() {
 
   const statCards = useMemo(
     () => [
-      ["Active", stats?.active ?? 0],
-      ["Open", stats?.open ?? 0],
-      ["In Progress", stats?.inProgress ?? 0],
-      ["Waiting", stats?.waitingForCustomer ?? 0],
-      ["Urgent", stats?.urgent ?? 0],
-      ["Unassigned", stats?.unassigned ?? 0],
-      ["Resolved", stats?.resolved ?? 0],
+      ["Active", stats?.active ?? "Unavailable"],
+      ["Open", stats?.open ?? "Unavailable"],
+      ["In Progress", stats?.inProgress ?? "Unavailable"],
+      ["Waiting", stats?.waitingForCustomer ?? "Unavailable"],
+      ["Urgent", stats?.urgent ?? "Unavailable"],
+      ["Unassigned", stats?.unassigned ?? "Unavailable"],
+      ["Resolved", stats?.resolved ?? "Unavailable"],
     ],
     [stats],
   );
 
+  useEffect(
+    () => () => {
+      requests.current.list++;
+      requests.current.detail++;
+    },
+    [],
+  );
+
   return (
     <main className="asp-admin-page px-5 py-8 text-[#10233F]">
+      <nav
+        aria-label="Support ticket pages"
+        className="mb-4 flex items-center gap-4"
+      >
+        <button
+          disabled={page <= 1 || loading}
+          onClick={() => setPage((p) => p - 1)}
+        >
+          Previous
+        </button>
+        <span>
+          Page {page} / {Math.max(1, pages)}
+        </span>
+        <button
+          disabled={page >= pages || loading}
+          onClick={() => setPage((p) => p + 1)}
+        >
+          Next
+        </button>
+      </nav>
       <div className="asp-admin-shell">
         <div className="asp-admin-top-back">
-          <a
-            href="/admin"
-            className="asp-admin-back-btn"
-          >
+          <a href="/admin" className="asp-admin-back-btn">
             Back to Dashboard
           </a>
         </div>
-        <Link href="/admin" className="text-sm font-bold text-amber-400">
+        <Link href="/admin" className="text-sm font-bold text-[#8A6818]">
           Back to Admin Dashboard
         </Link>
 
-        <p className="mt-5 text-xs font-bold uppercase tracking-[0.22em] text-amber-500">
+        <p className="mt-5 text-xs font-bold uppercase tracking-[0.22em] text-[#8A6818]">
           24x7 Customer Support
         </p>
 
-        <h1 className="mt-2 text-4xl font-black">Support Tickets</h1>
+        <h1 className="mt-2 text-4xl font-semibold">Support Tickets</h1>
+        <SupportCataloguePanel />
+        <SupportConversationReview />
 
         <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           {statCards.map(([label, value]) => (
-            <div
-              key={String(label)}
-              className="asp-admin-stat-card"
-            >
+            <div key={String(label)} className="asp-admin-stat-card">
               <p className="text-xs text-[#66758A]">{label}</p>
 
-              <p className="mt-2 text-3xl font-black">{value}</p>
+              <p className="mt-2 text-3xl font-semibold">{value}</p>
             </div>
           ))}
         </section>
 
         {error ? (
-          <div className="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-200">
+          <div className="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-700">
             {error}
           </div>
         ) : null}
 
         <section className="mt-7 grid gap-6 xl:grid-cols-[0.9fr_1.35fr]">
           <div className="rounded-2xl border border-[#DDE3EC] bg-white p-5">
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -472,7 +477,7 @@ export default function AdminSupportPage() {
                       <div>
                         <p className="font-bold">{ticket.subject}</p>
 
-                        <p className="text-xs text-amber-400">
+                        <p className="text-xs text-[#8A6818]">
                           {ticket.ticketNumber}
                         </p>
                       </div>
@@ -499,11 +504,13 @@ export default function AdminSupportPage() {
               <p>Select a ticket.</p>
             ) : (
               <>
-                <p className="text-xs text-amber-400">
+                <p className="text-xs text-[#8A6818]">
                   {selected.ticketNumber}
                 </p>
 
-                <h2 className="mt-2 text-2xl font-black">{selected.subject}</h2>
+                <h2 className="mt-2 text-2xl font-semibold">
+                  {selected.subject}
+                </h2>
 
                 <p className="mt-2 text-[#66758A]">{selected.description}</p>
 
@@ -575,7 +582,7 @@ export default function AdminSupportPage() {
                       >
                         <p>{message.content}</p>
 
-                        <p className="mt-1 text-[10px] opacity-70">
+                        <p className="mt-1 text-[13px] opacity-70">
                           {formatDate(message.createdAt)}
                         </p>
                       </div>
@@ -587,7 +594,7 @@ export default function AdminSupportPage() {
                   <section className="mt-5 rounded-2xl border border-[#DDE3EC] bg-[#F8FAFC] p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div>
-                        <h3 className="font-black text-white">
+                        <h3 className="font-semibold text-[#14243D]">
                           {selected.attachments.length === 1
                             ? "Attachment"
                             : `Attachments (${selected.attachments.length})`}
@@ -618,7 +625,7 @@ export default function AdminSupportPage() {
 
                             <div className="min-w-0 flex-1">
                               <p
-                                className="truncate text-sm font-bold text-white"
+                                className="truncate text-sm font-bold text-[#14243D]"
                                 title={attachment.originalFileName}
                               >
                                 {attachment.originalFileName || "Attachment"}
@@ -640,12 +647,12 @@ export default function AdminSupportPage() {
                                 href={attachmentUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="asp-admin-gold-btn shrink-0 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-amber-300"
+                                className="asp-admin-gold-btn shrink-0 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-300"
                               >
                                 Open
                               </a>
                             ) : (
-                              <span className="shrink-0 text-xs font-bold text-red-400">
+                              <span className="shrink-0 text-xs font-bold text-red-700">
                                 Link unavailable
                               </span>
                             )}
@@ -668,7 +675,7 @@ export default function AdminSupportPage() {
                     <button
                       type="submit"
                       disabled={actionLoading || !reply.trim()}
-                      className="asp-admin-gold-btn px-5 font-black text-slate-950"
+                      className="asp-admin-gold-btn px-5 font-semibold text-slate-950"
                     >
                       Send Reply
                     </button>
@@ -679,8 +686,9 @@ export default function AdminSupportPage() {
           </div>
         </section>
       </div>
+      {selected && (
+        <SupportOperationsPanel key={selected.id} ticketId={selected.id} />
+      )}
     </main>
   );
 }
-
-

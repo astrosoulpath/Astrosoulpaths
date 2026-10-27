@@ -1,3 +1,4 @@
+import '../widgets/celestial_login_layout.dart';
 import '../../../astrologer/presentation/screens/astrologer_application_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -5,7 +6,6 @@ import 'package:country_picker/country_picker.dart';
 import '../../../astrologer/presentation/screens/astrologer_registration_screen.dart';
 import '../../../astrologer/presentation/screens/astrologer_pending_approval_screen.dart';
 import '../../../astrologer/presentation/screens/astrologer_dashboard_screen.dart';
-import 'package:flutter/services.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../customer/presentation/screens/customer_shell_screen.dart';
@@ -22,9 +22,22 @@ import '../../data/phone_otp_send_cooldown.dart';
 import 'otp_verification_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({required this.portal, super.key});
+  const LoginScreen({
+    required this.portal,
+    this.emailAuth,
+    this.authApi,
+    this.sessionStore,
+    this.googleSignIn,
+    this.firebaseUidReader,
+    super.key,
+  });
 
   final AuthPortal portal;
+  final FirebaseAuth? emailAuth;
+  final AuthApi? authApi;
+  final AuthSessionStore? sessionStore;
+  final Future<GoogleAuthResult> Function()? googleSignIn;
+  final String? Function()? firebaseUidReader;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -33,12 +46,11 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _phoneController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  final _authApi = AuthApi();
-  final _sessionStore = AuthSessionStore();
+  late final _authApi = widget.authApi ?? AuthApi();
+  late final _sessionStore = widget.sessionStore ?? AuthSessionStore();
 
   bool _isSendingOtp = false;
   String _selectedPhoneCode = '91';
-  String _selectedCountryCode = 'IN';
 
   @override
   void dispose() {
@@ -447,6 +459,8 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // Retained for phone authentication/linking compatibility; hidden from entry UI.
+  // ignore: unused_element
   void _openCountryPicker() {
     FocusScope.of(context).unfocus();
 
@@ -461,12 +475,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
         setState(() {
           _selectedPhoneCode = country.phoneCode;
-          _selectedCountryCode = country.countryCode;
         });
       },
     );
   }
 
+  // Retained phone-login implementation; entry UI offers Google/Email only.
+  // ignore: unused_element
   Future<void> _continueWithPhone() async {
     FocusScope.of(context).unfocus();
 
@@ -625,12 +640,27 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _continueWithEmailPassword() async {
-    if (widget.portal != AuthPortal.customer) return;
+    if (_isSendingOtp) return;
+    setState(() {
+      _isSendingOtp = true;
+    });
+    try {
+      await _performEmailFlow();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingOtp = false;
+        });
+      }
+    }
+  }
 
+  Future<void> _performEmailFlow() async {
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
     var obscurePassword = true;
+    var signup = false;
 
     final credentials = await showDialog<Map<String, String>>(
       context: context,
@@ -700,8 +730,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       validator: (value) {
-                        if ((value ?? '').length < 8) {
-                          return 'Password must be at least 8 characters';
+                        if ((value ?? '').isEmpty ||
+                            (signup && (value ?? '').length < 8)) {
+                          return signup
+                              ? 'Use at least 8 characters'
+                              : 'Enter your password';
                         }
                         return null;
                       },
@@ -711,19 +744,59 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               actions: [
                 TextButton(
+                  onPressed: () => setDialogState(() {
+                    signup = !signup;
+                  }),
+                  child: Text(
+                    signup
+                        ? 'Already have an account? Sign In'
+                        : 'Create Account',
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    final email = emailController.text.trim();
+                    if (!RegExp(
+                      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                    ).hasMatch(email)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Enter a valid email address first.'),
+                        ),
+                      );
+                      return;
+                    }
+                    Navigator.of(
+                      dialogContext,
+                    ).pop({'email': email, 'action': 'reset'});
+                  },
+                  child: const Text('Forgot Password?'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    if (!formKey.currentState!.validate()) return;
+                    Navigator.of(dialogContext).pop({
+                      'email': emailController.text.trim(),
+                      'password': passwordController.text,
+                      'action': 'resend',
+                    });
+                  },
+                  child: const Text('Resend Verification Email'),
+                ),
+                TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(),
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
                   onPressed: () {
                     if (!formKey.currentState!.validate()) return;
-
                     Navigator.of(dialogContext).pop({
                       'email': emailController.text.trim(),
                       'password': passwordController.text,
+                      'action': signup ? 'signup' : 'signin',
                     });
                   },
-                  child: const Text('Sign In'),
+                  child: Text(signup ? 'Create Account' : 'Sign In'),
                 ),
               ],
             );
@@ -737,17 +810,43 @@ class _LoginScreenState extends State<LoginScreen> {
     String? firebaseEmailToken;
 
     try {
-      final firebaseCredential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(
-            email: credentials['email']!.trim().toLowerCase(),
-            password: credentials['password']!,
+      if (credentials['action'] == 'reset') {
+        await (widget.emailAuth ?? FirebaseAuth.instance)
+            .sendPasswordResetEmail(email: credentials['email']!.trim());
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'If this account can receive a reset email, instructions will be sent.',
+              ),
+            ),
           );
+        }
+        return;
+      }
+      await _sessionStore.clear();
+      final loginRevision = AuthSessionStore.sessionRevision;
+      final firebaseCredential = credentials['action'] == 'signup'
+          ? await (widget.emailAuth ?? FirebaseAuth.instance)
+                .createUserWithEmailAndPassword(
+                  email: credentials['email']!.trim().toLowerCase(),
+                  password: credentials['password']!,
+                )
+          : await (widget.emailAuth ?? FirebaseAuth.instance)
+                .signInWithEmailAndPassword(
+                  email: credentials['email']!.trim().toLowerCase(),
+                  password: credentials['password']!,
+                );
 
       final firebaseUser = firebaseCredential.user;
 
-      if (firebaseUser != null && !firebaseUser.emailVerified) {
-        await firebaseUser.sendEmailVerification();
-        await FirebaseAuth.instance.signOut();
+      if (firebaseUser != null &&
+          (!firebaseUser.emailVerified || credentials['action'] == 'signup')) {
+        try {
+          await firebaseUser.sendEmailVerification();
+        } finally {
+          await (widget.emailAuth ?? FirebaseAuth.instance).signOut();
+        }
 
         if (!mounted) return;
 
@@ -780,12 +879,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
       var verifyResult = await _authApi.firebaseEmailLogin(
         idToken: firebaseEmailToken,
+        portal: widget.portal,
       );
 
       if (!mounted) return;
+      if (AuthSessionStore.sessionRevision != loginRevision ||
+          (widget.emailAuth ?? FirebaseAuth.instance).currentUser?.uid !=
+              firebaseUser.uid ||
+          verifyResult.user['firebaseUid'] != firebaseUser.uid) {
+        throw const AuthApiException(
+          'The selected account changed. Please sign in again.',
+        );
+      }
 
-      if (verifyResult.role != 'CUSTOMER' ||
-          verifyResult.portal != 'customer') {
+      if (widget.portal == AuthPortal.customer &&
+          (verifyResult.role != 'CUSTOMER' ||
+              verifyResult.portal != 'customer')) {
         throw const AuthApiException(
           'This account is not authorized for customer login.',
         );
@@ -794,7 +903,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final hasGoogleProvider = firebaseUser.providerData.any(
         (provider) => provider.providerId == 'google.com',
       );
-      final shouldLinkGoogle = hasGoogleProvider
+      final shouldLinkGoogle =
+          hasGoogleProvider || widget.portal != AuthPortal.customer
           ? false
           : await _confirmEmailGoogleLink();
 
@@ -833,21 +943,33 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
+      if (AuthSessionStore.sessionRevision != loginRevision ||
+          (widget.emailAuth ?? FirebaseAuth.instance).currentUser?.uid !=
+              firebaseUser.uid) {
+        throw const AuthApiException(
+          'The selected account changed. Please sign in again.',
+        );
+      }
       await _sessionStore.save(verifyResult);
-
-      if (!mounted) return;
-
-      if (verifyResult.nextStep == 'OPEN_HOME') {
-        await _openCustomerHomeWithFreeChat(verifyResult);
+      if (widget.portal != AuthPortal.customer) {
+        final state = await _sessionStore.restore(portal: widget.portal.name);
+        if (!mounted || state == null) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(
+            builder: (_) => state.nextStep == 'OPEN_ASTROLOGER_DASHBOARD'
+                ? const AstrologerDashboardScreen()
+                : AstrologerApplicationScreen(sessionStore: _sessionStore),
+          ),
+          (_) => false,
+        );
         return;
       }
 
-      if (verifyResult.nextStep == 'COMPLETE_PROFILE') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Complete your customer profile to continue.'),
-          ),
-        );
+      if (!mounted) return;
+
+      if (verifyResult.nextStep == 'OPEN_HOME' ||
+          verifyResult.nextStep == 'COMPLETE_PROFILE') {
+        await _openCustomerHomeWithFreeChat(verifyResult);
         return;
       }
 
@@ -896,6 +1018,25 @@ class _LoginScreenState extends State<LoginScreen> {
         ..showSnackBar(
           SnackBar(content: Text(error.message), backgroundColor: Colors.red),
         );
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) return;
+      final message = switch (error.code) {
+        'invalid-email' => 'Enter a valid email address.',
+        'weak-password' => 'Choose a stronger password.',
+        'email-already-in-use' =>
+          'An account already uses this email. Sign in or reset your password.',
+        'invalid-credential' ||
+        'wrong-password' ||
+        'user-not-found' => 'Email or password is incorrect.',
+        'too-many-requests' =>
+          'Firebase has limited attempts. Please wait before trying again.',
+        'network-request-failed' => 'Check your connection and try again.',
+        'user-disabled' => 'This account is unavailable.',
+        _ => 'Unable to complete email authentication. Please retry.',
+      };
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (_) {
       if (!mounted) return;
 
@@ -1179,7 +1320,17 @@ class _LoginScreenState extends State<LoginScreen> {
     GoogleAuthResult? googleResult;
 
     try {
-      googleResult = await GoogleAuthService.instance.signIn();
+      // A user-initiated login fences old API clients before native selection.
+      // Even a failed token acquisition must not retain a different app identity.
+      await _sessionStore.clear();
+      final loginRevision = AuthSessionStore.sessionRevision;
+      googleResult =
+          await (widget.googleSignIn ?? GoogleAuthService.instance.signIn)();
+      if (AuthSessionStore.sessionRevision != loginRevision) {
+        throw const AuthApiException(
+          'The login session changed. Please choose your Google account again.',
+        );
+      }
       var verifyResult = await _authApi.firebaseGoogleLogin(
         idToken: googleResult.firebaseIdToken,
         portal: widget.portal,
@@ -1187,6 +1338,26 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) {
         return;
+      }
+
+      if (AuthSessionStore.sessionRevision != loginRevision ||
+          (widget.firebaseUidReader != null
+                  ? widget.firebaseUidReader!()
+                  : FirebaseAuth.instance.currentUser?.uid) !=
+              googleResult.user.uid) {
+        throw const AuthApiException(
+          'The selected account changed. Please choose your Google account again.',
+        );
+      }
+
+      if (widget.portal == AuthPortal.customer &&
+          (verifyResult.role != 'CUSTOMER' ||
+              verifyResult.portal != 'customer' ||
+              verifyResult.session['authProvider'] != 'asp-context' ||
+              verifyResult.user['authContext'] != 'customer')) {
+        throw const AuthApiException(
+          'The selected Google account is not a customer account. Choose a different existing customer Google account. No permissions were changed.',
+        );
       }
 
       if (widget.portal == AuthPortal.customer &&
@@ -1218,6 +1389,15 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
+      if (AuthSessionStore.sessionRevision != loginRevision ||
+          (widget.firebaseUidReader != null
+                  ? widget.firebaseUidReader!()
+                  : FirebaseAuth.instance.currentUser?.uid) !=
+              googleResult.user.uid) {
+        throw const AuthApiException(
+          'The selected account changed. Please sign in again.',
+        );
+      }
       await _sessionStore.save(verifyResult);
 
       if (!mounted) {
@@ -1320,6 +1500,16 @@ class _LoginScreenState extends State<LoginScreen> {
             backgroundColor: Colors.red.shade700,
           ),
         );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Unable to complete secure sign-in. Please retry.'),
+            backgroundColor: Colors.red,
+          ),
+        );
     } finally {
       if (mounted) {
         setState(() {
@@ -1330,343 +1520,13 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final portal = widget.portal;
-
-    return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.topCenter,
-            radius: 1.2,
-            colors: [AppColors.surfaceLight, AppColors.background],
-          ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: IconButton(
-                      onPressed: Navigator.of(context).pop,
-                      style: IconButton.styleFrom(
-                        backgroundColor: AppColors.surface,
-                      ),
-                      icon: const Icon(
-                        Icons.arrow_back_rounded,
-                        color: AppColors.gold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  Container(
-                    width: 104,
-                    height: 104,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.surface,
-                      border: Border.all(color: AppColors.gold, width: 2),
-                      boxShadow: const [
-                        BoxShadow(color: Color(0x44F4C45E), blurRadius: 24),
-                      ],
-                    ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/branding/login_cosmic_compass.png',
-                        width: 96,
-                        height: 96,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const Icon(
-                          Icons.auto_awesome_rounded,
-                          color: AppColors.gold,
-                          size: 36,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    portal.eyebrow,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.gold,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.6,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    portal.title,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    portal.subtitle,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 30),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(26),
-                      border: Border.all(color: const Color(0x557A8BB8)),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x55000000),
-                          blurRadius: 28,
-                          offset: Offset(0, 14),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text(
-                          'Mobile Number',
-                          style: TextStyle(
-                            color: AppColors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-
-                        TextFormField(
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          maxLength: 10,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          style: const TextStyle(
-                            color: AppColors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          decoration: InputDecoration(
-                            counterText: '',
-                            hintText: 'Enter mobile number',
-                            hintStyle: const TextStyle(
-                              color: Color(0xFF65708E),
-                            ),
-                            prefixIconConstraints: const BoxConstraints(
-                              minWidth: 74,
-                            ),
-                            prefixIcon: InkWell(
-                              onTap: _openCountryPicker,
-                              borderRadius: BorderRadius.circular(12),
-                              child: Padding(
-                                padding: const EdgeInsets.only(
-                                  left: 14,
-                                  right: 8,
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      _selectedCountryCode,
-                                      style: const TextStyle(fontSize: 20),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      '+$_selectedPhoneCode',
-                                      style: const TextStyle(
-                                        color: AppColors.white,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 3),
-                                    const Icon(
-                                      Icons.keyboard_arrow_down_rounded,
-                                      color: AppColors.gold,
-                                      size: 19,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const SizedBox(
-                                      height: 26,
-                                      child: VerticalDivider(
-                                        color: Color(0x557A8BB8),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            filled: true,
-                            fillColor: AppColors.surfaceLight,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(
-                                color: Color(0x667A8BB8),
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(
-                                color: AppColors.gold,
-                                width: 1.5,
-                              ),
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.length != 10) {
-                              return 'Enter a valid 10-digit mobile number';
-                            }
-
-                            return null;
-                          },
-                        ),
-
-                        const SizedBox(height: 18),
-
-                        FilledButton(
-                          onPressed: _isSendingOtp ? null : _continueWithPhone,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.gold,
-                            foregroundColor: AppColors.background,
-                            minimumSize: const Size.fromHeight(56),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: _isSendingOtp
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                  ),
-                                )
-                              : Text(
-                                  portal.actionLabel,
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                        ),
-
-                        if (portal == AuthPortal.customer ||
-                            portal == AuthPortal.astrologer ||
-                            portal == AuthPortal.joinAstrologer) ...[
-                          const SizedBox(height: 24),
-                          const Row(
-                            children: [
-                              Expanded(
-                                child: Divider(color: Color(0x557A8BB8)),
-                              ),
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 14),
-                                child: Text(
-                                  'OR',
-                                  style: TextStyle(
-                                    color: AppColors.muted,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: Divider(color: Color(0x557A8BB8)),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 18),
-
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _SocialLoginButton(
-                                label: 'G',
-                                tooltip: 'Continue with Google',
-                                onTap: _continueWithGoogle,
-                              ),
-                              const SizedBox(width: 14),
-                              if (portal == AuthPortal.customer) ...[
-                                _SocialLoginButton(
-                                  label: '@',
-                                  tooltip: 'Continue with Email',
-                                  onTap: _continueWithEmailPassword,
-                                ),
-                                const SizedBox(width: 14),
-                              ],
-                              // Apple login temporarily hidden until iOS setup is ready.
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  const Text(
-                    'Your account is protected with secure OTP verification.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF75809B), fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SocialLoginButton extends StatelessWidget {
-  const _SocialLoginButton({
-    required this.label,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  final String label;
-  final String tooltip;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: AppColors.white,
-        shape: const CircleBorder(),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: 50,
-            height: 50,
-            child: Center(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: AppColors.background,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => CelestialLoginLayout(
+    portal: widget.portal,
+    busy: _isSendingOtp,
+    onGoogle: _continueWithGoogle,
+    onEmail: _continueWithEmailPassword,
+    onBack: Navigator.of(context).pop,
+  );
 }
 
 class _AppleVisualLoginButton extends StatelessWidget {

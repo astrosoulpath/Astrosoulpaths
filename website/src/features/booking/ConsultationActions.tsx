@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import { getAccessToken } from "@/services/authService";
+import { consultationCustomerSession } from "@/services/consultationService";
 import type { ConsultationMode } from "@/services/consultationService";
 
 type ConsultationActionsProps = {
@@ -167,7 +167,9 @@ export function ConsultationActions({
     const confirmationPath =
       `/consultations/confirm?${query.toString()}`;
 
-    if (!getAccessToken()) {
+    let customerReady = false;
+    customerReady = !!consultationCustomerSession();
+    if (!customerReady) {
       router.push(
         `/login?redirect=${encodeURIComponent(
           confirmationPath,

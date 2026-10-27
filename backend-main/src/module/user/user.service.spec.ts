@@ -259,6 +259,8 @@ describe('Account linking - real UserService', () => {
       requiresManualReview: true,
       checks: {
         hasWalletValue: true,
+        hasCustomerProfile: false,
+        kundliProfiles: 0,
         subscriptions: 1,
         paymentOrders: 1,
         savedKundlis: 1,

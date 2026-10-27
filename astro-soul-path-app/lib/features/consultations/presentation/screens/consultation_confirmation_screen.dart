@@ -80,6 +80,7 @@ class _ConsultationConfirmationScreenState
   }
 
   Future<void> _submit() async {
+    if (_isVideo) return;
     if (_submitting) {
       return;
     }
@@ -104,6 +105,7 @@ class _ConsultationConfirmationScreenState
 
     try {
       final result = await _api.startConsultation(
+        requireFreeChat: _isFreeChat,
         astrologerUserId: astrologerUserId,
         purchasedMinutes: _effectiveMinutes,
         mode: _isVideo
@@ -154,6 +156,19 @@ class _ConsultationConfirmationScreenState
 
   @override
   Widget build(BuildContext context) {
+    if (_isVideo) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Consultation unavailable')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'New video consultations are currently unavailable. Please choose Chat or Audio.',
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(

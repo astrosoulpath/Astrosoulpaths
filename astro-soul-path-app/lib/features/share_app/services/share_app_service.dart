@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../app_config/data/app_config_api.dart';
+import '../../app_config/data/official_app_links.dart';
 
 class ShareAppService {
   const ShareAppService({this.appConfigApi = const AppConfigApi()});
@@ -28,9 +29,11 @@ class ShareAppService {
       platformUrl = config.iosStoreUrl;
     }
 
-    final effectiveUrl = platformUrl.isNotEmpty
-        ? platformUrl
-        : config.websiteUrl;
+    final effectiveUrl =
+        (OfficialAppLinks.store(platformUrl, ios: Platform.isIOS) ??
+                OfficialAppLinks.website(config.websiteUrl))
+            ?.toString() ??
+        '';
 
     if (effectiveUrl.isEmpty) {
       throw Exception('Share URL is not configured');

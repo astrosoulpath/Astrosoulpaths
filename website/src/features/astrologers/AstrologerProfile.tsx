@@ -1,6 +1,7 @@
 "use client";
 
-import Image from "next/image";
+import AstrologerPortrait from "./AstrologerPortrait";
+import { astrologerRate } from "./marketplace-format";
 import Link from "next/link";
 import {
   useEffect,
@@ -15,7 +16,7 @@ import {
 } from "@/services/astrologerService";
 
 import { AvailabilityCard } from "./AvailabilityCard";
-import { ReviewSection } from "./ReviewSection";
+
 
 type AstrologerProfileProps = {
   astrologerId: string;
@@ -89,12 +90,14 @@ export function AstrologerProfile({
 
   const [error, setError] =
     useState("");
+  const [attempt, setAttempt] = useState(0);
 
   const normalizedAstrologerId =
     astrologerId?.trim();
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     if (!normalizedAstrologerId) {
       setAstrologer(null);
@@ -105,6 +108,7 @@ export function AstrologerProfile({
 
       return () => {
         cancelled = true;
+      controller.abort();
       };
     }
 
@@ -117,6 +121,7 @@ export function AstrologerProfile({
         const response =
           await getPublicAstrologerById(
             normalizedAstrologerId,
+            controller.signal,
           );
 
         if (cancelled) {
@@ -151,8 +156,9 @@ export function AstrologerProfile({
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
-  }, [normalizedAstrologerId]);
+  }, [normalizedAstrologerId, attempt]);
 
   const safeName =
     astrologer?.name?.trim() ||
@@ -230,6 +236,7 @@ export function AstrologerProfile({
         <p className="mt-2">
           {error}
         </p>
+        <button type="button" onClick={() => setAttempt(value => value + 1)} className="mt-4 rounded-xl border border-red-300 px-5 py-3 font-semibold">Retry profile</button>
 
         <Link
           href="/astrologers"
@@ -294,15 +301,7 @@ export function AstrologerProfile({
       ),
     );
 
-  const totalConsultations =
-    Math.max(
-      0,
-      Math.floor(
-        getSafeNumber(
-          astrologer.totalConsultations,
-        ),
-      ),
-    );
+  const totalConsultations = typeof astrologer.totalConsultations === 'number' && Number.isFinite(astrologer.totalConsultations) ? astrologer.totalConsultations : undefined;
 
   const isOnline =
     Boolean(
@@ -331,24 +330,8 @@ export function AstrologerProfile({
           <div className="flex flex-col gap-8 md:flex-row">
             <div className="shrink-0">
               <div className="rounded-full bg-white p-2 shadow-xl">
-                {astrologer.avatarUrl ? (
-                  <Image
-                    src={
-                      astrologer.avatarUrl
-                    }
-                    alt={`${safeName} profile`}
-                    width={160}
-                    height={160}
-                    priority
-                    className="h-40 w-40 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-40 w-40 items-center justify-center rounded-full bg-[#F5EED8] text-6xl font-bold text-[#0B1026]">
-                    {safeName
-                      .charAt(0)
-                      .toUpperCase()}
-                  </div>
-                )}
+                <AstrologerPortrait name={safeName} url={astrologer.avatarUrl}/>
+
               </div>
 
               <div className="mt-4 flex items-center justify-center gap-2">
@@ -383,9 +366,9 @@ export function AstrologerProfile({
                       {safeName}
                     </h1>
 
-                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                    {astrologer.isVerified === true && <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
                       ✓ Verified
-                    </span>
+                    </span>}
                   </div>
 
                   <p className="mt-2 text-lg font-medium text-[#B18D19]">
@@ -393,7 +376,7 @@ export function AstrologerProfile({
                       ? expertise.join(
                           " • ",
                         )
-                      : "Vedic Astrology"}
+                      : "Expertise not supplied"}
                   </p>
 
                   <p className="mt-3 text-sm font-medium text-gray-500">
@@ -413,7 +396,7 @@ export function AstrologerProfile({
                   <p className="mt-1 text-xs text-gray-500">
                     {rating > 0
                       ? "Verified rating"
-                      : "New astrologer"}
+                      : astrologer.reviewCount === 0 ? "New astrologer" : "No rating supplied"}
                   </p>
                 </div>
               </div>
@@ -465,11 +448,8 @@ export function AstrologerProfile({
                   </p>
 
                   <p className="mt-1 font-bold text-[#D4AF37]">
-                    ₹
-                    {pricePerMin.toFixed(
-                      2,
-                    )}
-                    /min
+                    {astrologerRate(astrologer)}
+
                   </p>
                 </div>
               </div>
@@ -514,7 +494,7 @@ export function AstrologerProfile({
         </div>
       </div>
 
-      <div className="rounded-3xl bg-white p-6 shadow-lg sm:p-8">
+      <div id="consultation-options" className="scroll-mt-24 rounded-3xl bg-white p-6 shadow-lg sm:p-8">
         <div className="flex flex-col gap-4 border-b border-gray-100 pb-6 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="font-semibold uppercase tracking-[0.16em] text-[#D4AF37]">
@@ -539,7 +519,7 @@ export function AstrologerProfile({
                 : "bg-gray-200 text-gray-600"
             }`}
           >
-            {isOnline
+            {astrologer.isBusy ? "Currently in consultation" : isOnline
               ? "Available Now"
               : "Currently Offline"}
           </span>
@@ -568,7 +548,7 @@ export function AstrologerProfile({
         astrologerAvatarUrl={
         astrologer.avatarUrl ?? null
        }
-      isOnline={isOnline}
+      isOnline={isOnline && !astrologer.isBusy}
       chatEnabled={Boolean(
       consultationOptions.chat &&
         astrologerUserId,
@@ -599,7 +579,7 @@ export function AstrologerProfile({
           }
         />
 
-        <ReviewSection />
+        <section className="rounded-3xl bg-white p-8"><h2 className="text-2xl font-bold text-[#101827]">Profile reviews</h2><p className="mt-4 text-slate-600">{astrologer.reviewCount === undefined ? "A review count has not been supplied." : `${astrologer.reviewCount} recorded reviews`}. Individual profile review text is not available through this public contract; platform-wide testimonials are not attributed to this astrologer.</p></section>
       </div>
     </section>
   );

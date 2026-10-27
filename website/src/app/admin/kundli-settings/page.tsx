@@ -1,8 +1,12 @@
 ﻿"use client";
 
+import { refreshAdminSession } from "@/features/admin/auth/admin-session";
+
+import { getAdminApiBase } from "@/features/admin/auth/admin-contract";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
+const API_BASE_URL = getAdminApiBase();
 
 const ALL_CHARTS = ["D1", "D2", "D3", "D7", "D9", "D10", "D12", "D60"] as const;
 
@@ -41,16 +45,8 @@ type ApiResponse = {
   data?: KundliSettings;
 };
 
-function readAdminToken() {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  return (
-    localStorage.getItem("asp_admin_access_token") ||
-    sessionStorage.getItem("asp_admin_access_token") ||
-    ""
-  );
+async function readAdminToken() {
+  return refreshAdminSession();
 }
 
 function Toggle({
@@ -68,7 +64,7 @@ function Toggle({
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className="flex w-full items-center justify-between gap-4 rounded-2xl border border-slate-700 bg-white/60 p-4 text-left transition hover:border-amber-400/50"
+      className="flex w-full items-center justify-between gap-4 rounded-2xl border border-[#E5EAF1] bg-white/60 p-4 text-left transition hover:border-amber-400/50"
     >
       <div>
         <div className="font-semibold text-[#10233F]">{label}</div>
@@ -103,7 +99,7 @@ export default function AdminKundliSettingsPage() {
     setSuccess("");
 
     try {
-      const token = readAdminToken();
+      const token = await readAdminToken();
 
       if (!token) {
         throw new Error("Admin session not found. Please login again.");
@@ -197,7 +193,7 @@ export default function AdminKundliSettingsPage() {
     setSuccess("");
 
     try {
-      const token = readAdminToken();
+      const token = await readAdminToken();
 
       if (!token) {
         throw new Error("Admin session not found. Please login again.");
@@ -253,7 +249,7 @@ export default function AdminKundliSettingsPage() {
 
   if (loading) {
     return (
-      <main className="asp-admin-page p-8 text-white">
+      <main className="asp-admin-page p-8 text-[#14243D]">
         <div className="mb-6 flex justify-end">
           <a
             href="/admin"
@@ -274,11 +270,11 @@ export default function AdminKundliSettingsPage() {
 
   if (!settings) {
     return (
-      <main className="asp-admin-page p-8 text-white">
+      <main className="asp-admin-page p-8 text-[#14243D]">
         <div className="mx-auto max-w-6xl">
           <div className="rounded-3xl border border-red-900 bg-red-950/40 p-8">
             <h1 className="text-2xl font-bold">Kundli Settings</h1>
-            <p className="mt-3 text-red-200">{error}</p>
+            <p className="mt-3 text-red-700">{error}</p>
 
             <button
               type="button"
@@ -294,11 +290,11 @@ export default function AdminKundliSettingsPage() {
   }
 
   return (
-    <main className="asp-admin-page px-6 py-8 text-white">
+    <main className="asp-admin-page px-6 py-8 text-[#14243D]">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-400">
+            <div className="text-sm font-semibold uppercase tracking-[0.22em] text-[#8A6818]">
               Astro Soul Path Admin
             </div>
 
@@ -323,13 +319,13 @@ export default function AdminKundliSettingsPage() {
         </div>
 
         {error ? (
-          <div className="mb-6 rounded-2xl border border-red-800 bg-red-950/40 p-4 text-red-200">
+          <div className="mb-6 rounded-2xl border border-red-800 bg-red-950/40 p-4 text-red-700">
             {error}
           </div>
         ) : null}
 
         {success ? (
-          <div className="mb-6 rounded-2xl border border-emerald-800 bg-emerald-950/40 p-4 text-emerald-200">
+          <div className="mb-6 rounded-2xl border border-emerald-800 bg-emerald-950/40 p-4 text-emerald-700">
             {success}
           </div>
         ) : null}
@@ -350,7 +346,7 @@ export default function AdminKundliSettingsPage() {
                       displayName: event.target.value,
                     })
                   }
-                  className="mt-2 w-full rounded-xl border border-slate-700 bg-[#F8FAFC] px-4 py-3 outline-none focus:border-amber-400"
+                  className="mt-2 w-full rounded-xl border border-[#E5EAF1] bg-[#F8FAFC] px-4 py-3 outline-none focus:border-amber-400"
                 />
               </label>
 
@@ -360,7 +356,7 @@ export default function AdminKundliSettingsPage() {
                 <input
                   value={settings.name}
                   disabled
-                  className="mt-2 w-full rounded-xl border border-slate-800 bg-[#F8FAFC]/70 px-4 py-3 text-[#758297]"
+                  className="mt-2 w-full rounded-xl border border-[#E5EAF1] bg-[#F8FAFC]/70 px-4 py-3 text-[#758297]"
                 />
               </label>
 
@@ -380,7 +376,7 @@ export default function AdminKundliSettingsPage() {
                       price: Number(event.target.value),
                     })
                   }
-                  className="mt-2 w-full rounded-xl border border-slate-700 bg-[#F8FAFC] px-4 py-3 outline-none focus:border-amber-400"
+                  className="mt-2 w-full rounded-xl border border-[#E5EAF1] bg-[#F8FAFC] px-4 py-3 outline-none focus:border-amber-400"
                 />
               </label>
 
@@ -397,7 +393,7 @@ export default function AdminKundliSettingsPage() {
                       durationDays: Number(event.target.value),
                     })
                   }
-                  className="mt-2 w-full rounded-xl border border-slate-700 bg-[#F8FAFC] px-4 py-3 outline-none focus:border-amber-400"
+                  className="mt-2 w-full rounded-xl border border-[#E5EAF1] bg-[#F8FAFC] px-4 py-3 outline-none focus:border-amber-400"
                 />
               </label>
             </div>
@@ -414,7 +410,7 @@ export default function AdminKundliSettingsPage() {
                     description: event.target.value,
                   })
                 }
-                className="mt-2 w-full rounded-xl border border-slate-700 bg-[#F8FAFC] px-4 py-3 outline-none focus:border-amber-400"
+                className="mt-2 w-full rounded-xl border border-[#E5EAF1] bg-[#F8FAFC] px-4 py-3 outline-none focus:border-amber-400"
               />
             </label>
 
@@ -446,11 +442,11 @@ export default function AdminKundliSettingsPage() {
           </section>
 
           <section className="rounded-3xl border border-amber-400/30 bg-gradient-to-b from-amber-400/10 to-slate-900 p-6">
-            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-400">
+            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8A6818]">
               Live Plan
             </div>
 
-            <div className="mt-4 text-4xl font-black">
+            <div className="mt-4 text-4xl font-semibold">
               ₹{settings.price.toLocaleString("en-IN")}
             </div>
 
@@ -459,17 +455,17 @@ export default function AdminKundliSettingsPage() {
             </div>
 
             <div className="mt-6 space-y-3 text-sm">
-              <div className="flex justify-between border-b border-slate-800 pb-3">
+              <div className="flex justify-between border-b border-[#E5EAF1] pb-3">
                 <span className="text-[#66758A]">Portal</span>
                 <span>Astrologer</span>
               </div>
 
-              <div className="flex justify-between border-b border-slate-800 pb-3">
+              <div className="flex justify-between border-b border-[#E5EAF1] pb-3">
                 <span className="text-[#66758A]">Status</span>
                 <span>{settings.isActive ? "Active" : "Disabled"}</span>
               </div>
 
-              <div className="flex justify-between border-b border-slate-800 pb-3">
+              <div className="flex justify-between border-b border-[#E5EAF1] pb-3">
                 <span className="text-[#66758A]">Payment plan</span>
                 <span>
                   {settings.razorpayPlanConfigured
@@ -509,7 +505,7 @@ export default function AdminKundliSettingsPage() {
                   className={`rounded-2xl border px-4 py-4 text-center font-bold transition ${
                     selected
                       ? "border-amber-400 bg-amber-400/10 text-[#987116]"
-                      : "border-slate-700 bg-[#F8FAFC] text-[#758297]"
+                      : "border-[#E5EAF1] bg-[#F8FAFC] text-[#758297]"
                   }`}
                 >
                   {chart}

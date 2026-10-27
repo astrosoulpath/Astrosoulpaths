@@ -1,10 +1,9 @@
 ﻿"use client";
 
+import { adminFetch } from "@/features/admin/auth/admin-session";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
 type PlatformSettingsResponse = {
   success: boolean;
@@ -14,16 +13,6 @@ type PlatformSettingsResponse = {
     astrologerSharePercent: number;
   };
 };
-
-function getAdminToken() {
-  if (typeof window === "undefined") return null;
-
-  return (
-    window.localStorage.getItem("asp_admin_access_token") ??
-    window.localStorage.getItem("asp_access_token") ??
-    window.localStorage.getItem("access_token")
-  );
-}
 
 export default function PlatformSettingsPage() {
   const [commission, setCommission] = useState(30);
@@ -36,15 +25,10 @@ export default function PlatformSettingsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const token = getAdminToken();
-        if (!token) throw new Error("Admin token missing.");
-
-        const response = await fetch(
-          `${API_BASE_URL}/admin/platform-settings`,
+        const response = await adminFetch(
+          "/admin/platform-settings",
           {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            credentials: "same-origin",
             cache: "no-store",
           },
         );
@@ -81,13 +65,9 @@ export default function PlatformSettingsPage() {
         throw new Error("Commission must be between 0 and 100.");
       }
 
-      const token = getAdminToken();
-      if (!token) throw new Error("Admin token missing.");
-
-      const response = await fetch(`${API_BASE_URL}/admin/platform-settings`, {
+      const response = await adminFetch("/admin/platform-settings", {
         method: "PATCH",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -114,7 +94,8 @@ export default function PlatformSettingsPage() {
   }
 
   return (
-    <main className="asp-admin-page px-6 py-8 text-white">
+    <main className="asp-admin-page px-6 py-8 text-[#14243D]">
+        <Link href="/admin/content/about" className="inline-flex min-h-12 items-center underline mb-5">Content Management · About Us</Link>
         <div className="mb-6 flex justify-end">
           <a
             href="/admin"
@@ -127,7 +108,7 @@ export default function PlatformSettingsPage() {
       <div className="mx-auto max-w-4xl">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-amber-400">
+            <p className="text-sm font-semibold text-[#8A6818]">
               Administration
             </p>
             <h1 className="mt-2 text-3xl font-bold">Platform Settings</h1>
@@ -145,14 +126,14 @@ export default function PlatformSettingsPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-xl bg-[#F8FAFC] p-5">
               <p className="text-[#66758A]">Platform Commission</p>
-              <p className="mt-2 text-3xl font-bold text-amber-400">
+              <p className="mt-2 text-3xl font-bold text-[#8A6818]">
                 {loading ? "..." : `${commission}%`}
               </p>
             </div>
 
             <div className="rounded-xl bg-[#F8FAFC] p-5">
               <p className="text-[#66758A]">Astrologer Share</p>
-              <p className="mt-2 text-3xl font-bold text-emerald-400">
+              <p className="mt-2 text-3xl font-bold text-emerald-700">
                 {loading ? "..." : `${astrologerShare}%`}
               </p>
             </div>
@@ -183,9 +164,9 @@ export default function PlatformSettingsPage() {
             </button>
           </div>
 
-          {message ? <p className="mt-4 text-emerald-400">{message}</p> : null}
+          {message ? <p className="mt-4 text-emerald-700">{message}</p> : null}
 
-          {error ? <p className="mt-4 text-red-400">{error}</p> : null}
+          {error ? <p className="mt-4 text-red-700">{error}</p> : null}
         </section>
       </div>
     </main>

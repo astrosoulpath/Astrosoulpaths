@@ -1,17 +1,19 @@
-﻿"use client";
+"use client";
+import { ModerationDialog, type ModerationAction } from '@/features/admin/moderation/ModerationDialog';
+﻿
+
+import { adminFetch } from "@/features/admin/auth/admin-session";
 
 import Link from "next/link";
 import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:4000";
+
 
 type CustomerWallet = {
   id?: string;
@@ -49,6 +51,7 @@ type AdminCustomer = {
 
 type AdminCustomersResponse = {
   success: boolean;
+  pagination?: {page: number; limit: number; total: number; totalPages: number};
   message?: string;
   data:
     | AdminCustomer[]
@@ -66,17 +69,6 @@ type StatusFilter =
   | "BLOCKED"
   | "WITH_WALLET"
   | "WITHOUT_WALLET";
-
-function getAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return (
-    window.localStorage.getItem("asp_admin_access_token") ??
-    window.localStorage.getItem("access_token")
-  );
-}
 
 function getSafeNumber(
   value: number | string | null | undefined,
@@ -213,8 +205,14 @@ export default function AdminCustomersPage() {
   const [successMessage, setSuccessMessage] =
     useState<string | null>(null);
 
+  const requestSequence = useRef(0);
+  const [moderation,setModeration]=useState<{id:string;action:ModerationAction}|null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
   const loadCustomers = useCallback(
     async (showRefreshState = false) => {
+      const sequence = ++requestSequence.current;
+      const owner = localStorage.getItem('asp_admin_firebase_uid');
       try {
         if (showRefreshState) {
           setIsRefreshing(true);
@@ -224,34 +222,16 @@ export default function AdminCustomersPage() {
 
         setErrorMessage(null);
 
-        const token = getAccessToken();
-
-        if (!token) {
-          throw new Error(
-            "Admin login token is missing. Please log in as an admin.",
-          );
-        }
-
-        const response = await fetch(
-          `${API_BASE_URL.replace(
-            /\/+$/,
-            "",
-          )}/admin/customers`,
-          {
-            method: "GET",
-            headers: {
-              Accept: "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            cache: "no-store",
-          },
-        );
+        const query = new URLSearchParams({page: String(page), limit: '20', search, status: statusFilter});
+        const response = await adminFetch('/admin/customers?' + query, {method: 'GET'});
 
         const data =
           (await readJson(
             response,
           )) as AdminCustomersResponse | null;
 
+        if (sequence !== requestSequence.current) return;
+        if (!owner || owner !== localStorage.getItem('asp_admin_firebase_uid') || !localStorage.getItem('asp_admin_access_token')) throw new Error('Admin session changed.');
         if (!response.ok) {
           const rawMessage = (
             data as {
@@ -270,83 +250,35 @@ export default function AdminCustomersPage() {
         }
 
         setCustomers(normalizeCustomers(data));
+        setTotalPages(data?.pagination?.totalPages ?? 0);
       } catch (error) {
+        if (sequence !== requestSequence.current) return;
         setCustomers([]);
         setErrorMessage(getErrorMessage(error));
       } finally {
+        if (sequence !== requestSequence.current) return;
         setIsLoading(false);
         setIsRefreshing(false);
       }
     },
-    [],
+    [page, search, statusFilter],
   );
 
   useEffect(() => {
     void loadCustomers();
+    const sequence = requestSequence;
+    return () => { sequence.current++; };
   }, [loadCustomers]);
 
-  const filteredCustomers = useMemo(() => {
-    const normalizedSearch = search
-      .trim()
-      .toLowerCase();
-
-    return customers.filter((customer) => {
-      const customerName =
-        getCustomerName(customer).toLowerCase();
-
-      const matchesSearch =
-        !normalizedSearch ||
-        customerName.includes(normalizedSearch) ||
-        customer.id
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        customer.email
-          ?.toLowerCase()
-          .includes(normalizedSearch) ||
-        customer.phone
-          ?.toLowerCase()
-          .includes(normalizedSearch);
-
-      if (!matchesSearch) {
-        return false;
-      }
-
-      const isBlocked =
-        customer.isBlocked === true ||
-        customer.isActive === false;
-
-      const hasWallet = Boolean(customer.wallet);
-
-      switch (statusFilter) {
-        case "ACTIVE":
-          return !isBlocked;
-
-        case "BLOCKED":
-          return isBlocked;
-
-        case "WITH_WALLET":
-          return hasWallet;
-
-        case "WITHOUT_WALLET":
-          return !hasWallet;
-
-        case "ALL":
-        default:
-          return true;
-      }
-    });
-  }, [customers, search, statusFilter]);
+  const filteredCustomers = customers;
 
   const stats = useMemo(() => {
-    const totalWalletBalance = customers.reduce(
-      (sum, customer) =>
-        sum +
-        getSafeNumber(
-          customer.wallet?.balance,
-        ),
-      0,
-    );
-
+    const wallets = new Map<string, number>();
+    for (const customer of customers) {
+      if (!customer.wallet) continue;
+      const currency = customer.wallet.currency || 'UNSPECIFIED';
+      wallets.set(currency, (wallets.get(currency) ?? 0) + getSafeNumber(customer.wallet.balance));
+    }
     const blocked = customers.filter(
       (customer) =>
         customer.isBlocked === true ||
@@ -357,86 +289,15 @@ export default function AdminCustomersPage() {
       total: customers.length,
       active: customers.length - blocked,
       blocked,
-      walletBalance: totalWalletBalance,
+      wallets: [...wallets.entries()],
     };
   }, [customers]);
 
-  async function updateCustomerStatus(
-    customerId: string,
-    action: "block" | "unblock",
-  ) {
-    try {
-      setUpdatingId(customerId);
-      setErrorMessage(null);
-      setSuccessMessage(null);
-
-      const token = getAccessToken();
-
-      if (!token) {
-        throw new Error(
-          "Admin login token is missing. Please log in as an admin.",
-        );
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL.replace(
-          /\/+$/,
-          "",
-        )}/admin/customers/${encodeURIComponent(
-          customerId,
-        )}/${action}`,
-        {
-          method: "PATCH",
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      const data = await readJson(response);
-
-      if (!response.ok) {
-        const message = Array.isArray(data?.message)
-          ? data.message.join(", ")
-          : data?.message;
-
-        throw new Error(
-          message ||
-            `Unable to ${action} customer.`,
-        );
-      }
-
-      setCustomers((currentCustomers) =>
-        currentCustomers.map((customer) => {
-          if (customer.id !== customerId) {
-            return customer;
-          }
-
-          const blocked = action === "block";
-
-          return {
-            ...customer,
-            isBlocked: blocked,
-            isActive: !blocked,
-          };
-        }),
-      );
-
-      setSuccessMessage(
-        action === "block"
-          ? "Customer blocked successfully."
-          : "Customer unblocked successfully.",
-      );
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error));
-    } finally {
-      setUpdatingId(null);
-    }
-  }
+  async function updateCustomerStatus(customerId:string,action:'block'|'unblock') { setModeration({id:customerId,action:action.toUpperCase() as ModerationAction}); }
 
   return (
     <main className="asp-admin-page px-4 py-10 sm:px-6 lg:px-8">
+      {moderation && <ModerationDialog kind="customers" {...moderation} onClose={()=>setModeration(null)} onDone={()=>{setModeration(null);setUpdatingId(null);setSuccessMessage('Audited moderation confirmed.');void loadCustomers(true);}} />}
       <div className="asp-admin-shell">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -530,13 +391,11 @@ export default function AdminCustomersPage() {
 
           <article className="asp-admin-stat-card">
             <p className="asp-admin-stat-label">
-              Total Wallet Balance
+              Wallet balances (this page)
             </p>
 
             <p className="asp-admin-stat-value">
-              {formatCurrency(
-                stats.walletBalance,
-              )}
+              {stats.wallets.length ? stats.wallets.map(([currency, amount]) => currency === 'UNSPECIFIED' ? 'Currency unavailable' : formatCurrency(amount, currency)).join(' / ') : 'No wallets'}
             </p>
           </article>
         </section>
@@ -547,7 +406,7 @@ export default function AdminCustomersPage() {
               type="search"
               value={search}
               onChange={(event) =>
-                setSearch(event.target.value)
+                { setPage(1); setSearch(event.target.value); }
               }
               placeholder="Search by name, email, phone or customer ID"
               className="asp-admin-input px-4 py-3"
@@ -556,10 +415,7 @@ export default function AdminCustomersPage() {
             <select
               value={statusFilter}
               onChange={(event) =>
-                setStatusFilter(
-                  event.target
-                    .value as StatusFilter,
-                )
+                {setPage(1); setStatusFilter(event.target.value as StatusFilter);}
               }
               className="asp-admin-input px-4 py-3 font-semibold"
             >
@@ -593,7 +449,7 @@ export default function AdminCustomersPage() {
             </div>
           ) : filteredCustomers.length === 0 ? (
             <div className="py-16 text-center">
-              <h2 className="text-2xl font-extrabold text-[#0B1026]">
+              <h2 className="text-2xl font-semibold text-[#0B1026]">
                 No customers found
               </h2>
 
@@ -607,27 +463,27 @@ export default function AdminCustomersPage() {
               <table className="min-w-full border-separate border-spacing-0">
                 <thead className="asp-admin-table-head">
                   <tr className="text-left">
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Customer
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Contact
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Wallet
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Activity
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-xs font-semibold text-[#243650]">
                       Status
                     </th>
 
-                    <th className="border-b border-gray-200 px-4 py-3 text-right text-xs font-extrabold text-[#243650]">
+                    <th className="border-b border-gray-200 px-4 py-3 text-right text-xs font-semibold text-[#243650]">
                       Actions
                     </th>
                   </tr>
@@ -650,7 +506,7 @@ export default function AdminCustomersPage() {
                         >
                           <td className="border-b border-gray-100 px-4 py-5">
                             <div className="flex items-center gap-3">
-                              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-amber-100 text-lg font-extrabold text-[#0B1026]">
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-amber-100 text-lg font-semibold text-[#0B1026]">
                                 {profile?.avatarUrl ? (
                                    
                                   <img
@@ -765,7 +621,7 @@ export default function AdminCustomersPage() {
                                 href={`/admin/customers/${encodeURIComponent(
                                   customer.id,
                                 )}`}
-                                className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-extrabold text-[#10233F] shadow-sm transition hover:border-[#D4AF37] hover:bg-[#FFFCF5]"
+                                className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-semibold text-[#10233F] shadow-sm transition hover:border-[#D4AF37] hover:bg-[#FFFCF5]"
                               >
                                 View Details
                               </Link>
@@ -780,11 +636,8 @@ export default function AdminCustomersPage() {
                                       : "block",
                                   )
                                 }
-                                disabled={
-                                  updatingId ===
-                                  customer.id
-                                }
-                                className={`rounded-lg px-3 py-2 text-xs font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                disabled={isLoading || updatingId === customer.id} title="Review audited status change"
+                                className={`rounded-lg px-3 py-2 text-xs font-bold text-[#14243D] transition disabled:cursor-not-allowed disabled:opacity-50 ${
                                   isBlocked
                                     ? "bg-green-600 hover:bg-green-700"
                                     : "bg-red-600 hover:bg-red-700"
@@ -808,6 +661,11 @@ export default function AdminCustomersPage() {
             </div>
           )}
         </section>
+        <nav aria-label="Customer pagination" className="mt-4 flex flex-wrap items-center gap-4">
+          <button type="button" disabled={isLoading || page <= 1} onClick={() => setPage(p => p - 1)} className="asp-admin-back-btn">Previous</button>
+          <span>Page {page} of {Math.max(1, totalPages)} · Counts above describe this page</span>
+          <button type="button" disabled={isLoading || page >= totalPages} onClick={() => setPage(p => p + 1)} className="asp-admin-back-btn">Next</button>
+        </nav>
       </div>
     </main>
   );

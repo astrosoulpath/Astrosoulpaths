@@ -15,6 +15,7 @@ describe('Canonical identity safety', () => {
       userAuthIdentity: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn(), update: jest.fn(), upsert: jest.fn() },
       userProfile: { updateMany: jest.fn() }, wallet: { update: jest.fn() },
+      callSession:{findFirst:jest.fn().mockResolvedValue(null)},
       subscription: { update: jest.fn() }, $transaction: jest.fn() };
     db.$transaction.mockImplementation((fn: any) => fn(db));
     supabase = { hasAdminClient: jest.fn().mockReturnValue(true),

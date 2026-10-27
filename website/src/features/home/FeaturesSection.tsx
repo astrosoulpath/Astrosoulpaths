@@ -35,9 +35,9 @@ const features = [
     tag: "Detailed",
   },
   {
-    title: "100% Secure Payments",
+    title: "Payment Transparency",
     description:
-      "Recharge your wallet and pay for consultations through a safe and transparent payment flow.",
+      "Review fees and backend-verified payment status before using paid consultation features.",
     href: "/services/secure-payments",
     icon: LockKeyhole,
     tag: "Protected",

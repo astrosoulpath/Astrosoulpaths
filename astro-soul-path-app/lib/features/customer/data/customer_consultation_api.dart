@@ -1,8 +1,10 @@
+import '../../../core/network/customer_session_client.dart';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/api_config.dart';
+import '../../../core/config/customer_consultation_policy.dart';
 import '../../auth/data/auth_session_store.dart';
 
 enum CustomerConsultationMode { chat, audio, video }
@@ -87,17 +89,24 @@ class CustomerConsultationResult {
 
 class CustomerConsultationApi {
   CustomerConsultationApi({http.Client? client, AuthSessionStore? sessionStore})
-    : _client = client ?? http.Client(),
+    : _client = CustomerSessionClient(client ?? http.Client()),
       _sessionStore = sessionStore ?? AuthSessionStore();
 
   final http.Client _client;
   final AuthSessionStore _sessionStore;
 
   Future<CustomerConsultationResult> startConsultation({
+    bool requireFreeChat = false,
     required String astrologerUserId,
     required int purchasedMinutes,
     required CustomerConsultationMode mode,
   }) async {
+    if (mode == CustomerConsultationMode.video &&
+        !CustomerConsultationPolicy.videoEnabled) {
+      throw const CustomerConsultationApiException(
+        'New video consultations are currently unavailable. Choose Chat or Audio.',
+      );
+    }
     final normalizedAstrologerUserId = astrologerUserId.trim();
 
     if (normalizedAstrologerUserId.isEmpty) {
@@ -118,11 +127,20 @@ class CustomerConsultationApi {
       payload: {
         'astrologerUserId': normalizedAstrologerUserId,
         'purchasedMinutes': purchasedMinutes,
+        if (requireFreeChat) 'requireFreeChat': true,
         'mode': mode.apiValue,
       },
     );
 
     return CustomerConsultationResult.fromResponse(response);
+  }
+
+  Future<Map<String, dynamic>> getById(String consultationId) {
+    return _request(
+      method: 'GET',
+      path:
+          '/consultations/${Uri.encodeComponent(_normalizeId(consultationId))}',
+    );
   }
 
   Future<Map<String, dynamic>> getCurrent() {

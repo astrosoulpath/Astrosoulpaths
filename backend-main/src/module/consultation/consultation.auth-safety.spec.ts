@@ -37,7 +37,7 @@ describe('Protected astrologer operations', () => {
   });
   it('customer RTC access does not require an astrologer capability', async () => {
     const agora: any = { generateRtcToken: jest.fn().mockReturnValue({ token: 'unit-rtc-token' }) };
-    db.callSession = { findFirst: jest.fn().mockResolvedValue({ id: 'call', astrologerId: 'astro', userId: 'customer', mode: 'audio', channelName: 'unit-channel' }) };
+    db.callSession = { findFirst: jest.fn().mockResolvedValue({ id: 'call', astrologerId: 'astro', userId: 'customer', mode: 'audio', channelName: 'unit-channel', expiresAt: new Date(Date.now() + 60000) }) };
     const calls = new CallService(db, agora);
     jest.spyOn(calls as any, 'getAuthenticatedUser').mockResolvedValue({ id: 'customer' });
     jest.spyOn(calls as any, 'expireCallIfRequired').mockResolvedValue(undefined);

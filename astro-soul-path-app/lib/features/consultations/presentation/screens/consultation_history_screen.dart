@@ -1,4 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../feedback/presentation/screens/feedback_screen.dart';
+import '../../../support/data/support_operations_config.dart';
+import '../../../kundli/data/consultation_kundli_api.dart';
+import '../../../kundli/presentation/screens/consultation_kundli_consent_screen.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../data/consultation_api.dart';
@@ -9,7 +14,8 @@ import '../../../reviews/presentation/widgets/rate_review_button.dart';
 // CUSTOMER_FINAL_PREMIUM_PHASE4
 
 class ConsultationHistoryScreen extends StatefulWidget {
-  const ConsultationHistoryScreen({super.key});
+  const ConsultationHistoryScreen({super.key, this.api});
+  final ConsultationApi? api;
 
   @override
   State<ConsultationHistoryScreen> createState() =>
@@ -17,13 +23,18 @@ class ConsultationHistoryScreen extends StatefulWidget {
 }
 
 class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
-  final ConsultationApi _consultationApi = ConsultationApi();
+  late final ConsultationApi _consultationApi = widget.api ?? ConsultationApi();
 
   List<ConsultationHistoryItem> _items = <ConsultationHistoryItem>[];
 
   bool _loading = true;
   String? _error;
   String _selectedFilter = 'ALL';
+  String _search = '';
+  Timer? _searchDebounce;
+  int _page = 0;
+  int _requestVersion = 0;
+  bool _hasMore = false;
 
   @override
   void initState() {
@@ -33,11 +44,16 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
 
   @override
   void dispose() {
+    _requestVersion++;
+    _searchDebounce?.cancel();
     _consultationApi.close();
     super.dispose();
   }
 
-  Future<void> _loadHistory() async {
+  Future<void> _loadHistory({bool append = false}) async {
+    if (append && _loading) return;
+    final version = ++_requestVersion;
+    final page = append ? _page + 1 : 1;
     if (mounted) {
       setState(() {
         _loading = true;
@@ -47,20 +63,29 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
 
     try {
       final items = await _consultationApi.getConsultationHistory(
-        page: 1,
+        page: page,
         limit: 50,
+        search: _search,
+        status: _selectedFilter,
       );
 
-      if (!mounted) {
+      if (!mounted || version != _requestVersion) {
         return;
       }
 
       setState(() {
-        _items = items;
+        final byId = {
+          if (append)
+            for (final item in _items) item.session.id: item,
+          for (final item in items) item.session.id: item,
+        };
+        _items = byId.values.toList(growable: false);
+        _page = page;
+        _hasMore = items.length == 50;
         _loading = false;
       });
     } on ConsultationApiException catch (error) {
-      if (!mounted) {
+      if (!mounted || version != _requestVersion) {
         return;
       }
 
@@ -69,7 +94,7 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
         _error = error.message;
       });
     } catch (_) {
-      if (!mounted) {
+      if (!mounted || version != _requestVersion) {
         return;
       }
 
@@ -172,11 +197,22 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
       return item.session.status.toUpperCase() == 'COMPLETED';
     }).length;
 
-    final totalSpent = _items
-        .where((item) {
-          return item.session.status.toUpperCase() == 'COMPLETED';
-        })
-        .fold<double>(0, (total, item) => total + item.session.amountCharged);
+    final amounts = <String, double>{};
+    var unknownCurrency = false;
+    for (final item in _items.where(
+      (item) => item.session.status.toUpperCase() == 'COMPLETED',
+    )) {
+      if (item.currency.isEmpty) {
+        unknownCurrency = true;
+        continue;
+      }
+      final currency = item.currency;
+      amounts[currency] = (amounts[currency] ?? 0) + item.session.amountCharged;
+    }
+    final amountLabels = [
+      ...amounts.entries.map((entry) => '${entry.key} ${_money(entry.value)}'),
+      if (unknownCurrency) 'Some currencies unrecorded',
+    ].join(' / ');
 
     return Container(
       width: double.infinity,
@@ -208,7 +244,7 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
           Expanded(
             child: _SummaryItem(
               icon: Icons.auto_awesome_rounded,
-              label: 'Completed',
+              label: 'Loaded completed',
               value: completed.toString(),
             ),
           ),
@@ -216,8 +252,8 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
           Expanded(
             child: _SummaryItem(
               icon: Icons.account_balance_wallet_rounded,
-              label: 'Total spent',
-              value: '\u20B9${_money(totalSpent)}',
+              label: 'Loaded completed amount',
+              value: amountLabels.isEmpty ? 'No recorded amount' : amountLabels,
             ),
           ),
         ],
@@ -232,38 +268,65 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
       MapEntry('CANCELLED', 'Cancelled'),
     ];
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
-      child: Row(
-        children: filters
-            .map((filter) {
-              final selected = filter.key == _selectedFilter;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: TextField(
+            decoration: const InputDecoration(
+              labelText: 'Search consultations',
+              prefixIcon: Icon(Icons.search),
+            ),
+            onChanged: (value) {
+              _searchDebounce?.cancel();
+              _requestVersion++;
+              _search = value;
+              _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+                if (!mounted) return;
+                setState(() => _items = []);
+                _loadHistory();
+              });
+            },
+          ),
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+          child: Row(
+            children: filters
+                .map((filter) {
+                  final selected = filter.key == _selectedFilter;
 
-              return Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: ChoiceChip(
-                  selected: selected,
-                  label: Text(filter.value),
-                  onSelected: (_) {
-                    setState(() {
-                      _selectedFilter = filter.key;
-                    });
-                  },
-                  selectedColor: AppColors.gold,
-                  backgroundColor: AppColors.surfaceLight,
-                  side: BorderSide(
-                    color: selected ? AppColors.gold : AppColors.border,
-                  ),
-                  labelStyle: TextStyle(
-                    color: selected ? AppColors.background : AppColors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              );
-            })
-            .toList(growable: false),
-      ),
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: ChoiceChip(
+                      selected: selected,
+                      label: Text(filter.value),
+                      onSelected: (_) {
+                        setState(() {
+                          _selectedFilter = filter.key;
+                          _items = [];
+                        });
+                        _loadHistory();
+                      },
+                      selectedColor: AppColors.gold,
+                      backgroundColor: AppColors.surfaceLight,
+                      side: BorderSide(
+                        color: selected ? AppColors.gold : AppColors.border,
+                      ),
+                      labelStyle: TextStyle(
+                        color: selected
+                            ? AppColors.background
+                            : AppColors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  );
+                })
+                .toList(growable: false),
+          ),
+        ),
+      ],
     );
   }
 
@@ -286,7 +349,7 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
 
     final visibleItems = _visibleItems;
 
-    if (visibleItems.isEmpty) {
+    if (visibleItems.isEmpty && !_hasMore) {
       return const _MessageState(
         icon: Icons.history_rounded,
         title: 'No consultations found',
@@ -300,9 +363,23 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
-        itemCount: visibleItems.length,
+        itemCount: visibleItems.length + 1,
         separatorBuilder: (_, _) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
+          if (index == visibleItems.length) {
+            return Column(
+              children: [
+                if (_error != null) Text(_error!),
+                if (_hasMore)
+                  TextButton(
+                    onPressed: _loading
+                        ? null
+                        : () => _loadHistory(append: true),
+                    child: Text(_loading ? 'Loading…' : 'Load more'),
+                  ),
+              ],
+            );
+          }
           return _HistoryCard(item: visibleItems[index]);
         },
       ),
@@ -488,13 +565,84 @@ class _HistoryCard extends StatelessWidget {
               ),
               Expanded(
                 child: _Detail(
-                  icon: Icons.currency_rupee_rounded,
-                  text: _money(session.amountCharged),
+                  icon: Icons.payments_outlined,
+                  text:
+                      '${item.currency.isEmpty ? 'Currency unrecorded' : item.currency} ${_money(session.amountCharged)}',
                   alignEnd: true,
                 ),
               ),
             ],
           ),
+          ExpansionTile(
+            key: ValueKey('details-${session.id}'),
+            title: const Text('View details'),
+            textColor: const Color(0xFFF4C542),
+            collapsedTextColor: const Color(0xFFF4C542),
+            iconColor: const Color(0xFFF4C542),
+            collapsedIconColor: const Color(0xFFF4C542),
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Reference: ${session.id}',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    Text(
+                      'Type: ${session.mode}',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    Text(
+                      'Status: ${session.status}',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    Text(
+                      'Started: ${session.startedAt?.toLocal() ?? 'Not recorded'}',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    Text(
+                      'Ended: ${session.endedAt?.toLocal() ?? 'Not recorded'}',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    Text(
+                      'Purchased minutes: ${session.purchasedMinutes}',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (consultationKundliV1Enabled)
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ConsultationKundliConsentScreen(
+                    consultationId: session.callSessionId.isNotEmpty
+                        ? session.callSessionId
+                        : session.id,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.privacy_tip_outlined),
+              label: const Text('Kundli permission'),
+            ),
+          if (supportOperationsUiEnabled && isCompleted)
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => FeedbackScreen(
+                    consultationId: session.callSessionId.isNotEmpty
+                        ? session.callSessionId
+                        : session.id,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.feedback_outlined),
+              label: const Text('Private platform feedback'),
+            ),
           if (isCompleted) ...[
             const SizedBox(height: 16),
             RateReviewButton(
@@ -589,7 +737,7 @@ class _HistoryCard extends StatelessWidget {
     final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
     final minute = value.minute.toString().padLeft(2, '0');
     final period = value.hour >= 12 ? 'PM' : 'AM';
-    return '${value.day}/${value.month}/${value.year} ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€š |  $hour:$minute $period';
+    return '${value.day}/${value.month}/${value.year} | $hour:$minute $period';
   }
 
   static String _money(double value) {
@@ -653,36 +801,38 @@ class _MessageState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 56, color: AppColors.gold),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface,
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 56, color: AppColors.gold),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                height: 1.5,
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  height: 1.5,
+                ),
               ),
-            ),
-            if (buttonLabel != null && onPressed != null) ...[
-              const SizedBox(height: 20),
-              FilledButton(onPressed: onPressed, child: Text(buttonLabel!)),
+              if (buttonLabel != null && onPressed != null) ...[
+                const SizedBox(height: 20),
+                FilledButton(onPressed: onPressed, child: Text(buttonLabel!)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

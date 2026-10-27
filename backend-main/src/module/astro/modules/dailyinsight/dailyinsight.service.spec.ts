@@ -134,6 +134,7 @@ describe('NakshatraDailyInsightService', () => {
       isBlocked: false,
       userProfile: {
         fullName: 'Test Customer',
+        lang: 'en',
         dateOfBirth: new Date('1995-01-10T00:00:00.000Z'),
         timeOfBirth: '10:30',
         city: 'Patna',
@@ -167,6 +168,7 @@ describe('NakshatraDailyInsightService', () => {
         isBlocked: false,
         userProfile: {
           fullName: 'Test Customer',
+        lang: 'en',
           dateOfBirth: new Date('1995-01-10T00:00:00.000Z'),
           timeOfBirth: '10:30:15',
           city: 'Patna',
@@ -222,6 +224,7 @@ describe('NakshatraDailyInsightService', () => {
       isBlocked: false,
       userProfile: {
         fullName: 'Test Customer',
+        lang: 'en',
         dateOfBirth: new Date('1995-01-10T00:00:00.000Z'),
         timeOfBirth: '10:30:15',
         city: 'Patna',
@@ -237,7 +240,7 @@ describe('NakshatraDailyInsightService', () => {
       id: 'subscription-1',
       subscriptionStatus: SubscriptionStatus.ACTIVE,
       startDate: new Date('2026-08-01T00:00:00.000Z'),
-      endDate: new Date('2026-09-01T00:00:00.000Z'),
+      endDate: new Date(Date.now() + 86400000),
       nextBillingAt: new Date('2026-09-01T00:00:00.000Z'),
       subscriptionPlan: {
         name: 'DAILY_HOROSCOPE_MONTHLY',

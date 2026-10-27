@@ -1,3 +1,7 @@
+import Image from "next/image";
+import { chartSvgImage, safeKundliMedia } from "./report-media";
+import s from "./kundli-premium.module.css";
+import ExtendedKundliReport from "./ExtendedKundliReport";
 import type {
   KundliChartData,
   KundliGeneratedData,
@@ -49,16 +53,23 @@ function ChartCard({
         {title}
       </h3>
 
-      {chart.imageUrl ? (
-        <img
-          src={chart.imageUrl}
+      {safeKundliMedia(chart.imageUrl) ? (
+        <Image
+          src={safeKundliMedia(chart.imageUrl)!}
           alt={title}
+          width={900}
+          height={900}
+          unoptimized
           className="mt-5 w-full rounded-xl bg-white object-contain"
         />
-      ) : chart.svg ? (
-        <div
-          className="mt-5 overflow-hidden rounded-xl bg-white p-4"
-          dangerouslySetInnerHTML={{ __html: chart.svg }}
+      ) : chartSvgImage(chart.svg) ? (
+        <Image
+          src={chartSvgImage(chart.svg)!}
+          alt={title}
+          width={900}
+          height={900}
+          unoptimized
+          className="mt-5 h-auto w-full rounded-xl bg-white p-4"
         />
       ) : chart.houses?.length ? (
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -108,7 +119,7 @@ export function KundliResult({
   }
 
   return (
-    <section className="mt-8 rounded-3xl bg-white p-6 shadow-lg sm:p-8">
+    <section className={`${s.result} mt-8 rounded-3xl bg-white p-6 shadow-lg sm:p-8`}>
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="font-semibold text-[#D4AF37]">
@@ -127,9 +138,9 @@ export function KundliResult({
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {result.pdfUrl ? (
+          {safeKundliMedia(result.pdfUrl) ? (
             <a
-              href={result.pdfUrl}
+              href={safeKundliMedia(result.pdfUrl)!}
               target="_blank"
               rel="noreferrer"
               className="rounded-xl bg-[#D4AF37] px-5 py-3 font-semibold text-[#0B1026]"
@@ -266,9 +277,7 @@ export function KundliResult({
                       {planet.nakshatra || "—"}
                     </td>
                     <td className="px-3 py-4">
-                      {planet.retrograde
-                        ? "Retrograde"
-                        : "Direct"}
+                      {planet.retrograde === undefined ? "Not supplied" : planet.retrograde ? "Retrograde" : "Direct"}
                     </td>
                   </tr>
                 ))}
@@ -363,13 +372,14 @@ export function KundliResult({
             </div>
           ) : (
             <p className="mt-4 text-gray-600">
-              Dosha details are not available in the current API
-              response.
+              No normalized Dosha summary is supplied. Detailed source fields,
+              when available, appear in the report sections below.
             </p>
           )}
         </div>
       </div>
 
+      <ExtendedKundliReport sections={result.sections} />
       <div className="mt-8 rounded-xl bg-[#FAF7F0] p-4 text-xs text-gray-500">
         Kundli ID: {result.id}
       </div>

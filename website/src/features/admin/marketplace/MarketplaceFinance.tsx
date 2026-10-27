@@ -1,5 +1,9 @@
 "use client";
 
+import { refreshAdminSession } from "@/features/admin/auth/admin-session";
+
+import { getAdminApiBase } from "@/features/admin/auth/admin-contract";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Earning = {
@@ -56,19 +60,10 @@ type ApiEnvelope<T> = {
   error?: string;
 };
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
-  "http://127.0.0.1:4000";
+const API_BASE_URL = getAdminApiBase();
 
-function getAccessToken() {
-  if (typeof window === "undefined") return "";
-
-  return (
-    window.localStorage.getItem("asp_admin_access_token") ??
-    window.sessionStorage.getItem("asp_admin_access_token") ??
-    window.localStorage.getItem("access_token") ??
-    ""
-  ).trim();
+async function getAccessToken() {
+  return refreshAdminSession();
 }
 
 function errorMessage(body: unknown, fallback: string) {
@@ -144,7 +139,7 @@ export function MarketplaceFinance() {
   );
 
   const load = useCallback(async () => {
-    const token = getAccessToken();
+    const token = await getAccessToken();
 
     if (!token) {
       setLoading(false);
@@ -219,16 +214,16 @@ export function MarketplaceFinance() {
   }, [load]);
 
   return (
-    <div className="text-white">
+    <div className="text-[#14243D]">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-black uppercase tracking-[0.2em] text-amber-400">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A6818]">
             Marketplace Finance
           </p>
 
-          <h3 className="mt-2 text-2xl font-black">Earnings & Payouts</h3>
+          <h3 className="mt-2 text-2xl font-semibold">Earnings & Payouts</h3>
 
-          <p className="mt-2 text-sm text-slate-400">
+          <p className="mt-2 text-sm text-[#52627A]">
             Read-only marketplace accounting and payout history.
           </p>
         </div>
@@ -237,52 +232,52 @@ export function MarketplaceFinance() {
           type="button"
           onClick={() => void load()}
           disabled={loading}
-          className="rounded-xl bg-amber-400 px-4 py-2 font-black text-black disabled:opacity-50"
+          className="rounded-xl bg-amber-400 px-4 py-2 font-semibold text-black disabled:opacity-50"
         >
           Refresh
         </button>
       </div>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-700 bg-slate-950 p-5">
-          <p className="text-sm text-slate-400">Earnings</p>
-          <p className="mt-2 text-3xl font-black">{earnings.length}</p>
+        <div className="rounded-2xl border border-[#E5EAF1] bg-white p-5">
+          <p className="text-sm text-[#52627A]">Earnings</p>
+          <p className="mt-2 text-3xl font-semibold">{earnings.length}</p>
         </div>
 
-        <div className="rounded-2xl border border-slate-700 bg-slate-950 p-5">
-          <p className="text-sm text-slate-400">Payouts</p>
-          <p className="mt-2 text-3xl font-black">{payouts.length}</p>
+        <div className="rounded-2xl border border-[#E5EAF1] bg-white p-5">
+          <p className="text-sm text-[#52627A]">Payouts</p>
+          <p className="mt-2 text-3xl font-semibold">{payouts.length}</p>
         </div>
 
-        <div className="rounded-2xl border border-amber-400/20 bg-slate-950 p-5">
-          <p className="text-sm text-slate-400">Summary Groups</p>
-          <p className="mt-2 text-3xl font-black text-amber-300">
+        <div className="rounded-2xl border border-amber-400/20 bg-white p-5">
+          <p className="text-sm text-[#52627A]">Summary Groups</p>
+          <p className="mt-2 text-3xl font-semibold text-[#8A6818]">
             {summary.length}
           </p>
         </div>
       </div>
 
       {error ? (
-        <div className="mb-5 rounded-xl border border-red-500/30 p-4 text-red-300">
+        <div className="mb-5 rounded-xl border border-red-500/30 p-4 text-red-700">
           {error}
         </div>
       ) : null}
 
       {loading ? (
-        <p className="text-slate-400">Loading marketplace finance...</p>
+        <p className="text-[#52627A]">Loading marketplace finance...</p>
       ) : null}
 
       {!loading && !error ? (
         <>
           <section>
-            <h4 className="mb-3 text-lg font-black text-white">
+            <h4 className="mb-3 text-lg font-semibold text-[#14243D]">
               Earning History
             </h4>
 
             {earnings.length === 0 ? (
-              <div className="rounded-2xl border border-slate-700 bg-slate-950 p-8 text-center">
-                <p className="font-black">No marketplace earnings yet</p>
-                <p className="mt-2 text-sm text-slate-400">
+              <div className="rounded-2xl border border-[#E5EAF1] bg-white p-8 text-center">
+                <p className="font-semibold">No marketplace earnings yet</p>
+                <p className="mt-2 text-sm text-[#52627A]">
                   Earnings appear only after verified marketplace payment
                   accounting exists.
                 </p>
@@ -295,31 +290,31 @@ export function MarketplaceFinance() {
                   return (
                     <article
                       key={earning.id}
-                      className="rounded-2xl border border-slate-700 bg-slate-950 p-5"
+                      className="rounded-2xl border border-[#E5EAF1] bg-white p-5"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-4">
                         <div>
-                          <p className="font-black">
+                          <p className="font-semibold">
                             {earning.sellerOrder?.order?.orderNumber ||
                               "Marketplace earning"}
                           </p>
 
-                          <p className="mt-2 text-sm text-slate-400">
+                          <p className="mt-2 text-sm text-[#52627A]">
                             Gross: {money(earning.grossAmount, currency)}
                           </p>
 
-                          <p className="text-sm text-slate-400">
+                          <p className="text-sm text-[#52627A]">
                             Platform fee:{" "}
                             {money(earning.platformFeeAmount, currency)}
                           </p>
 
-                          <p className="mt-1 font-black text-amber-300">
+                          <p className="mt-1 font-semibold text-[#8A6818]">
                             Net: {money(earning.netAmount, currency)}
                           </p>
                         </div>
 
                         <span
-                          className={`rounded-full border px-3 py-1 text-xs font-black ${statusClass(
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusClass(
                             earning.status,
                           )}`}
                         >
@@ -334,14 +329,14 @@ export function MarketplaceFinance() {
           </section>
 
           <section className="mt-8">
-            <h4 className="mb-3 text-lg font-black text-white">
+            <h4 className="mb-3 text-lg font-semibold text-[#14243D]">
               Payout History
             </h4>
 
             {payouts.length === 0 ? (
-              <div className="rounded-2xl border border-slate-700 bg-slate-950 p-8 text-center">
-                <p className="font-black">No marketplace payouts yet</p>
-                <p className="mt-2 text-sm text-slate-400">
+              <div className="rounded-2xl border border-[#E5EAF1] bg-white p-8 text-center">
+                <p className="font-semibold">No marketplace payouts yet</p>
+                <p className="mt-2 text-sm text-[#52627A]">
                   Payout records will appear here when they exist.
                 </p>
               </div>
@@ -350,15 +345,15 @@ export function MarketplaceFinance() {
                 {payouts.map((payout) => (
                   <article
                     key={payout.id}
-                    className="rounded-2xl border border-slate-700 bg-slate-950 p-5"
+                    className="rounded-2xl border border-[#E5EAF1] bg-white p-5"
                   >
                     <div className="flex flex-wrap justify-between gap-4">
-                      <p className="font-black text-amber-300">
+                      <p className="font-semibold text-[#8A6818]">
                         {money(payout.amount, payout.currency || "INR")}
                       </p>
 
                       <span
-                        className={`rounded-full border px-3 py-1 text-xs font-black ${statusClass(
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusClass(
                           payout.status,
                         )}`}
                       >
@@ -373,7 +368,7 @@ export function MarketplaceFinance() {
         </>
       ) : null}
 
-      <p className="mt-6 text-xs text-slate-500">
+      <p className="mt-6 text-xs text-[#52627A]">
         This screen does not execute payments, refunds or payouts.
       </p>
     </div>

@@ -5,6 +5,17 @@ import 'package:http/http.dart' as http;
 import '../../../core/config/api_config.dart';
 import 'app_config_model.dart';
 
+class AppConfigApiException implements Exception {
+  const AppConfigApiException(
+    this.message, {
+    this.configurationMissing = false,
+  });
+  final String message;
+  final bool configurationMissing;
+  @override
+  String toString() => message;
+}
+
 class AppConfigApi {
   const AppConfigApi();
 
@@ -16,7 +27,23 @@ class AppConfigApi {
         .timeout(ApiConfig.requestTimeout);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(
+      if (response.statusCode == 404) {
+        try {
+          final body = jsonDecode(response.body);
+          if (body is Map &&
+              body['message'] == 'Public app configuration is not configured') {
+            throw const AppConfigApiException(
+              'Official app links are not configured.',
+              configurationMissing: true,
+            );
+          }
+        } on AppConfigApiException {
+          rethrow;
+        } catch (_) {
+          /* No raw server body exposed. */
+        }
+      }
+      throw AppConfigApiException(
         'Unable to load app configuration. '
         'Status: ${response.statusCode}',
       );

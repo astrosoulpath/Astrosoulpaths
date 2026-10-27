@@ -26,6 +26,15 @@ describe('GeoService', () => {
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
+  it.each([[NaN, 10], [91, 10], [10, Infinity], [10, -181]])('rejects invalid provider coordinates without timezone calls', async (latitude, longitude) => {
+    const result = await (service as any).mapSuggestion({ name: 'Synthetic', latitude, longitude });
+    expect(result).toBeNull(); expect(mockedAxios.get).not.toHaveBeenCalled();
+  });
+  it.each([{ timezone: 'not-a-zone', utc_offset_seconds: 0 }, { timezone: 'UTC', utc_offset_seconds: Infinity }])('rejects invalid provider timezone metadata', async response => {
+    mockedAxios.get.mockResolvedValueOnce({ data: response } as never);
+    const result = await (service as any).mapSuggestion({ name: 'Synthetic', latitude: 10, longitude: 10 });
+    expect(result).toBeNull();
+  });
 
   it('throws when city is empty', async () => {
     await expect(service.searchCity('')).rejects.toBeInstanceOf(

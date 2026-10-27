@@ -1,4 +1,6 @@
 "use client";
+import { safeCustomerRedirect } from '@/features/auth/public-auth';
+
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -47,6 +49,7 @@ export function CompleteProfileForm() {
     try {
       setLoading(true);
 
+      const owner=localStorage.getItem("asp_user");
       await saveAstroProfile({
         name: form.name,
         fullname: form.fullname || form.name,
@@ -67,7 +70,11 @@ export function CompleteProfileForm() {
         avatarUrl: form.avatarUrl || undefined,
       });
 
-      router.push("/");
+      if(localStorage.getItem('asp_user')!==owner)throw new Error('Account changed. Please reopen your profile.');
+      let destination='/';
+      try{const pending=JSON.parse(sessionStorage.getItem('asp_after_profile_redirect')||'null');const user=JSON.parse(owner||'{}');if(pending?.userId===user.id)destination=safeCustomerRedirect(pending.path,'/');}catch{/* No cross-account return destination. */}
+      sessionStorage.removeItem('asp_after_profile_redirect');
+      router.push(destination);
     } catch (err: any) {
       setError(err?.message || "Profile save failed.");
     } finally {

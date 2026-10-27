@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../../calling/data/call_signal_scope.dart';
 
 import 'package:flutter/material.dart';
 
@@ -123,6 +124,9 @@ class _CustomerConsultationWaitingScreenState
       userId: callerUserId,
       accessToken: session.accessToken,
       onRegistered: () {
+        if (!mounted || _chatOpened || _cancelling || _status != 'PENDING') {
+          return;
+        }
         _audioCallSocket.initiate(
           callId: widget.consultationId,
           callerUserId: callerUserId,
@@ -130,35 +134,32 @@ class _CustomerConsultationWaitingScreenState
           callerName: callerName,
         );
       },
-      onAccepted: (_) {
+      onAccepted: (payload) {
+        if (!matchesCallSignal(payload, widget.consultationId)) return;
         if (mounted) {
           unawaited(_checkStatus());
         }
       },
       onRejected: (payload) {
-        if (!mounted) return;
-
-        setState(() {
-          _status = 'REJECTED';
-          _error =
-              payload['reason']?.toString().trim() ??
-              'The astrologer declined the audio call.';
-        });
-
-        _stopPolling();
+        if (!mounted || !matchesCallSignal(payload, widget.consultationId)) {
+          return;
+        }
+        unawaited(_checkStatus());
       },
-      onMissed: (_) {
-        if (!mounted) return;
-
+      onMissed: (payload) {
+        if (!mounted || !matchesCallSignal(payload, widget.consultationId)) {
+          return;
+        }
         setState(() {
-          _status = 'EXPIRED';
-          _error = 'The astrologer did not answer the audio call.';
+          _error = 'No answer yet. Checking the consultation status.';
         });
-
-        _stopPolling();
+        // A ringing timeout is advisory; only the server decides request expiry.
+        unawaited(_checkStatus());
       },
       onUnavailable: (payload) {
-        if (!mounted) return;
+        if (!mounted || !matchesCallSignal(payload, widget.consultationId)) {
+          return;
+        }
 
         setState(() {
           _error =
@@ -167,6 +168,10 @@ class _CustomerConsultationWaitingScreenState
         });
       },
       onCallError: (payload) {
+        if ((payload['callId'] != null || payload['consultationId'] != null) &&
+            !matchesCallSignal(payload, widget.consultationId)) {
+          return;
+        }
         if (!mounted) return;
 
         setState(() {
@@ -210,6 +215,9 @@ class _CustomerConsultationWaitingScreenState
       userId: callerUserId,
       accessToken: session.accessToken,
       onRegistered: () {
+        if (!mounted || _chatOpened || _cancelling || _status != 'PENDING') {
+          return;
+        }
         _videoCallSocket.initiate(
           callId: widget.consultationId,
           callerUserId: callerUserId,
@@ -217,35 +225,32 @@ class _CustomerConsultationWaitingScreenState
           callerName: callerName,
         );
       },
-      onAccepted: (_) {
+      onAccepted: (payload) {
+        if (!matchesCallSignal(payload, widget.consultationId)) return;
         if (mounted) {
           unawaited(_checkStatus());
         }
       },
       onRejected: (payload) {
-        if (!mounted) return;
-
-        setState(() {
-          _status = 'REJECTED';
-          _error =
-              payload['reason']?.toString().trim() ??
-              'The astrologer declined the video call.';
-        });
-
-        _stopPolling();
+        if (!mounted || !matchesCallSignal(payload, widget.consultationId)) {
+          return;
+        }
+        unawaited(_checkStatus());
       },
-      onMissed: (_) {
-        if (!mounted) return;
-
+      onMissed: (payload) {
+        if (!mounted || !matchesCallSignal(payload, widget.consultationId)) {
+          return;
+        }
         setState(() {
-          _status = 'EXPIRED';
-          _error = 'The astrologer did not answer the video call.';
+          _error = 'No answer yet. Checking the consultation status.';
         });
-
-        _stopPolling();
+        // A ringing timeout is advisory; only the server decides request expiry.
+        unawaited(_checkStatus());
       },
       onUnavailable: (payload) {
-        if (!mounted) return;
+        if (!mounted || !matchesCallSignal(payload, widget.consultationId)) {
+          return;
+        }
 
         setState(() {
           _error =
@@ -254,6 +259,10 @@ class _CustomerConsultationWaitingScreenState
         });
       },
       onCallError: (payload) {
+        if ((payload['callId'] != null || payload['consultationId'] != null) &&
+            !matchesCallSignal(payload, widget.consultationId)) {
+          return;
+        }
         if (!mounted) return;
 
         setState(() {
@@ -287,14 +296,14 @@ class _CustomerConsultationWaitingScreenState
   }
 
   Future<void> _checkStatus() async {
-    if (_checking || _chatOpened) {
+    if (!mounted || _checking || _chatOpened || _cancelling) {
       return;
     }
 
     _checking = true;
 
     try {
-      final response = await _api.getCurrent();
+      final response = await _api.getById(widget.consultationId);
 
       final data = response['data'];
 
@@ -304,12 +313,8 @@ class _CustomerConsultationWaitingScreenState
 
       if (data is! Map) {
         setState(() {
-          if (_status == 'PENDING') {
-            _status = 'EXPIRED';
-          }
+          _error = 'Unable to confirm the consultation status. Retrying.';
         });
-
-        _stopPolling();
         return;
       }
 
@@ -320,18 +325,16 @@ class _CustomerConsultationWaitingScreenState
           ? call['callSessionId'].toString().trim()
           : call['id']?.toString().trim() ?? '';
 
-      if (backendCallSessionId.isNotEmpty) {
-        _resolvedVideoCallSessionId = backendCallSessionId;
-      }
-
       final id =
           call['id']?.toString().trim() ??
           call['callSessionId']?.toString().trim() ??
           '';
 
-      if (id.isNotEmpty && id != widget.consultationId) {
+      if (id.isEmpty || id != widget.consultationId) {
         return;
       }
+
+      _resolvedVideoCallSessionId = backendCallSessionId;
 
       final status =
           call['status']?.toString().trim().toUpperCase() ?? 'PENDING';
@@ -446,16 +449,24 @@ class _CustomerConsultationWaitingScreenState
     });
 
     try {
-      if (_callerUserId.isNotEmpty &&
-          widget.modeLabel.toLowerCase().contains('video')) {
-        _videoCallSocket.cancel(
-          callId: widget.consultationId,
-          callerUserId: _callerUserId,
-          recipientUserId: widget.astrologerUserId,
-        );
-      }
-
+      // Persist cancellation first; socket notification is not a financial operation.
       await _api.cancel(widget.consultationId);
+      if (_callerUserId.isNotEmpty) {
+        final mode = widget.modeLabel.toLowerCase();
+        if (mode.contains('audio')) {
+          _audioCallSocket.cancel(
+            callId: widget.consultationId,
+            callerUserId: _callerUserId,
+            recipientUserId: widget.astrologerUserId,
+          );
+        } else if (mode.contains('video')) {
+          _videoCallSocket.cancel(
+            callId: widget.consultationId,
+            callerUserId: _callerUserId,
+            recipientUserId: widget.astrologerUserId,
+          );
+        }
+      }
 
       if (!mounted) {
         return;

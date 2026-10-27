@@ -1,11 +1,12 @@
 "use client";
+import { ModerationDialog, type ModerationAction } from '@/features/admin/moderation/ModerationDialog';
 
-import { useEffect, useState } from "react";
+import { adminFetch } from "@/features/admin/auth/admin-session";
+
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  "http://localhost:4000";
+
 
 type KycDocument = {
   type?: string | null;
@@ -63,24 +64,6 @@ type KycResponse = {
     expiresInSeconds: number;
   };
 };
-
-function getAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return (
-  window.localStorage.getItem(
-    "asp_admin_access_token",
-  ) ??
-  window.localStorage.getItem(
-    "asp_access_token",
-  ) ??
-  window.localStorage.getItem(
-    "access_token",
-  )
-);
-}
 
 function getErrorMessage(
   error: unknown,
@@ -141,31 +124,18 @@ export default function AdminAstrologerDetailPage() {
   ] =
     useState<string | null>(null);
 
-  async function fetchWithAuth(
+  const fetchWithAuth = useCallback(async function fetchWithAuth(
     path: string,
     init?: RequestInit,
   ) {
-    const token =
-      getAccessToken();
-
-    if (!token) {
-      throw new Error(
-        "Admin login token is missing. Please log in again.",
-      );
-    }
 
     const response =
-      await fetch(
-        `${API_BASE_URL.replace(
-          /\/+$/,
-          "",
-        )}${path}`,
+      await adminFetch(
+        `${path}`,
         {
           ...init,
 
           headers: {
-            Authorization:
-              `Bearer ${token}`,
 
             "Content-Type":
               "application/json",
@@ -188,9 +158,9 @@ export default function AdminAstrologerDetailPage() {
     }
 
     return data;
-  }
+  }, []);
 
-  async function loadData() {
+  const loadData = useCallback(async function loadData() {
     if (!astrologerId) {
       setErrorMessage(
         "Astrologer ID is missing.",
@@ -238,44 +208,15 @@ export default function AdminAstrologerDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  }
+  }, [astrologerId, fetchWithAuth]);
 
   useEffect(() => {
     void loadData();
-  }, [astrologerId]);
+  }, [loadData]);
 
-  async function updateAstrologer(
-    action:
-      | "approve"
-      | "reject"
-      | "suspend",
-  ) {
-    if (!astrologerId) {
-      return;
-    }
+  const [moderation,setModeration]=useState<ModerationAction|null>(null);
 
-    try {
-      setUpdatingAction(action);
-      setErrorMessage(null);
-
-      await fetchWithAuth(
-        `/admin/astrologers/${encodeURIComponent(
-          astrologerId,
-        )}/${action}`,
-        {
-          method: "PATCH",
-        },
-      );
-
-      await loadData();
-    } catch (error) {
-      setErrorMessage(
-        getErrorMessage(error),
-      );
-    } finally {
-      setUpdatingAction(null);
-    }
-  }
+  async function updateAstrologer(action:'approve'|'reject'|'suspend') {if(astrologerId)setModeration(action.toUpperCase() as ModerationAction);}
 
   function openDocument(
     document:
@@ -331,6 +272,7 @@ export default function AdminAstrologerDetailPage() {
 
   return (
     <main className="min-h-screen bg-[#F8F8F8] px-4 py-10 sm:px-6 lg:px-8">
+      {moderation && <ModerationDialog kind="astrologers" id={astrologerId} action={moderation} onClose={()=>setModeration(null)} onDone={()=>{setModeration(null);setUpdatingAction(null);void loadData();}} />}
       <div className="mx-auto max-w-6xl">
         <button
           type="button"
@@ -357,9 +299,9 @@ export default function AdminAstrologerDetailPage() {
                 Astrologer Review
               </p>
 
-              <h1 className="mt-2 text-3xl font-extrabold text-[#0B1026]">
+              <h2 className="mt-2 text-3xl font-semibold text-[#0B1026]">
                 {displayName}
-              </h1>
+              </h2>
 
               <div className="mt-4 space-y-1 text-sm text-gray-600">
                 <p>
@@ -378,26 +320,17 @@ export default function AdminAstrologerDetailPage() {
 
                 <p>
                   Experience:{" "}
-                  {astrologer?.experience ??
-                    0}{" "}
-                  years
+                  {astrologer?.experience == null ? "Unavailable" : `${astrologer.experience} years`}
                 </p>
 
                 <p>
-                  Price: ₹
-                  {Number(
-                    astrologer?.pricePerMin ??
-                      0,
-                  ).toFixed(2)}
-                  /min
+                  Price:{" "}
+                  {astrologer?.pricePerMin == null ? "Unavailable" : `\u20B9${Number(astrologer.pricePerMin).toFixed(2)}/min`}
                 </p>
 
                 <p>
                   Rating:{" "}
-                  {Number(
-                    astrologer?.rating ??
-                      0,
-                  ).toFixed(1)}
+                  {astrologer?.rating == null ? "Unavailable" : Number(astrologer.rating).toFixed(1)}
                 </p>
               </div>
             </div>
@@ -436,7 +369,7 @@ export default function AdminAstrologerDetailPage() {
                         "reject",
                       )
                     }
-                    className="rounded-xl bg-gray-800 px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
+                    className="rounded-xl bg-[#10233D] px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
                   >
                     {updatingAction ===
                     "reject"
@@ -506,7 +439,7 @@ export default function AdminAstrologerDetailPage() {
                   ),
                 )
               ) : (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-[#52627A]">
                   No expertise listed.
                 </p>
               )}
@@ -520,11 +453,11 @@ export default function AdminAstrologerDetailPage() {
               KYC Verification
             </p>
 
-            <h2 className="mt-2 text-2xl font-extrabold text-[#0B1026]">
+            <h2 className="mt-2 text-2xl font-semibold text-[#0B1026]">
               Submitted Documents
             </h2>
 
-            <p className="mt-2 text-sm text-gray-500">
+            <p className="mt-2 text-sm text-[#52627A]">
               Document links are temporary
               and expire after{" "}
               {kyc?.expiresInSeconds
@@ -571,7 +504,7 @@ export default function AdminAstrologerDetailPage() {
                   )}
                 </>
               ) : (
-                <p className="mt-3 text-sm text-gray-500">
+                <p className="mt-3 text-sm text-[#52627A]">
                   No identity proof submitted.
                 </p>
               )}
@@ -625,7 +558,7 @@ export default function AdminAstrologerDetailPage() {
                     ),
                   )
                 ) : (
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-[#52627A]">
                     No certificates submitted.
                   </p>
                 )}
@@ -681,7 +614,7 @@ export default function AdminAstrologerDetailPage() {
                     ),
                   )
                 ) : (
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-[#52627A]">
                     No experience proof submitted.
                   </p>
                 )}

@@ -1,7 +1,15 @@
+import { AstrologerRecruitmentSection } from '@/features/home/AstrologerRecruitmentSection';
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { publicHomepageAllowed } from "@/features/home/public-launch";
+import { HomeCompletionSections, HomeGuidanceSections } from "@/features/home/HomeCompletionSections";
+
+export const dynamic = 'force-dynamic';
 
 import { FeaturedAstrologersSection } from "@/features/home/FeaturedAstrologersSection";
-import { FeaturesSection } from "@/features/home/FeaturesSection";
+import { CinematicHome } from "@/features/home/CinematicHome";
+import { StoryCarousel } from "@/features/home/StoryCarousel";
+import { HomeEditorialFeeds } from "@/features/home/HomeEditorialFeeds";
 import { HeroSection } from "@/features/home/HeroSection";
 import { HoroscopeSubscriptionSection } from "@/features/home/HoroscopeSubscriptionSection";
 import { KundliPromoSection } from "@/features/home/KundliPromoSection";
@@ -10,7 +18,7 @@ import { StatsSection } from "@/features/home/StatsSection";
 
 export const metadata: Metadata = {
   title:
-    "Astro Soul Path | Best Online Astrology Consultation",
+    "Astro Soul Path | Online Astrology Consultation",
 
   description:
     "Connect with verified Vedic astrologers for Kundli, Horoscope, Tarot, Numerology, Match Making, Dosha Analysis and live chat or audio consultation.",
@@ -34,10 +42,10 @@ export const metadata: Metadata = {
 
   openGraph: {
     title:
-      "Astro Soul Path | Best Online Astrology Consultation",
+      "Astro Soul Path | Online Astrology Consultation",
 
     description:
-      "Talk with verified astrologers online. Get accurate Kundli, Horoscope, Match Making and Vedic Astrology guidance.",
+      "Talk with verified astrologers online. Explore authorized Kundli reports, horoscope readings and Vedic Astrology guidance.",
 
     type: "website",
 
@@ -54,12 +62,13 @@ export const metadata: Metadata = {
   },
 
   robots: {
-    index: true,
-    follow: true,
+    index: false,
+    follow: false,
   },
 };
 
 export default function HomePage() {
+  if (!publicHomepageAllowed()) notFound();
   return (
     <>
       <script
@@ -76,19 +85,26 @@ export default function HomePage() {
         }}
       />
 
+      <CinematicHome>
       <HeroSection />
+      <StoryCarousel />
 
       <StatsSection />
 
-      <FeaturesSection />
+
 
       <FeaturedAstrologersSection />
+      <AstrologerRecruitmentSection />
 
       <ServicesSection />
 
       <KundliPromoSection />
 
       <HoroscopeSubscriptionSection />
+      <HomeGuidanceSections />
+      <HomeEditorialFeeds />
+      <HomeCompletionSections />
+      </CinematicHome>
     </>
   );
 }

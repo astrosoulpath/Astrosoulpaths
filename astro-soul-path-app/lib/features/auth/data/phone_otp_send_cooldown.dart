@@ -44,8 +44,21 @@ class PhoneOtpSendCooldown {
       if (remainingSeconds > 0) throw _blocked();
       _deadline = _now().add(const Duration(seconds: 60));
       // Fail closed if persistence fails; Firebase is never called first.
-      await writeDeadline(_deadline!.millisecondsSinceEpoch.toString());
-      return await request();
+      try {
+        await writeDeadline(_deadline!.millisecondsSinceEpoch.toString());
+      } catch (_) {
+        _deadline = null;
+        rethrow;
+      }
+      try {
+        return await request();
+      } on FirebaseException catch (error) {
+        if (error.code == 'invalid-phone-number') {
+          await writeDeadline('0');
+          _deadline = null;
+        }
+        rethrow;
+      }
     } finally {
       _busy = false;
     }

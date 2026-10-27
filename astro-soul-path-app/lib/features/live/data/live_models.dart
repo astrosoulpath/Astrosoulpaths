@@ -35,6 +35,7 @@ class LiveSession {
     required this.astrologer,
     this.title,
     this.endedAt,
+    this.connectionProtocol = 1,
   });
 
   final String id;
@@ -46,6 +47,24 @@ class LiveSession {
   final DateTime? endedAt;
   final int viewerCount;
   final LiveAstrologer astrologer;
+  final int connectionProtocol;
+
+  LiveSession withStatus({
+    required int viewerCount,
+    String? status,
+    DateTime? endedAt,
+  }) => LiveSession(
+    id: id,
+    astrologerId: astrologerId,
+    channelName: channelName,
+    status: status ?? this.status,
+    startedAt: startedAt,
+    viewerCount: viewerCount,
+    astrologer: astrologer,
+    title: title,
+    endedAt: endedAt ?? this.endedAt,
+    connectionProtocol: connectionProtocol,
+  );
 
   bool get isLive => status.trim().toUpperCase() == 'LIVE' && endedAt == null;
 
@@ -58,6 +77,7 @@ class LiveSession {
       channelName: (json['channelName'] ?? '').toString(),
       title: json['title']?.toString(),
       status: (json['status'] ?? '').toString(),
+      connectionProtocol: json['connectionProtocol'] == 2 ? 2 : 1,
       startedAt:
           DateTime.tryParse((json['startedAt'] ?? '').toString()) ??
           DateTime.now(),

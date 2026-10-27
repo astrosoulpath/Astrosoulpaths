@@ -1,6 +1,9 @@
+import '../marketplace_private_state.dart';
+import '../marketplace_palette.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/marketplace_customer_api.dart';
+import 'marketplace_order_review_screen.dart';
 
 class MarketplaceOrderDetailScreen extends StatefulWidget {
   const MarketplaceOrderDetailScreen({super.key, required this.orderId});
@@ -13,17 +16,19 @@ class MarketplaceOrderDetailScreen extends StatefulWidget {
 }
 
 class _MarketplaceOrderDetailScreenState
-    extends State<MarketplaceOrderDetailScreen> {
-  static const Color _background = Color(0xFF090909);
-  static const Color _surface = Color(0xFF151515);
-  static const Color _gold = Color(0xFFF2C94C);
-  static const Color _muted = Color(0xFF9A9A9A);
+    extends MarketplacePrivateState<MarketplaceOrderDetailScreen> {
+  static const Color _background = MarketplacePalette.canvas;
+  static const Color _surface = MarketplacePalette.surface;
+  static const Color _gold = MarketplacePalette.gold;
+  static const Color _muted = MarketplacePalette.muted;
 
   final MarketplaceCustomerApi _api = MarketplaceCustomerApi();
 
   Map<String, dynamic>? _order;
   bool _loading = true;
   String _error = '';
+  bool _caseReviewEnabled = false;
+  bool _cancelling = false;
 
   String _text(dynamic value) => value?.toString().trim() ?? '';
 
@@ -41,6 +46,49 @@ class _MarketplaceOrderDetailScreenState
     _load();
   }
 
+  @override
+  void dispose() {
+    _api.dispose();
+    super.dispose();
+  }
+
+  Future<void> _cancel() async {
+    if (_cancelling) return;
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Cancel unpaid order?'),
+        content: const Text('No payment or refund will be performed.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Keep order'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Cancel order'),
+          ),
+        ],
+      ),
+    );
+    if (approved != true || !mounted) return;
+    setState(() => _cancelling = true);
+    try {
+      await _api.cancelOrder(widget.orderId);
+      if (mounted) await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Order cannot be cancelled. Refresh its status.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _cancelling = false);
+    }
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -49,11 +97,18 @@ class _MarketplaceOrderDetailScreenState
 
     try {
       final order = await _api.getOrder(orderId: widget.orderId);
+      Map<String, dynamic> capabilities = {};
+      try {
+        capabilities = await _api.getCapabilities();
+      } catch (_) {
+        /* Remain disabled. */
+      }
 
       if (!mounted) return;
 
       setState(() {
         _order = order;
+        _caseReviewEnabled = capabilities['caseReviewEnabled'] == true;
         _loading = false;
       });
     } on MarketplaceCustomerApiException catch (error) {
@@ -74,12 +129,12 @@ class _MarketplaceOrderDetailScreenState
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget buildMarketplace(BuildContext context) {
     return Scaffold(
       backgroundColor: _background,
       appBar: AppBar(
         backgroundColor: _background,
-        foregroundColor: Colors.white,
+        foregroundColor: MarketplacePalette.ink,
         title: const Text(
           'Order Details',
           style: TextStyle(fontWeight: FontWeight.w800),
@@ -93,6 +148,36 @@ class _MarketplaceOrderDetailScreenState
         ],
       ),
       body: _buildBody(),
+      bottomNavigationBar: _order == null
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Wrap(
+                  spacing: 12,
+                  children: [
+                    if (_caseReviewEnabled &&
+                        _order?['paymentVerifiedAt'] != null)
+                      OutlinedButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => MarketplaceOrderReviewScreen(
+                              orderId: widget.orderId,
+                            ),
+                          ),
+                        ),
+                        child: const Text('Refund / dispute review'),
+                      ),
+                    if (_order?['status'] == 'PENDING_PAYMENT' &&
+                        _order?['razorpayOrderId'] == null)
+                      OutlinedButton(
+                        onPressed: _cancelling ? null : _cancel,
+                        child: const Text('Cancel unpaid order'),
+                      ),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 
@@ -113,7 +198,7 @@ class _MarketplaceOrderDetailScreenState
               Text(
                 _error,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: MarketplacePalette.ink),
               ),
               const SizedBox(height: 18),
               FilledButton.icon(
@@ -131,7 +216,10 @@ class _MarketplaceOrderDetailScreenState
 
     if (order == null) {
       return const Center(
-        child: Text('Order not found', style: TextStyle(color: Colors.white)),
+        child: Text(
+          'Order not found',
+          style: TextStyle(color: MarketplacePalette.ink),
+        ),
       );
     }
 
@@ -164,7 +252,7 @@ class _MarketplaceOrderDetailScreenState
                 Text(
                   orderNumber,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: MarketplacePalette.ink,
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
                   ),
@@ -174,7 +262,7 @@ class _MarketplaceOrderDetailScreenState
                 const SizedBox(height: 14),
                 _row('Subtotal', '$currency ${_money(order['subtotal'])}'),
                 _row('Shipping', '$currency ${_money(order['shippingTotal'])}'),
-                const Divider(color: Color(0xFF303030)),
+                const Divider(color: MarketplacePalette.border),
                 _row(
                   'Total',
                   '$currency ${_money(order['grandTotal'])}',
@@ -196,7 +284,7 @@ class _MarketplaceOrderDetailScreenState
                 Text(
                   _text(order['fullName']),
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: MarketplacePalette.ink,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -237,7 +325,7 @@ class _MarketplaceOrderDetailScreenState
           Text(
             sellerName.isEmpty ? 'Seller' : sellerName,
             style: const TextStyle(
-              color: Colors.white,
+              color: MarketplacePalette.ink,
               fontSize: 16,
               fontWeight: FontWeight.w900,
             ),
@@ -252,7 +340,7 @@ class _MarketplaceOrderDetailScreenState
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF1C1C1C),
+                color: MarketplacePalette.soft,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
@@ -267,7 +355,7 @@ class _MarketplaceOrderDetailScreenState
                         Text(
                           _text(item['productName']),
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: MarketplacePalette.ink,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -286,7 +374,7 @@ class _MarketplaceOrderDetailScreenState
           }),
           if (_text(sellerOrder['trackingCarrier']).isNotEmpty ||
               _text(sellerOrder['trackingNumber']).isNotEmpty) ...[
-            const Divider(color: Color(0xFF303030)),
+            const Divider(color: MarketplacePalette.border),
             _row('Carrier', _text(sellerOrder['trackingCarrier'])),
             _row('Tracking', _text(sellerOrder['trackingNumber'])),
           ],
@@ -319,7 +407,7 @@ class _MarketplaceOrderDetailScreenState
           Text(
             value,
             style: TextStyle(
-              color: Colors.white,
+              color: MarketplacePalette.ink,
               fontWeight: strong ? FontWeight.w900 : FontWeight.w700,
             ),
           ),

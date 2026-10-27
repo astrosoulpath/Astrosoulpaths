@@ -19,11 +19,26 @@ class FeedbackApi {
     : _client = client ?? http.Client(),
       _sessionStore = sessionStore ?? AuthSessionStore();
 
+  final int _revision = AuthSessionStore.sessionRevision;
+  void _check() {
+    if (_revision != AuthSessionStore.sessionRevision) {
+      throw const FeedbackApiException(
+        'Your account changed. Reopen feedback.',
+      );
+    }
+  }
+
+  void close() {
+    _client.close();
+  }
+
   final http.Client _client;
   final AuthSessionStore _sessionStore;
 
   Future<String> _accessToken() async {
+    _check();
     final session = await _sessionStore.read();
+    _check();
     final token = session?.accessToken.trim() ?? '';
 
     if (token.isEmpty) {
@@ -35,41 +50,60 @@ class FeedbackApi {
 
   Future<Map<String, dynamic>> submit({
     required String category,
-    required int rating,
+    int? rating,
     required String message,
+    String? consultationId,
   }) async {
     final token = await _accessToken();
 
-    final response = await _client.post(
-      Uri.parse('${ApiConfig.baseUrl}/feedback'),
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        'category': category,
-        'rating': rating,
-        'message': message.trim(),
-      }),
-    );
+    final response = await _client
+        .post(
+          Uri.parse('${ApiConfig.baseUrl}/feedback'),
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'category': category,
+            'rating': ?rating,
+            'message': message.trim(),
+            'consultationId': ?consultationId,
+          }),
+        )
+        .timeout(ApiConfig.requestTimeout);
 
-    return _decode(response);
+    _check();
+    final result = _decode(response);
+    if (result['success'] != true) {
+      throw const FeedbackApiException(
+        'Feedback submission was not confirmed. Please retry.',
+      );
+    }
+    return result;
   }
 
-  Future<List<Map<String, dynamic>>> getMine() async {
+  Future<List<Map<String, dynamic>>> getMine({int page = 1}) async {
     final token = await _accessToken();
 
-    final response = await _client.get(
-      Uri.parse('${ApiConfig.baseUrl}/feedback/my'),
-      headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
-    );
+    final response = await _client
+        .get(
+          Uri.parse('${ApiConfig.baseUrl}/feedback/my?page=$page'),
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(ApiConfig.requestTimeout);
 
+    _check();
     final decoded = _decode(response);
     final raw = decoded['data'];
 
     if (raw is! List) {
-      return const [];
+      throw const FeedbackApiException(
+        'Feedback history could not be verified. Please retry.',
+      );
     }
 
     return raw

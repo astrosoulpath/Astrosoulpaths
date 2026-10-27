@@ -1,3 +1,5 @@
+import '../marketplace_private_state.dart';
+import '../marketplace_palette.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/marketplace_customer_api.dart';
@@ -11,11 +13,12 @@ class MarketplaceOrdersScreen extends StatefulWidget {
       _MarketplaceOrdersScreenState();
 }
 
-class _MarketplaceOrdersScreenState extends State<MarketplaceOrdersScreen> {
-  static const Color _background = Color(0xFF090909);
-  static const Color _surface = Color(0xFF151515);
-  static const Color _gold = Color(0xFFF2C94C);
-  static const Color _muted = Color(0xFF9A9A9A);
+class _MarketplaceOrdersScreenState
+    extends MarketplacePrivateState<MarketplaceOrdersScreen> {
+  static const Color _background = MarketplacePalette.canvas;
+  static const Color _surface = MarketplacePalette.surface;
+  static const Color _gold = MarketplacePalette.gold;
+  static const Color _muted = MarketplacePalette.muted;
 
   final MarketplaceCustomerApi _api = MarketplaceCustomerApi();
 
@@ -85,20 +88,26 @@ class _MarketplaceOrdersScreenState extends State<MarketplaceOrdersScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget buildMarketplace(BuildContext context) {
     return Scaffold(
       backgroundColor: _background,
       appBar: AppBar(
         leading: IconButton(
           tooltip: 'Back',
           onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: MarketplacePalette.ink,
+          ),
         ),
         backgroundColor: _background,
-        foregroundColor: Colors.white,
+        foregroundColor: MarketplacePalette.ink,
         title: const Text(
           'My Orders',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          style: TextStyle(
+            color: MarketplacePalette.ink,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         actions: [
           IconButton(
@@ -129,7 +138,7 @@ class _MarketplaceOrdersScreenState extends State<MarketplaceOrdersScreen> {
               Text(
                 _error,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: MarketplacePalette.ink),
               ),
               const SizedBox(height: 18),
               FilledButton.icon(
@@ -156,7 +165,7 @@ class _MarketplaceOrdersScreenState extends State<MarketplaceOrdersScreen> {
               child: Text(
                 'No marketplace orders yet',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: MarketplacePalette.ink,
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
                 ),
@@ -219,7 +228,7 @@ class _MarketplaceOrdersScreenState extends State<MarketplaceOrdersScreen> {
                   Text(
                     number,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: MarketplacePalette.ink,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -236,7 +245,7 @@ class _MarketplaceOrdersScreenState extends State<MarketplaceOrdersScreen> {
                   Text(
                     '$currency ${_money(order['grandTotal'])}',
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: MarketplacePalette.ink,
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
                     ),

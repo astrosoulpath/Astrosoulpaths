@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../auth/data/auth_session_store.dart';
 
 import '../../../core/config/api_config.dart';
 
@@ -35,9 +35,27 @@ class FollowStatus {
 }
 
 class FollowApi {
-  FollowApi({http.Client? client}) : _client = client ?? http.Client();
+  FollowApi({http.Client? client, AuthSessionStore? sessionStore})
+    : _client = client ?? http.Client(),
+      _sessionStore = sessionStore ?? AuthSessionStore();
 
   final http.Client _client;
+  final AuthSessionStore _sessionStore;
+  final int _revision = AuthSessionStore.sessionRevision;
+  bool _closed = false;
+
+  void close() {
+    _closed = true;
+    _client.close();
+  }
+
+  void _checkAccount() {
+    if (_closed || _revision != AuthSessionStore.sessionRevision) {
+      throw const FollowApiException(
+        'Your account changed. Reopen this profile.',
+      );
+    }
+  }
 
   Future<FollowStatus> getRealStatus(String astrologerId) {
     return _request(
@@ -95,8 +113,25 @@ class FollowApi {
     required String method,
     required String path,
   }) async {
-    final session = Supabase.instance.client.auth.currentSession;
+    _checkAccount();
+    StoredAuthSession? session;
+    try {
+      session = await _sessionStore.read();
+    } catch (_) {
+      throw const FollowApiException(
+        'Your session could not be renewed. Please sign in again.',
+      );
+    }
+    _checkAccount();
     final accessToken = session?.accessToken.trim() ?? '';
+
+    if (session != null &&
+        (session.portal.isNotEmpty && session.portal != 'customer' ||
+            !['CUSTOMER', 'USER'].contains(session.role.toUpperCase()))) {
+      throw const FollowApiException(
+        'Customer sign-in is required to follow astrologers.',
+      );
+    }
 
     if (accessToken.isEmpty) {
       throw const FollowApiException('Please sign in to follow astrologers.');
@@ -142,6 +177,7 @@ class FollowApi {
       );
     }
 
+    _checkAccount();
     Map<String, dynamic> body = const {};
 
     if (response.body.trim().isNotEmpty) {
@@ -169,6 +205,14 @@ class FollowApi {
       );
     }
 
+    if (body['isFollowing'] is! bool ||
+        body['followerCount'] is! num ||
+        !(body['followerCount'] as num).isFinite ||
+        (body['followerCount'] as num) < 0) {
+      throw const FollowApiException(
+        'Follow status could not be verified. Retry.',
+      );
+    }
     return FollowStatus.fromJson(body);
   }
 

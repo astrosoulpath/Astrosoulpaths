@@ -44,7 +44,7 @@ function formatLastUpdated(
 
 export function AvailabilityCard({
   astrologerId,
-  totalConsultations = 0,
+  totalConsultations,
 }: AvailabilityCardProps) {
   const [
     availability,
@@ -350,12 +350,7 @@ export function AvailabilityCard({
             </p>
 
             <p className="mt-1 text-2xl font-bold text-[#D4AF37]">
-              {Math.max(
-                0,
-                totalConsultations,
-              ).toLocaleString(
-                "en-IN",
-              )}
+              {typeof totalConsultations === 'number' ? Math.max(0,totalConsultations).toLocaleString('en-IN') : 'Not supplied'}
             </p>
           </div>
 

@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { ChatAttachmentButton } from "@/components/chat/ChatAttachmentButton";
+import BirthSharingPanel from "@/components/chat/BirthSharingPanel";
 import IncomingCallModal from "@/components/call/IncomingCallModal";
 
 import {
@@ -1756,6 +1757,7 @@ export default function ChatConsultationPage() {
             </div>
 
             <div className="border-t border-gray-200 bg-white p-4 sm:p-5">
+              {process.env.NEXT_PUBLIC_CONSULTATION_BIRTH_SHARING_ENABLED === "true" && isActive && <BirthSharingPanel consultationId={bookingId} />}
               {isActive && (
                 <div className="mb-4">
                   <ChatAttachmentButton

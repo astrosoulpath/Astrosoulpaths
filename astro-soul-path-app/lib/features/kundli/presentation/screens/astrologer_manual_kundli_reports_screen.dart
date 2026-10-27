@@ -6,7 +6,8 @@ import '../../data/astrologer_manual_kundli_report_api.dart';
 import 'astrologer_manual_kundli_report_editor_screen.dart';
 
 class AstrologerManualKundliReportsScreen extends StatefulWidget {
-  const AstrologerManualKundliReportsScreen({super.key});
+  const AstrologerManualKundliReportsScreen({super.key, this.api});
+  final AstrologerManualKundliReportApi? api;
 
   @override
   State<AstrologerManualKundliReportsScreen> createState() =>
@@ -15,7 +16,7 @@ class AstrologerManualKundliReportsScreen extends StatefulWidget {
 
 class _AstrologerManualKundliReportsScreenState
     extends State<AstrologerManualKundliReportsScreen> {
-  final _api = AstrologerManualKundliReportApi();
+  late final _api = widget.api ?? AstrologerManualKundliReportApi();
 
   bool _loading = true;
   String _error = '';
@@ -77,6 +78,7 @@ class _AstrologerManualKundliReportsScreenState
       setState(() {
         _loading = false;
         _error = error.message;
+        if (error.accessDenied) _reports = const [];
       });
     } catch (_) {
       if (!mounted) {
@@ -184,7 +186,7 @@ class _AstrologerManualKundliReportsScreenState
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.gold),
             )
-          : _error.isNotEmpty && _reports.isEmpty
+          : _error.isNotEmpty
           ? _errorState()
           : RefreshIndicator(
               onRefresh: _load,

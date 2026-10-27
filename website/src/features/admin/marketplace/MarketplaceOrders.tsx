@@ -1,5 +1,9 @@
 "use client";
 
+import { refreshAdminSession } from "@/features/admin/auth/admin-session";
+
+import { getAdminApiBase } from "@/features/admin/auth/admin-contract";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type MarketplaceOrderItem = {
@@ -48,19 +52,10 @@ type ApiEnvelope<T> = {
   error?: string;
 };
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
-  "http://127.0.0.1:4000";
+const API_BASE_URL = getAdminApiBase();
 
-function getAccessToken() {
-  if (typeof window === "undefined") return "";
-
-  return (
-    window.localStorage.getItem("asp_admin_access_token") ??
-    window.sessionStorage.getItem("asp_admin_access_token") ??
-    window.localStorage.getItem("access_token") ??
-    ""
-  ).trim();
+async function getAccessToken() {
+  return refreshAdminSession();
 }
 
 function errorMessage(body: unknown, fallback: string) {
@@ -136,7 +131,7 @@ export function MarketplaceOrders() {
   );
 
   const load = useCallback(async () => {
-    const token = getAccessToken();
+    const token = await getAccessToken();
 
     if (!token) {
       setLoading(false);
@@ -183,16 +178,16 @@ export function MarketplaceOrders() {
   }, [load]);
 
   return (
-    <div className="text-white">
+    <div className="text-[#14243D]">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-black uppercase tracking-[0.2em] text-amber-400">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A6818]">
             Order Oversight
           </p>
 
-          <h3 className="mt-2 text-2xl font-black">Marketplace Orders</h3>
+          <h3 className="mt-2 text-2xl font-semibold">Marketplace Orders</h3>
 
-          <p className="mt-2 text-sm text-slate-400">
+          <p className="mt-2 text-sm text-[#52627A]">
             Read-only view of customer orders and seller fulfillment groups.
           </p>
         </div>
@@ -201,40 +196,40 @@ export function MarketplaceOrders() {
           type="button"
           onClick={() => void load()}
           disabled={loading}
-          className="rounded-xl bg-amber-400 px-4 py-2 font-black text-black disabled:opacity-50"
+          className="rounded-xl bg-amber-400 px-4 py-2 font-semibold text-black disabled:opacity-50"
         >
           Refresh
         </button>
       </div>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-slate-700 bg-slate-950 p-5">
-          <p className="text-sm text-slate-400">Total Orders</p>
-          <p className="mt-2 text-3xl font-black">{orders.length}</p>
+        <div className="rounded-2xl border border-[#E5EAF1] bg-white p-5">
+          <p className="text-sm text-[#52627A]">Total Orders</p>
+          <p className="mt-2 text-3xl font-semibold">{orders.length}</p>
         </div>
 
-        <div className="rounded-2xl border border-amber-400/20 bg-slate-950 p-5">
-          <p className="text-sm text-slate-400">Pending Payment</p>
-          <p className="mt-2 text-3xl font-black text-amber-300">
+        <div className="rounded-2xl border border-amber-400/20 bg-white p-5">
+          <p className="text-sm text-[#52627A]">Pending Payment</p>
+          <p className="mt-2 text-3xl font-semibold text-[#8A6818]">
             {pendingPayment}
           </p>
         </div>
       </div>
 
       {error ? (
-        <div className="mb-5 rounded-xl border border-red-500/30 p-4 text-red-300">
+        <div className="mb-5 rounded-xl border border-red-500/30 p-4 text-red-700">
           {error}
         </div>
       ) : null}
 
       {loading ? (
-        <p className="text-slate-400">Loading marketplace orders...</p>
+        <p className="text-[#52627A]">Loading marketplace orders...</p>
       ) : null}
 
       {!loading && !error && orders.length === 0 ? (
-        <div className="rounded-2xl border border-slate-700 bg-slate-950 p-8 text-center">
-          <p className="font-black text-white">No marketplace orders yet</p>
-          <p className="mt-2 text-sm text-slate-400">
+        <div className="rounded-2xl border border-[#E5EAF1] bg-white p-8 text-center">
+          <p className="font-semibold text-[#14243D]">No marketplace orders yet</p>
+          <p className="mt-2 text-sm text-[#52627A]">
             Real customer orders will appear here.
           </p>
         </div>
@@ -250,21 +245,21 @@ export function MarketplaceOrders() {
           return (
             <article
               key={order.id}
-              className="rounded-2xl border border-slate-700/80 bg-slate-950 p-5"
+              className="rounded-2xl border border-[#E5EAF1] bg-white p-5"
             >
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h4 className="text-lg font-black">
+                  <h4 className="text-lg font-semibold">
                     {order.orderNumber || order.id}
                   </h4>
 
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-[#52627A]">
                     {formatDate(order.createdAt)}
                   </p>
                 </div>
 
                 <span
-                  className={`rounded-full border px-3 py-1 text-xs font-black ${statusClass(
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusClass(
                     order.status,
                   )}`}
                 >
@@ -274,20 +269,20 @@ export function MarketplaceOrders() {
 
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <div>
-                  <p className="text-xs uppercase text-slate-500">Subtotal</p>
+                  <p className="text-xs uppercase text-[#52627A]">Subtotal</p>
                   <p className="font-bold">{money(order.subtotal, currency)}</p>
                 </div>
 
                 <div>
-                  <p className="text-xs uppercase text-slate-500">Shipping</p>
+                  <p className="text-xs uppercase text-[#52627A]">Shipping</p>
                   <p className="font-bold">
                     {money(order.shippingTotal, currency)}
                   </p>
                 </div>
 
                 <div>
-                  <p className="text-xs uppercase text-slate-500">Total</p>
-                  <p className="font-black text-amber-300">
+                  <p className="text-xs uppercase text-[#52627A]">Total</p>
+                  <p className="font-semibold text-[#8A6818]">
                     {money(order.grandTotal, currency)}
                   </p>
                 </div>
@@ -304,16 +299,16 @@ export function MarketplaceOrders() {
                     >
                       <div className="flex flex-wrap justify-between gap-3">
                         <div>
-                          <p className="font-black">
+                          <p className="font-semibold">
                             {group.sellerDisplayName || "Marketplace Seller"}
                           </p>
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="mt-1 text-xs text-[#52627A]">
                             {items.length} item{items.length === 1 ? "" : "s"}
                           </p>
                         </div>
 
                         <span
-                          className={`rounded-full border px-3 py-1 text-xs font-black ${statusClass(
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusClass(
                             group.status,
                           )}`}
                         >
@@ -328,12 +323,12 @@ export function MarketplaceOrders() {
                               key={item.id}
                               className="flex flex-wrap justify-between gap-3 text-sm"
                             >
-                              <span className="text-slate-300">
+                              <span className="text-[#14243D]">
                                 {item.productName || "Product"} x{" "}
                                 {item.quantity ?? 0}
                               </span>
 
-                              <span className="font-bold text-slate-200">
+                              <span className="font-bold text-[#14243D]">
                                 {money(item.lineTotal, currency)}
                               </span>
                             </div>
@@ -342,7 +337,7 @@ export function MarketplaceOrders() {
                       ) : null}
 
                       {group.trackingNumber ? (
-                        <p className="mt-3 text-xs text-slate-400">
+                        <p className="mt-3 text-xs text-[#52627A]">
                           Tracking: {group.trackingCarrier || "Carrier"} /{" "}
                           {group.trackingNumber}
                         </p>

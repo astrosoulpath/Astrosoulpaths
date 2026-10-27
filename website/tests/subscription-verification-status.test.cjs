@@ -1,0 +1,12 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript');
+const code=ts.transpileModule(fs.readFileSync('src/services/subscriptionService.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+const values=new Map();
+const context={exports:{},window:{},localStorage:{getItem:key=>values.get(key)||null},process:{env:{}},fetch:()=>{throw Error('No network expected')}};vm.runInNewContext(code,context);
+const verify=context.exports.requireVerifiedSubscriptionPayment;
+test('unpaid or authorized-but-not-captured PENDING cannot produce subscription success',()=>assert.throws(()=>verify({success:true,status:'PENDING'}),/verification is pending/));
+test('failed verification cannot produce subscription success',()=>assert.throws(()=>verify({success:true,status:'FAILED'}),/could not be verified/));
+test('a success-shaped payload with success false remains rejected',()=>assert.throws(()=>verify({success:false,status:'SUCCESS'}),/could not be verified/));
+test('only backend-confirmed success passes the activation display gate',()=>assert.doesNotThrow(()=>verify({success:true,status:'SUCCESS'})));
+test('approved astrologer session works without legacy customer token',()=>{values.clear();values.set('asp_user',JSON.stringify({portal:'astrologer'}));values.set('asp_astrologer_access_token','synthetic-astro');assert.equal(context.exports.hasSubscriptionSession(),true)});
+test('missing astrologer token never falls back to a different customer session',()=>{values.clear();values.set('asp_user',JSON.stringify({portal:'astrologer'}));values.set('asp_customer_access_token','other-customer');values.set('asp_access_token','other-customer');assert.equal(context.exports.hasSubscriptionSession(),false)});
+test('missing customer token never falls back to a different astrologer session',()=>{values.clear();values.set('asp_user',JSON.stringify({portal:'customer'}));values.set('asp_astrologer_access_token','other-astro');assert.equal(context.exports.hasSubscriptionSession(),false)});

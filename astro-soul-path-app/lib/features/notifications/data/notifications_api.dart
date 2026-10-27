@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../../../core/config/api_config.dart';
 import '../../auth/data/auth_session_store.dart';
 import 'app_notification.dart';
+import '../../../core/notifications/notification_session_fence.dart';
 
 class NotificationsApiException implements Exception {
   const NotificationsApiException(this.message);
@@ -22,10 +23,36 @@ class NotificationsApi {
 
   final http.Client _client;
   final AuthSessionStore _sessionStore;
+  String? _owner;
+  int? _generation;
+  bool _closed = false;
+
+  Future<void> _checkOwner() async {
+    final id = (await _sessionStore.read())?.user['id'];
+    if (_closed ||
+        NotificationSessionFence.suspended ||
+        id is! String ||
+        id.isEmpty ||
+        (_owner != null && _owner != id) ||
+        (_generation != null &&
+            _generation != NotificationSessionFence.generation)) {
+      throw const NotificationsApiException(
+        'Account changed. Open notifications again.',
+      );
+    }
+    _owner = id;
+    _generation = NotificationSessionFence.generation;
+  }
 
   Future<String> _accessToken() async {
+    await _checkOwner();
     final session = await _sessionStore.read();
     final token = session?.accessToken.trim() ?? '';
+    if (_closed || session?.user['id'] != _owner) {
+      throw const NotificationsApiException(
+        'Account changed. Open notifications again.',
+      );
+    }
 
     if (token.isEmpty) {
       throw const NotificationsApiException(
@@ -37,26 +64,10 @@ class NotificationsApi {
   }
 
   Future<NotificationInbox> getNotifications() async {
-    var token = await _accessToken();
-
     try {
-      var response = await _getNotificationsResponse(token);
-
-      // Do not treat an expired access JWT as a logged-out user.
-      // Refresh the SAME customer session and retry once.
-      if (response.statusCode == 401 || response.statusCode == 403) {
-        final refreshedSession = await _sessionStore.forceRefresh();
-        final refreshedToken = refreshedSession?.accessToken.trim() ?? '';
-
-        if (refreshedToken.isEmpty) {
-          throw const NotificationsApiException(
-            'Please login to access notifications.',
-          );
-        }
-
-        token = refreshedToken;
-        response = await _getNotificationsResponse(token);
-      }
+      final response = await _authenticatedNotificationRequest(
+        _getNotificationsResponse,
+      );
 
       final body = _decode(response.body);
 
@@ -110,10 +121,12 @@ class NotificationsApi {
     var token = await _accessToken();
 
     var response = await request(token);
+    await _checkOwner();
 
     if (response.statusCode == 401 || response.statusCode == 403) {
       final refreshedSession = await _sessionStore.forceRefresh();
       final refreshedToken = refreshedSession?.accessToken.trim() ?? '';
+      await _checkOwner();
 
       if (refreshedToken.isEmpty) {
         throw const NotificationsApiException(
@@ -123,6 +136,7 @@ class NotificationsApi {
 
       token = refreshedToken;
       response = await request(token);
+      await _checkOwner();
     }
 
     if (response.statusCode == 401 || response.statusCode == 403) {
@@ -132,6 +146,85 @@ class NotificationsApi {
     }
 
     return response;
+  }
+
+  Future<Map<String, dynamic>> getReading(String id) async {
+    if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(id)) {
+      throw const NotificationsApiException('Reading unavailable.');
+    }
+    final response = await _authenticatedNotificationRequest(
+      (token) => _client
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/notifications/readings/$id'),
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(ApiConfig.requestTimeout),
+    );
+    final body = _decode(response.body);
+    if (response.statusCode != 200 ||
+        body['success'] != true ||
+        body['data'] is! Map ||
+        body['data']['id'] != id) {
+      throw const NotificationsApiException(
+        'This reading is unavailable, expired or no longer authorized.',
+      );
+    }
+    return Map<String, dynamic>.from(body['data'] as Map);
+  }
+
+  Future<Map<String, dynamic>> getInsight(String id) async {
+    if (!RegExp(
+      r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$',
+    ).hasMatch(id)) {
+      throw const NotificationsApiException('Insight unavailable.');
+    }
+    final response = await _authenticatedNotificationRequest(
+      (token) => _client
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/notifications/insights/$id'),
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(ApiConfig.requestTimeout),
+    );
+    final body = _decode(response.body);
+    final data = body['data'];
+    if (response.statusCode != 200 ||
+        body['success'] != true ||
+        data is! Map ||
+        data['id'] != id ||
+        data['title'] is! String ||
+        data['body'] is! String) {
+      throw const NotificationsApiException('Insight unavailable.');
+    }
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<void> markInsightOpened(String id) async {
+    if (!RegExp(
+      r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$',
+    ).hasMatch(id)) {
+      throw const NotificationsApiException('Insight unavailable.');
+    }
+    final response = await _authenticatedNotificationRequest(
+      (token) => _client
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/notifications/insights/$id/open'),
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(ApiConfig.requestTimeout),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw const NotificationsApiException('View could not be recorded.');
+    }
   }
 
   Future<http.Response> _getNotificationsResponse(String token) {
@@ -245,6 +338,7 @@ class NotificationsApi {
   }
 
   void close() {
+    _closed = true;
     _client.close();
   }
 }

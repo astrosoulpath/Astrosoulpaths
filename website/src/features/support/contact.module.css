@@ -1,0 +1,36 @@
+.page {color: #18223b; background: #fcfaf5; min-height: 75vh; padding: 3rem 1rem 5rem;}
+.wrap {max-width: 1180px; margin: auto;}
+.hero {border-radius: 2rem; padding: clamp(1.6rem, 5vw, 3.5rem); background: radial-gradient(ellipse at right, #453260, #101c35 75%); color: #fff6df; display: grid; grid-template-columns: 1.6fr 1fr; align-items: center; gap: 1rem; overflow: hidden;}
+.hero h1 {font-family: Georgia, serif; font-size: clamp(2.3rem, 5vw, 4.4rem); line-height: 1.1; margin: .8rem 0;}
+.hero p {line-height: 1.8; color: #e0dce7; max-width: 570px;}
+.eyebrow {font-size: .75rem; text-transform: uppercase; letter-spacing: .18em; color: #e7c88c;}
+.art {width: min(100%, 300px); justify-self: center; animation: drift 6s ease-in-out infinite;}
+.section {margin-top: 2rem;}
+.section h2 {font-size: 1.7rem; font-family: Georgia, serif; margin-bottom: 1rem;}
+.grid {display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 1rem;}
+.card {background: white; border: 1px solid #e6dcc6; border-radius: 1.2rem; padding: 1.4rem; min-width: 0; overflow-wrap: anywhere;}
+.card p {line-height: 1.7;}
+.category {text-align: start; cursor: pointer; min-height: 90px; display: flex; gap: .9rem; align-items: center; font-weight: 600;}
+.category:hover {border-color: #b69a60;}
+.category span {color: #8c6428; font-size: 1.5rem;}
+.button {display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: .65rem 1rem; border: 1px solid #c7ad75; border-radius: .8rem; background: #fff9e9; color: #30203c; font-weight: 600; cursor: pointer; text-decoration: none;}
+.button:disabled {opacity: .55; cursor: not-allowed;}
+.button:focus-visible, .category:focus-visible, .input:focus-visible, .faq summary:focus-visible {outline: 3px solid #9c6ab6; outline-offset: 3px;}
+.actions {display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin: .8rem 0;}
+.input {display: block; width: 100%; min-height: 44px; padding: .7rem; border: 1px solid #cbc4d5; border-radius: .7rem; background: white; color: #15213a; margin: .4rem 0 .9rem;}
+.form label {display: block; font-weight: 600;}
+.two {display: grid; grid-template-columns: 1fr 1.2fr; gap: 1.2rem; align-items: start;}
+.notice {border-inline-start: 3px solid #b19459; border-radius: .5rem; padding: 1rem; margin: .8rem 0; background: #fff3d7; line-height: 1.7;}
+.fine {font-size: .88rem; line-height: 1.7; color: #5a6476; margin: .6rem 0;}
+.faq {padding: 1rem; border: 1px solid #e6dcc6; border-radius: .9rem; background: white; margin: .6rem 0;}
+.faq summary {cursor: pointer; min-height: 36px; font-weight: 600;}
+.faq p {line-height: 1.8; white-space: pre-line; margin-top: .7rem;}
+.ticket {display: block; width: 100%; text-align: start; border-bottom: 1px solid #e7dfd0; padding: 1rem .2rem; cursor: pointer; min-height: 44px;}
+.badge {display: inline-block; font-size: .78rem; border: 1px solid #ddd2bc; border-radius: 999px; padding: .2rem .6rem; margin: .4rem .4rem .4rem 0;}
+.message {border-radius: .9rem; border: 1px solid #e5dfed; padding: 1rem; margin: .6rem 0; background: #faf8fc; white-space: pre-wrap; overflow-wrap: anywhere;}
+.message small {display: block; margin-bottom: .5rem; font-weight: 600; color: #604475;}
+.skeleton {height: 100px; background: #ece8ef; border-radius: 1rem; animation: pulse 1.8s ease-in-out infinite;}
+@keyframes drift {50% {transform: translateY(-5px);}}
+@keyframes pulse {50% {opacity: .5;}}
+@media (max-width: 700px) {.hero {grid-template-columns: 1fr;}.art {width: 160px;}.two {grid-template-columns: 1fr;}}
+@media (prefers-reduced-motion: reduce) {.art, .skeleton {animation: none;}}

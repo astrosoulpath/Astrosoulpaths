@@ -20,24 +20,38 @@ jest.mock('../src/common/guards/supabase-auth.guard', () => ({
   },
 }));
 
-import { razorpayInstance } from '../src/config/razorpay.config';
+jest.mock('../src/config/razorpay.config', () => {
+  const client = {
+    orders: { fetchPayments: jest.fn() },
+  };
+  return { getRazorpayInstance: jest.fn(() => client) };
+});
+
+import { getRazorpayInstance } from '../src/config/razorpay.config';
 import { SupabaseAuthGuard } from '../src/common/guards/supabase-auth.guard';
 import { PrismaService } from '../src/infrastructure/prisma/prisma.service';
 import { KundliOrderService } from '../src/module/kundli/kundli-order.service';
 import { LocalizedPricingService } from '../src/module/payments/pricing/localized-pricing.service';
 import { PaymentsController } from '../src/module/payments/payments.controller';
 import { PaymentsService } from '../src/module/payments/payments.service';
+import { MarketplaceService } from '../src/module/marketplace/marketplace.service';
+import { NotificationsService } from '../src/module/notifications/notifications.service';
+import { NotificationsPushService } from '../src/module/notifications/notifications.push.service';
 import { RazorpayVerificationService } from '../src/module/payments/razorpay-verification.service';
 
 type TestUser = {
   id: string;
   supabaseId: string;
+  isActive: boolean;
+  isBlocked: boolean;
 };
 
 type TestWallet = {
   id: string;
   userId: string;
   balance: Prisma.Decimal;
+  paidBalance: Prisma.Decimal;
+  freeBalance: Prisma.Decimal;
   lockedBalance: Prisma.Decimal;
   currency: string;
   createdAt: Date;
@@ -90,7 +104,7 @@ describe('Payments reconciliation (e2e)', () => {
   beforeEach(async () => {
     prismaMock = createPrismaMock(createInitialState());
     fetchPaymentsSpy = jest
-      .spyOn(razorpayInstance.orders, 'fetchPayments')
+      .spyOn(getRazorpayInstance().orders, 'fetchPayments')
       .mockResolvedValue({ items: [] } as never);
 
     const localizedPricingServiceMock = {
@@ -102,6 +116,15 @@ describe('Payments reconciliation (e2e)', () => {
       controllers: [PaymentsController],
       providers: [
         PaymentsService,
+        { provide: MarketplaceService, useValue: {} },
+        {
+          provide: NotificationsService,
+          useValue: { createForUser: jest.fn() },
+        },
+        {
+          provide: NotificationsPushService,
+          useValue: { sendToUser: jest.fn() },
+        },
         {
           provide: PrismaService,
           useValue: prismaMock,
@@ -286,6 +309,8 @@ function createInitialState(): TestState {
       {
         id: 'user_123',
         supabaseId: 'supabase_user_123',
+        isActive: true,
+        isBlocked: false,
       },
     ],
     wallets: [
@@ -293,6 +318,8 @@ function createInitialState(): TestState {
         id: 'wallet_123',
         userId: 'user_123',
         balance: new Prisma.Decimal('250.00'),
+        paidBalance: new Prisma.Decimal('250.00'),
+        freeBalance: new Prisma.Decimal('0.00'),
         lockedBalance: new Prisma.Decimal('0.00'),
         currency: 'INR',
         createdAt: new Date('2026-05-12T00:00:00.000Z'),
@@ -326,6 +353,7 @@ function createPrismaMock(initialState: TestState) {
   const state = initialState;
 
   const createClient = (workingState: TestState) => ({
+    userAuthIdentity: { findUnique: jest.fn().mockResolvedValue(null) },
     user: {
       findUnique: jest.fn(({ where }: { where: { supabaseId?: string } }) => {
         const user = workingState.users.find(
@@ -348,7 +376,11 @@ function createPrismaMock(initialState: TestState) {
           data,
         }: {
           where: { id: string };
-          data: { balance: Prisma.Decimal };
+          data: {
+            balance: Prisma.Decimal;
+            paidBalance?: Prisma.Decimal;
+            freeBalance?: Prisma.Decimal;
+          };
         }) => {
           const wallet = workingState.wallets.find(
             (entry) => entry.id === where.id,
@@ -359,6 +391,12 @@ function createPrismaMock(initialState: TestState) {
           }
 
           wallet.balance = new Prisma.Decimal(data.balance);
+          if (data.paidBalance !== undefined) {
+            wallet.paidBalance = new Prisma.Decimal(data.paidBalance);
+          }
+          if (data.freeBalance !== undefined) {
+            wallet.freeBalance = new Prisma.Decimal(data.freeBalance);
+          }
           wallet.updatedAt = new Date();
 
           return Promise.resolve(cloneWallet(wallet));
@@ -522,6 +560,8 @@ function cloneWallet(wallet: TestWallet): TestWallet {
   return {
     ...wallet,
     balance: new Prisma.Decimal(wallet.balance),
+    paidBalance: new Prisma.Decimal(wallet.paidBalance),
+    freeBalance: new Prisma.Decimal(wallet.freeBalance),
     lockedBalance: new Prisma.Decimal(wallet.lockedBalance),
     createdAt: new Date(wallet.createdAt),
     updatedAt: new Date(wallet.updatedAt),

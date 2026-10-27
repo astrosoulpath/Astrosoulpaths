@@ -1,0 +1,212 @@
+[
+  {
+    "code": "en",
+    "label": "English",
+    "direction": "ltr",
+    "enabled": true,
+    "humanReviewed": false,
+    "baseline": true,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "hi",
+    "label": "हिन्दी",
+    "direction": "ltr",
+    "enabled": true,
+    "humanReviewed": false,
+    "baseline": true,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "hi-Latn",
+    "label": "Hinglish",
+    "direction": "ltr",
+    "enabled": true,
+    "humanReviewed": false,
+    "baseline": true,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "es",
+    "label": "Español",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "ar",
+    "label": "العربية",
+    "direction": "rtl",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "fr",
+    "label": "Français",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "pt",
+    "label": "Português",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "bn",
+    "label": "Bengali",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "ta",
+    "label": "Tamil",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "te",
+    "label": "Telugu",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "mr",
+    "label": "Marathi",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "gu",
+    "label": "Gujarati",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "de",
+    "label": "Deutsch",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "it",
+    "label": "Italiano",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "ja",
+    "label": "Japanese",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "ko",
+    "label": "Korean",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "zh",
+    "label": "Chinese",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "ru",
+    "label": "Russian",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "tr",
+    "label": "Türkçe",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "id",
+    "label": "Bahasa Indonesia",
+    "direction": "ltr",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  },
+  {
+    "code": "ur",
+    "label": "اردو",
+    "direction": "rtl",
+    "enabled": false,
+    "humanReviewed": false,
+    "baseline": false,
+    "translationValidated": false,
+    "responseValidated": false
+  }
+]

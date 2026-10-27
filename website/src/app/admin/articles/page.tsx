@@ -5,11 +5,11 @@ import { AdminArticleManagement } from "@/features/admin/AdminArticleManagement"
 
 export default function AdminArticlesPage() {
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-8 sm:px-8">
+    <main className="min-h-screen bg-white px-4 py-8 sm:px-8">
       <div className="mx-auto max-w-6xl">
         <Link
           href="/admin"
-          className="mb-6 inline-flex rounded-xl border border-slate-700 px-4 py-2 text-sm font-bold text-slate-300 hover:border-amber-400 hover:text-amber-300"
+          className="mb-6 inline-flex rounded-xl border border-[#E5EAF1] px-4 py-2 text-sm font-bold text-[#14243D] hover:border-amber-400 hover:text-[#8A6818]"
         >
           ← Back to Admin Dashboard
         </Link>

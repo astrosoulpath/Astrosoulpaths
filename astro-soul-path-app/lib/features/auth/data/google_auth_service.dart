@@ -11,6 +11,16 @@ class GoogleAuthCancelledException implements Exception {
   const GoogleAuthCancelledException();
 }
 
+/// User-initiated login must show account selection, not reuse native selection.
+/// Does not revoke access or modify a Firebase user/identity mapping.
+Future<T> selectGoogleAccount<T>({
+  required Future<void> Function() signOutSelection,
+  required Future<T> Function() authenticate,
+}) async {
+  await signOutSelection();
+  return authenticate();
+}
+
 class GoogleAuthException implements Exception {
   const GoogleAuthException(this.message);
 
@@ -89,7 +99,10 @@ class GoogleAuthService {
     }
 
     try {
-      final GoogleSignInAccount googleUser = await _googleSignIn.authenticate();
+      final GoogleSignInAccount googleUser = await selectGoogleAccount(
+        signOutSelection: _googleSignIn.signOut,
+        authenticate: _googleSignIn.authenticate,
+      );
 
       final GoogleSignInAuthentication authentication =
           googleUser.authentication;

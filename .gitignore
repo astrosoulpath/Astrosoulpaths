@@ -181,3 +181,13 @@ backend-main-retired-seeds-*/
 # Python cache
 __pycache__/
 *.pyc
+
+# Payment verification artifacts are not release inputs.
+/astro-soul-path-app/review/wallet-test-original-installed.apk
+/backend-main/review/payments/.build-check/
+
+# Local device captures and diagnostic logs may contain personal data.
+/review/payments/screenshots/
+/review/payments/emulator-recovery.*.log
+/review/payments/android-final-start.*.log
+/backend-main/review/payments/mobile-test-start.*.log

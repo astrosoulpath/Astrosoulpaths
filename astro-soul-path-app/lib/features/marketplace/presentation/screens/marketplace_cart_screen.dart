@@ -1,24 +1,31 @@
+import '../marketplace_private_state.dart';
+import '../marketplace_palette.dart';
+import '../marketplace_address_picker.dart';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 import '../../data/marketplace_customer_api.dart';
+import '../../data/marketplace_payment_state.dart';
 import 'marketplace_address_screen.dart';
 
 class MarketplaceCartScreen extends StatefulWidget {
-  const MarketplaceCartScreen({super.key});
+  const MarketplaceCartScreen({super.key, this.api});
+  final MarketplaceCustomerApi? api;
 
   @override
   State<MarketplaceCartScreen> createState() => _MarketplaceCartScreenState();
 }
 
-class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
-  static const _background = Color(0xFF090909);
-  static const _surface = Color(0xFF151515);
-  static const _gold = Color(0xFFF2C94C);
-  static const _muted = Color(0xFF9A9A9A);
+class _MarketplaceCartScreenState
+    extends MarketplacePrivateState<MarketplaceCartScreen> {
+  static const _background = MarketplacePalette.canvas;
+  static const _surface = MarketplacePalette.surface;
+  static const _gold = MarketplacePalette.gold;
+  static const _muted = MarketplacePalette.muted;
 
-  final MarketplaceCustomerApi _api = MarketplaceCustomerApi();
+  late final MarketplaceCustomerApi _api =
+      widget.api ?? MarketplaceCustomerApi();
   late final Razorpay _razorpay;
 
   Map<String, dynamic> _cart = {};
@@ -26,12 +33,56 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
   String _error = '';
   String? _workingItem;
   bool _preparingOrder = false;
+  bool _paidCheckoutEnabled = false;
   String? _prepareIdempotencyKey;
+  String? _prepareAddressFingerprint;
 
   String? _paymentMarketplaceOrderId;
   String? _paymentRazorpayOrderId;
   bool _openingPayment = false;
   bool _verifyingPayment = false;
+  bool _recoveringPayment = false;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed &&
+        _paymentMarketplaceOrderId != null) {
+      _recoverPayment();
+    }
+  }
+
+  Future<void> _recoverPayment() async {
+    final id = _paymentMarketplaceOrderId;
+    if (id == null || _recoveringPayment || _verifyingPayment) return;
+    setState(() => _recoveringPayment = true);
+    try {
+      final order = await _api.getOrder(orderId: id);
+      if (!mounted) return;
+      final state = marketplacePaymentState(order);
+      if (state == MarketplacePaymentState.pending) {
+        _message(
+          'Payment status is pending. Check Order History before paying again.',
+        );
+      } else {
+        _paymentMarketplaceOrderId = null;
+        _paymentRazorpayOrderId = null;
+        _prepareIdempotencyKey = null;
+        _message(
+          state == MarketplacePaymentState.confirmed
+              ? 'Order confirmed by the server.'
+              : 'Order cancelled by the server.',
+        );
+        await _load();
+      }
+    } catch (_) {
+      _message(
+        'Unable to check payment status. Do not pay again; check Order History.',
+      );
+    } finally {
+      if (mounted) setState(() => _recoveringPayment = false);
+    }
+  }
 
   @override
   void initState() {
@@ -121,11 +172,11 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
             backgroundColor: _surface,
             title: const Text(
               'Payment Successful',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: MarketplacePalette.ink),
             ),
             content: const Text(
               'Payment verified securely. Your marketplace order is confirmed.',
-              style: TextStyle(color: Colors.white70),
+              style: TextStyle(color: MarketplacePalette.muted),
             ),
             actions: [
               TextButton(
@@ -160,9 +211,6 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
-    _paymentMarketplaceOrderId = null;
-    _paymentRazorpayOrderId = null;
-
     if (!mounted) return;
 
     final message = response.message?.trim() ?? '';
@@ -172,6 +220,7 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
           ? 'Payment was cancelled or failed.'
           : 'Payment failed: $message',
     );
+    _recoverPayment();
   }
 
   void _handleExternalWallet(ExternalWalletResponse response) {
@@ -194,11 +243,18 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
 
     try {
       final cart = await _api.getCart();
+      Map<String, dynamic> capabilities = {};
+      try {
+        capabilities = await _api.getCapabilities();
+      } catch (_) {
+        /* Payments remain unavailable. */
+      }
 
       if (!mounted) return;
 
       setState(() {
         _cart = cart;
+        _paidCheckoutEnabled = capabilities['paidCheckoutEnabled'] == true;
         _loading = false;
       });
     } on MarketplaceCustomerApiException catch (error) {
@@ -207,6 +263,12 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
       setState(() {
         _loading = false;
         _error = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Unable to load cart. Please retry.';
       });
     }
   }
@@ -223,7 +285,10 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
 
       if (!mounted) return;
 
-      setState(() => _cart = cart);
+      setState(() {
+        _cart = cart;
+        _prepareIdempotencyKey = null;
+      });
     } on MarketplaceCustomerApiException catch (error) {
       _message(error.message);
     } finally {
@@ -245,7 +310,10 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
 
       if (!mounted) return;
 
-      setState(() => _cart = cart);
+      setState(() {
+        _cart = cart;
+        _prepareIdempotencyKey = null;
+      });
     } on MarketplaceCustomerApiException catch (error) {
       _message(error.message);
     } finally {
@@ -342,13 +410,8 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
 
       _razorpay.open(options);
     } on MarketplaceCustomerApiException {
-      _paymentMarketplaceOrderId = null;
-      _paymentRazorpayOrderId = null;
       rethrow;
     } catch (_) {
-      _paymentMarketplaceOrderId = null;
-      _paymentRazorpayOrderId = null;
-
       throw const MarketplaceCustomerApiException(
         'Unable to open Razorpay checkout.',
       );
@@ -360,7 +423,11 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
   }
 
   Future<void> _prepareOrder() async {
-    if (_preparingOrder) return;
+    if (_preparingOrder ||
+        !_paidCheckoutEnabled ||
+        _paymentMarketplaceOrderId != null) {
+      return;
+    }
 
     _prepareIdempotencyKey ??= _newPrepareIdempotencyKey();
 
@@ -383,14 +450,12 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
         return;
       }
 
-      Map<String, dynamic> selectedAddress = addresses.first;
-
-      for (final address in addresses) {
-        if (address['isDefault'] == true) {
-          selectedAddress = address;
-          break;
-        }
-      }
+      final selectedAddress = await showModalBottomSheet<Map<String, dynamic>>(
+        context: context,
+        isScrollControlled: true,
+        builder: (_) => MarketplaceAddressPicker(addresses: addresses),
+      );
+      if (!mounted || selectedAddress == null) return;
 
       final addressId = _text(selectedAddress['id']);
 
@@ -398,6 +463,25 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
         _message('Selected delivery address is invalid.');
         return;
       }
+
+      final fingerprint = [
+        'id',
+        'fullName',
+        'phone',
+        'addressLine1',
+        'addressLine2',
+        'landmark',
+        'city',
+        'state',
+        'postalCode',
+        'countryCode',
+        'country',
+      ].map((key) => selectedAddress[key]?.toString() ?? '').join('\u0000');
+      if (_prepareAddressFingerprint != null &&
+          fingerprint != _prepareAddressFingerprint) {
+        _prepareIdempotencyKey = _newPrepareIdempotencyKey();
+      }
+      _prepareAddressFingerprint = fingerprint;
 
       final idempotencyKey = _prepareIdempotencyKey;
 
@@ -446,20 +530,26 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget buildMarketplace(BuildContext context) {
     return Scaffold(
       backgroundColor: _background,
       appBar: AppBar(
         leading: IconButton(
           tooltip: 'Back',
           onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: MarketplacePalette.ink,
+          ),
         ),
         backgroundColor: _background,
-        foregroundColor: Colors.white,
+        foregroundColor: MarketplacePalette.ink,
         title: const Text(
           'Your Cart',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            color: MarketplacePalette.ink,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       body: _buildBody(),
@@ -481,7 +571,7 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
               Text(
                 _error,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: MarketplacePalette.ink),
               ),
               const SizedBox(height: 16),
               OutlinedButton(onPressed: _load, child: const Text('Retry')),
@@ -501,9 +591,7 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
 
     final currency = _text(_cart['displayCurrency']).isNotEmpty
         ? _text(_cart['displayCurrency'])
-        : (_text(_cart['currency']).isEmpty
-            ? 'INR'
-            : _text(_cart['currency']));
+        : (_text(_cart['currency']).isEmpty ? 'INR' : _text(_cart['currency']));
 
     return RefreshIndicator(
       color: _gold,
@@ -534,11 +622,16 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
           const SizedBox(height: 10),
           FilledButton.icon(
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
+              backgroundColor: MarketplacePalette.ink,
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
-            onPressed: (_preparingOrder || _openingPayment || _verifyingPayment)
+            onPressed:
+                (!_paidCheckoutEnabled ||
+                    _preparingOrder ||
+                    _openingPayment ||
+                    _verifyingPayment ||
+                    _paymentMarketplaceOrderId != null)
                 ? null
                 : _prepareOrder,
             icon: _preparingOrder
@@ -555,10 +648,23 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
                   ? 'Opening Payment...'
                   : _preparingOrder
                   ? 'Preparing Order...'
+                  : !_paidCheckoutEnabled
+                  ? 'Paid checkout unavailable'
                   : 'Proceed to Payment',
             ),
           ),
           const SizedBox(height: 10),
+          if (_paymentMarketplaceOrderId != null)
+            TextButton(
+              onPressed: _recoveringPayment || _verifyingPayment
+                  ? null
+                  : _recoverPayment,
+              child: Text(
+                _recoveringPayment
+                    ? 'Checking payment...'
+                    : 'Check pending payment status',
+              ),
+            ),
           const Text(
             'Payment is confirmed only after secure server verification.',
             textAlign: TextAlign.center,
@@ -607,7 +713,7 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
             height: 82,
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              color: const Color(0xFF1C1C1C),
+              color: MarketplacePalette.soft,
               borderRadius: BorderRadius.circular(16),
             ),
             child: image.isEmpty
@@ -631,7 +737,7 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
                 Text(
                   _text(product['name']),
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: MarketplacePalette.ink,
                     fontWeight: FontWeight.w800,
                     fontSize: 15,
                   ),
@@ -653,11 +759,11 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
                           ? null
                           : () => _changeQuantity(item, quantity - 1),
                       icon: const Icon(Icons.remove),
-                      color: Colors.white,
+                      color: MarketplacePalette.ink,
                     ),
                     Text(
                       '$quantity',
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: MarketplacePalette.ink),
                     ),
                     IconButton(
                       visualDensity: VisualDensity.compact,
@@ -665,7 +771,7 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
                           ? null
                           : () => _changeQuantity(item, quantity + 1),
                       icon: const Icon(Icons.add),
-                      color: Colors.white,
+                      color: MarketplacePalette.ink,
                     ),
                     const Spacer(),
                     IconButton(
@@ -691,11 +797,23 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
   }
 
   Widget _totals(String currency) {
-    final subtotal = _firstMoney([_cart['displaySubtotal'], _cart['itemsSubtotal'], _cart['subtotal']]);
+    final subtotal = _firstMoney([
+      _cart['displaySubtotal'],
+      _cart['itemsSubtotal'],
+      _cart['subtotal'],
+    ]);
 
-    final shipping = _firstMoney([_cart['displayShippingTotal'], _cart['shippingTotal'], _cart['shipping']]);
+    final shipping = _firstMoney([
+      _cart['displayShippingTotal'],
+      _cart['shippingTotal'],
+      _cart['shipping'],
+    ]);
 
-    final total = _firstMoney([_cart['displayGrandTotal'], _cart['grandTotal'], _cart['total']]);
+    final total = _firstMoney([
+      _cart['displayGrandTotal'],
+      _cart['grandTotal'],
+      _cart['total'],
+    ]);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -727,7 +845,7 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
           child: Text(
             label,
             style: TextStyle(
-              color: strong ? Colors.white : _muted,
+              color: strong ? MarketplacePalette.ink : _muted,
               fontWeight: strong ? FontWeight.w800 : FontWeight.w500,
             ),
           ),
@@ -735,7 +853,7 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
         Text(
           '${_symbol(currency)}$value',
           style: TextStyle(
-            color: strong ? _gold : Colors.white,
+            color: strong ? _gold : MarketplacePalette.ink,
             fontWeight: strong ? FontWeight.w900 : FontWeight.w700,
           ),
         ),
@@ -745,19 +863,16 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
 
   String _lineSubtotal(Map<String, dynamic> item) {
     final displayValue = item['displayLineSubtotal'];
-    final value =
-        displayValue ?? item['lineSubtotal'] ?? item['subtotal'];
+    final value = displayValue ?? item['lineSubtotal'] ?? item['subtotal'];
 
     if (value == null) return '';
 
     final product = item['product'];
     String currency = 'INR';
 
-    if (displayValue != null &&
-        _text(_cart['displayCurrency']).isNotEmpty) {
+    if (displayValue != null && _text(_cart['displayCurrency']).isNotEmpty) {
       currency = _text(_cart['displayCurrency']);
-    } else if (product is Map &&
-        _text(product['currency']).isNotEmpty) {
+    } else if (product is Map && _text(product['currency']).isNotEmpty) {
       currency = _text(product['currency']);
     }
 

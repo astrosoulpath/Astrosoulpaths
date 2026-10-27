@@ -1,10 +1,13 @@
+import '../marketplace_private_state.dart';
+import '../marketplace_palette.dart';
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_theme.dart';
 import '../../data/marketplace_seller_api.dart';
+import '../../data/marketplace_money.dart';
 
 class MarketplaceSellerFinanceScreen extends StatefulWidget {
-  const MarketplaceSellerFinanceScreen({super.key});
+  const MarketplaceSellerFinanceScreen({super.key, this.api});
+  final MarketplaceSellerApi? api;
 
   @override
   State<MarketplaceSellerFinanceScreen> createState() =>
@@ -12,8 +15,8 @@ class MarketplaceSellerFinanceScreen extends StatefulWidget {
 }
 
 class _MarketplaceSellerFinanceScreenState
-    extends State<MarketplaceSellerFinanceScreen> {
-  final MarketplaceSellerApi _api = MarketplaceSellerApi();
+    extends MarketplacePrivateState<MarketplaceSellerFinanceScreen> {
+  late final MarketplaceSellerApi _api = widget.api ?? MarketplaceSellerApi();
 
   bool _loading = true;
   String? _error;
@@ -37,18 +40,10 @@ class _MarketplaceSellerFinanceScreenState
         .toList(growable: false);
   }
 
-  Map<String, dynamic> get _summary {
+  List<Map> get _summary {
     final value = _earningData['summary'];
 
-    if (value is Map<String, dynamic>) {
-      return value;
-    }
-
-    if (value is Map) {
-      return value.map((key, value) => MapEntry(key.toString(), value));
-    }
-
-    return const <String, dynamic>{};
+    return value is List ? value.whereType<Map>().toList() : const [];
   }
 
   @override
@@ -93,9 +88,7 @@ class _MarketplaceSellerFinanceScreenState
   }
 
   String _money(dynamic value, [String currency = 'INR']) {
-    final text = _text(value);
-    if (text.isEmpty) return ' 0';
-    return ' ';
+    return marketplaceMoney(value, currency);
   }
 
   Color _statusColor(String status) {
@@ -103,28 +96,28 @@ class _MarketplaceSellerFinanceScreenState
       case 'AVAILABLE':
       case 'PAID':
       case 'COMPLETED':
-        return Colors.greenAccent;
+        return Colors.green;
       case 'PENDING':
       case 'PAYOUT_REQUESTED':
       case 'REQUESTED':
       case 'PROCESSING':
-        return Colors.orangeAccent;
+        return Colors.deepOrange;
       case 'REVERSED':
       case 'FAILED':
       case 'CANCELLED':
         return Colors.redAccent;
       default:
-        return AppColors.gold;
+        return MarketplacePalette.gold;
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget buildMarketplace(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF090909),
+      backgroundColor: MarketplacePalette.canvas,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF090909),
-        foregroundColor: AppColors.white,
+        backgroundColor: MarketplacePalette.canvas,
+        foregroundColor: MarketplacePalette.ink,
         title: const Text(
           'Earnings & Payouts',
           style: TextStyle(fontWeight: FontWeight.w800),
@@ -152,19 +145,10 @@ class _MarketplaceSellerFinanceScreenState
   }
 
   double get _availableEarningsAmount {
-    var total = 0.0;
-
-    for (final earning in _earnings) {
-      final status = _text(earning['status']).trim().toUpperCase();
-
-      if (status != 'AVAILABLE') {
-        continue;
-      }
-
-      total += _financeAmount(earning['netAmount'] ?? earning['sellerAmount']);
-    }
-
-    return total;
+    final rows = _summary.where((row) => row['status'] == 'AVAILABLE').toList();
+    if (rows.length != 1 || rows.single['_sum'] is! Map) return 0;
+    // Use the authoritative server aggregate, never add currency amounts on device.
+    return _financeAmount((rows.single['_sum'] as Map)['netAmount']);
   }
 
   String get _availableEarningsCurrency {
@@ -224,7 +208,7 @@ class _MarketplaceSellerFinanceScreenState
     });
 
     try {
-      await MarketplaceSellerApi().requestPayout();
+      await _api.requestPayout();
 
       if (!mounted) {
         return;
@@ -263,14 +247,26 @@ class _MarketplaceSellerFinanceScreenState
   Widget _withdrawCard() {
     final available = _availableEarningsAmount;
     final currency = _availableEarningsCurrency;
-    final canWithdraw = available > 0 && !_requestingPayout;
+    final multipleCurrencies =
+        _earnings
+            .where((e) => e['status'] == 'AVAILABLE')
+            .map((e) => _text(e['currency']).toUpperCase())
+            .toSet()
+            .length >
+        1;
+    final canWithdraw =
+        _earningData['payoutRequestsEnabled'] == true &&
+        available > 0 &&
+        !_requestingPayout;
 
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF151515),
+        color: MarketplacePalette.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.28)),
+        border: Border.all(
+          color: MarketplacePalette.gold.withValues(alpha: 0.28),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,13 +275,13 @@ class _MarketplaceSellerFinanceScreenState
             children: [
               Icon(
                 Icons.account_balance_wallet_outlined,
-                color: AppColors.gold,
+                color: MarketplacePalette.gold,
               ),
               SizedBox(width: 10),
               Text(
                 'Available to withdraw',
                 style: TextStyle(
-                  color: AppColors.white,
+                  color: MarketplacePalette.ink,
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
@@ -294,9 +290,11 @@ class _MarketplaceSellerFinanceScreenState
           ),
           const SizedBox(height: 14),
           Text(
-            _money(available, currency),
+            multipleCurrencies
+                ? 'Multiple currencies — see breakdown'
+                : _money(available, currency),
             style: const TextStyle(
-              color: AppColors.gold,
+              color: MarketplacePalette.gold,
               fontSize: 25,
               fontWeight: FontWeight.w900,
             ),
@@ -307,7 +305,7 @@ class _MarketplaceSellerFinanceScreenState
                 ? 'Only delivered and available marketplace earnings can be requested.'
                 : 'No marketplace earnings are currently available for withdrawal.',
             style: TextStyle(
-              color: AppColors.white.withValues(alpha: 0.62),
+              color: MarketplacePalette.ink.withValues(alpha: 0.62),
               fontSize: 12,
               height: 1.4,
             ),
@@ -325,10 +323,14 @@ class _MarketplaceSellerFinanceScreenState
                     )
                   : const Icon(Icons.payments_outlined),
               label: Text(
-                _requestingPayout ? 'Requesting...' : 'Withdraw Earnings',
+                _earningData['payoutRequestsEnabled'] != true
+                    ? 'Withdrawals unavailable'
+                    : _requestingPayout
+                    ? 'Requesting...'
+                    : 'Withdraw Earnings',
               ),
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.gold,
+                backgroundColor: MarketplacePalette.gold,
                 foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
@@ -358,14 +360,14 @@ class _MarketplaceSellerFinanceScreenState
           const SizedBox(height: 120),
           const Icon(
             Icons.error_outline_rounded,
-            color: AppColors.gold,
+            color: MarketplacePalette.gold,
             size: 48,
           ),
           const SizedBox(height: 14),
           Text(
             _error!,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.white),
+            style: const TextStyle(color: MarketplacePalette.ink),
           ),
           const SizedBox(height: 18),
           Center(
@@ -424,21 +426,26 @@ class _MarketplaceSellerFinanceScreenState
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF151515),
+        color: MarketplacePalette.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.28)),
+        border: Border.all(
+          color: MarketplacePalette.gold.withValues(alpha: 0.28),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Icon(Icons.monetization_on_outlined, color: AppColors.gold),
+              Icon(
+                Icons.monetization_on_outlined,
+                color: MarketplacePalette.gold,
+              ),
               SizedBox(width: 10),
               Text(
                 'Marketplace Finance',
                 style: TextStyle(
-                  color: AppColors.white,
+                  color: MarketplacePalette.ink,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
@@ -459,10 +466,17 @@ class _MarketplaceSellerFinanceScreenState
           ),
           if (_summary.isNotEmpty) ...[
             const SizedBox(height: 12),
+            ..._summary.map((row) {
+              final sums = row['_sum'];
+              return Text(
+                '${_text(row['status'])}: ${_money(sums is Map ? sums['netAmount'] : null, _text(row['currency']))}',
+                style: const TextStyle(color: MarketplacePalette.ink),
+              );
+            }),
             Text(
               'Finance summary is calculated by the server.',
               style: TextStyle(
-                color: AppColors.white.withValues(alpha: 0.62),
+                color: MarketplacePalette.ink.withValues(alpha: 0.62),
                 fontSize: 12,
               ),
             ),
@@ -476,7 +490,7 @@ class _MarketplaceSellerFinanceScreenState
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF0E0E0E),
+        color: MarketplacePalette.soft,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -485,7 +499,7 @@ class _MarketplaceSellerFinanceScreenState
           Text(
             value,
             style: const TextStyle(
-              color: AppColors.gold,
+              color: MarketplacePalette.gold,
               fontSize: 21,
               fontWeight: FontWeight.w900,
             ),
@@ -494,7 +508,7 @@ class _MarketplaceSellerFinanceScreenState
           Text(
             title,
             style: TextStyle(
-              color: AppColors.white.withValues(alpha: 0.7),
+              color: MarketplacePalette.ink.withValues(alpha: 0.7),
               fontSize: 12,
             ),
           ),
@@ -506,12 +520,12 @@ class _MarketplaceSellerFinanceScreenState
   Widget _sectionTitle({required IconData icon, required String title}) {
     return Row(
       children: [
-        Icon(icon, color: AppColors.gold, size: 21),
+        Icon(icon, color: MarketplacePalette.gold, size: 21),
         const SizedBox(width: 9),
         Text(
           title,
           style: const TextStyle(
-            color: AppColors.white,
+            color: MarketplacePalette.ink,
             fontSize: 17,
             fontWeight: FontWeight.w800,
           ),
@@ -528,19 +542,21 @@ class _MarketplaceSellerFinanceScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
       decoration: BoxDecoration(
-        color: const Color(0xFF151515),
+        color: MarketplacePalette.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        border: Border.all(
+          color: MarketplacePalette.ink.withValues(alpha: 0.07),
+        ),
       ),
       child: Column(
         children: [
-          Icon(icon, color: AppColors.gold, size: 46),
+          Icon(icon, color: MarketplacePalette.gold, size: 46),
           const SizedBox(height: 14),
           Text(
             title,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: AppColors.white,
+              color: MarketplacePalette.ink,
               fontSize: 17,
               fontWeight: FontWeight.w800,
             ),
@@ -550,7 +566,7 @@ class _MarketplaceSellerFinanceScreenState
             message,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: AppColors.white.withValues(alpha: 0.58),
+              color: MarketplacePalette.ink.withValues(alpha: 0.58),
               height: 1.4,
             ),
           ),
@@ -571,7 +587,7 @@ class _MarketplaceSellerFinanceScreenState
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF151515),
+        color: MarketplacePalette.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -583,7 +599,7 @@ class _MarketplaceSellerFinanceScreenState
                 child: Text(
                   _money(net, currency),
                   style: const TextStyle(
-                    color: AppColors.white,
+                    color: MarketplacePalette.ink,
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
                   ),
@@ -604,7 +620,7 @@ class _MarketplaceSellerFinanceScreenState
             Text(
               'Gross: ',
               style: TextStyle(
-                color: AppColors.white.withValues(alpha: 0.62),
+                color: MarketplacePalette.ink.withValues(alpha: 0.62),
                 fontSize: 12,
               ),
             ),
@@ -624,12 +640,12 @@ class _MarketplaceSellerFinanceScreenState
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF151515),
+        color: MarketplacePalette.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
-          const Icon(Icons.payments_outlined, color: AppColors.gold),
+          const Icon(Icons.payments_outlined, color: MarketplacePalette.gold),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -638,7 +654,7 @@ class _MarketplaceSellerFinanceScreenState
                 Text(
                   _money(payout['amount'], currency),
                   style: const TextStyle(
-                    color: AppColors.white,
+                    color: MarketplacePalette.ink,
                     fontWeight: FontWeight.w800,
                   ),
                 ),

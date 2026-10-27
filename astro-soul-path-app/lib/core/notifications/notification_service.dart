@@ -1,11 +1,16 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'notification_device_api.dart';
+import 'notification_session_fence.dart';
+import 'notification_display_fence.dart';
+import 'smart_notification_payload.dart';
+import '../../features/auth/data/auth_session_store.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -16,11 +21,11 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
 
   if (kDebugMode) {
-    debugPrint('FCM BACKGROUND MESSAGE: ${message.messageId} ${message.data}');
+    debugPrint('FCM background notification received');
   }
 }
 
-class NotificationService {
+class NotificationService with WidgetsBindingObserver {
   NotificationService._();
 
   static final NotificationService instance = NotificationService._();
@@ -34,6 +39,58 @@ class NotificationService {
 
   bool _firebaseReady = false;
   bool _initialized = false;
+  Future<void> _deviceOperations = Future.value();
+
+  Future<void> _registerDevice(String token) {
+    final generation = NotificationSessionFence.generation;
+    final operation = _deviceOperations.then((_) async {
+      final settings = await _messaging?.getNotificationSettings();
+      if (settings == null ||
+          settings.authorizationStatus == AuthorizationStatus.denied ||
+          settings.authorizationStatus == AuthorizationStatus.notDetermined) {
+        return;
+      }
+      if (!NotificationSessionFence.suspended &&
+          generation == NotificationSessionFence.generation) {
+        await _deviceApi.registerDevice(fcmToken: token);
+      }
+    });
+    _deviceOperations = operation.catchError((Object _) {});
+    return operation;
+  }
+
+  Future<void> unbindCurrentDevice(AuthSessionStore sessions) async {
+    NotificationSessionFence.suspend();
+    if (_messaging == null && Firebase.apps.isNotEmpty) {
+      _messaging = FirebaseMessaging.instance;
+      _firebaseReady = true;
+    }
+    if (!_firebaseReady || _messaging == null) return;
+    final session = await sessions.read();
+    await _deviceOperations;
+    final token = await _messaging!.getToken();
+    Object? failure;
+    try {
+      if (session != null && token != null) {
+        await _deviceApi.unregisterDevice(
+          fcmToken: token,
+          accessToken: session.accessToken,
+        );
+      }
+    } catch (error) {
+      failure = error;
+    }
+    // Rotate the installation token even if the server is unreachable.
+    try {
+      await _messaging!.deleteToken();
+    } catch (error) {
+      failure ??= error;
+    }
+    await _localNotifications.cancelAll();
+    if (failure != null) {
+      throw StateError('Notification logout could not be confirmed.');
+    }
+  }
 
   Future<void> initialize({
     required void Function(Map<String, dynamic> payload) onNotificationTap,
@@ -42,10 +99,9 @@ class NotificationService {
     if (_initialized) {
       return;
     }
+    WidgetsBinding.instance.addObserver(this);
 
-    const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
-    );
+    const androidSettings = AndroidInitializationSettings('ic_stat_astro');
 
     const iosSettings = DarwinInitializationSettings();
 
@@ -56,8 +112,9 @@ class NotificationService {
 
     await _localNotifications.initialize(
       settings: initializationSettings,
-      onDidReceiveNotificationResponse: (response) {
+      onDidReceiveNotificationResponse: (response) async {
         final payload = _decodePayload(response.payload);
+        if (!await _acceptPayload(payload)) return;
 
         if (payload.isNotEmpty) {
           onNotificationTap(payload);
@@ -74,7 +131,7 @@ class NotificationService {
 
       if (kDebugMode) {
         debugPrint(
-          'Firebase is not configured yet. Notifications remain in setup mode: $error',
+          'Firebase is not configured yet. Notifications remain in setup mode.',
         );
       }
     }
@@ -96,7 +153,19 @@ class NotificationService {
     await _requestPermission(messaging);
 
     FirebaseMessaging.onMessage.listen((message) async {
-      await _showForegroundNotification(message);
+      final fence = NotificationDisplayFence();
+      try {
+        if (!await fence.display(
+          authorize: () => _acceptPayload(message.data),
+          show: () => _showForegroundNotification(message),
+          clearStale: () =>
+              _localNotifications.cancel(id: message.messageId.hashCode),
+        )) {
+          return;
+        }
+      } catch (_) {
+        return; // Notification plugin/network failure must not become unhandled.
+      }
 
       final payload = <String, dynamic>{
         ...message.data,
@@ -110,12 +179,14 @@ class NotificationService {
             '',
       };
 
-      if (payload['body']?.toString().trim().isNotEmpty == true) {
+      if (fence.current &&
+          payload['body']?.toString().trim().isNotEmpty == true) {
         onForegroundNotification?.call(payload);
       }
     });
 
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+    FirebaseMessaging.onMessageOpenedApp.listen((message) async {
+      if (!await _acceptPayload(message.data)) return;
       if (message.data.isNotEmpty) {
         onNotificationTap(Map<String, dynamic>.from(message.data));
       }
@@ -125,30 +196,36 @@ class NotificationService {
 
     if (token != null && token.trim().isNotEmpty) {
       try {
-        await _deviceApi.registerDevice(fcmToken: token);
+        await _registerDevice(token);
       } catch (error) {
         if (kDebugMode) {
-          debugPrint('FCM DEVICE REGISTRATION FAILED: $error');
+          debugPrint('FCM device registration failed');
         }
       }
     }
 
     final initialMessage = await messaging.getInitialMessage();
 
-    if (initialMessage != null && initialMessage.data.isNotEmpty) {
+    if (initialMessage != null &&
+        initialMessage.data.isNotEmpty &&
+        await _acceptPayload(initialMessage.data)) {
       onNotificationTap(Map<String, dynamic>.from(initialMessage.data));
     }
 
     messaging.onTokenRefresh.listen((token) async {
       if (kDebugMode) {
-        debugPrint('FCM TOKEN REFRESHED: $token');
+        debugPrint('FCM token refreshed');
       }
 
       try {
-        await _deviceApi.registerDevice(fcmToken: token);
+        if ((await messaging.getNotificationSettings()).authorizationStatus ==
+            AuthorizationStatus.denied) {
+          return;
+        }
+        await _registerDevice(token);
       } catch (error) {
         if (kDebugMode) {
-          debugPrint('FCM TOKEN REFRESH REGISTRATION FAILED: $error');
+          debugPrint('FCM token refresh registration failed');
         }
       }
     });
@@ -158,6 +235,72 @@ class NotificationService {
 
   Future<void> _requestPermission(FirebaseMessaging messaging) async {
     await messaging.requestPermission(alert: true, badge: true, sound: true);
+  }
+
+  Future<bool> _acceptPayload(Map<String, dynamic> payload) async {
+    if (!validSmartNotificationPayload(payload)) return false;
+    final generation = NotificationSessionFence.generation;
+    final owner = payload['ownerId']?.toString();
+    if (owner == null) return true; // Legacy routing remains unchanged.
+    if (NotificationSessionFence.suspended) return false;
+    final session = await AuthSessionStore().read();
+    return generation == NotificationSessionFence.generation &&
+        session?.user['id']?.toString() == owner;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      syncCurrentDevice();
+    }
+  }
+
+  Future<bool> horoscopeNotificationPermissionGranted() async {
+    try {
+      if (!_firebaseReady) return false;
+      final settings = await _messaging!.getNotificationSettings();
+      return settings.authorizationStatus == AuthorizationStatus.authorized;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> authorizeHoroscopeReminders() async {
+    final generation = NotificationSessionFence.generation;
+    try {
+      if (!_firebaseReady) {
+        await Firebase.initializeApp();
+        _messaging = FirebaseMessaging.instance;
+        _firebaseReady = true;
+      }
+      final settings = await _messaging!.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      // Provisional iOS delivery is quiet; do not describe it as full consent.
+      if (settings.authorizationStatus != AuthorizationStatus.authorized) {
+        return false;
+      }
+      final android = _localNotifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      if (android != null &&
+          await android.requestNotificationsPermission() != true) {
+        return false;
+      }
+      final session = await AuthSessionStore().read();
+      if (session == null ||
+          generation != NotificationSessionFence.generation) {
+        return false;
+      }
+      NotificationSessionFence.activate();
+      await syncCurrentDevice();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _showForegroundNotification(RemoteMessage message) async {
@@ -222,6 +365,7 @@ class NotificationService {
   }
 
   Future<void> syncCurrentDevice() async {
+    final generation = NotificationSessionFence.generation;
     if (kDebugMode) {
       debugPrint('FCM LOGIN SYNC: started');
     }
@@ -239,7 +383,11 @@ class NotificationService {
         return;
       }
 
-      await _requestPermission(messaging);
+      final authorization = await messaging.getNotificationSettings();
+      if (authorization.authorizationStatus == AuthorizationStatus.denied) {
+        await unbindCurrentDevice(AuthSessionStore());
+        return;
+      }
 
       if (kDebugMode) {
         debugPrint('FCM LOGIN SYNC: requesting Firebase token');
@@ -260,16 +408,17 @@ class NotificationService {
         return;
       }
 
-      await _deviceApi.registerDevice(fcmToken: token);
+      if (generation == NotificationSessionFence.generation) {
+        await _registerDevice(token);
+      }
 
       if (kDebugMode) {
         debugPrint('FCM LOGIN SYNC: device registered');
       }
-
     } catch (error) {
       // Push registration must never block a successful customer login.
       if (kDebugMode) {
-        debugPrint('FCM LOGIN SYNC FAILED: $error');
+        debugPrint('FCM login sync failed');
       }
     }
   }

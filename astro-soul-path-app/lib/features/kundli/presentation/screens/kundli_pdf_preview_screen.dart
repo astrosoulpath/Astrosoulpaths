@@ -2,9 +2,9 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
-import 'package:public_file_saver/public_file_saver.dart';
+import 'package:open_filex/open_filex.dart';
+import '../../data/kundli_pdf_export.dart';
 import 'package:share_plus/share_plus.dart';
 
 class KundliPdfPreviewScreen extends StatefulWidget {
@@ -12,21 +12,56 @@ class KundliPdfPreviewScreen extends StatefulWidget {
     super.key,
     required this.bytes,
     required this.fileName,
+    this.savePdf,
+    this.previewBuilder,
   });
 
   final Uint8List bytes;
   final String fileName;
+  final KundliPdfSave? savePdf;
+  final Widget Function(Uint8List bytes)? previewBuilder;
 
   @override
   State<KundliPdfPreviewScreen> createState() => _KundliPdfPreviewScreenState();
 }
 
 class _KundliPdfPreviewScreenState extends State<KundliPdfPreviewScreen> {
+  late final Uint8List _bytes = Uint8List.fromList(widget.bytes);
+  late final String _name = safeKundliPdfName(widget.fileName);
+  late final String _previewSourceName = newKundliPdfPreviewSourceName();
+  bool get _valid => isValidKundliPdf(_bytes);
   bool _isSaving = false;
   bool _isSharing = false;
+  int? _pageCount;
+
+  Future<void> _openPdf() async {
+    if (_isSaving || _isSharing || !_valid) return;
+    setState(() => _isSharing = true);
+    try {
+      final directory = await kundliPdfTemporaryDirectory();
+      final file = File('${directory.path}/$_name');
+      await file.writeAsBytes(_bytes, flush: true);
+      final result = await OpenFilex.open(file.path, type: 'application/pdf');
+      if (result.type != ResultType.done) {
+        throw const FileSystemException('Open failed');
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unable to open PDF. Please install a PDF viewer or save to Files.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSharing = false);
+    }
+  }
 
   Future<void> _downloadPdf() async {
-    if (_isSaving) {
+    if (_isSaving || _isSharing || !_valid) {
       return;
     }
 
@@ -35,34 +70,18 @@ class _KundliPdfPreviewScreenState extends State<KundliPdfPreviewScreen> {
     });
 
     try {
-      final saver = PublicFileSaver();
-
-      final result = await saver.saveBytes(
-        bytes: widget.bytes,
-        fileName: widget.fileName,
-        mimeType: 'application/pdf',
-        subDir: Platform.isAndroid ? 'Astro Soul Path' : null,
-      );
-
-      if (!mounted) {
+      final result = await (widget.savePdf ?? saveKundliPdf)(_bytes, _name);
+      if (!mounted) return;
+      if (result == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('PDF save cancelled.')));
         return;
       }
-
-      if (result == null || !result.isSuccess) {
-        throw Exception('PDF save failed');
-      }
-
+      if (result.trim().isEmpty) throw const FormatException('Save failed');
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              Platform.isAndroid
-                  ? 'Kundli PDF saved in Downloads/Astro Soul Path.'
-                  : 'Kundli PDF saved to Files.',
-            ),
-          ),
-        );
+        ..showSnackBar(SnackBar(content: const Text('PDF saved successfully')));
     } catch (_) {
       if (!mounted) {
         return;
@@ -85,7 +104,7 @@ class _KundliPdfPreviewScreenState extends State<KundliPdfPreviewScreen> {
   }
 
   Future<void> _sharePdf() async {
-    if (_isSharing) {
+    if (_isSharing || _isSaving || !_valid) {
       return;
     }
 
@@ -94,17 +113,17 @@ class _KundliPdfPreviewScreenState extends State<KundliPdfPreviewScreen> {
     });
 
     try {
-      final tempDirectory = await getTemporaryDirectory();
+      final directory = await kundliPdfTemporaryDirectory();
+      final tempFile = File('${directory.path}/$_name');
 
-      final tempFile = File('${tempDirectory.path}/${widget.fileName}');
-
-      await tempFile.writeAsBytes(widget.bytes, flush: true);
+      await tempFile.writeAsBytes(_bytes, flush: true);
 
       await SharePlus.instance.share(
         ShareParams(
           files: [XFile(tempFile.path, mimeType: 'application/pdf')],
           title: 'Astro Soul Path Kundli',
           subject: 'My Kundli Report',
+          sharePositionOrigin: const Rect.fromLTWH(1, 1, 1, 1),
         ),
       );
     } catch (_) {
@@ -136,18 +155,41 @@ class _KundliPdfPreviewScreenState extends State<KundliPdfPreviewScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F8),
       appBar: AppBar(
+        bottom: _pageCount == null
+            ? null
+            : PreferredSize(
+                preferredSize: const Size.fromHeight(24),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    '$_pageCount pages',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
         backgroundColor: navy,
         foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
+        actionsIconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
         titleSpacing: 0,
         title: const Text(
           'Kundli PDF',
-          style: TextStyle(fontWeight: FontWeight.w700),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         ),
         actions: [
           IconButton(
+            tooltip: 'Open PDF',
+            color: Colors.white,
+            disabledColor: Colors.white,
+            onPressed: _isSharing || _isSaving || !_valid ? null : _openPdf,
+            icon: const Icon(Icons.open_in_new_rounded),
+          ),
+          IconButton(
             tooltip: 'Share',
-            onPressed: _isSharing ? null : _sharePdf,
+            color: Colors.white,
+            disabledColor: Colors.white,
+            onPressed: _isSharing || _isSaving || !_valid ? null : _sharePdf,
             icon: _isSharing
                 ? const SizedBox(
                     width: 20,
@@ -162,14 +204,32 @@ class _KundliPdfPreviewScreenState extends State<KundliPdfPreviewScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: PdfViewer.data(
-        widget.bytes,
-        sourceName: widget.fileName,
-        params: const PdfViewerParams(
-          backgroundColor: Color(0xFFF4F5F8),
-          margin: 12,
-        ),
-      ),
+      body: !_valid
+          ? const Center(
+              child: Text(
+                'Invalid or incomplete PDF. Please reopen the report.',
+              ),
+            )
+          : widget.previewBuilder?.call(_bytes) ??
+                PdfViewer.data(
+                  _bytes,
+                  sourceName: _previewSourceName,
+                  params: PdfViewerParams(
+                    onDocumentChanged: (document) {
+                      if (mounted) {
+                        setState(() => _pageCount = document?.pages.length);
+                      }
+                    },
+                    errorBannerBuilder: (context, error, stack, document) =>
+                        const Center(
+                          child: Text(
+                            'Unable to render PDF. Please reopen the report.',
+                          ),
+                        ),
+                    backgroundColor: Color(0xFFF4F5F8),
+                    margin: 12,
+                  ),
+                ),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
@@ -185,7 +245,8 @@ class _KundliPdfPreviewScreenState extends State<KundliPdfPreviewScreen> {
             ],
           ),
           child: SizedBox(
-            height: 50,
+            // Minimum touch target without clipping accessibility text.
+            // Button padding handles larger text.
             child: FilledButton.icon(
               style: FilledButton.styleFrom(
                 backgroundColor: gold,
@@ -194,7 +255,9 @@ class _KundliPdfPreviewScreenState extends State<KundliPdfPreviewScreen> {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              onPressed: _isSaving ? null : _downloadPdf,
+              onPressed: _isSaving || _isSharing || !_valid
+                  ? null
+                  : _downloadPdf,
               icon: _isSaving
                   ? const SizedBox(
                       width: 19,

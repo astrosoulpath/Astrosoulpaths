@@ -6,10 +6,14 @@ import 'package:mime/mime.dart';
 
 import '../../../core/config/api_config.dart';
 import '../../auth/data/auth_session_store.dart';
+import 'marketplace_session_client.dart';
 
 class MarketplaceSellerApi {
   MarketplaceSellerApi({http.Client? client, AuthSessionStore? sessionStore})
-    : _client = client ?? http.Client(),
+    : _client = MarketplaceSessionClient(
+        client ?? http.Client(),
+        sessionStore ?? AuthSessionStore(),
+      ),
       _sessionStore = sessionStore ?? AuthSessionStore();
 
   final http.Client _client;
@@ -226,9 +230,9 @@ class MarketplaceSellerApi {
     );
 
     try {
-      final streamedResponse = await request.send().timeout(
-        ApiConfig.requestTimeout,
-      );
+      final streamedResponse = await _client
+          .send(request)
+          .timeout(ApiConfig.requestTimeout);
 
       final response = await http.Response.fromStream(streamedResponse);
 
@@ -458,6 +462,38 @@ class MarketplaceSellerApi {
     }
 
     return <String, dynamic>{};
+  }
+
+  Future<void> setProductPaused(String productId, bool paused) async {
+    final response = await _request(
+      method: 'PATCH',
+      endpoint:
+          '/marketplace/seller/products/$productId/${paused ? 'pause' : 'resume'}',
+      authenticated: true,
+    );
+    _ensureSuccess(
+      response,
+      _decode(response.body),
+      fallback: 'Unable to change listing availability.',
+    );
+  }
+
+  Future<void> updateInventory(
+    String productId,
+    int expectedStock,
+    int stock,
+  ) async {
+    final response = await _request(
+      method: 'PATCH',
+      endpoint: '/marketplace/seller/products/$productId/inventory',
+      authenticated: true,
+      body: {'expectedStock': expectedStock, 'stock': stock},
+    );
+    _ensureSuccess(
+      response,
+      _decode(response.body),
+      fallback: 'Inventory changed. Refresh and retry.',
+    );
   }
 
   Future<http.Response> _request({

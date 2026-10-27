@@ -1,8 +1,10 @@
+import '../../../core/network/customer_session_client.dart';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/api_config.dart';
+import '../../../core/config/customer_consultation_policy.dart';
 import '../../auth/data/auth_session_store.dart';
 import '../../wallet/data/customer_wallet.dart';
 import 'consultation_models.dart';
@@ -19,7 +21,7 @@ class ConsultationApiException implements Exception {
 
 class ConsultationApi {
   ConsultationApi({http.Client? client, AuthSessionStore? sessionStore})
-    : _client = client ?? http.Client(),
+    : _client = CustomerSessionClient(client ?? http.Client()),
       _sessionStore = sessionStore ?? AuthSessionStore();
 
   final http.Client _client;
@@ -30,6 +32,13 @@ class ConsultationApi {
     required int purchasedMinutes,
     required ConsultationMode mode,
   }) async {
+    if (mode == ConsultationMode.video &&
+        !CustomerConsultationPolicy.videoEnabled) {
+      throw const ConsultationApiException(
+        'New video consultations are currently unavailable. Choose Chat or Audio.',
+        code: 'VIDEO_UNAVAILABLE',
+      );
+    }
     final normalizedAstrologerUserId = astrologerUserId.trim();
 
     if (normalizedAstrologerUserId.isEmpty) {
@@ -96,12 +105,15 @@ class ConsultationApi {
   Future<List<ConsultationHistoryItem>> getConsultationHistory({
     int page = 1,
     int limit = 20,
+    String search = '',
+    String status = '',
   }) async {
     final safePage = page < 1 ? 1 : page;
     final safeLimit = limit.clamp(1, 100);
 
     final body = await _authenticatedRequest(
-      path: '/consultations/history?page=$safePage&limit=$safeLimit',
+      path:
+          '/consultations/history?${Uri(queryParameters: {'page': '$safePage', 'limit': '$safeLimit', if (search.trim().isNotEmpty) 'search': search.trim(), if (status.isNotEmpty && status != 'ALL') 'status': status}).query}',
       method: 'GET',
     );
 

@@ -5,14 +5,17 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/kundli_api.dart';
 import 'kundli_pdf_preview_screen.dart';
+import 'astrologer_manual_kundli_reports_screen.dart';
 
 class AstrologerSavedKundliDetailScreen extends StatefulWidget {
   const AstrologerSavedKundliDetailScreen({
     super.key,
     required this.savedRecordId,
     this.initialRecord,
+    this.api,
   });
 
+  final KundliApi? api;
   final String savedRecordId;
   final ProfessionalSavedKundli? initialRecord;
 
@@ -23,13 +26,12 @@ class AstrologerSavedKundliDetailScreen extends StatefulWidget {
 
 class _AstrologerSavedKundliDetailScreenState
     extends State<AstrologerSavedKundliDetailScreen> {
-  final KundliApi _api = KundliApi();
+  late final KundliApi _api = widget.api ?? KundliApi();
 
   ProfessionalSavedKundliDetail? _detail;
 
   bool _loading = true;
   bool _loadingPdf = false;
-  bool _regenerating = false;
 
   String _error = '';
 
@@ -80,65 +82,6 @@ class _AstrologerSavedKundliDetailScreenState
     }
   }
 
-  Future<void> _regenerateReport() async {
-    if (_regenerating || _professionalPdfReady) {
-      return;
-    }
-
-    setState(() {
-      _regenerating = true;
-    });
-
-    try {
-      await _api.regenerateProfessionalSavedKundli(
-        savedRecordId: widget.savedRecordId,
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      await _load();
-
-      if (!mounted) {
-        return;
-      }
-
-      final refreshedReport = _detail?.report;
-      final percent = refreshedReport?.coreCompletenessPercent ?? 0;
-      final status = refreshedReport?.status.trim().isNotEmpty == true
-          ? refreshedReport!.status
-          : 'UNKNOWN';
-
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              _professionalPdfReady
-                  ? 'Professional Kundli report is complete. PDF is ready.'
-                  : 'Report refreshed from the provider. '
-                        'Current status: $status, completeness: $percent%.',
-            ),
-          ),
-        );
-    } on KundliApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(SnackBar(content: Text(error.message)));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _regenerating = false;
-        });
-      }
-    }
-  }
-
   bool get _professionalPdfReady {
     final report = _detail?.report;
 
@@ -166,7 +109,7 @@ class _AstrologerSavedKundliDetailScreenState
             content: Text(
               'Professional PDF is not ready yet. '
               'Kundli calculation is $percent% complete. '
-              'Complete or regenerate the Kundli first.',
+              'Provider regeneration is retired. Create a consultation report from Customer History.',
             ),
           ),
         );
@@ -233,11 +176,7 @@ class _AstrologerSavedKundliDetailScreenState
         actions: [
           IconButton(
             tooltip: 'PDF',
-            onPressed:
-                _loading ||
-                    _loadingPdf ||
-                    _regenerating ||
-                    !_professionalPdfReady
+            onPressed: _loading || _loadingPdf || !_professionalPdfReady
                 ? null
                 : _openPdf,
             icon: _loadingPdf
@@ -385,30 +324,26 @@ class _AstrologerSavedKundliDetailScreenState
         const SizedBox(height: 8),
 
         if (!_professionalPdfReady) ...[
-          SizedBox(
-            height: 52,
-            child: FilledButton.icon(
-              onPressed: _regenerating || _loading ? null : _regenerateReport,
-              icon: _regenerating
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.refresh),
-              label: Text(
-                _regenerating ? 'Regenerating Report...' : 'Regenerate Report',
+          const Text(
+            'Provider regeneration is retired. Existing saved charts remain available. '
+            'To prepare a new professional report, open Customer History and select '
+            'Report for an authorized consultation.',
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => const AstrologerManualKundliReportsScreen(),
               ),
             ),
+            icon: const Icon(Icons.description_outlined),
+            label: const Text('View Consultation Reports'),
           ),
           const SizedBox(height: 10),
         ],
         SizedBox(
           height: 52,
           child: FilledButton.icon(
-            onPressed: _loadingPdf || _regenerating || !_professionalPdfReady
-                ? null
-                : _openPdf,
+            onPressed: _loadingPdf || !_professionalPdfReady ? null : _openPdf,
             icon: _loadingPdf
                 ? const SizedBox(
                     width: 18,

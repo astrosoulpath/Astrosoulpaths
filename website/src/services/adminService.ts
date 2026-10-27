@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+import { adminFetch } from "@/features/admin/auth/admin-session";
 
 export type AdminAstrologer = {
   id: string;
@@ -21,20 +21,9 @@ export type AdminAstrologer = {
   }[];
 };
 
-function getAuthHeaders() {
-  const token =
-    localStorage.getItem("asp_admin_access_token") ??
-    localStorage.getItem("access_token");
-
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
 export async function getAdminStats() {
-  const response = await fetch(`${API_BASE_URL}/admin/stats`, {
-    headers: getAuthHeaders(),
+  const response = await adminFetch(`/admin/stats`, {
+    headers: { "Content-Type": "application/json" },
   });
 
   const data = await response.json().catch(() => null);
@@ -47,8 +36,8 @@ export async function getAdminStats() {
 }
 
 export async function getAdminAstrologers() {
-  const response = await fetch(`${API_BASE_URL}/admin/astrologers`, {
-    headers: getAuthHeaders(),
+  const response = await adminFetch(`/admin/astrologers`, {
+    headers: { "Content-Type": "application/json" },
   });
 
   const data = await response.json().catch(() => null);
@@ -61,9 +50,9 @@ export async function getAdminAstrologers() {
 }
 
 export async function approveAstrologer(id: string) {
-  const response = await fetch(`${API_BASE_URL}/admin/astrologers/${id}/approve`, {
+  const response = await adminFetch(`/admin/astrologers/${id}/approve`, {
     method: "PATCH",
-    headers: getAuthHeaders(),
+    headers: { "Content-Type": "application/json" },
   });
 
   const data = await response.json().catch(() => null);
@@ -76,11 +65,11 @@ export async function approveAstrologer(id: string) {
 }
 
 export async function rejectAstrologer(id: string) {
-  const response = await fetch(
-    `${API_BASE_URL}/admin/astrologers/${id}/reject`,
+  const response = await adminFetch(
+    `/admin/astrologers/${id}/reject`,
     {
       method: "PATCH",
-      headers: getAuthHeaders(),
+      headers: { "Content-Type": "application/json" },
     },
   );
 
@@ -95,9 +84,9 @@ export async function rejectAstrologer(id: string) {
 
 
 export async function suspendAstrologer(id: string) {
-  const response = await fetch(`${API_BASE_URL}/admin/astrologers/${id}/suspend`, {
+  const response = await adminFetch(`/admin/astrologers/${id}/suspend`, {
     method: "PATCH",
-    headers: getAuthHeaders(),
+    headers: { "Content-Type": "application/json" },
   });
 
   const data = await response.json().catch(() => null);

@@ -4,10 +4,12 @@ describe('DailyHoroscopePushProcessor', () => {
   const prismaMock = {
     subscription: {
       findMany: jest.fn(),
+      findFirst: jest.fn(),
     },
   };
 
   const redisMock = {
+    releaseLock: jest.fn(),
     get: jest.fn(),
     set: jest.fn(),
     setNX: jest.fn(),
@@ -29,6 +31,7 @@ describe('DailyHoroscopePushProcessor', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    prismaMock.subscription.findFirst.mockResolvedValue({id: 'active-fixture'});
 
     notificationsServiceMock.createForUser.mockImplementation(
       async (input: any) => ({
@@ -96,6 +99,7 @@ describe('DailyHoroscopePushProcessor', () => {
           supabaseId: 'supabase-1',
           userProfile: {
             timezoneName: 'Asia/Kolkata',
+            lang: 'en',
             timezone: 5.5,
           },
         },
@@ -128,6 +132,7 @@ describe('DailyHoroscopePushProcessor', () => {
           supabaseId: 'supabase-1',
           userProfile: {
             timezoneName: 'Asia/Kolkata',
+            lang: 'en',
             timezone: 5.5,
           },
         },
@@ -160,6 +165,7 @@ describe('DailyHoroscopePushProcessor', () => {
           supabaseId: 'supabase-1',
           userProfile: {
             timezoneName: 'Asia/Kolkata',
+            lang: 'en',
             timezone: 5.5,
           },
         },
@@ -172,6 +178,7 @@ describe('DailyHoroscopePushProcessor', () => {
     dailyInsightServiceMock.getNakshatraDailyInsight.mockResolvedValue({
       success: true,
       data: {
+        generation: {language: {code: 'en'}},
         ai: {
           notificationTitle: 'Your Daily Horoscope',
           shortReading: 'Today is a good day to make steady progress.',
@@ -189,13 +196,13 @@ describe('DailyHoroscopePushProcessor', () => {
 
     expect(
       dailyInsightServiceMock.getNakshatraDailyInsight,
-    ).toHaveBeenCalledWith('supabase-1', 'today');
+    ).toHaveBeenCalledWith('supabase-1', 'today', 'en');
 
     expect(pushServiceMock.sendToUser).toHaveBeenCalledWith(
       'user-1',
       expect.objectContaining({
-        title: 'Your Daily Horoscope',
-        body: 'Today is a good day to make steady progress.',
+        title: 'Astro Soul Path',
+        body: 'Open the app to check your daily horoscope.',
         data: expect.objectContaining({
           type: 'horoscope',
           day: 'today',
@@ -208,7 +215,7 @@ describe('DailyHoroscopePushProcessor', () => {
     );
 
     expect(redisMock.set).toHaveBeenCalledWith(
-      'daily-horoscope:push:sent:horoscope:user-1:2026-08-21',
+      'daily-horoscope:push:sent:horoscope:user-1:2026-08-21:en',
       '1',
       48 * 60 * 60,
     );
@@ -229,6 +236,7 @@ describe('DailyHoroscopePushProcessor', () => {
           supabaseId: 'supabase-1',
           userProfile: {
             timezoneName: 'Asia/Kolkata',
+            lang: 'en',
             timezone: 5.5,
           },
         },
@@ -241,6 +249,7 @@ describe('DailyHoroscopePushProcessor', () => {
     dailyInsightServiceMock.getNakshatraDailyInsight.mockResolvedValue({
       success: true,
       data: {
+        generation: {language: {code: 'en'}},
         ai: {
           shortReading: 'Your Vedic reading is ready.',
           dailyAdvice: 'Stay steady today.',

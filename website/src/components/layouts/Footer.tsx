@@ -6,7 +6,8 @@ const quickLinks = [
   { label: "Astrologers", href: "/astrologers" },
   { label: "Kundli", href: "/kundli" },
   { label: "Horoscope", href: "/horoscope" },
-  { label: "Blog", href: "/blog" },
+  { label: "Articles", href: "/blog" },
+  { label: "Remedies", href: "/remedies" },
 ];
 
 const serviceLinks = [
@@ -71,7 +72,7 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-6">
           <div className="sm:col-span-2">
             <Link
               href="/"
@@ -128,6 +129,7 @@ export default function Footer() {
             </nav>
           </div>
 
+          <div><h3 className="text-xs font-black uppercase tracking-[0.18em] text-[#E1C14B]">Account</h3><nav className="mt-5 space-y-3" aria-label="Footer account links">{[['Login options','/login/choose'],['Customer signup','/signup'],['Astrologer Login','/astrologer/login'],['Become an Astrologer','/astrologer/register']].map(([label,href])=><Link key={href} href={href} className="block min-h-10 text-sm font-medium text-white/75 transition hover:text-white">{label}</Link>)}</nav></div>
           <div>
             <h3 className="text-xs font-black uppercase tracking-[0.18em] text-[#E1C14B]">
               Support
@@ -145,13 +147,13 @@ export default function Footer() {
               ))}
             </nav>
 
-            <a
-              href="mailto:support@astrosoulpath.com"
+            <Link
+              href="/contact"
               className="mt-6 flex items-center gap-2 text-sm font-medium text-white/55 transition hover:text-[#E1C14B]"
             >
               <Mail className="h-4 w-4 shrink-0" />
-              <span className="break-all">support@astrosoulpath.com</span>
-            </a>
+              <span>Contact our support team</span>
+            </Link>
           </div>
         </div>
 

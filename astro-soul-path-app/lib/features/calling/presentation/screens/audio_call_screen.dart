@@ -1,6 +1,10 @@
 import 'dart:async';
+import '../../../consultations/data/birth_sharing_api.dart';
+import '../../../consultations/presentation/widgets/birth_sharing_panel.dart';
 
 import 'package:flutter/material.dart';
+import '../../../kundli/data/consultation_kundli_api.dart';
+import '../../../kundli/presentation/screens/consultation_kundli_consent_screen.dart';
 
 import '../../data/call_api.dart';
 import '../../data/call_coordinator.dart';
@@ -387,6 +391,16 @@ class _AudioCallScreenState extends State<AudioCallScreen>
 
     try {
       await _coordinator.end(reason: 'USER_ENDED');
+      if (mounted && _coordinator.hasPendingBackendEnd) {
+        setState(() {
+          _ending = false;
+        });
+        _showError(
+          _coordinator.errorMessage ??
+              'Server confirmation pending. Tap hang up to retry, or go back.',
+        );
+        return;
+      }
 
       if (mounted) {
         _popCallScreenOnce();
@@ -592,6 +606,7 @@ class _AudioCallScreenState extends State<AudioCallScreen>
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Audio Consultation'),
+          actions:[if(consultationKundliV1Enabled) IconButton(tooltip:'Kundli permission',icon:const Icon(Icons.privacy_tip_outlined),onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>ConsultationKundliConsentScreen(consultationId:widget.callId))))],
           automaticallyImplyLeading: false,
         ),
         body: SafeArea(
@@ -599,6 +614,9 @@ class _AudioCallScreenState extends State<AudioCallScreen>
             padding: const EdgeInsets.all(24),
             child: Column(
               children: [
+                if (birthSharingEnabled && !_ending && _coordinator.state != CallCoordinatorState.ended)
+                  Flexible(flex: 2, child: ConstrainedBox(constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .22),
+                    child: SingleChildScrollView(child: BirthSharingPanel(consultationId: widget.callId)))),
                 const Spacer(),
 
                 CircleAvatar(

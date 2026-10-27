@@ -14,6 +14,11 @@ export type AstrologerRegistrationPayload = {
 };
 
 export type PublicAstrologer = {
+  isVerified?: boolean;
+  isBusy?: boolean;
+  reviewCount?: number;
+  currency?: string;
+  billingUnit?: string;
   id: string;
 
   /**
@@ -50,6 +55,8 @@ export type PublicAstrologersResponse = {
   data: PublicAstrologer[];
   meta: {
     total: number;
+    page?: number;
+    limit?: number;
   };
 };
 
@@ -59,6 +66,9 @@ export type PublicAstrologerProfileResponse = {
 };
 
 export type PublicAstrologerFilters = {
+  page?: number;
+  limit?: number;
+  sort?: string;
   search?: string;
   language?: string;
   expertise?: string;
@@ -70,6 +80,11 @@ type ApiErrorResponse = {
 };
 
 type RawPublicAstrologer = {
+  isVerified?: unknown;
+  isBusy?: unknown;
+  reviewCount?: unknown;
+  currency?: unknown;
+  billingUnit?: unknown;
   id?: unknown;
   userId?: unknown;
   astrologerUserId?: unknown;
@@ -195,6 +210,11 @@ function normalizePublicAstrologer(
 
   return {
     id,
+    isVerified: raw.isVerified === true,
+    isBusy: raw.isBusy === true,
+    reviewCount: typeof raw.reviewCount === 'number' && Number.isInteger(raw.reviewCount) && raw.reviewCount >= 0 ? raw.reviewCount : undefined,
+    currency: typeof raw.currency === 'string' && /^[A-Z]{3}$/.test(raw.currency) ? raw.currency : undefined,
+    billingUnit: typeof raw.billingUnit === 'string' ? raw.billingUnit : undefined,
 
     userId,
 
@@ -248,7 +268,7 @@ function normalizePublicAstrologer(
       ),
 
     isOnline:
-      Boolean(raw.isOnline),
+      raw.isOnline === true,
 
     expertise:
       getStringArray(
@@ -353,9 +373,11 @@ export async function registerAstrologer(
 
 export async function getPublicAstrologers(
   filters: PublicAstrologerFilters = {},
+  signal?: AbortSignal,
 ): Promise<PublicAstrologersResponse> {
   const query =
     new URLSearchParams();
+  for (const key of ['page','limit','sort'] as const) if (filters[key] !== undefined) query.set(key,String(filters[key]));
 
   if (
     filters.search?.trim()
@@ -413,6 +435,8 @@ export async function getPublicAstrologers(
         },
 
         cache: "no-store",
+        credentials: "omit",
+        signal: AbortSignal.any([AbortSignal.timeout(15000), ...(signal ? [signal] : [])]),
       },
     );
 
@@ -436,9 +460,13 @@ export async function getPublicAstrologers(
       data?: unknown;
       meta?: {
         total?: unknown;
+        page?: unknown;
+        limit?: unknown;
       };
     } | null;
 
+  if (!payload || payload.success !== true || !Array.isArray(payload.data)) throw new Error('Invalid astrologer catalogue response');
+  if (filters.page !== undefined && payload.meta?.page !== filters.page) throw new Error('Updated discovery pagination is unavailable on this server');
   const astrologers =
     Array.isArray(
       payload?.data,
@@ -467,6 +495,8 @@ export async function getPublicAstrologers(
       astrologers,
 
     meta: {
+      page: typeof payload?.meta?.page === 'number' ? payload.meta.page : undefined,
+      limit: typeof payload?.meta?.limit === 'number' ? payload.meta.limit : undefined,
       total:
         Math.max(
           0,
@@ -482,6 +512,7 @@ export async function getPublicAstrologers(
 
 export async function getPublicAstrologerById(
   id: string,
+  signal?: AbortSignal,
 ): Promise<PublicAstrologerProfileResponse> {
   const normalizedId =
     id.trim();
@@ -506,6 +537,8 @@ export async function getPublicAstrologerById(
         },
 
         cache: "no-store",
+        credentials: "omit",
+        signal: AbortSignal.any([AbortSignal.timeout(15000), ...(signal ? [signal] : [])]),
       },
     );
 

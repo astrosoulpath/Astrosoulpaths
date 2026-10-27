@@ -1,3 +1,4 @@
+import { projectReportSections, type ReportSection } from "@/features/kundli/report-sections";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export type GenerateKundliPayload = {
@@ -49,6 +50,7 @@ export type KundliChartData = {
 };
 
 export type KundliGeneratedData = {
+  sections?: ReportSection[];
   id: string;
   userId?: string | null;
   name: string | null;
@@ -91,6 +93,7 @@ export type GenerateKundliResponse = {
 };
 
 type BackendPlanet = {
+  retro?: boolean;
   name: string;
   sign?: string;
   sign_id?: number;
@@ -123,6 +126,7 @@ type BackendChart = {
 };
 
 type BackendDashaPeriod = {
+  children?: BackendDashaPeriod[];
   level?: string;
   lord?: string;
   start?: string;
@@ -132,6 +136,7 @@ type BackendDashaPeriod = {
 };
 
 type BackendReport = {
+  charts?: { birthChart?: BackendChart | null; navamsaChart?: BackendChart | null };
   birthChart?: BackendChart | null;
   navamsaChart?: BackendChart | null;
   planetaryPositions?: BackendPlanet[];
@@ -310,16 +315,18 @@ function getKundliAccessToken(): string | null {
       : (localStorage.getItem("asp_customer_access_token") ??
         localStorage.getItem("asp_access_token"));
 
-  return (
-    portalToken ??
-    localStorage.getItem("asp_astrologer_access_token") ??
-    localStorage.getItem("asp_customer_access_token") ??
-    localStorage.getItem("asp_access_token")
-  );
+  return portal === "astrologer" || portal === "customer" ? portalToken : null;
 }
 
 async function readJsonResponse(response: Response) {
   return response.json().catch(() => null);
+}
+
+export function kundliSessionSnapshot(): string {
+  try { return JSON.stringify([getKundliAccessToken(), localStorage.getItem("asp_user")]); } catch { return ""; }
+}
+function assertKundliSession(owner: string) {
+  if (!owner || kundliSessionSnapshot() !== owner) throw new KundliApiError("SESSION_CHANGED", "Your account changed. Reload the Kundli workspace.", 401);
 }
 
 function mapChart(
@@ -332,7 +339,7 @@ function mapChart(
 
   const planets = Array.isArray(chart.planets) ? chart.planets : [];
 
-  const houses = Array.isArray(chart.houses)
+  let houses = Array.isArray(chart.houses)
     ? chart.houses
         .filter((house) => typeof house.house === "number")
         .map((house) => ({
@@ -343,6 +350,20 @@ function mapChart(
             .map((planet) => planet.name || "Unknown"),
         }))
     : [];
+
+  // The local engine supplies keyed planet records, already assigned to houses.
+  // Group those supplied assignments; do not derive signs or recalculate houses.
+  if (!houses.length) {
+    const supplied = Object.values(chart).filter((value): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value));
+    const grouped = new Map<number, { house:number; sign:string|undefined; planets:string[] }>();
+    for (const value of supplied) {
+      if (typeof value.house !== "number" || !Number.isInteger(value.house) || value.house < 1 || value.house > 12 || typeof value.name !== "string") continue;
+      const existing = grouped.get(value.house);
+      if (existing) existing.planets.push(value.name);
+      else grouped.set(value.house, {house:value.house, sign:typeof value.zodiac === "string" ? value.zodiac : undefined, planets:[value.name]});
+    }
+    houses = [...grouped.values()].sort((a,b)=>a.house-b.house);
+  }
 
   return {
     type,
@@ -366,7 +387,7 @@ function mapPlanet(planet: BackendPlanet): KundliPlanet {
     house: planet.house,
     degree,
     nakshatra: planet.nakshatra,
-    retrograde: planet.is_retrograde ?? planet.retrograde ?? false,
+    retrograde: planet.is_retrograde ?? planet.retrograde ?? planet.retro,
   };
 }
 
@@ -377,13 +398,13 @@ function mapDashaPeriod(period: BackendDashaPeriod): KundliDashaPeriod {
     startDate: period.start,
     endDate: period.end,
     durationYears: period.duration_years,
-    subPeriods: Array.isArray(period.sub_periods)
-      ? period.sub_periods.map(mapDashaPeriod)
+    subPeriods: Array.isArray(period.sub_periods ?? period.children)
+      ? (period.sub_periods ?? period.children)!.map(mapDashaPeriod)
       : [],
   };
 }
 
-function normalizeKundliData(backend: BackendKundliData): KundliGeneratedData {
+export function normalizeKundliData(backend: BackendKundliData): KundliGeneratedData {
   const report = backend.report || {};
 
   const planets = Array.isArray(report.planetaryPositions)
@@ -400,6 +421,7 @@ function normalizeKundliData(backend: BackendKundliData): KundliGeneratedData {
 
   return {
     id: backend.id,
+    sections: projectReportSections(report),
     userId: backend.userId ?? null,
     name: backend.name ?? null,
     gender: backend.gender ?? null,
@@ -426,8 +448,8 @@ function normalizeKundliData(backend: BackendKundliData): KundliGeneratedData {
     nakshatra: moon?.nakshatra ?? report.ascendant?.nakshatra?.name,
 
     charts: {
-      d1: mapChart(report.birthChart, "D1"),
-      d9: mapChart(report.navamsaChart, "D9"),
+      d1: mapChart(report.birthChart ?? report.charts?.birthChart, "D1"),
+      d9: mapChart(report.navamsaChart ?? report.charts?.navamsaChart, "D9"),
     },
 
     planets,
@@ -556,6 +578,7 @@ function requireKundliAccessToken(): string {
 }
 
 export async function getSavedKundlis(): Promise<SavedKundliListResponse> {
+  const owner = kundliSessionSnapshot();
   const token = requireKundliAccessToken();
 
   const response = await fetch(`${getApiBaseUrl()}/kundli/saved`, {
@@ -567,12 +590,15 @@ export async function getSavedKundlis(): Promise<SavedKundliListResponse> {
     },
 
     cache: "no-store",
+      credentials: "omit",
+      signal: AbortSignal.timeout(30000),
   });
 
   const body = (await readJsonResponse(
     response,
   )) as SavedKundliListResponse | null;
 
+  assertKundliSession(owner);
   if (!response.ok) {
     const error = getKundliErrorDetails(
       body,
@@ -610,6 +636,7 @@ export async function getSavedKundli(
     );
   }
 
+  const owner = kundliSessionSnapshot();
   const token = requireKundliAccessToken();
 
   const response = await fetch(
@@ -623,6 +650,8 @@ export async function getSavedKundli(
       },
 
       cache: "no-store",
+      credentials: "omit",
+      signal: AbortSignal.timeout(30000),
     },
   );
 
@@ -630,6 +659,7 @@ export async function getSavedKundli(
     response,
   )) as BackendSavedKundliDetailResponse | null;
 
+  assertKundliSession(owner);
   if (!response.ok) {
     const error = getKundliErrorDetails(
       body,
@@ -707,6 +737,7 @@ export async function downloadSavedKundliPdf(
     );
   }
 
+  const owner = kundliSessionSnapshot();
   const token = requireKundliAccessToken();
 
   const response = await fetch(
@@ -722,9 +753,12 @@ export async function downloadSavedKundliPdf(
       },
 
       cache: "no-store",
+      credentials: "omit",
+      signal: AbortSignal.timeout(30000),
     },
   );
 
+  assertKundliSession(owner);
   if (!response.ok) {
     const body = await readJsonResponse(response);
 
@@ -748,21 +782,26 @@ export async function downloadSavedKundliPdf(
   }
 
   const blob = await response.blob();
+  assertKundliSession(owner);
 
-  if (blob.size === 0) {
+  if (blob.size === 0 || blob.size > 25 * 1024 * 1024) {
     throw new KundliApiError(
       "EMPTY_KUNDLI_PDF",
-      "The generated Kundli PDF is empty.",
+      "The generated Kundli PDF is empty or exceeds the supported download size.",
       502,
     );
   }
+  if (await blob.slice(0, 5).text() !== "%PDF-")
+    throw new KundliApiError("INVALID_KUNDLI_PDF_RESPONSE", "The server did not return a valid PDF file.", 502);
+  assertKundliSession(owner);
 
   const contentDisposition = response.headers.get("content-disposition");
 
   const fileNameMatch = contentDisposition?.match(/filename="?([^"]+)"?/i);
 
-  const fileName =
-    fileNameMatch?.[1]?.trim() || `kundli-${normalizedRecordId}.pdf`;
+  const proposedName = fileNameMatch?.[1]?.trim();
+  const fileName = proposedName && /^[a-zA-Z0-9_. -]{1,180}\.pdf$/i.test(proposedName)
+    ? proposedName : `kundli-${normalizedRecordId}.pdf`;
 
   const objectUrl = window.URL.createObjectURL(blob);
 
@@ -778,5 +817,5 @@ export async function downloadSavedKundliPdf(
 
   window.setTimeout(() => {
     window.URL.revokeObjectURL(objectUrl);
-  }, 1000);
+  }, 30000);
 }

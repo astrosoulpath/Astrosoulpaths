@@ -1,26 +1,5 @@
-﻿import { AstrologersGrid } from "@/features/astrologers/AstrologersGrid";
-
-export default function AstrologersPage() {
-  return (
-    <main className="min-h-screen bg-[#FAF7F0] py-20">
-      <div className="mx-auto max-w-7xl px-6">
-        <p className="font-semibold text-[#D4AF37]">
-          Astrologers
-        </p>
-
-        <h1 className="mt-3 text-4xl font-bold text-[#0B1026] sm:text-5xl">
-          Talk to Verified Astrologers
-        </h1>
-
-        <p className="mt-4 max-w-2xl text-gray-600">
-          Browse approved astrologers by expertise, language,
-          experience, rating, consultation fee and availability.
-        </p>
-
-        <div className="mt-10">
-          <AstrologersGrid />
-        </div>
-      </div>
-    </main>
-  );
-}
+import type { Metadata } from "next";
+import { AstrologersGrid } from "@/features/astrologers/AstrologersGrid";
+import s from "@/features/astrologers/marketplace.module.css";
+export const metadata:Metadata={title:"Find an Astrologer | Astro Soul Path",description:"Explore approved astrologer profiles, listed expertise, languages, current availability and consultation fees.",alternates:{canonical:"/astrologers"}};
+export default function AstrologersPage(){return <main className={s.page}><div className={s.wrap}><header className={s.hero}><p className={s.eyebrow}>ASTRO SOUL PATH · PERSONAL GUIDANCE</p><h1>A thoughtful conversation starts with the right astrologer.</h1><p>Explore approved profiles, find a language you’re comfortable with and review consultation details before you decide. Only eligible profiles from the shared catalogue appear here.</p></header><AstrologersGrid/></div></main>;}

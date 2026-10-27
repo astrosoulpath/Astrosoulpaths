@@ -1,9 +1,15 @@
 ﻿"use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  supportFetch,
+  readSupportResponse,
+} from "@/features/admin/support/support-request";
+import { FeedbackOperationsPanel } from "@/features/admin/support/FeedbackOperationsPanel";
+import { refreshAdminSession } from "@/features/admin/auth/admin-session";
+import { AdminDialog } from "@/features/admin/ui/AdminDialog";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type FeedbackStatus = "NEW" | "REVIEWED" | "RESOLVED";
 
@@ -59,20 +65,8 @@ type FeedbackDetailResponse = {
   data?: FeedbackItem;
 };
 
-function getAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return (
-    window.localStorage.getItem("asp_admin_access_token") ??
-    window.localStorage.getItem("asp_access_token") ??
-    window.localStorage.getItem("access_token")
-  );
-}
-
 async function readJson(response: Response) {
-  return response.json().catch(() => null);
+  return readSupportResponse(response);
 }
 
 function getErrorMessage(error: unknown) {
@@ -128,6 +122,17 @@ export default function AdminFeedbackPage() {
     "ALL" | FeedbackCategory
   >("ALL");
 
+  const requests = useRef(0),
+    detailRequests = useRef(0);
+  const [page, setPage] = useState(1),
+    [pages, setPages] = useState(0);
+  const [serverStats, setServerStats] = useState<{
+    total: number;
+    new: number;
+    reviewed: number;
+    resolved: number;
+    operationsEnabled: boolean;
+  } | null>(null);
   const [search, setSearch] = useState("");
   const [adminNote, setAdminNote] = useState("");
 
@@ -138,21 +143,24 @@ export default function AdminFeedbackPage() {
 
   const loadFeedback = useCallback(
     async (showRefresh = false) => {
+      const current = ++requests.current;
       try {
-        showRefresh ? setIsRefreshing(true) : setIsLoading(true);
+        if (showRefresh) setIsRefreshing(true);
+        else setIsLoading(true);
         setErrorMessage(null);
 
-        const token = getAccessToken();
+        const token = await refreshAdminSession();
 
         if (!token) {
           throw new Error("Admin login token is missing. Please log in again.");
         }
 
         const query = new URLSearchParams({
-          page: "1",
-          limit: "100",
+          page: String(page),
+          limit: "25",
         });
 
+        if (search.trim()) query.set("search", search.trim());
         if (statusFilter !== "ALL") {
           query.set("status", statusFilter);
         }
@@ -161,8 +169,8 @@ export default function AdminFeedbackPage() {
           query.set("category", categoryFilter);
         }
 
-        const response = await fetch(
-          `${API_BASE_URL.replace(/\/+$/, "")}/admin/feedback?${query.toString()}`,
+        const response = await supportFetch(
+          `/admin/feedback?${query.toString()}`,
           {
             method: "GET",
             headers: {
@@ -185,18 +193,41 @@ export default function AdminFeedbackPage() {
           );
         }
 
+        if (current !== requests.current) return;
+        setPages(data?.data?.pagination?.totalPages ?? 0);
+        const statsResponse = await supportFetch(`/admin/feedback/stats`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (current !== requests.current) return;
+        if (statsResponse.ok) setServerStats((await statsResponse.json()).data);
+        else setServerStats(null);
         setItems(Array.isArray(data?.data?.items) ? data!.data!.items! : []);
       } catch (error) {
+        if (current !== requests.current) return;
+        setServerStats(null);
         setItems([]);
         setErrorMessage(getErrorMessage(error));
       } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
+        if (current === requests.current) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
     },
-    [statusFilter, categoryFilter],
+    [statusFilter, categoryFilter, search, page],
   );
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, categoryFilter]);
+  useEffect(
+    () => () => {
+      requests.current++;
+      detailRequests.current++;
+    },
+    [],
+  );
   useEffect(() => {
     void loadFeedback();
   }, [loadFeedback]);
@@ -223,27 +254,26 @@ export default function AdminFeedbackPage() {
     });
   }, [items, search]);
 
-  const stats = useMemo(() => {
-    return {
-      total: items.length,
-      newCount: items.filter((item) => item.status === "NEW").length,
-      reviewed: items.filter((item) => item.status === "REVIEWED").length,
-      resolved: items.filter((item) => item.status === "RESOLVED").length,
-    };
-  }, [items]);
+  const stats = {
+    total: serverStats?.total ?? "?",
+    newCount: serverStats?.new ?? "?",
+    reviewed: serverStats?.reviewed ?? "?",
+    resolved: serverStats?.resolved ?? "?",
+  };
 
   async function openDetail(id: string) {
+    const current = ++detailRequests.current;
     try {
       setErrorMessage(null);
 
-      const token = getAccessToken();
+      const token = await refreshAdminSession();
 
       if (!token) {
         throw new Error("Admin login token is missing.");
       }
 
-      const response = await fetch(
-        `${API_BASE_URL.replace(/\/+$/, "")}/admin/feedback/${encodeURIComponent(id)}`,
+      const response = await supportFetch(
+        `/admin/feedback/${encodeURIComponent(id)}`,
         {
           headers: {
             Accept: "application/json",
@@ -263,6 +293,7 @@ export default function AdminFeedbackPage() {
         );
       }
 
+      if (current !== detailRequests.current) return;
       setSelected(data.data);
       setAdminNote(data.data.adminNote ?? "");
     } catch (error) {
@@ -275,20 +306,19 @@ export default function AdminFeedbackPage() {
       return;
     }
 
+    const current = detailRequests.current;
     try {
       setIsUpdating(true);
       setErrorMessage(null);
 
-      const token = getAccessToken();
+      const token = await refreshAdminSession();
 
       if (!token) {
         throw new Error("Admin login token is missing.");
       }
 
-      const response = await fetch(
-        `${API_BASE_URL.replace(/\/+$/, "")}/admin/feedback/${encodeURIComponent(
-          selected.id,
-        )}/status`,
+      const response = await supportFetch(
+        `/admin/feedback/${encodeURIComponent(selected.id)}/status`,
         {
           method: "PATCH",
           headers: {
@@ -313,8 +343,9 @@ export default function AdminFeedbackPage() {
         );
       }
 
+      if (current !== detailRequests.current) return;
       setSelected(data.data);
-
+      await loadFeedback(true);
       setItems((current) =>
         current.map((item) => (item.id === data.data!.id ? data.data! : item)),
       );
@@ -327,14 +358,29 @@ export default function AdminFeedbackPage() {
 
   return (
     <main className="asp-admin-page px-4 py-8 text-gray-900 sm:px-6 lg:px-8">
+      <nav aria-label="Feedback pages" className="mb-4 flex gap-4">
+        <button
+          disabled={page <= 1 || isLoading}
+          onClick={() => setPage((p) => p - 1)}
+        >
+          Previous
+        </button>
+        <span>
+          Page {page} / {Math.max(1, pages)}
+        </span>
+        <button
+          disabled={page >= pages || isLoading}
+          onClick={() => setPage((p) => p + 1)}
+        >
+          Next
+        </button>
+      </nav>
       <div className="asp-admin-shell">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="asp-admin-eyebrow">
-              Admin Panel
-            </p>
+            <p className="asp-admin-eyebrow">Admin Panel</p>
 
-            <h1 className="mt-2 text-4xl font-extrabold text-[#0B1026]">
+            <h1 className="mt-2 text-4xl font-semibold text-[#0B1026]">
               Customer Feedback
             </h1>
 
@@ -344,10 +390,7 @@ export default function AdminFeedbackPage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link
-              href="/admin"
-              className="asp-admin-back-btn"
-            >
+            <Link href="/admin" className="asp-admin-back-btn">
               Back to Dashboard
             </Link>
 
@@ -369,13 +412,10 @@ export default function AdminFeedbackPage() {
             ["Reviewed", stats.reviewed],
             ["Resolved", stats.resolved],
           ].map(([label, value]) => (
-            <article
-              key={String(label)}
-              className="asp-admin-section p-5"
-            >
+            <article key={String(label)} className="asp-admin-section p-5">
               <p className="text-sm font-semibold text-[#66758A]">{label}</p>
 
-              <p className="mt-3 text-3xl font-extrabold text-[#0B1026]">
+              <p className="mt-3 text-3xl font-semibold text-[#0B1026]">
                 {value}
               </p>
             </article>
@@ -437,7 +477,7 @@ export default function AdminFeedbackPage() {
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="py-16 text-center">
-              <h2 className="text-xl font-extrabold text-[#0B1026]">
+              <h2 className="text-xl font-semibold text-[#0B1026]">
                 No feedback found
               </h2>
             </div>
@@ -517,15 +557,16 @@ export default function AdminFeedbackPage() {
       </div>
 
       {selected ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+        <AdminDialog label="Feedback detail" onClose={() => setSelected(null)}>
+          <FeedbackOperationsPanel key={selected.id} feedbackId={selected.id} />
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-amber-600">
                   Feedback Detail
                 </p>
 
-                <h2 className="mt-1 text-2xl font-extrabold text-[#0B1026]">
+                <h2 className="mt-1 text-2xl font-semibold text-[#0B1026]">
                   {selected.customer?.name || "Customer"}
                 </h2>
               </div>
@@ -625,9 +666,8 @@ export default function AdminFeedbackPage() {
               <p>Resolved: {formatDate(selected.resolvedAt)}</p>
             </div>
           </div>
-        </div>
+        </AdminDialog>
       ) : null}
     </main>
   );
 }
-

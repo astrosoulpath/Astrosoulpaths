@@ -1,10 +1,11 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
 import '../../features/auth/data/auth_session_store.dart';
 import '../config/api_config.dart';
+import 'notification_session_fence.dart';
 
 class NotificationDeviceApiException implements Exception {
   const NotificationDeviceApiException(this.message);
@@ -21,6 +22,7 @@ class NotificationDeviceApi {
   final AuthSessionStore _sessionStore;
 
   Future<void> registerDevice({required String fcmToken}) async {
+    final generation = NotificationSessionFence.generation;
     final token = fcmToken.trim();
 
     if (token.isEmpty) {
@@ -34,6 +36,10 @@ class NotificationDeviceApi {
     }
 
     final platform = Platform.isIOS ? 'IOS' : 'ANDROID';
+    if (NotificationSessionFence.suspended ||
+        generation != NotificationSessionFence.generation) {
+      return;
+    }
 
     final response = await _client
         .post(
@@ -50,6 +56,28 @@ class NotificationDeviceApi {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw NotificationDeviceApiException(
         'Unable to register notification device.',
+      );
+    }
+  }
+
+  Future<void> unregisterDevice({
+    required String fcmToken,
+    required String accessToken,
+  }) async {
+    if (fcmToken.trim().isEmpty || accessToken.trim().isEmpty) return;
+    final response = await _client
+        .post(
+          Uri.parse('${ApiConfig.baseUrl}/notifications/devices/unregister'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $accessToken',
+          },
+          body: jsonEncode({'fcmToken': fcmToken}),
+        )
+        .timeout(ApiConfig.requestTimeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw const NotificationDeviceApiException(
+        'Device unbinding could not be confirmed.',
       );
     }
   }
@@ -76,10 +104,11 @@ class NotificationDeviceApi {
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw NotificationDeviceApiException(
-        'Test notification failed (${response.statusCode}): ${response.body}',
+        'Test notification failed (${response.statusCode}).',
       );
     }
   }
+
   void close() {
     _client.close();
   }

@@ -1,5 +1,9 @@
 "use client";
 
+import { refreshAdminSession } from "@/features/admin/auth/admin-session";
+
+import { getAdminApiBase } from "@/features/admin/auth/admin-contract";
+
 import { useCallback, useEffect, useState } from "react";
 
 type Product = {
@@ -13,19 +17,10 @@ type Product = {
   category?: { name?: string };
 };
 
-const API =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://127.0.0.1:4000";
+const API = getAdminApiBase();
 
-function getToken() {
-  return (
-    localStorage.getItem("asp_admin_access_token") ||
-    localStorage.getItem("access_token") ||
-    sessionStorage.getItem("asp_admin_access_token") ||
-    sessionStorage.getItem("access_token") ||
-    ""
-  );
+async function getToken() {
+  return refreshAdminSession();
 }
 
 export function MarketplaceProducts() {
@@ -39,7 +34,7 @@ export function MarketplaceProducts() {
     setLoading(true);
     setError("");
     try {
-      const accessToken = getToken();
+      const accessToken = await getToken();
       if (!accessToken)
         throw new Error("Admin session not found. Please login again.");
       const response = await fetch(`${API}/admin/marketplace/products`, {
@@ -67,7 +62,7 @@ export function MarketplaceProducts() {
     id: string,
     action: "archive" | "feature" | "unfeature",
   ) {
-    const accessToken = getToken();
+    const accessToken = await getToken();
 
     if (!accessToken) {
       setError("Admin session not found.");
@@ -134,7 +129,7 @@ export function MarketplaceProducts() {
     setMessage("");
     setError("");
     try {
-      const accessToken = getToken();
+      const accessToken = await getToken();
       if (!accessToken) throw new Error("Admin session not found.");
       const response = await fetch(
         `${API}/admin/marketplace/products/${id}/${action}`,
@@ -169,15 +164,15 @@ export function MarketplaceProducts() {
   const active = products.filter((p) => p.status === "ACTIVE").length;
 
   return (
-    <div className="text-white">
+    <div className="text-[#14243D]">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-bold uppercase tracking-widest text-amber-400">
+            <p className="text-sm font-bold uppercase tracking-widest text-[#8A6818]">
               Astro Soul Path
             </p>
             <h1 className="mt-2 text-3xl font-bold">Marketplace Products</h1>
-            <p className="mt-2 text-zinc-400">
+            <p className="mt-2 text-[#52627A]">
               Admin approval for seller-submitted products.
             </p>
           </div>
@@ -192,64 +187,64 @@ export function MarketplaceProducts() {
         </div>
 
         <div className="mb-6 grid gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-zinc-950 p-5">
-            <p className="text-zinc-400">Total</p>
+          <div className="rounded-2xl border border-white/10 bg-white p-5">
+            <p className="text-[#52627A]">Total</p>
             <p className="mt-2 text-3xl font-bold">{products.length}</p>
           </div>
-          <div className="rounded-2xl border border-amber-400/20 bg-zinc-950 p-5">
-            <p className="text-zinc-400">Pending Review</p>
-            <p className="mt-2 text-3xl font-bold text-amber-300">{pending}</p>
+          <div className="rounded-2xl border border-amber-400/20 bg-white p-5">
+            <p className="text-[#52627A]">Pending Review</p>
+            <p className="mt-2 text-3xl font-bold text-[#8A6818]">{pending}</p>
           </div>
-          <div className="rounded-2xl border border-emerald-500/20 bg-zinc-950 p-5">
-            <p className="text-zinc-400">Active</p>
-            <p className="mt-2 text-3xl font-bold text-emerald-300">{active}</p>
+          <div className="rounded-2xl border border-emerald-500/20 bg-white p-5">
+            <p className="text-[#52627A]">Active</p>
+            <p className="mt-2 text-3xl font-bold text-emerald-700">{active}</p>
           </div>
         </div>
 
         {message ? (
-          <div className="mb-5 rounded-xl border border-emerald-500/30 p-4 text-emerald-300">
+          <div className="mb-5 rounded-xl border border-emerald-500/30 p-4 text-emerald-700">
             {message}
           </div>
         ) : null}
         {error ? (
-          <div className="mb-5 rounded-xl border border-red-500/30 p-4 text-red-300">
+          <div className="mb-5 rounded-xl border border-red-500/30 p-4 text-red-700">
             {error}
           </div>
         ) : null}
-        {loading ? <p className="text-zinc-400">Loading products...</p> : null}
+        {loading ? <p className="text-[#52627A]">Loading products...</p> : null}
 
         <div className="space-y-4">
           {products.map((product) => (
             <article
               key={product.id}
-              className="rounded-2xl border border-white/10 bg-zinc-950 p-6"
+              className="rounded-2xl border border-white/10 bg-white p-6"
             >
               <div className="flex flex-wrap justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-bold">
                     {product.name || "Unnamed product"}
                   </h2>
-                  <p className="mt-2 text-sm text-amber-300">
+                  <p className="mt-2 text-sm text-[#8A6818]">
                     {product.status.replaceAll("_", " ")}
                   </p>
-                  <p className="mt-1 text-sm text-zinc-400">
+                  <p className="mt-1 text-sm text-[#52627A]">
                     Category: {product.category?.name || "—"}
                   </p>
                 </div>
                 <div>
-                  <p className="font-bold text-amber-300">
+                  <p className="font-bold text-[#8A6818]">
                     {product.sellingPrice != null
                       ? `INR ${product.sellingPrice}`
                       : "—"}
                   </p>
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-[#52627A]">
                     Stock: {product.stock ?? "—"}
                   </p>
                 </div>
               </div>
 
               {product.rejectionReason ? (
-                <p className="mt-4 text-red-300">
+                <p className="mt-4 text-red-700">
                   Rejection: {product.rejectionReason}
                 </p>
               ) : null}
@@ -266,7 +261,7 @@ export function MarketplaceProducts() {
                   <button
                     disabled={working === product.id}
                     onClick={() => void moderate(product.id, "reject")}
-                    className="rounded-xl border border-red-500/40 px-5 py-2 text-red-300 disabled:opacity-50"
+                    className="rounded-xl border border-red-500/40 px-5 py-2 text-red-700 disabled:opacity-50"
                   >
                     Reject
                   </button>
@@ -284,7 +279,7 @@ export function MarketplaceProducts() {
                         product.isFeatured ? "unfeature" : "feature",
                       )
                     }
-                    className="rounded-xl border border-yellow-500/40 px-5 py-2 font-semibold text-yellow-300 disabled:opacity-50"
+                    className="rounded-xl border border-yellow-500/40 px-5 py-2 font-semibold text-[#8A6818] disabled:opacity-50"
                   >
                     {working === product.id
                       ? "Working..."

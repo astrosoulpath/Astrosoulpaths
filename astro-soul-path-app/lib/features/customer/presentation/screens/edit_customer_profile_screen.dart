@@ -7,7 +7,10 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../profile/data/customer_profile.dart';
 import '../../../profile/data/geo_api.dart';
 import '../../../auth/data/firebase_phone_auth_service.dart';
+import '../../../auth/data/phone_otp_send_cooldown.dart';
 import '../../../profile/data/profile_api.dart';
+import '../../../auth/data/auth_session_store.dart';
+import '../widgets/customer_email_address.dart';
 
 class EditCustomerProfileScreen extends StatefulWidget {
   const EditCustomerProfileScreen({
@@ -17,8 +20,14 @@ class EditCustomerProfileScreen extends StatefulWidget {
     this.sendPhoneCode,
     this.verifyPhoneCode,
     this.now,
+    this.sessionStore,
+    this.showPhoneVerificationForTesting = false,
   });
   final ProfileApi? profileApi;
+  final AuthSessionStore? sessionStore;
+  // Retained only for regression testing the hidden legacy OTP controls.
+  @visibleForTesting
+  final bool showPhoneVerificationForTesting;
   final DateTime Function()? now;
   final Future<FirebasePhoneCode> Function(String phone, int? resendToken)?
   sendPhoneCode;
@@ -34,6 +43,20 @@ class EditCustomerProfileScreen extends StatefulWidget {
 
 class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
   final _formKey = GlobalKey<FormState>();
+  StoredAuthSession? _emailSession;
+
+  Future<void> _loadCanonicalEmail() async {
+    try {
+      final session = await (widget.sessionStore ?? AuthSessionStore()).restore(
+        portal: 'customer',
+      );
+      if (mounted) setState(() => _emailSession = session);
+    } catch (_) {
+      // Never fall back to a profile/contact email on authentication failure.
+      if (mounted) setState(() => _emailSession = null);
+    }
+  }
+
   late final ProfileApi _profileApi = widget.profileApi ?? ProfileApi();
   final GeoApi _geoApi = GeoApi();
 
@@ -50,7 +73,9 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
   bool _isSendingPhoneOtp = false;
   DateTime? _phoneOtpCooldownUntil;
   Timer? _phoneOtpCooldownTimer;
-  int get _phoneOtpSeconds => _phoneOtpCooldownUntil == null
+  int get _phoneOtpSeconds => widget.sendPhoneCode == null
+      ? PhoneOtpSendCooldown.shared.remainingSeconds
+      : _phoneOtpCooldownUntil == null
       ? 0
       : ((_phoneOtpCooldownUntil!
                         .difference((widget.now ?? DateTime.now)())
@@ -58,6 +83,18 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                     1000)
                 .ceil())
             .clamp(0, 60);
+
+  Future<void> _restoreSharedPhoneCooldown() async {
+    try {
+      await PhoneOtpSendCooldown.shared.load();
+      if (mounted) {
+        _startPhoneOtpCooldown();
+        setState(() {});
+      }
+    } catch (_) {
+      // The send guard fails closed if secure storage is unavailable.
+    }
+  }
 
   void _startPhoneOtpCooldown() {
     _phoneOtpCooldownUntil = (widget.now ?? DateTime.now)().add(
@@ -80,10 +117,10 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
           forceResendingToken: resendToken,
         );
 
-  String _firebasePhoneError(FirebaseException error) =>
-      error.code == 'too-many-requests'
-      ? 'Too many code requests. Wait before trying again.'
-      : 'Phone verification failed. Please check the code or retry later.';
+  String _firebasePhoneError(FirebaseException error) => phoneOtpWaitMessage(
+    error,
+    'Phone verification failed. Please check the code or retry later.',
+  );
 
   Timer? _cityDebounce;
 
@@ -102,6 +139,8 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _loadCanonicalEmail();
+    if (widget.sendPhoneCode == null) _restoreSharedPhoneCooldown();
 
     final profile = widget.profile;
     _birthTimeKnown = profile?.birthTimeKnown ?? true;
@@ -428,7 +467,9 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                   return;
                 }
 
-                final verifiedPhone = phone;
+                final confirmedPhone = await _profileApi.refreshVerifiedPhone();
+                if (!mounted) return;
+                final verifiedPhone = confirmedPhone['phone'] as String;
 
                 setState(() {
                   _isPhoneVerified = true;
@@ -932,59 +973,69 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
 
             const SizedBox(height: 18),
 
-            TextFormField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              readOnly: _isPhoneVerified,
+            CustomerEmailAddress(
+              session: _emailSession,
+              asField: true,
               decoration: fieldDecoration(
-                label: 'Mobile Number',
-                hint: '+91 9876543210',
-                icon: Icons.phone_android_rounded,
-                suffixIcon: _isPhoneVerified
-                    ? const Icon(Icons.verified_rounded, color: Colors.green)
-                    : TextButton(
-                        onPressed: _isSendingPhoneOtp || _phoneOtpSeconds > 0
-                            ? null
-                            : _sendPhoneVerificationOtp,
-                        child: _isSendingPhoneOtp
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Verify'),
-                      ),
+                label: 'Email Address',
+                icon: Icons.email_outlined,
               ),
             ),
-
-            const SizedBox(height: 8),
-
-            if (_isPhoneVerified)
-              const Row(
-                children: [
-                  Icon(
-                    Icons.check_circle_rounded,
-                    size: 16,
-                    color: Colors.green,
-                  ),
-                  SizedBox(width: 6),
-                  Text(
-                    'Verified mobile number',
-                    style: TextStyle(
-                      color: Colors.green,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              )
-            else
-              const Text(
-                'Enter full mobile number with country code, for example +91 9876543210.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+            if (widget.showPhoneVerificationForTesting) ...[
+              TextFormField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                readOnly: _isPhoneVerified,
+                decoration: fieldDecoration(
+                  label: 'Mobile Number',
+                  hint: '+91 9876543210',
+                  icon: Icons.phone_android_rounded,
+                  suffixIcon: _isPhoneVerified
+                      ? const Icon(Icons.verified_rounded, color: Colors.green)
+                      : TextButton(
+                          onPressed: _isSendingPhoneOtp || _phoneOtpSeconds > 0
+                              ? null
+                              : _sendPhoneVerificationOtp,
+                          child: _isSendingPhoneOtp
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Verify'),
+                        ),
+                ),
               ),
+
+              const SizedBox(height: 8),
+
+              if (_isPhoneVerified)
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle_rounded,
+                      size: 16,
+                      color: Colors.green,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'Verified mobile number',
+                      style: TextStyle(
+                        color: Colors.green,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                const Text(
+                  'Enter full mobile number with country code, for example +91 9876543210.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+            ],
 
             const _EditSectionHeader(
               icon: Icons.auto_awesome_rounded,

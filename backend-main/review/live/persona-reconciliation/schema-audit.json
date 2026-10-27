@@ -1,0 +1,326 @@
+{
+  "observedAt": "2026-10-14T05:30:23.693Z",
+  "identity": {
+    "database_ok": true,
+    "host_ok": true,
+    "port_ok": true,
+    "read_only": true
+  },
+  "columns": [
+    {
+      "table_name": "AiAstroFollow",
+      "column_name": "id",
+      "type": "text",
+      "not_null": true,
+      "default_expression": null
+    },
+    {
+      "table_name": "AiAstroFollow",
+      "column_name": "followerId",
+      "type": "text",
+      "not_null": true,
+      "default_expression": null
+    },
+    {
+      "table_name": "AiAstroFollow",
+      "column_name": "personaId",
+      "type": "text",
+      "not_null": true,
+      "default_expression": null
+    },
+    {
+      "table_name": "AiAstroFollow",
+      "column_name": "createdAt",
+      "type": "timestamp(3) without time zone",
+      "not_null": true,
+      "default_expression": "CURRENT_TIMESTAMP"
+    },
+    {
+      "table_name": "LiveMessage",
+      "column_name": "id",
+      "type": "text",
+      "not_null": true,
+      "default_expression": null
+    },
+    {
+      "table_name": "LiveMessage",
+      "column_name": "liveSessionId",
+      "type": "text",
+      "not_null": true,
+      "default_expression": null
+    },
+    {
+      "table_name": "LiveMessage",
+      "column_name": "userId",
+      "type": "text",
+      "not_null": true,
+      "default_expression": null
+    },
+    {
+      "table_name": "LiveMessage",
+      "column_name": "message",
+      "type": "text",
+      "not_null": true,
+      "default_expression": null
+    },
+    {
+      "table_name": "LiveMessage",
+      "column_name": "createdAt",
+      "type": "timestamp(3) without time zone",
+      "not_null": true,
+      "default_expression": "CURRENT_TIMESTAMP"
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "id",
+      "type": "text",
+      "not_null": true,
+      "default_expression": null
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "code",
+      "type": "text",
+      "not_null": true,
+      "default_expression": null
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "name",
+      "type": "text",
+      "not_null": true,
+      "default_expression": null
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "subtitle",
+      "type": "text",
+      "not_null": true,
+      "default_expression": null
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "description",
+      "type": "text",
+      "not_null": true,
+      "default_expression": null
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "avatarUrl",
+      "type": "text",
+      "not_null": false,
+      "default_expression": null
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "initials",
+      "type": "text",
+      "not_null": false,
+      "default_expression": null
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "categories",
+      "type": "text[]",
+      "not_null": false,
+      "default_expression": null
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "languages",
+      "type": "text[]",
+      "not_null": false,
+      "default_expression": "ARRAY['English'::text, 'Hindi'::text]"
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "expertise",
+      "type": "text[]",
+      "not_null": false,
+      "default_expression": "ARRAY[]::text[]"
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "rating",
+      "type": "double precision",
+      "not_null": true,
+      "default_expression": "5"
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "totalReviews",
+      "type": "integer",
+      "not_null": true,
+      "default_expression": "0"
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "experience",
+      "type": "integer",
+      "not_null": true,
+      "default_expression": "0"
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "isEnabled",
+      "type": "boolean",
+      "not_null": true,
+      "default_expression": "true"
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "sortOrder",
+      "type": "integer",
+      "not_null": true,
+      "default_expression": "0"
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "pricingMode",
+      "type": "text",
+      "not_null": true,
+      "default_expression": "'PER_MINUTE'::text"
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "isFree",
+      "type": "boolean",
+      "not_null": true,
+      "default_expression": "false"
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "pricePerMinute",
+      "type": "numeric(12,2)",
+      "not_null": false,
+      "default_expression": null
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "currency",
+      "type": "text",
+      "not_null": true,
+      "default_expression": "'INR'::text"
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "createdAt",
+      "type": "timestamp(3) without time zone",
+      "not_null": true,
+      "default_expression": "CURRENT_TIMESTAMP"
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "updatedAt",
+      "type": "timestamp(3) without time zone",
+      "not_null": true,
+      "default_expression": null
+    }
+  ],
+  "indexes": [
+    {
+      "tablename": "AiAstroFollow",
+      "indexname": "AiAstroFollow_followerId_idx",
+      "indexdef": "CREATE INDEX \"AiAstroFollow_followerId_idx\" ON public.\"AiAstroFollow\" USING btree (\"followerId\")"
+    },
+    {
+      "tablename": "AiAstroFollow",
+      "indexname": "AiAstroFollow_followerId_personaId_key",
+      "indexdef": "CREATE UNIQUE INDEX \"AiAstroFollow_followerId_personaId_key\" ON public.\"AiAstroFollow\" USING btree (\"followerId\", \"personaId\")"
+    },
+    {
+      "tablename": "AiAstroFollow",
+      "indexname": "AiAstroFollow_personaId_idx",
+      "indexdef": "CREATE INDEX \"AiAstroFollow_personaId_idx\" ON public.\"AiAstroFollow\" USING btree (\"personaId\")"
+    },
+    {
+      "tablename": "AiAstroFollow",
+      "indexname": "AiAstroFollow_pkey",
+      "indexdef": "CREATE UNIQUE INDEX \"AiAstroFollow_pkey\" ON public.\"AiAstroFollow\" USING btree (id)"
+    },
+    {
+      "tablename": "LiveMessage",
+      "indexname": "LiveMessage_liveSessionId_createdAt_idx",
+      "indexdef": "CREATE INDEX \"LiveMessage_liveSessionId_createdAt_idx\" ON public.\"LiveMessage\" USING btree (\"liveSessionId\", \"createdAt\")"
+    },
+    {
+      "tablename": "LiveMessage",
+      "indexname": "LiveMessage_pkey",
+      "indexdef": "CREATE UNIQUE INDEX \"LiveMessage_pkey\" ON public.\"LiveMessage\" USING btree (id)"
+    },
+    {
+      "tablename": "LiveMessage",
+      "indexname": "LiveMessage_userId_idx",
+      "indexdef": "CREATE INDEX \"LiveMessage_userId_idx\" ON public.\"LiveMessage\" USING btree (\"userId\")"
+    },
+    {
+      "tablename": "ai_astro_personas",
+      "indexname": "ai_astro_personas_code_key",
+      "indexdef": "CREATE UNIQUE INDEX ai_astro_personas_code_key ON public.ai_astro_personas USING btree (code)"
+    },
+    {
+      "tablename": "ai_astro_personas",
+      "indexname": "ai_astro_personas_isEnabled_sortOrder_idx",
+      "indexdef": "CREATE INDEX \"ai_astro_personas_isEnabled_sortOrder_idx\" ON public.ai_astro_personas USING btree (\"isEnabled\", \"sortOrder\")"
+    },
+    {
+      "tablename": "ai_astro_personas",
+      "indexname": "ai_astro_personas_pkey",
+      "indexdef": "CREATE UNIQUE INDEX ai_astro_personas_pkey ON public.ai_astro_personas USING btree (id)"
+    }
+  ],
+  "constraints": [
+    {
+      "table_name": "AiAstroFollow",
+      "conname": "AiAstroFollow_followerId_fkey",
+      "convalidated": true,
+      "definition": "FOREIGN KEY (\"followerId\") REFERENCES \"User\"(id) ON UPDATE CASCADE ON DELETE CASCADE"
+    },
+    {
+      "table_name": "AiAstroFollow",
+      "conname": "AiAstroFollow_personaId_fkey",
+      "convalidated": true,
+      "definition": "FOREIGN KEY (\"personaId\") REFERENCES ai_astro_personas(id) ON UPDATE CASCADE ON DELETE CASCADE"
+    },
+    {
+      "table_name": "AiAstroFollow",
+      "conname": "AiAstroFollow_pkey",
+      "convalidated": true,
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "LiveMessage",
+      "conname": "LiveMessage_liveSessionId_fkey",
+      "convalidated": true,
+      "definition": "FOREIGN KEY (\"liveSessionId\") REFERENCES \"LiveSession\"(id) ON UPDATE CASCADE ON DELETE CASCADE"
+    },
+    {
+      "table_name": "LiveMessage",
+      "conname": "LiveMessage_pkey",
+      "convalidated": true,
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "LiveMessage",
+      "conname": "LiveMessage_userId_fkey",
+      "convalidated": true,
+      "definition": "FOREIGN KEY (\"userId\") REFERENCES \"User\"(id) ON UPDATE CASCADE ON DELETE CASCADE"
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "conname": "ai_astro_personas_pkey",
+      "convalidated": true,
+      "definition": "PRIMARY KEY (id)"
+    }
+  ],
+  "counts": {
+    "total_rows": 8,
+    "categories_null": 0,
+    "categories_empty": 0,
+    "languages_null": 0,
+    "languages_empty": 0,
+    "expertise_null": 0,
+    "expertise_empty": 0
+  }
+}

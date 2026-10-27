@@ -26,18 +26,18 @@ export function MarketplaceManagement() {
   return (
     <section
       id="marketplace-management"
-      className="mt-8 scroll-mt-24 rounded-[26px] border border-slate-700/70 bg-slate-900/55 p-6 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur"
+      className="mt-8 scroll-mt-24 rounded-[26px] border border-[#E5EAF1] bg-white p-6 shadow-sm backdrop-blur"
     >
       <div>
-        <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-400">
+        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#8A6818]">
           Marketplace Administration
         </p>
 
-        <h2 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[#14243D] sm:text-4xl">
           Marketplace Management
         </h2>
 
-        <p className="mt-2 text-base text-slate-400">
+        <p className="mt-2 text-base text-[#52627A]">
           Manage marketplace sellers, product approvals, categories, orders,
           finance and campaigns from the main Admin Dashboard.
         </p>
@@ -49,10 +49,10 @@ export function MarketplaceManagement() {
             key={tab}
             type="button"
             onClick={() => setActiveTab(tab)}
-            className={`rounded-xl border px-5 py-2.5 text-sm font-black capitalize transition ${
+            className={`rounded-xl border px-5 py-2.5 text-sm font-semibold capitalize transition ${
               activeTab === tab
                 ? "border-amber-400 bg-amber-400 text-black"
-                : "border-slate-700 bg-slate-950 text-slate-300 hover:border-amber-400/60"
+                : "border-[#E5EAF1] bg-[#10233D] text-white hover:border-amber-400/60"
             }`}
           >
             {tab}
@@ -60,7 +60,7 @@ export function MarketplaceManagement() {
         ))}
       </div>
 
-      <div className="mt-6 rounded-2xl border border-slate-700/70 bg-slate-950/70 p-6">
+      <div className="mt-6 rounded-2xl border border-[#E5EAF1] bg-white p-6">
         {activeTab === "sellers" ? <MarketplaceSellers /> : null}
 
         {activeTab === "products" ? <MarketplaceProducts /> : null}

@@ -182,6 +182,8 @@ describe('AstrologerKundliReportService', () => {
       expect.objectContaining({
         where: {
           id: 'report-1',
+          astrologerId: 'astrologer-user-1',
+          status: AstrologerKundliReportStatus.DRAFT,
         },
         data: expect.objectContaining({
           status: AstrologerKundliReportStatus.FINAL,
@@ -246,5 +248,67 @@ describe('AstrologerKundliReportService', () => {
         updatedAt: 'desc',
       },
     });
+  });
+  it('recovers only the canonical winner after a duplicate draft race', async () => {
+    prismaMock.callSession.findUnique.mockResolvedValue({
+      id: 'call-race',
+      userId: 'customer-race',
+      astrologerId: 'owner-race',
+    });
+    const winner = {
+      id: 'report-race',
+      customerUserId: 'customer-race',
+      astrologerId: 'owner-race',
+      status: 'DRAFT',
+    };
+    prismaMock.astrologerKundliReport.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(winner);
+    prismaMock.astrologerKundliReport.create.mockRejectedValueOnce({
+      code: 'P2002',
+    });
+    expect(await service.createOrGetDraft('call-race', 'owner-race')).toEqual(
+      winner,
+    );
+    expect(prismaMock.astrologerKundliReport.create).toHaveBeenCalledTimes(1);
+  });
+  it('a finalization racing a draft edit cannot mutate FINAL content', async () => {
+    prismaMock.astrologerKundliReport.findUnique.mockResolvedValue({
+      id: 'r',
+      astrologerId: 'owner',
+      status: 'DRAFT',
+    });
+    prismaMock.astrologerKundliReport.update.mockRejectedValueOnce({
+      code: 'P2025',
+    });
+    await expect(
+      service.updateDraft('r', 'owner', { title: 'stale edit' }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prismaMock.astrologerKundliReport.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'r', astrologerId: 'owner', status: 'DRAFT' },
+      }),
+    );
+    expect(prismaMock.astrologerKundliReport.update).toHaveBeenCalledTimes(1);
+  });
+  it('duplicate finalization returns the winner without replacing finalizedAt', async () => {
+    const winner = {
+      id: 'r',
+      astrologerId: 'owner',
+      status: 'FINAL',
+      finalizedAt: new Date('2026-01-01T00:00:00Z'),
+    };
+    prismaMock.astrologerKundliReport.findUnique
+      .mockResolvedValueOnce({
+        id: 'r',
+        astrologerId: 'owner',
+        status: 'DRAFT',
+      })
+      .mockResolvedValueOnce(winner);
+    prismaMock.astrologerKundliReport.update.mockRejectedValueOnce({
+      code: 'P2025',
+    });
+    expect(await service.finalize('r', 'owner')).toEqual(winner);
+    expect(prismaMock.astrologerKundliReport.update).toHaveBeenCalledTimes(1);
   });
 });

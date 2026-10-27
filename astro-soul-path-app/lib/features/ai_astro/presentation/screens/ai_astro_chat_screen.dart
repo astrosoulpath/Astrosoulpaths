@@ -7,6 +7,8 @@ import 'package:flutter_tts/flutter_tts.dart';
 
 import '../../data/ai_astro_api.dart';
 import '../../data/ai_astro_models.dart';
+import '../../data/ai_chat_language.dart';
+import '../../data/ai_chat_format.dart';
 
 class AiAstroChatScreen extends StatefulWidget {
   const AiAstroChatScreen({
@@ -25,15 +27,42 @@ class AiAstroChatScreen extends StatefulWidget {
 }
 
 class _AiAstroChatScreenState extends State<AiAstroChatScreen> {
+  String _responseLanguage = 'auto';
+  Future<void> _loadPreferredLanguage() async {
+    try {
+      final language = await _api.preferredLanguage();
+      await prepareAiChatFormats(language);
+      if (mounted) setState(() => _responseLanguage = language);
+    } catch (_) {
+      /* Storage failure must not prevent existing chat. */
+    }
+  }
+
+  Future<void> _chooseLanguage(String language) async {
+    try {
+      await _api.setPreferredLanguage(language);
+      await prepareAiChatFormats(language);
+      if (mounted) setState(() => _responseLanguage = language);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(aiChatLabel(_responseLanguage, 'saveError'))),
+        );
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    unawaited(_loadOpeningMessage());
+    unawaited(_loadPreferredLanguage().then((_) => _loadOpeningMessage()));
   }
 
   Future<void> _loadOpeningMessage() async {
+    if (!mounted) return;
     try {
       final opening = await _api.getOpeningMessage(
+        responseLanguage: _responseLanguage,
         personaId: widget.persona.id,
         consultantTypeCode: widget.consultantType.code,
         category: widget.category,
@@ -113,10 +142,13 @@ class _AiAstroChatScreenState extends State<AiAstroChatScreen> {
   }
 
   String get _loadingText {
-    return '$_consultantDisplayName is typing...';
+    return '$_consultantDisplayName ${aiChatLabel(_responseLanguage, 'typing')}';
   }
 
   String get _questionHint {
+    if (_responseLanguage == 'hi' || _responseLanguage == 'hi-Latn') {
+      return aiChatLabel(_responseLanguage, 'question');
+    }
     final code = widget.consultantType.code.trim().toUpperCase();
 
     switch (code) {
@@ -627,6 +659,7 @@ class _AiAstroChatScreenState extends State<AiAstroChatScreen> {
       final pendingAiText = StringBuffer();
 
       final result = await _api.askStream(
+        responseLanguage: _responseLanguage,
         category: widget.category,
         question: question,
         personaId: widget.persona.id,
@@ -958,16 +991,7 @@ class _AiAstroChatScreenState extends State<AiAstroChatScreen> {
       return 'Paid consultation';
     }
 
-    final formattedRate = rate == rate.roundToDouble()
-        ? rate.toStringAsFixed(0)
-        : rate.toStringAsFixed(2);
-
-    final normalizedCurrency = _aiTimedCurrency.trim().toUpperCase();
-    final currencyLabel = normalizedCurrency == 'INR'
-        ? '\u20B9'
-        : '$normalizedCurrency ';
-
-    return '$currencyLabel$formattedRate/min';
+    return '${formatAiMoney(rate, _aiTimedCurrency, _responseLanguage)}/min';
   }
 
   bool get _aiCatalogIsFree => widget.persona.aiPricing.isFree;
@@ -994,14 +1018,8 @@ class _AiAstroChatScreenState extends State<AiAstroChatScreen> {
     }
 
     final total = rate * _aiTimedDurationMinutes;
-    final formatted = total == total.roundToDouble()
-        ? total.toStringAsFixed(0)
-        : total.toStringAsFixed(2);
-
     final currency = widget.persona.aiPricing.currency.trim().toUpperCase();
-    final prefix = currency == 'INR' ? '\u20B9' : '$currency ';
-
-    return '$prefix$formatted total';
+    return '${formatAiMoney(total, currency, _responseLanguage)} total';
   }
 
   Widget _buildAiDurationPicker() {
@@ -1217,6 +1235,34 @@ class _AiAstroChatScreenState extends State<AiAstroChatScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF070B17),
       appBar: AppBar(
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: aiChatLabel(_responseLanguage, 'language'),
+            enabled: !_sending,
+            initialValue: _responseLanguage,
+            onSelected: _chooseLanguage,
+            icon: const Icon(Icons.language),
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'auto',
+                child: Text('Automatic / स्वतः'),
+              ),
+              for (final language in aiChatLanguages)
+                PopupMenuItem(
+                  value: language.code,
+                  enabled: language.enabled,
+                  child: Directionality(
+                    textDirection: aiChatDirection(language.code),
+                    child: Text(
+                      language.enabled
+                          ? language.label
+                          : '${language.label} · Review pending',
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
         backgroundColor: const Color(0xFF0D1220),
         foregroundColor: Colors.white,
         titleSpacing: 4,
@@ -1294,6 +1340,14 @@ class _AiAstroChatScreenState extends State<AiAstroChatScreen> {
                     controller: _scrollController,
                     padding: const EdgeInsets.all(16),
                     children: [
+                      if (_messages.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            aiChatLabel(_responseLanguage, 'empty'),
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                        ),
                       _WelcomeCard(
                         persona: widget.persona,
                         contextText: _consultantContextText,
@@ -1696,12 +1750,18 @@ class _MessageBubbleState extends State<_MessageBubble> {
       ),
     );
 
+    final directedBubble = Directionality(
+      textDirection: aiChatMessageDirection(message.text),
+      child: bubble,
+    );
     return Align(
-      alignment: fromUser ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: fromUser
+          ? AlignmentDirectional.centerEnd
+          : AlignmentDirectional.centerStart,
       child: Padding(
         padding: const EdgeInsets.only(bottom: 7),
         child: fromUser
-            ? bubble
+            ? directedBubble
             : Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
@@ -1709,7 +1769,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
                   Container(
                     width: 28,
                     height: 28,
-                    margin: const EdgeInsets.only(right: 7, bottom: 2),
+                    margin: const EdgeInsetsDirectional.only(end: 7, bottom: 2),
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: LinearGradient(
@@ -1724,7 +1784,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
                     ),
                   ),
 
-                  Flexible(child: bubble),
+                  Flexible(child: directedBubble),
                 ],
               ),
       ),
@@ -1752,7 +1812,13 @@ class _ThinkingBubble extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
             SizedBox(width: 10),
-            Text(text, style: const TextStyle(color: Color(0xFFA9B0C2))),
+            Flexible(
+              child: Text(
+                text,
+                softWrap: true,
+                style: const TextStyle(color: Color(0xFFA9B0C2)),
+              ),
+            ),
           ],
         ),
       ),

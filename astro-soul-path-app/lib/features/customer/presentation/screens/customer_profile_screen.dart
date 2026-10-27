@@ -1,3 +1,6 @@
+import '../../../../core/theme/cosmic_ivory.dart';
+import 'delete_account_screen.dart';
+import '../../../auth/data/secure_logout.dart';
 import 'package:flutter/material.dart';
 import 'package:country_picker/country_picker.dart';
 
@@ -7,6 +10,7 @@ import '../../../auth/presentation/auth_gate.dart';
 import '../../../profile/data/customer_profile.dart';
 import '../../../profile/data/profile_api.dart';
 import 'edit_customer_profile_screen.dart';
+import '../widgets/customer_email_address.dart';
 // CUSTOMER_FINAL_PREMIUM_PHASE4
 
 class CustomerProfileScreen extends StatefulWidget {
@@ -47,16 +51,20 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     }
 
     _profileRequestInFlight = true;
+    final requestRevision = AuthSessionStore.sessionRevision;
 
     if (mounted) {
       setState(() {
         _isLoading = true;
         _error = '';
+        _session = null;
+        _profile = null;
       });
     }
 
     try {
-      final session = await _sessionStore.read();
+      final session = await _sessionStore.restore(portal: 'customer');
+      if (requestRevision != AuthSessionStore.sessionRevision) return;
 
       if (session == null || session.accessToken.trim().isEmpty) {
         await _sessionStore.clear();
@@ -79,12 +87,21 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         return;
       }
 
+      if (requestRevision != AuthSessionStore.sessionRevision) {
+        setState(() {
+          _session = null;
+          _profile = null;
+          _error = 'Your account changed. Reopen My Account.';
+        });
+        return;
+      }
+
       setState(() {
         _session = session;
         _profile = profiles.isEmpty ? null : profiles.first;
       });
     } on ProfileApiException catch (error) {
-      if (!mounted) {
+      if (!mounted || requestRevision != AuthSessionStore.sessionRevision) {
         return;
       }
 
@@ -107,7 +124,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         _error = error.message;
       });
     } catch (_) {
-      if (!mounted) {
+      if (!mounted || requestRevision != AuthSessionStore.sessionRevision) {
         return;
       }
 
@@ -186,65 +203,9 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   }
 
   Future<void> _confirmDeleteAccount() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Account'),
-        content: const Text(
-          'Deleting your account is permanent. Your personal data '
-          'will be removed according to the privacy policy. '
-          'Certain payment and transaction records may need to '
-          'be retained for legal requirements.\n\n'
-          'Are you sure you want to continue?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Continue', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const DeleteAccountScreen()),
     );
-
-    if (confirmed != true || !mounted) return;
-
-    if (_isLoggingOut) return;
-
-    setState(() => _isLoggingOut = true);
-
-    try {
-      await _profileApi.deleteAccount();
-      await _sessionStore.clear();
-
-      if (!mounted) return;
-
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => const AuthGate()),
-        (route) => false,
-      );
-    } on ProfileApiException catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
-    } catch (_) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Account deletion failed. Please try again.'),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoggingOut = false);
-      }
-    }
   }
 
   Future<void> _logout() async {
@@ -278,7 +239,21 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       _isLoggingOut = true;
     });
 
-    await _sessionStore.clear();
+    try {
+      await secureLogout(_sessionStore);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoggingOut = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to confirm sign-out. Please retry.'),
+          ),
+        );
+      }
+      return;
+    }
 
     if (!mounted) {
       return;
@@ -299,10 +274,9 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = _session?.user ?? const <String, dynamic>{};
     final profile = _profile;
 
-    final phone = user['phone']?.toString() ?? 'Phone unavailable';
+    final email = CustomerEmailAddress.emailOf(_session);
 
     final displayName = profile?.fullName?.trim().isNotEmpty == true
         ? profile!.fullName!
@@ -319,10 +293,10 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     return
     // CUSTOMER_SHARED_PREMIUM_BACKGROUND
     Scaffold(
-      backgroundColor: const Color(0xFFFFF9F1),
+      backgroundColor: CosmicIvory.background,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        backgroundColor: const Color(0xFFFFF9F1),
+        backgroundColor: CosmicIvory.background,
         elevation: 0,
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -575,14 +549,14 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Icon(
-                              Icons.phone_rounded,
+                              Icons.email_outlined,
                               size: 14,
                               color: AppColors.gold,
                             ),
                             const SizedBox(width: 6),
                             Flexible(
                               child: Text(
-                                phone,
+                                email,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: AppColors.muted,

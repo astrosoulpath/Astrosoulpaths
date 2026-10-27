@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"[]>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
   <dict>
     <key>NSCameraUsageDescription</key>
-    <string>Astro Soul Path uses your camera for live video consultations with astrologers.</string>
+    <string>Astro Soul Path uses your camera for live video consultations and photos you choose for marketplace product listings.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Astro Soul Path uses your microphone for live audio consultations with astrologers.</string>
     <key>CADisableMinimumFrameDurationOnPhone</key>
@@ -47,28 +47,10 @@
             <string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
             <key>UISceneStoryboardFile</key>
             <string>Main</string>
-              <key>UIFileSharingEnabled</key>
-    <true />
-    <key>LSSupportsOpeningDocumentsInPlace</key>
-    <true />
-<key>NSPhotoLibraryUsageDescription</key>
-<string>Astro Soul Path accesses your photo library only when you choose a photo to send in chat.</string>
-</dict>
+          </dict>
         </array>
-          <key>UIFileSharingEnabled</key>
-    <true />
-    <key>LSSupportsOpeningDocumentsInPlace</key>
-    <true />
-<key>NSPhotoLibraryUsageDescription</key>
-<string>Astro Soul Path accesses your photo library only when you choose a photo to send in chat.</string>
-</dict>
-        <key>UIFileSharingEnabled</key>
-    <true />
-    <key>LSSupportsOpeningDocumentsInPlace</key>
-    <true />
-<key>NSPhotoLibraryUsageDescription</key>
-<string>Astro Soul Path accesses your photo library only when you choose a photo to send in chat.</string>
-</dict>
+      </dict>
+    </dict>
     <key>UIApplicationSupportsIndirectInputEvents</key>
     <true />
     <key>UILaunchStoryboardName</key>
@@ -99,19 +81,33 @@
         <array>
           <string>com.googleusercontent.apps.155926082630-r1jck8ajnm53pp7umhoogms2v9dcf48d</string>
         </array>
-          <key>UIFileSharingEnabled</key>
-    <true />
-    <key>LSSupportsOpeningDocumentsInPlace</key>
-    <true />
-<key>NSPhotoLibraryUsageDescription</key>
-<string>Astro Soul Path accesses your photo library only when you choose a photo to send in chat.</string>
-</dict>
+      </dict>
     </array>
-      <key>UIFileSharingEnabled</key>
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+      <string>tez</string>
+      <string>phonepe</string>
+      <string>paytmmp</string>
+      <string>credpay</string>
+      <string>mobikwik</string>
+      <string>in.fampay.app</string>
+      <string>bhim</string>
+      <string>amazonpay</string>
+      <string>navi</string>
+      <string>kiwi</string>
+      <string>payzapp</string>
+      <string>jupiter</string>
+      <string>omnicard</string>
+    </array>
+    <key>UIFileSharingEnabled</key>
     <true />
     <key>LSSupportsOpeningDocumentsInPlace</key>
     <true />
-<key>NSPhotoLibraryUsageDescription</key>
-<string>Astro Soul Path accesses your photo library only when you choose a photo to send in chat.</string>
-<key>UIBackgroundModes</key><array><string>remote-notification</string></array></dict>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Astro Soul Path accesses your photo library only when you choose photos for chat or marketplace product listings.</string>
+    <key>UIBackgroundModes</key>
+    <array>
+      <string>remote-notification</string>
+    </array>
+  </dict>
 </plist>

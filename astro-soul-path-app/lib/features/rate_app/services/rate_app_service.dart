@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app_config/data/app_config_api.dart';
+import '../../app_config/data/official_app_links.dart';
+import '../../app_config/data/app_config_model.dart';
 
 enum RateAppResult { opened, storeNotConfigured }
 
@@ -12,7 +14,13 @@ class RateAppService {
   final AppConfigApi appConfigApi;
 
   Future<RateAppResult> openStoreListing() async {
-    final config = await appConfigApi.getPublicConfig();
+    final AppConfigModel config;
+    try {
+      config = await appConfigApi.getPublicConfig();
+    } on AppConfigApiException catch (error) {
+      if (error.configurationMissing) return RateAppResult.storeNotConfigured;
+      rethrow;
+    }
 
     String storeUrl = '';
 
@@ -26,9 +34,9 @@ class RateAppService {
       return RateAppResult.storeNotConfigured;
     }
 
-    final uri = Uri.tryParse(storeUrl);
+    final uri = OfficialAppLinks.store(storeUrl, ios: Platform.isIOS);
 
-    if (uri == null || !uri.hasScheme) {
+    if (uri == null) {
       return RateAppResult.storeNotConfigured;
     }
 

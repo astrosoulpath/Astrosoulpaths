@@ -38,6 +38,36 @@ class ProfileApi {
     );
   }
 
+  Future<Map<String, dynamic>> refreshVerifiedPhone() async {
+    final before = await _sessionStore.read();
+    if (before == null || before.user['id'] == null) {
+      throw const ProfileApiException('Authentication required.');
+    }
+    final body = await _request(
+      method: 'GET',
+      path: '/user/session?portal=customer',
+      fallbackError: 'Unable to refresh verified phone.',
+    );
+    final after = await _sessionStore.read();
+    final user = body['user'];
+    if (after == null ||
+        after.user['id'] != before.user['id'] ||
+        user is! Map ||
+        user['id'] != before.user['id'] ||
+        user['isPhoneVerified'] != true ||
+        user['phone'] is! String ||
+        (user['phone'] as String).trim().isEmpty) {
+      throw const ProfileApiException(
+        'Verified phone was not confirmed for the original account.',
+      );
+    }
+    return {
+      'canonicalUserId': user['id'],
+      'phone': user['phone'],
+      'isPhoneVerified': true,
+    };
+  }
+
   Future<bool> isAuthenticatedPhoneVerified() async {
     final body = await _request(
       method: 'GET',
@@ -250,7 +280,8 @@ class ProfileApi {
     }
 
     final session = await _sessionStore.read();
-    if (session?.authProvider == 'firebase') {
+    if (session?.authProvider == 'firebase' ||
+        session?.authProvider == 'asp-context') {
       if (confirmAccountLink) {
         throw const ProfileApiException(
           'Cross-account linking requires secure account recovery.',
@@ -345,6 +376,12 @@ class ProfileApi {
       fallbackError: 'Failed to delete account.',
     );
   }
+
+  Future<Map<String, dynamic>> deletionReadiness() => _request(
+    method: 'GET',
+    path: '/user/account/deletion-readiness',
+    fallbackError: 'Unable to verify account deletion availability.',
+  );
 
   Future<void> deleteProfile(String profileId) async {
     final id = profileId.trim();

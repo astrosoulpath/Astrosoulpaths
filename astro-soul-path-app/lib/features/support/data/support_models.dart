@@ -8,6 +8,7 @@ class SupportTicketSummary {
     required this.category,
     required this.createdAt,
     this.lastMessageAt,
+    this.updatedAt,
     this.messageCount = 0,
   });
 
@@ -19,6 +20,7 @@ class SupportTicketSummary {
   final String category;
   final DateTime createdAt;
   final DateTime? lastMessageAt;
+  final DateTime? updatedAt;
   final int messageCount;
 
   factory SupportTicketSummary.fromJson(Map<String, dynamic> json) {
@@ -35,6 +37,7 @@ class SupportTicketSummary {
           DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
       lastMessageAt: DateTime.tryParse(json['lastMessageAt']?.toString() ?? ''),
+      updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? ''),
       messageCount: countJson is Map
           ? int.tryParse(countJson['messages']?.toString() ?? '') ?? 0
           : 0,

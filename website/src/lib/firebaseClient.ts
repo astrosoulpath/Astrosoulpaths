@@ -1,5 +1,6 @@
 ﻿import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { connectAuthEmulator, getAuth } from "firebase/auth";
+import { localAuthEmulator } from "./local-firebase-emulator";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,5 +18,15 @@ const firebaseApp =
     : initializeApp(firebaseConfig);
 
 export const firebaseAuth = getAuth(firebaseApp);
+
+const emulator = typeof window === "undefined" ? null : localAuthEmulator({
+  enabled: process.env.NEXT_PUBLIC_ASP_ISOLATED_E2E,
+  project: firebaseConfig.projectId,
+  host: process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST,
+  api: process.env.NEXT_PUBLIC_API_BASE_URL,
+  hostname: typeof window === "undefined" ? "" : window.location.hostname,
+  mode: process.env.NODE_ENV,
+});
+if (emulator && !firebaseAuth.emulatorConfig) connectAuthEmulator(firebaseAuth, emulator);
 
 export default firebaseApp;

@@ -1,5 +1,6 @@
 import '../widgets/ai_astro_avatar.dart';
 import 'package:flutter/material.dart';
+import '../../../../core/widgets/golden_sparkle_loading.dart';
 
 import '../../data/ai_astro_api.dart';
 import '../../data/ai_astro_models.dart';
@@ -196,168 +197,173 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
             )
           : null,
       backgroundColor: const Color(0xFFFFF9F1),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _load,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
-                  child: _HeaderCard(consultant: _selectedConsultantType),
+      body: GoldenSparkleLoading(
+        loading: _loading,
+        child: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: _load,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+                    child: _HeaderCard(consultant: _selectedConsultantType),
+                  ),
                 ),
-              ),
-              if (_loading)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (_error.isNotEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: _ErrorState(message: _error, onRetry: _load),
-                )
-              else ...[
-                if (_consultantTypes.isNotEmpty)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 4, 18, 18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Choose your AI Specialist',
-                            style: TextStyle(
-                              color: Color(0xFF14213D),
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
+                if (_error.isNotEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _ErrorState(message: _error, onRetry: _load),
+                  )
+                else ...[
+                  if (_consultantTypes.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 4, 18, 18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Choose your AI Specialist',
+                              style: TextStyle(
+                                color: Color(0xFF14213D),
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Choose your specialist',
-                            style: TextStyle(
-                              color: Color(0xFF6F7280),
-                              fontSize: 13,
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Choose your specialist',
+                              style: TextStyle(
+                                color: Color(0xFF6F7280),
+                                fontSize: 13,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 14),
-                          SizedBox(
-                            height: 126,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: _consultantTypes.length,
-                              separatorBuilder: (context, index) =>
-                                  const SizedBox(width: 12),
-                              itemBuilder: (context, index) {
-                                final consultant = _consultantTypes[index];
+                            const SizedBox(height: 14),
+                            SizedBox(
+                              height: 126,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: _consultantTypes.length,
+                                separatorBuilder: (context, index) =>
+                                    const SizedBox(width: 12),
+                                itemBuilder: (context, index) {
+                                  final consultant = _consultantTypes[index];
 
-                                final selected =
-                                    consultant.code ==
-                                    _selectedConsultantTypeCode;
+                                  final selected =
+                                      consultant.code ==
+                                      _selectedConsultantTypeCode;
 
-                                return InkWell(
-                                  borderRadius: BorderRadius.circular(18),
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedConsultantTypeCode =
-                                          consultant.code;
-                                    });
-                                  },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 180),
-                                    width: 190,
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(18),
-                                      color: selected
-                                          ? const Color(0xFFF4C542)
-                                          : const Color(0xFFF0E9FF),
-                                      border: Border.all(
-                                        color: selected
-                                            ? const Color(0xFFFFEDA2)
-                                            : const Color(0xFF9B4AC5),
+                                  return InkWell(
+                                    borderRadius: BorderRadius.circular(18),
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedConsultantTypeCode =
+                                            consultant.code;
+                                      });
+                                    },
+                                    child: AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 180,
                                       ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.auto_awesome_rounded,
-                                              size: 20,
-                                              color: selected
-                                                  ? const Color(0xFF14213D)
-                                                  : const Color(0xFF7551C9),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                consultant.name,
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: selected
-                                                      ? const Color(0xFF14213D)
-                                                      : const Color(0xFF14213D),
+                                      width: 190,
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(18),
+                                        color: selected
+                                            ? const Color(0xFFF4C542)
+                                            : const Color(0xFFF0E9FF),
+                                        border: Border.all(
+                                          color: selected
+                                              ? const Color(0xFFFFEDA2)
+                                              : const Color(0xFF9B4AC5),
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.auto_awesome_rounded,
+                                                size: 20,
+                                                color: selected
+                                                    ? const Color(0xFF14213D)
+                                                    : const Color(0xFF7551C9),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  consultant.name,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: selected
+                                                        ? const Color(
+                                                            0xFF14213D,
+                                                          )
+                                                        : const Color(
+                                                            0xFF14213D,
+                                                          ),
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Expanded(
-                                          child: Text(
-                                            consultant.description,
-                                            maxLines: 3,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              height: 1.25,
-                                              fontSize: 11.5,
-                                              color: selected
-                                                  ? const Color(0xFF34415C)
-                                                  : const Color(0xFF6F7280),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Expanded(
+                                            child: Text(
+                                              consultant.description,
+                                              maxLines: 3,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                height: 1.25,
+                                                fontSize: 11.5,
+                                                color: selected
+                                                    ? const Color(0xFF34415C)
+                                                    : const Color(0xFF6F7280),
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                );
-                              },
+                                  );
+                                },
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
+                    ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 4)),
+
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
+                    sliver: SliverList.separated(
+                      itemCount: _visiblePersonas.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 14),
+                      itemBuilder: (context, index) {
+                        final persona = _visiblePersonas[index];
+
+                        return _PersonaCard(
+                          persona: persona,
+                          onTap: () => _openPersona(persona),
+                        );
+                      },
                     ),
                   ),
 
-                const SliverToBoxAdapter(child: SizedBox(height: 4)),
-
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
-                  sliver: SliverList.separated(
-                    itemCount: _visiblePersonas.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 14),
-                    itemBuilder: (context, index) {
-                      final persona = _visiblePersonas[index];
-
-                      return _PersonaCard(
-                        persona: persona,
-                        onTap: () => _openPersona(persona),
-                      );
-                    },
-                  ),
-                ),
-
-                const SliverToBoxAdapter(child: _AiAstroGuidanceFooter()),
+                  const SliverToBoxAdapter(child: _AiAstroGuidanceFooter()),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

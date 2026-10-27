@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { getPublicAstrologerById } from "@/services/astrologerService";
 
 import {
   startConsultation,
+  consultationCustomerSession,
   type ConsultationMode,
 } from "@/services/consultationService";
 import {
@@ -99,6 +101,8 @@ export function BookingConfirmation({
 const effectiveUserId = userId || storedUserId;
 
   const [isStarting, setIsStarting] = useState(false);
+  const startLock = useRef(false);
+  const originalCustomer = useRef(consultationCustomerSession());
   const [errorMessage, setErrorMessage] = useState<string | null>(
     null,
   );
@@ -141,15 +145,19 @@ const effectiveUserId = userId || storedUserId;
   }
 
   async function handleConfirm() {
-    if (isStarting) {
+    if (isStarting || startLock.current) {
       return;
     }
 
     setErrorMessage(null);
 
-    const token = window.localStorage.getItem(
-      "asp_access_token",
-    );
+    const owner = consultationCustomerSession();
+    if (originalCustomer.current && owner && originalCustomer.current !== owner) {
+      setErrorMessage('Customer account changed. Return to the profile and review this booking again.');
+      return;
+    }
+    if (owner) originalCustomer.current = owner;
+    const token = owner ? (JSON.parse(owner) as string[])[0] : null;
 
     if (!token || !effectiveUserId) {
       savePendingConsultation();
@@ -200,7 +208,12 @@ const effectiveUserId = userId || storedUserId;
     }
 
     try {
+      startLock.current = true;
       setIsStarting(true);
+      const fresh = (await getPublicAstrologerById(astrologerId)).data;
+      if (consultationCustomerSession() !== owner) throw new Error('SESSION_CHANGED');
+      if (fresh.userId !== astrologerUserId || !fresh.isOnline || fresh.isBusy || !(mode === 'chat' ? fresh.consultationOptions.chat : fresh.consultationOptions.audioCall)) throw new Error('ASTROLOGER_UNAVAILABLE');
+      if (fresh.pricePerMin !== pricePerMin || fresh.pricePerMin <= 0) throw new Error('The consultation fee changed. Return to the profile and review the current price.');
 
       const response = await startConsultation({
         astrologerUserId: astrologerUserId.trim(),
@@ -310,6 +323,7 @@ const effectiveUserId = userId || storedUserId;
 
       setErrorMessage(message);
     } finally {
+      startLock.current = false;
       setIsStarting(false);
     }
   }

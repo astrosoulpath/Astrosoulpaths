@@ -1,0 +1,28 @@
+{
+  "status": "REVIEW_ONLY_APPLICATION_EXECUTION_NOT_APPROVED",
+  "target": "new network-none synthetic PostgreSQL container only",
+  "baseline": "current Prisma datamodel minus the two new case models and new journal; not a historical lineage replay",
+  "steps": [
+    {
+      "step": 1,
+      "path": "prisma/migrations/20261018000100_marketplace_case_review/migration.sql",
+      "identity": "20261018000100_marketplace_case_review",
+      "sha256": "3dd1fe338139082d72356c15fadbbc52ce9fe0f87bb9263472d2fa7f3e351cd0",
+      "dependsOn": [
+        "MarketplaceOrder",
+        "MarketplaceSellerOrder",
+        "MarketplaceSellerEarning",
+        "User"
+      ]
+    },
+    {
+      "step": 2,
+      "path": "prisma/migrations/20261018000200_marketplace_component_journal/migration.sql",
+      "identity": "20261018000200_marketplace_component_journal",
+      "sha256": "e90597f76b39f8cf6532840e749006ca62387b8d6f79a1c1838bf2d0199793ea",
+      "dependsOn": [
+        "20261018000100_marketplace_case_review"
+      ]
+    }
+  ]
+}

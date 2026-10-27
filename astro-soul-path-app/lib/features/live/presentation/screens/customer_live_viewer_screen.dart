@@ -7,6 +7,8 @@ import '../../data/live_api.dart';
 import '../../data/live_models.dart';
 import '../../data/live_rtc_service.dart';
 import '../../data/live_socket_service.dart';
+import '../../data/live_v2_api.dart';
+import '../../data/live_v2_flow.dart';
 
 class CustomerLiveViewerScreen extends StatefulWidget {
   const CustomerLiveViewerScreen({super.key, required this.liveSession});
@@ -18,10 +20,12 @@ class CustomerLiveViewerScreen extends StatefulWidget {
       _CustomerLiveViewerScreenState();
 }
 
-class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
+class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen>
+    with WidgetsBindingObserver {
   final LiveApi _api = LiveApi();
   final LiveRtcService _rtc = LiveRtcService();
-  final LiveSocketService _chat = LiveSocketService();
+  late final LiveSocketService _chat;
+  LiveV2Flow? _v2;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _messageScrollController = ScrollController();
 
@@ -42,6 +46,18 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
     super.initState();
 
     _session = widget.liveSession;
+    if (liveV2Enabled && _session.connectionProtocol == 2) {
+      final flow = LiveV2Flow(host: false, rtc: _rtc);
+      _v2 = flow;
+      _chat = flow.chat;
+      flow.onSession = (session) {
+        if (mounted && !_disposed) setState(() => _session = session);
+      };
+      flow.onError = _handleRtcError;
+      WidgetsBinding.instance.addObserver(this);
+    } else {
+      _chat = LiveSocketService();
+    }
 
     _rtc.onChanged = _handleRtcChanged;
     _rtc.onError = _handleRtcError;
@@ -55,6 +71,9 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
       setState(() {
         _chatJoined = true;
       });
+    };
+    _chat.onDisconnected = () {
+      if (mounted && !_disposed) setState(() => _chatJoined = false);
     };
 
     _chat.onMessage = (message) {
@@ -85,7 +104,12 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
       _showError(message);
     };
 
-    _joinLive();
+    if (_session.connectionProtocol == 2 && !liveV2Enabled) {
+      _joining = false;
+      _error = 'Live v2 is not enabled in this build.';
+    } else {
+      _joinLive();
+    }
   }
 
   void _handleRtcChanged() {
@@ -108,6 +132,10 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
 
   Future<void> _joinLive() async {
     try {
+      if (_v2 != null) {
+        await _v2!.open(id: _session.id);
+        return;
+      }
       final result = await _api.joinLive(_session.id);
 
       if (!mounted || _disposed) {
@@ -150,6 +178,14 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
     _messageController.clear();
   }
 
+  Future<void> _toggleSpeaker() async {
+    try {
+      await _rtc.setSpeakerEnabled(!_rtc.isSpeakerEnabled);
+    } catch (_) {
+      _showError('Unable to change audio output.');
+    }
+  }
+
   String _senderName(Map<String, dynamic> item) {
     final sender = item['sender'];
 
@@ -165,6 +201,7 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
   }
 
   Future<String?> _renewAudienceToken() async {
+    if (_v2 != null) return _v2!.renewToken();
     final result = await _api.joinLive(_session.id);
 
     _session = result.session;
@@ -186,6 +223,11 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
     });
 
     try {
+      if (_v2 != null) {
+        await _v2!.finish();
+        if (mounted) Navigator.of(context).pop(true);
+        return;
+      }
       await _rtc.leave();
 
       await _api.leaveLive(_session.id);
@@ -215,6 +257,7 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
   }
 
   String get _statusText {
+    if (_v2?.ended == true) return 'Live ended';
     switch (_rtc.state) {
       case LiveRtcConnectionState.idle:
         return 'Preparing live';
@@ -226,6 +269,8 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
         return 'Joining live';
 
       case LiveRtcConnectionState.connected:
+        if (_rtc.remoteUid == null) return 'Waiting for astrologer video';
+        if (_rtc.remoteAudioMuted) return 'LIVE - Host microphone muted';
         return _rtc.remoteUid == null ? 'Waiting for astrologer video' : 'LIVE';
 
       case LiveRtcConnectionState.reconnecting:
@@ -243,6 +288,17 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
     final engine = _rtc.engine;
     final uid = _rtc.remoteUid;
     final credentials = _rtc.credentials;
+    if (!_rtc.remoteCameraEnabled && uid != null) {
+      return const ColoredBox(
+        color: Colors.black,
+        child: Center(
+          child: Text(
+            'Host camera is off',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+      );
+    }
 
     if (engine == null || uid == null || credentials == null) {
       return Container(
@@ -273,7 +329,7 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: _rtc.state == LiveRtcConnectionState.left,
+      canPop: _v2?.ended == true || _rtc.state == LiveRtcConnectionState.left,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop && !_leaving) {
           _leaveLive();
@@ -301,8 +357,10 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
                         color: Colors.red,
                         borderRadius: BorderRadius.circular(18),
                       ),
-                      child: const Text(
-                        'LIVE',
+                      child: Text(
+                        _rtc.isConnected && _rtc.remoteUid != null
+                            ? 'LIVE'
+                            : 'Waiting',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w800,
@@ -461,6 +519,19 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
               ),
 
               Positioned(
+                left: 18,
+                bottom: 22,
+                child: IconButton.filled(
+                  tooltip: 'Speaker output',
+                  onPressed: _joining || _leaving ? null : _toggleSpeaker,
+                  icon: Icon(
+                    _rtc.isSpeakerEnabled
+                        ? Icons.volume_up_rounded
+                        : Icons.volume_off_rounded,
+                  ),
+                ),
+              ),
+              Positioned(
                 right: 18,
                 bottom: 22,
                 child: FilledButton.icon(
@@ -478,8 +549,22 @@ class _CustomerLiveViewerScreenState extends State<CustomerLiveViewerScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final flow = _v2;
+    if (flow != null) {
+      unawaited(
+        flow.lifecycle(state).catchError((Object _) {
+          _handleRtcError('Unable to restore Live. Reconnect to continue.');
+        }),
+      );
+    }
+  }
+
+  @override
   void dispose() {
     _disposed = true;
+    WidgetsBinding.instance.removeObserver(this);
+    _v2?.dispose();
 
     _rtc.onChanged = null;
     _rtc.onError = null;

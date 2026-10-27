@@ -89,19 +89,28 @@ class ConsultationHistoryItem {
     required this.session,
     required this.astrologerName,
     required this.astrologerAvatarUrl,
+    this.currency = '',
   });
 
   factory ConsultationHistoryItem.fromJson(Map<String, dynamic> json) {
     final astrologer = _readMap(json['astrologer']);
-    final profile = _readMap(astrologer['profile']);
+    final profile = _readMap(
+      astrologer['userProfile'] ?? astrologer['profile'],
+    );
 
     final directName = astrologer['name']?.toString().trim() ?? '';
-    final profileName = profile['name']?.toString().trim() ?? '';
+    final profileName =
+        (profile['fullName'] ?? profile['name'])?.toString().trim() ?? '';
 
     final directAvatar = astrologer['avatarUrl']?.toString().trim() ?? '';
     final profileAvatar = profile['avatarUrl']?.toString().trim() ?? '';
 
     return ConsultationHistoryItem(
+      currency:
+          _readMap(
+            json['earning'],
+          )['currency']?.toString().trim().toUpperCase() ??
+          '',
       session: ConsultationSession.fromJson(json),
       astrologerName: profileName.isNotEmpty
           ? profileName
@@ -117,6 +126,7 @@ class ConsultationHistoryItem {
   final ConsultationSession session;
   final String astrologerName;
   final String astrologerAvatarUrl;
+  final String currency;
 
   static Map<String, dynamic> _readMap(Object? value) {
     if (value is Map<String, dynamic>) {

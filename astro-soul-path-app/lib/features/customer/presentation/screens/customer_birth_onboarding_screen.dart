@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/localization/app_locale_controller.dart';
+import '../widgets/onboarding_language_picker.dart';
 import '../../../profile/data/customer_profile.dart';
 import '../../../profile/data/geo_api.dart';
 import '../../../profile/data/profile_api.dart';
@@ -51,18 +53,7 @@ class _CustomerBirthOnboardingScreenState
   double _longitude = 0;
   double _timezone = 0;
 
-  static const List<String> _languages = <String>[
-    'en',
-    'hi',
-    'bn',
-    'ta',
-    'te',
-    'mr',
-    'gu',
-    'kn',
-    'ml',
-    'pa',
-  ];
+  Set<String> _availableLanguageCodes = {};
 
   @override
   void initState() {
@@ -163,22 +154,6 @@ class _CustomerBirthOnboardingScreenState
     final month = value.month.toString().padLeft(2, '0');
 
     return '$day/$month/${value.year}';
-  }
-
-  String _languageLabel(String code) {
-    return switch (code) {
-      'en' => 'English',
-      'hi' => 'Hindi',
-      'bn' => 'Bengali',
-      'ta' => 'Tamil',
-      'te' => 'Telugu',
-      'mr' => 'Marathi',
-      'gu' => 'Gujarati',
-      'kn' => 'Kannada',
-      'ml' => 'Malayalam',
-      'pa' => 'Punjabi',
-      _ => code.toUpperCase(),
-    };
   }
 
   Future<void> _selectBirthDate() async {
@@ -353,6 +328,10 @@ class _CustomerBirthOnboardingScreenState
         return true;
 
       case 5:
+        if (!_availableLanguageCodes.contains(_language)) {
+          _showMessage('Please choose an available language.');
+          return false;
+        }
         return true;
 
       default:
@@ -464,6 +443,8 @@ class _CustomerBirthOnboardingScreenState
         return;
       }
 
+      await AppLocaleController.setLanguage(_language);
+      if (!mounted) return;
       Navigator.of(context).pop(true);
     } on ProfileApiException catch (error) {
       if (!mounted) {
@@ -846,35 +827,13 @@ class _CustomerBirthOnboardingScreenState
               ),
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 9,
-              runSpacing: 9,
-              children: _languages.map((code) {
-                final selected = code == _language;
-
-                return ChoiceChip(
-                  selected: selected,
-                  onSelected: (_) {
-                    setState(() {
-                      _language = code;
-                    });
-                  },
-                  selectedColor: AppColors.gold,
-                  backgroundColor: AppColors.surface,
-                  side: BorderSide(
-                    color: selected
-                        ? AppColors.gold
-                        : AppColors.muted.withValues(alpha: 0.18),
-                  ),
-                  label: Text(
-                    _languageLabel(code),
-                    style: TextStyle(
-                      color: selected ? AppColors.background : AppColors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                );
-              }).toList(),
+            OnboardingLanguagePicker(
+              value: _language,
+              enabled: !_saving,
+              onChanged: (code) => setState(() => _language = code),
+              onAvailableCodes: (codes) {
+                if (mounted) setState(() => _availableLanguageCodes = codes);
+              },
             ),
           ],
         );

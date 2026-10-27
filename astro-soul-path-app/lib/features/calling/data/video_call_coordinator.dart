@@ -1,4 +1,6 @@
-﻿import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'dart:async';
+import '../../auth/data/auth_session_store.dart';
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/foundation.dart';
 
 import 'agora_video_service.dart';
@@ -28,10 +30,27 @@ enum VideoCallCoordinatorState {
 }
 
 class VideoCallCoordinator {
-  VideoCallCoordinator({CallApi? callApi, AgoraVideoService? videoService})
-    : _callApi = callApi ?? CallApi(),
-      _videoService = videoService ?? AgoraVideoService();
+  VideoCallCoordinator({
+    CallApi? callApi,
+    AgoraVideoService? videoService,
+    Future<String?> Function()? readUserId,
+  }) : _callApi = callApi ?? CallApi(),
+       _videoService = videoService ?? AgoraVideoService(),
+       _readUserId =
+           readUserId ??
+           (() async {
+             final session = await AuthSessionStore().read();
+             return (session?.user['id'] ?? session?.user['userId'])
+                 ?.toString();
+           });
 
+  final Future<String?> Function() _readUserId;
+  String? _userId;
+  bool _disposed = false;
+  bool _connectInFlight = false;
+  bool _tokenRenewalInFlight = false;
+  int _generation = 0;
+  bool _current(int generation) => !_disposed && generation == _generation;
   final CallApi _callApi;
   final AgoraVideoService _videoService;
 
@@ -60,6 +79,11 @@ class VideoCallCoordinator {
 
   Future<void> connect(String callId) async {
     final normalizedCallId = callId.trim();
+    if (_disposed ||
+        _state == VideoCallCoordinatorState.ending ||
+        _state == VideoCallCoordinatorState.ended) {
+      return;
+    }
 
     if (normalizedCallId.isEmpty) {
       throw const CallApiException(
@@ -68,6 +92,18 @@ class VideoCallCoordinator {
       );
     }
 
+    if (_disposed ||
+        _connectInFlight ||
+        (_callId == normalizedCallId &&
+            [
+              VideoCallCoordinatorState.joining,
+              VideoCallCoordinatorState.connected,
+              VideoCallCoordinatorState.reconnecting,
+            ].contains(_state))) {
+      return;
+    }
+    _connectInFlight = true;
+    final generation = ++_generation;
     _callId = normalizedCallId;
     _errorMessage = null;
     _localUid = null;
@@ -76,6 +112,11 @@ class VideoCallCoordinator {
     _setState(VideoCallCoordinatorState.preparing);
 
     try {
+      _userId = await _readUserId();
+      if (!_current(generation)) return;
+      if (_userId == null || _userId!.isEmpty) {
+        throw const CallApiException('Please login again.');
+      }
       debugPrint('VIDEO_RTC_TOKEN_REQUEST callId=$normalizedCallId');
 
       final rtc = await _callApi.generateRtcToken(normalizedCallId);
@@ -87,9 +128,19 @@ class VideoCallCoordinator {
         'channel=${rtc.channelName} '
         'uid=${rtc.uid}',
       );
+      if (!_current(generation)) return;
+      if (await _readUserId() != _userId) {
+        throw const CallApiException(
+          'Account changed. Please reopen the call.',
+        );
+      }
+      if (!_current(generation)) return;
+      if (rtc.callId.isNotEmpty && rtc.callId != normalizedCallId) {
+        throw const CallApiException('Invalid call credentials.');
+      }
       _credentials = rtc;
 
-      _bindRtcCallbacks();
+      _bindRtcCallbacks(generation);
 
       if (!_videoService.isInitialized) {
         debugPrint('VIDEO_RTC_ENGINE_INIT_START');
@@ -99,6 +150,10 @@ class VideoCallCoordinator {
         debugPrint('VIDEO_RTC_ENGINE_INIT_OK');
       }
 
+      if (!_current(generation)) {
+        await _videoService.dispose();
+        return;
+      }
       _setState(VideoCallCoordinatorState.joining);
 
       debugPrint(
@@ -111,30 +166,40 @@ class VideoCallCoordinator {
         uid: rtc.uid,
       );
 
+      if (!_current(generation)) {
+        await _videoService.leave();
+        return;
+      }
       debugPrint('VIDEO_RTC_JOIN_REQUEST_SENT');
     } catch (error, stackTrace) {
+      if (!_current(generation)) return;
       debugPrint('VIDEO_RTC_CONNECT_FAILED: $error');
       debugPrintStack(label: 'VIDEO_RTC_CONNECT_STACK', stackTrace: stackTrace);
       _errorMessage = error.toString();
       _setState(VideoCallCoordinatorState.failed);
       rethrow;
+    } finally {
+      if (_current(generation)) _connectInFlight = false;
     }
   }
 
-  void _bindRtcCallbacks() {
+  void _bindRtcCallbacks(int generation) {
     _videoService.onLocalJoined = (uid) {
+      if (!_current(generation)) return;
       debugPrint('VIDEO_RTC_LOCAL_JOINED uid=$uid');
       _localUid = uid;
       _setState(VideoCallCoordinatorState.connected);
     };
 
     _videoService.onRemoteJoined = (uid) {
+      if (!_current(generation)) return;
       debugPrint('VIDEO_RTC_REMOTE_JOINED uid=$uid');
       _remoteUid = uid;
       _notify();
     };
 
     _videoService.onRemoteLeft = (uid) {
+      if (!_current(generation)) return;
       if (_remoteUid == uid) {
         _remoteUid = null;
       }
@@ -143,6 +208,7 @@ class VideoCallCoordinator {
     };
 
     _videoService.onConnectionStateChanged = (state, reason) {
+      if (!_current(generation)) return;
       final stateText = state.toString().toLowerCase();
 
       if (stateText.contains('reconnecting')) {
@@ -156,34 +222,68 @@ class VideoCallCoordinator {
     };
 
     _videoService.onTokenWillExpire = () {
-      _renewRtcToken();
+      unawaited(_renewRtcToken(generation));
     };
 
     _videoService.onError = (message) {
+      if (!_current(generation)) return;
       debugPrint('VIDEO_RTC_AGORA_ERROR: $message');
       _errorMessage = message;
       _notify();
     };
   }
 
-  Future<void> _renewRtcToken() async {
-    final currentCallId = _callId;
-
-    if (currentCallId == null || currentCallId.isEmpty) {
+  Future<void> _renewRtcToken(int generation) async {
+    final id = _callId;
+    final current = _credentials;
+    if (!_current(generation) ||
+        _tokenRenewalInFlight ||
+        id == null ||
+        current == null) {
       return;
     }
-
+    _tokenRenewalInFlight = true;
     try {
-      final refreshed = await _callApi.generateRtcToken(currentCallId);
-
-      _credentials = refreshed;
-
+      final owner = await _readUserId();
+      if (!_current(generation)) return;
+      if (owner != _userId) {
+        await leaveRtcOnly();
+        _errorMessage = 'Account changed. Please reopen the call.';
+        return;
+      }
+      if (!_current(generation)) return;
+      final refreshed = await _callApi.generateRtcToken(id);
+      if (!_current(generation)) return;
+      final refreshedOwner = await _readUserId();
+      if (!_current(generation)) return;
+      if (refreshedOwner != _userId) {
+        await leaveRtcOnly();
+        _errorMessage = 'Account changed. Please reopen the call.';
+        return;
+      }
+      if (!_current(generation)) return;
+      if (refreshed.channelName != current.channelName ||
+          refreshed.uid != current.uid ||
+          refreshed.appId != current.appId ||
+          refreshed.role != current.role ||
+          (refreshed.callId.isNotEmpty && refreshed.callId != id) ||
+          refreshed.token.isEmpty ||
+          (refreshed.callExpiresAt?.isBefore(DateTime.now()) ?? false)) {
+        throw const CallApiException('Invalid renewed call credentials.');
+      }
       await _videoService.renewToken(refreshed.token);
-
+      if (!_current(generation)) return;
+      _credentials = refreshed;
+      _errorMessage = null;
       _notify();
-    } catch (error) {
-      _errorMessage = 'Unable to renew video call token: $error';
-      _notify();
+    } catch (_) {
+      if (_current(generation)) {
+        _errorMessage =
+            'Unable to renew video call token. Check your connection.';
+        _notify();
+      }
+    } finally {
+      if (_current(generation)) _tokenRenewalInFlight = false;
     }
   }
 
@@ -231,11 +331,15 @@ class VideoCallCoordinator {
   Future<void> end({String reason = 'USER_ENDED'}) async {
     final currentCallId = _callId;
 
-    if (_state == VideoCallCoordinatorState.ending ||
+    if (_disposed ||
+        _state == VideoCallCoordinatorState.ending ||
         _state == VideoCallCoordinatorState.ended) {
       return;
     }
 
+    ++_generation;
+    _tokenRenewalInFlight = false;
+    _connectInFlight = false;
     _setState(VideoCallCoordinatorState.ending);
 
     debugPrint(
@@ -249,7 +353,7 @@ class VideoCallCoordinator {
       await _videoService.leave();
       debugPrint('VIDEO_RTC_LEAVE_OK');
     } catch (error) {
-      debugPrint('VIDEO_RTC_LEAVE_WARNING: $error');
+      await _videoService.dispose();
     }
 
     if (currentCallId != null && currentCallId.isNotEmpty) {
@@ -283,12 +387,14 @@ class VideoCallCoordinator {
   }
 
   Future<void> leaveRtcOnly() async {
+    ++_generation;
+    _tokenRenewalInFlight = false;
     debugPrint('VIDEO_RTC_REMOTE_END_CLEANUP_START');
 
     try {
       await _videoService.leave();
     } catch (error) {
-      debugPrint('VIDEO_RTC_REMOTE_END_CLEANUP_WARNING: $error');
+      await _videoService.dispose();
     }
 
     _localUid = null;
@@ -300,6 +406,9 @@ class VideoCallCoordinator {
   }
 
   Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    ++_generation;
     await _videoService.dispose();
     _callApi.close();
 
@@ -316,7 +425,6 @@ class VideoCallCoordinator {
   }
 
   void _notify() {
-    onChanged?.call();
+    if (!_disposed) onChanged?.call();
   }
 }
-

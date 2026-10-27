@@ -1,8 +1,12 @@
 import 'dart:async';
+import '../../../consultations/data/birth_sharing_api.dart';
+import '../../../consultations/presentation/widgets/birth_sharing_panel.dart';
 
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../../kundli/data/consultation_kundli_api.dart';
+import '../../../kundli/presentation/screens/consultation_kundli_consent_screen.dart';
 
 import '../../data/video_call_coordinator.dart';
 
@@ -729,6 +733,7 @@ class _VideoCallScreenState extends State<VideoCallScreen>
                 right: 16,
                 child: Row(
                   children: [
+                    if(consultationKundliV1Enabled) IconButton(tooltip:'Kundli permission',color:Colors.white,icon:const Icon(Icons.privacy_tip_outlined),onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>ConsultationKundliConsentScreen(consultationId:widget.callId)))),
                     Expanded(
                       child: Text(
                         widget.participantName,
@@ -771,6 +776,11 @@ class _VideoCallScreenState extends State<VideoCallScreen>
                   child: _buildLocalVideo(),
                 ),
               ),
+
+              if (birthSharingEnabled && !_ending && _coordinator.state != VideoCallCoordinatorState.ended)
+                Positioned(left: 12, right: MediaQuery.sizeOf(context).width < 420 ? 12 : 140, top: MediaQuery.sizeOf(context).width < 420 ? 260 : 90,
+                  child: ConstrainedBox(constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .22),
+                    child: SingleChildScrollView(child: BirthSharingPanel(consultationId: widget.callId)))),
 
               if (_coordinator.state == VideoCallCoordinatorState.failed)
                 Center(

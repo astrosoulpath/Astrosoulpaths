@@ -56,12 +56,24 @@ class CategoryAiApi {
 
   final http.Client _client;
   final AuthSessionStore _sessionStore;
+  final int _revision = AuthSessionStore.sessionRevision;
+  bool _disposed = false;
+
+  void _checkAccount() {
+    if (_disposed || _revision != AuthSessionStore.sessionRevision) {
+      throw const CategoryAiApiException(
+        'Your account changed. Reopen this assistant.',
+        loginRequired: true,
+      );
+    }
+  }
 
   Future<CategoryAiResponse> ask({
     required String category,
     required String question,
     String language = 'en',
   }) async {
+    _checkAccount();
     final cleanCategory = category.trim();
     final cleanQuestion = question.trim();
     final cleanLanguage = language.trim().isEmpty ? 'en' : language.trim();
@@ -83,6 +95,7 @@ class CategoryAiApi {
     }
 
     final session = await _sessionStore.read();
+    _checkAccount();
     final token = session?.accessToken.trim() ?? '';
 
     if (token.isEmpty) {
@@ -98,6 +111,7 @@ class CategoryAiApi {
       question: cleanQuestion,
       language: cleanLanguage,
     );
+    _checkAccount();
 
     if (firstResponse.statusCode != 401) {
       return _parse(firstResponse);
@@ -109,6 +123,7 @@ class CategoryAiApi {
      * refresh and retry exactly once.
      */
     final refreshedSession = await _sessionStore.forceRefresh();
+    _checkAccount();
     final refreshedToken = refreshedSession?.accessToken.trim() ?? '';
 
     if (refreshedToken.isEmpty) {
@@ -124,6 +139,7 @@ class CategoryAiApi {
       question: cleanQuestion,
       language: cleanLanguage,
     );
+    _checkAccount();
 
     return _parse(retryResponse);
   }
@@ -223,6 +239,7 @@ class CategoryAiApi {
   }
 
   void dispose() {
+    _disposed = true;
     _client.close();
   }
 }

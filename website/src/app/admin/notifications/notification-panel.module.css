@@ -1,0 +1,27 @@
+.panel {
+  min-width: 0;
+  padding: clamp(1rem, 3vw, 1.75rem);
+  color: #17243b;
+  background: #fffefb;
+  border: 1px solid #e6dcc9;
+  border-radius: 1rem;
+  box-shadow: 0 6px 24px #17243b06;
+}
+.panel label { display: flex; flex-direction: column; gap: .4rem; font-size: .95rem; font-weight: 500; min-width: 0; }
+.panel label:has(input[type="checkbox"]) { flex-direction: row; align-items: flex-start; }
+.panel input:not([type="checkbox"]), .panel select, .panel textarea {
+  box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; padding: .7rem .8rem;
+  border: 1px solid #c9c5be; border-radius: .6rem; background: white; color: #17243b; font: inherit;
+}
+.panel textarea { resize: vertical; line-height: 1.65; }
+.panel button { min-height: 44px; padding: .6rem 1rem; border: 1px solid #cbb88b; border-radius: .6rem; background: #faf6eb; color: #17243b; font-weight: 600; }
+.panel button:disabled { opacity: .5; cursor: not-allowed; }
+.panel button.primary { background: #17243b; color: #fff9ec; border-color: #b99a59; }
+.panel :is(input, select, textarea, button):focus-visible { outline: 2px solid #876a31; outline-offset: 3px; }
+.error, .success { padding: .85rem 1rem; border-radius: .6rem; overflow-wrap: anywhere; }
+.error { background: #fff1ee; color: #842f26; border: 1px solid #e8c6bf; }
+.success { background: #edf6ef; color: #225333; border: 1px solid #bed7c6; }
+.badge { display: inline-block; padding: .15rem .5rem; border: 1px solid #dbc89e; border-radius: 999px; background: #faf6eb; font-size: .85rem; font-weight: 600; }
+.history { padding: 1rem; border: 1px solid #e6dcc9; border-radius: .6rem; background: #fcfaf5; overflow-wrap: anywhere; }
+.history h4 { margin-block: .6rem; font-weight: 600; }
+.history li { margin-block: .4rem; }

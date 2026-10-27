@@ -1,4 +1,8 @@
+import '../widgets/support_account_boundary.dart';
 import 'package:flutter/material.dart';
+import '../../../../core/widgets/golden_sparkle_loading.dart';
+import 'package:file_picker/file_picker.dart';
+import '../../data/support_operations_config.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_theme.dart';
@@ -30,6 +34,8 @@ class _SupportTicketDetailScreenState extends State<SupportTicketDetailScreen> {
   bool _loading = true;
   bool _sending = false;
   String _error = '';
+  String? _retryMessageId, _retryText;
+  int _loadVersion = 0;
 
   @override
   void initState() {
@@ -39,6 +45,7 @@ class _SupportTicketDetailScreenState extends State<SupportTicketDetailScreen> {
 
   @override
   void dispose() {
+    _loadVersion++;
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -90,8 +97,11 @@ class _SupportTicketDetailScreenState extends State<SupportTicketDetailScreen> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
+    final version = ++_loadVersion;
     try {
       final ticket = await widget.api.getTicket(widget.ticketId);
+      if (!mounted || version != _loadVersion) return;
 
       try {
         await widget.api.markTicketRead(widget.ticketId);
@@ -99,7 +109,7 @@ class _SupportTicketDetailScreenState extends State<SupportTicketDetailScreen> {
         // Read receipt failure should not block ticket UI.
       }
 
-      if (!mounted) return;
+      if (!mounted || version != _loadVersion) return;
 
       setState(() {
         _ticket = ticket;
@@ -109,7 +119,7 @@ class _SupportTicketDetailScreenState extends State<SupportTicketDetailScreen> {
 
       _scrollToBottom();
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || version != _loadVersion) return;
 
       setState(() {
         _error = _messageFor(error);
@@ -131,6 +141,11 @@ class _SupportTicketDetailScreenState extends State<SupportTicketDetailScreen> {
     }
 
     _messageController.clear();
+    if (_retryText != text) {
+      _retryText = text;
+      _retryMessageId =
+          'mobile-${DateTime.now().microsecondsSinceEpoch}-${UniqueKey()}';
+    }
 
     setState(() {
       _sending = true;
@@ -140,12 +155,16 @@ class _SupportTicketDetailScreenState extends State<SupportTicketDetailScreen> {
       await widget.api.sendTicketMessage(
         ticketId: ticket.id,
         content: text,
-        clientMessageId: 'mobile-${DateTime.now().microsecondsSinceEpoch}',
+        clientMessageId: _retryMessageId,
       );
 
+      if (!mounted) return;
+      _retryMessageId = null;
+      _retryText = null;
       await _load();
     } catch (error) {
       if (!mounted) return;
+      if (_messageController.text.isEmpty) _messageController.text = text;
 
       ScaffoldMessenger.of(
         context,
@@ -173,8 +192,55 @@ class _SupportTicketDetailScreenState extends State<SupportTicketDetailScreen> {
     });
   }
 
+  Future<void> _upload() async {
+    final selection = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: [
+        'jpg',
+        'jpeg',
+        'png',
+        'webp',
+        'gif',
+        'pdf',
+        'doc',
+        'docx',
+        'txt',
+      ],
+    );
+    if (!mounted || selection == null || selection.files.single.path == null) {
+      return;
+    }
+    final file = selection.files.single;
+    if (file.size > 10 * 1024 * 1024) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Attachment must be 10 MB or smaller.')),
+      );
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      await widget.api.uploadTicketAttachment(
+        ticketId: widget.ticketId,
+        filePath: file.path!,
+      );
+      if (!mounted) return;
+      await _load();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_messageFor(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      SupportAccountBoundary(child: _buildContent(context));
+
+  Widget _buildContent(BuildContext context) {
     final ticket = _ticket;
 
     return Scaffold(
@@ -197,6 +263,12 @@ class _SupportTicketDetailScreenState extends State<SupportTicketDetailScreen> {
           ],
         ),
         actions: [
+          if (supportOperationsUiEnabled && ticket?.status != 'CLOSED')
+            IconButton(
+              tooltip: 'Attach screenshot or document',
+              onPressed: _sending ? null : _upload,
+              icon: const Icon(Icons.attach_file),
+            ),
           IconButton(
             onPressed: _loading ? null : _load,
             tooltip: 'Refresh',
@@ -204,90 +276,94 @@ class _SupportTicketDetailScreenState extends State<SupportTicketDetailScreen> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error.isNotEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(_error, textAlign: TextAlign.center),
-                    const SizedBox(height: 14),
-                    FilledButton(onPressed: _load, child: const Text('Retry')),
-                  ],
-                ),
-              ),
-            )
-          : ticket == null
-          ? const SizedBox.shrink()
-          : Column(
-              children: [
-                _TicketHeader(ticket: ticket),
-                if (ticket.attachments.isNotEmpty)
-                  _TicketAttachments(
-                    attachments: ticket.attachments,
-                    onOpen: _openAttachment,
-                  ),
-                Expanded(
-                  child: _TicketMessages(
-                    controller: _scrollController,
-                    messages: ticket.messages,
+      body: GoldenSparkleLoading(
+        loading: _loading,
+        child: _error.isNotEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(_error, textAlign: TextAlign.center),
+                      const SizedBox(height: 14),
+                      FilledButton(
+                        onPressed: _load,
+                        child: const Text('Retry'),
+                      ),
+                    ],
                   ),
                 ),
-                if (ticket.status == 'CLOSED')
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    color: Colors.grey.withValues(alpha: 0.12),
-                    child: const Text(
-                      'This ticket is closed. Create a new ticket if you need more help.',
-                      textAlign: TextAlign.center,
+              )
+            : ticket == null
+            ? const SizedBox.shrink()
+            : Column(
+                children: [
+                  _TicketHeader(ticket: ticket),
+                  if (ticket.attachments.isNotEmpty)
+                    _TicketAttachments(
+                      attachments: ticket.attachments,
+                      onOpen: _openAttachment,
                     ),
-                  )
-                else
-                  SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _messageController,
-                              minLines: 1,
-                              maxLines: 5,
-                              decoration: InputDecoration(
-                                hintText: 'Message supportâ€¦',
-                                filled: true,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(22),
-                                  borderSide: BorderSide.none,
+                  Expanded(
+                    child: _TicketMessages(
+                      controller: _scrollController,
+                      messages: ticket.messages,
+                    ),
+                  ),
+                  if (ticket.status == 'CLOSED')
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      color: Colors.grey.withValues(alpha: 0.12),
+                      child: const Text(
+                        'This ticket is closed. Create a new ticket if you need more help.',
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  else
+                    SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _messageController,
+                                minLines: 1,
+                                maxLines: 5,
+                                decoration: InputDecoration(
+                                  hintText: 'Message supportâ€¦',
+                                  filled: true,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(22),
+                                    borderSide: BorderSide.none,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton.filled(
-                            onPressed: _sending ? null : _send,
-                            icon: _sending
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.send_rounded),
-                          ),
-                        ],
+                            const SizedBox(width: 8),
+                            IconButton.filled(
+                              onPressed: _sending ? null : _send,
+                              icon: _sending
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.send_rounded),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-              ],
-            ),
+                ],
+              ),
+      ),
     );
   }
 }

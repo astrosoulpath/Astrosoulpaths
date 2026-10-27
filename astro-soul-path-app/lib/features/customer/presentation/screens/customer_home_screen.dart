@@ -1,6 +1,19 @@
-import '../../../ai_astro/presentation/widgets/ai_astro_avatar.dart';
+import '../widgets/curved_cosmic_home_header.dart';
+import '../../../../core/theme/cosmic_ivory.dart';
+import '../../../app_config/data/app_config_api.dart';
+import '../widgets/compact_astrology_sticker.dart';
+import '../../../../core/branding/premium_customer_surfaces.dart'
+    show PremiumCategoryTile;
+import '../widgets/astrologer_sticker_actions.dart';
+import '../widgets/premium_free_chat_banner.dart';
+import '../../data/free_chat_entitlement_api.dart';
+import '../../data/free_chat_promotion_session.dart';
+import '../../../astrologers/presentation/widgets/astrologer_default_avatar.dart';
+import '../../../auth/data/secure_logout.dart';
+import '../widgets/customer_email_address.dart';
 import '../../../marketplace/presentation/screens/marketplace_home_screen.dart';
 import 'dart:async';
+import '../widgets/celestial_glass_home.dart';
 
 import 'package:flutter/material.dart';
 
@@ -30,7 +43,7 @@ import '../../../ai_astro/data/ai_astro_models.dart';
 import '../../../ai_astro/presentation/screens/ai_astro_detail_screen.dart';
 import '../../../ai_astro/presentation/screens/ai_astro_home_screen.dart';
 import '../../../category_ai/presentation/screens/category_ai_chat_screen.dart';
-import '../../../live/data/live_api.dart';
+import '../../../live/data/live_discovery_api.dart';
 import '../../../live/data/live_models.dart';
 import '../../../live/presentation/screens/customer_live_viewer_screen.dart';
 import '../../../notifications/data/notifications_api.dart';
@@ -67,10 +80,21 @@ class CustomerHomeScreen extends StatefulWidget {
   State<CustomerHomeScreen> createState() => _CustomerHomeScreenState();
 }
 
-class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
+class _CustomerHomeScreenState extends State<CustomerHomeScreen>
+    with WidgetsBindingObserver {
+  final _freeChatApi = FreeChatEntitlementApi();
+  final _freeChatSessions = FreeChatPromotionSessions();
+  FreeChatEntitlement? _freshFreeChat;
+  FreeChatPromotionSession? _freeChatPromotionSession;
+  DateTime? _freeChatVerifiedAt;
+  DateTime? _freeChatLastAttemptAt;
+  Timer? _freeChatRefreshTimer;
+  bool _freeChatRefreshing = false;
+  int _freeChatEpoch = 0;
   final GlobalKey _exploreAstrologyKey = GlobalKey();
   final _astrologerApi = AstrologerApi();
-  final LiveApi _liveApi = LiveApi();
+  final LiveDiscoveryApi _liveApi = LiveDiscoveryApi();
+  late final LiveDiscoveryFeed _liveFeed = LiveDiscoveryFeed(_liveApi);
   final WalletApi _walletApi = WalletApi();
   final NotificationsApi _notificationsApi = NotificationsApi();
   final ProfileApi _drawerProfileApi = ProfileApi();
@@ -82,12 +106,20 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     final session = _drawerSession;
     if (session == null) return const <String, dynamic>{};
 
-    final raw = session.user['freeChat'];
-
-    if (raw is Map<String, dynamic>) return raw;
-    if (raw is Map) return Map<String, dynamic>.from(raw);
-
-    return const <String, dynamic>{};
+    final fresh = _freshFreeChat;
+    if (fresh == null ||
+        fresh.userId != session.user['id'] ||
+        fresh.revision != AuthSessionStore.sessionRevision ||
+        _freeChatVerifiedAt == null ||
+        DateTime.now().difference(_freeChatVerifiedAt!) >
+            const Duration(seconds: 45)) {
+      return const {};
+    }
+    return {
+      'eligible': fresh.eligible,
+      'used': fresh.used,
+      'minutes': fresh.minutes,
+    };
   }
 
   int get _backendFreeChatMinutes {
@@ -144,6 +176,31 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _freeChatRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      final fresh = _freshFreeChat;
+      if (fresh != null && fresh.revision != AuthSessionStore.sessionRevision) {
+        _freeChatEpoch++;
+        setState(() {
+          _freshFreeChat = null;
+          _freeChatPromotionSession = null;
+        });
+      }
+      if (_freshFreeChat != null &&
+          _freeChatVerifiedAt != null &&
+          DateTime.now().difference(_freeChatVerifiedAt!) >
+              const Duration(seconds: 45)) {
+        setState(() => _freshFreeChat = null);
+      }
+      if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+        return;
+      }
+      if (_freeChatLastAttemptAt == null ||
+          DateTime.now().difference(_freeChatLastAttemptAt!) >=
+              const Duration(seconds: 30)) {
+        unawaited(_refreshFreeChat());
+      }
+    });
     // Keep the home wallet header synchronized with the authoritative backend
     // while consultations/recharges update the wallet.
     _walletHeaderRefreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
@@ -176,6 +233,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _freeChatRefreshTimer?.cancel();
+    _freeChatEpoch++;
+    _freeChatApi.close();
     _liveRefreshTimer?.cancel();
     _searchHintTimer?.cancel();
     _searchController.dispose();
@@ -197,32 +258,88 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     super.dispose();
   }
 
-  Future<void> _loadDrawerProfileData() async {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _freeChatEpoch++;
+    if (mounted) setState(() => _freshFreeChat = null);
+    _freeChatLastAttemptAt = null;
+    if (state == AppLifecycleState.resumed) unawaited(_refreshFreeChat());
+  }
+
+  Future<void> _refreshFreeChat() async {
+    if (!mounted || _freeChatRefreshing) return;
+    _freeChatRefreshing = true;
+    _freeChatLastAttemptAt = DateTime.now();
+    final epoch = ++_freeChatEpoch;
+    try {
+      final fresh = await _freeChatApi.fetch();
+      final plan = fresh?.eligible == true
+          ? await _freeChatSessions.open(fresh!.userId, fresh.revision)
+          : null;
+      if (!mounted || epoch != _freeChatEpoch) return;
+      setState(() {
+        _freshFreeChat = fresh;
+        _freeChatVerifiedAt = fresh == null ? null : DateTime.now();
+        _freeChatPromotionSession = plan;
+        _hideFirstFreeChatCard = false;
+      });
+    } catch (_) {
+      if (mounted && epoch == _freeChatEpoch) {
+        setState(() {
+          _freshFreeChat = null;
+          _freeChatVerifiedAt = null;
+        });
+      }
+    } finally {
+      _freeChatRefreshing = false;
+    }
+  }
+
+  Future<bool> _loadDrawerProfileData() async {
     if (_drawerProfileLoading) {
-      return;
+      return false;
     }
 
     _drawerProfileLoading = true;
+    final revision = AuthSessionStore.sessionRevision;
+    if (mounted) {
+      setState(() {
+        _drawerSession = null;
+        _drawerProfile = null;
+      });
+    }
 
     try {
       final results = await Future.wait<dynamic>([
-        _drawerSessionStore.read(),
+        _drawerSessionStore.restore(portal: 'customer'),
         _drawerProfileApi.getProfiles(),
       ]);
 
-      if (!mounted) {
-        return;
+      if (!mounted || revision != AuthSessionStore.sessionRevision) {
+        return false;
       }
 
       final session = results[0] as StoredAuthSession?;
       final profiles = results[1] as List<CustomerProfile>;
+      if (session == null) return false;
 
       setState(() {
         _drawerSession = session;
         _drawerProfile = profiles.isEmpty ? null : profiles.first;
       });
+      final savedLanguage = _drawerProfile?.language?.trim().toLowerCase();
+      if (savedLanguage != null &&
+          AppLocaleController.supportedLanguageCodes.contains(savedLanguage)) {
+        await AppLocaleController.setLanguage(savedLanguage);
+      }
+      if (!mounted || revision != AuthSessionStore.sessionRevision) {
+        return false;
+      }
+      unawaited(_refreshFreeChat());
+      return true;
     } catch (_) {
       // Drawer profile failure must never block Home.
+      return false;
     } finally {
       _drawerProfileLoading = false;
     }
@@ -276,7 +393,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Rate App will be available once the official store listing is live.',
+              'The official app store link is not configured. Please contact support.',
             ),
           ),
         );
@@ -301,6 +418,17 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
     try {
       await const ShareAppService().shareApp(shareContext);
+    } on AppConfigApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.configurationMissing
+                ? 'App sharing links are not configured. Please contact support.'
+                : 'Sharing configuration could not be loaded. Please retry.',
+          ),
+        ),
+      );
     } catch (_) {
       if (!mounted) return;
 
@@ -369,7 +497,20 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       return;
     }
 
-    await _drawerSessionStore.clear();
+    try {
+      await secureLogout(_drawerSessionStore);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unable to confirm complete sign-out. Please retry logout.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
 
     if (!mounted) {
       return;
@@ -694,15 +835,16 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     }
   }
 
-  Future<void> _loadLiveSessions() async {
+  Future<void> _loadLiveSessions({bool loadMore = false}) async {
     if (_liveLoading) {
       return;
     }
 
-    _liveLoading = true;
+    setState(() => _liveLoading = true);
 
     try {
-      final sessions = await _liveApi.getLiveSessions();
+      await _liveFeed.load(more: loadMore);
+      final sessions = _liveFeed.sessions;
 
       if (!mounted) {
         return;
@@ -718,11 +860,16 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         return;
       }
 
-      setState(() {
-        _liveSessions = const <LiveSession>[];
-      });
+      // Preserve a successful page and its retry offset on transient errors.
+      if (loadMore) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to load more Live sessions. Please retry.'),
+          ),
+        );
+      }
     } finally {
-      _liveLoading = false;
+      if (mounted) setState(() => _liveLoading = false);
     }
   }
 
@@ -739,73 +886,33 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
+        CompactHomeSectionHeading(title: title, onTap: onViewAll),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              Semantics(
-                button: true,
-                label: 'View all $title',
-                child: InkWell(
-                  onTap: onViewAll,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0x151F365F),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFFFD84A)),
-                    ),
-                    child: const Text(
-                      'VIEW ALL',
-                      style: TextStyle(
-                        color: AppColors.gold,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
+              for (var index = 0; index < astrologers.length; index++) ...[
+                if (index > 0) const SizedBox(width: 10),
+                SizedBox(
+                  width: 150,
+                  child: Semantics(
+                    button: true,
+                    label: 'View ${astrologers[index].name} profile',
+                    child: GestureDetector(
+                      onTap: () => onTap(astrologers[index]),
+                      child: HomeAstrologerStickerCard(
+                        astrologer: astrologers[index],
+                        onChat: () => onTap(astrologers[index]),
+                        onCall: () => onTap(astrologers[index]),
                       ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ),
-        ),
-        SizedBox(
-          height: 218,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
-            itemCount: astrologers.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemBuilder: (context, index) {
-              final astrologer = astrologers[index];
-
-              return SizedBox(
-                width: 158,
-                child: Semantics(
-                  button: true,
-                  label: 'View ${astrologer.name} profile',
-                  child: GestureDetector(
-                    onTap: () => onTap(astrologer),
-                    child: _CompactAstrologerCard(astrologer: astrologer),
-                  ),
-                ),
-              );
-            },
           ),
         ),
       ],
@@ -843,2133 +950,1390 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       );
     }
 
-    return Scaffold(
-      key: widget.scaffoldKey,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leading: Builder(
-          builder: (context) {
-            return IconButton(
-              tooltip: 'Menu',
-              onPressed: () {
-                Scaffold.of(context).openDrawer();
-              },
-              icon: const Icon(
-                Icons.menu_rounded,
-                color: AppColors.gold,
-                size: 28,
-              ),
-            );
-          },
-        ),
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF08070D),
-                Color(0xFF1A0B28),
-                Color(0xFF35133B),
-                Color(0xFF120819),
-              ],
-              stops: [0.0, 0.38, 0.72, 1.0],
-            ),
-            border: Border(
-              bottom: BorderSide(color: Color(0xFFD9A928), width: 1.15),
-            ),
-          ),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Premium curved purple header panels.
-              Positioned(
-                left: 40,
-                top: -46,
-                child: Transform.rotate(
-                  angle: 0.11,
-                  child: Container(
-                    width: 195,
-                    height: 142,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF321047),
-                          Color(0xFF651D73),
-                          Color(0xFF3D1253),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(58),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: -36,
-                top: -50,
-                child: Transform.rotate(
-                  angle: -0.13,
-                  child: Container(
-                    width: 178,
-                    height: 145,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF57175F),
-                          Color(0xFF351047),
-                          Color(0xFF190A24),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(62),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 72,
-                top: -32,
-                child: Icon(
-                  Icons.brightness_2_outlined,
-                  size: 92,
-                  color: Color(0x18F7C843),
-                ),
-              ),
-              Positioned(
-                right: 24,
-                top: 8,
-                child: Icon(
-                  Icons.auto_awesome,
-                  size: 22,
-                  color: Color(0x22F7C843),
-                ),
-              ),
-              Positioned(
-                left: 112,
-                bottom: -30,
-                child: Icon(
-                  Icons.wb_sunny_outlined,
-                  size: 76,
-                  color: Color(0x10F7C843),
-                ),
-              ),
-            ],
+    void openGuidance(AspAiCategory category) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CategoryAiChatScreen(
+            category: category,
+            showFreeChatSticker: _canShowFirstFreeChat,
+            freeChatMinutes: _backendFreeChatMinutes,
+            onFreeChatStarted: () {
+              if (mounted) setState(() => _hideFirstFreeChatCard = true);
+            },
           ),
         ),
-        elevation: 0,
-        titleSpacing: 18,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Astro Soul Path',
-              style: TextStyle(
-                color: Color(0xFFFFE3A1),
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            SizedBox(height: 1),
-            Text(
-              AppStrings.text(
-                context,
-                en: 'Trusted Vedic guidance',
-                hi: '\u0935\u093f\u0936\u094d\u0935\u0938\u0928\u0940\u092f \u0935\u0948\u0926\u093f\u0915 \u092e\u093e\u0930\u094d\u0917\u0926\u0930\u094d\u0936\u0928',
-              ),
-              style: TextStyle(
-                color: Color(0xFFF4DFC0),
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
+      );
+    }
+
+    return HomeStickerMotion(
+      glassStyle: true,
+      child: Scaffold(
+        key: widget.scaffoldKey,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: CurvedCosmicHomeHeader(
+          walletLabel: _walletBalanceLabel,
+          unreadCount: _notificationUnreadCount,
+          subtitle: AppStrings.text(
+            context,
+            en: 'Trusted Vedic guidance',
+            hi: '\u0935\u093f\u0936\u094d\u0935\u0938\u0928\u0940\u092f \u0935\u0948\u0926\u093f\u0915 \u092e\u093e\u0930\u094d\u0917\u0926\u0930\u094d\u0936\u0928',
+          ),
+          textScale: MediaQuery.textScalerOf(context).scale(1),
+          onWallet: _openWallet,
+          onNotifications: _openNotifications,
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Material(
-              color: const Color(0xFFFFF3D8),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(13),
-                side: const BorderSide(color: Color(0xFFD9A928), width: 1.1),
-              ),
-              child: InkWell(
-                onTap: _openWallet,
-                borderRadius: BorderRadius.circular(13),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 7,
+        onDrawerChanged: (isOpened) {
+          if (isOpened) {
+            _loadDrawerProfileData();
+          }
+        },
+        drawer: Drawer(
+          width: MediaQuery.sizeOf(context).width * 0.84,
+          backgroundColor: CosmicIvory.background,
+          child: SafeArea(
+            child: Column(
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [CosmicIvory.purple, Color(0xFF38224E)],
+                    ),
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.account_balance_wallet_rounded,
-                        color: AppColors.gold,
-                        size: 19,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        _walletBalanceLabel,
-                        style: const TextStyle(
-                          color: Color(0xFF2A1235),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
+                      Container(
+                        width: 72,
+                        height: 72,
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.gold, width: 2),
+                        ),
+                        child: ClipOval(
+                          child:
+                              _drawerProfile?.avatarUrl?.trim().isNotEmpty ==
+                                  true
+                              ? Image.network(
+                                  _drawerProfile!.avatarUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) {
+                                    return const _DrawerAvatarFallback();
+                                  },
+                                )
+                              : const _DrawerAvatarFallback(),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                onPressed: _openNotifications,
-                tooltip: 'Notifications',
-                icon: const Icon(
-                  Icons.notifications_none_rounded,
-                  color: AppColors.gold,
-                  size: 25,
-                ),
-              ),
-              if (_notificationUnreadCount > 0)
-                Positioned(
-                  right: 3,
-                  top: 3,
-                  child: Container(
-                    constraints: const BoxConstraints(
-                      minWidth: 17,
-                      minHeight: 17,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFD64545),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppColors.background,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Text(
-                      _notificationUnreadCount > 99
-                          ? '99+'
-                          : '$_notificationUnreadCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        height: 1,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 3),
-        ],
-      ),
-      onDrawerChanged: (isOpened) {
-        if (isOpened) {
-          _loadDrawerProfileData();
-        }
-      },
-      drawer: Drawer(
-        width: MediaQuery.sizeOf(context).width * 0.84,
-        backgroundColor: const Color(0xFF08070D),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF111111), Color(0xFF08070D)],
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 72,
-                      height: 72,
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.gold, width: 2),
-                      ),
-                      child: ClipOval(
-                        child:
-                            _drawerProfile?.avatarUrl?.trim().isNotEmpty == true
-                            ? Image.network(
-                                _drawerProfile!.avatarUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) {
-                                  return const _DrawerAvatarFallback();
-                                },
-                              )
-                            : const _DrawerAvatarFallback(),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _drawerProfile?.fullName?.trim().isNotEmpty == true
-                                ? _drawerProfile!.fullName!
-                                : _drawerProfile?.name.trim().isNotEmpty == true
-                                ? _drawerProfile!.name
-                                : 'Customer',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            _drawerProfile?.phoneNumber?.trim().isNotEmpty ==
-                                    true
-                                ? _drawerProfile!.phoneNumber!.trim()
-                                : 'Phone unavailable',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xFFDCE8F8),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          const Text(
-                            'Astro Soul Path',
-                            style: TextStyle(
-                              color: AppColors.gold,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      tooltip: 'Close menu',
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: IconButton.styleFrom(
-                        foregroundColor: Color(0xFFF7F8FC),
-                        backgroundColor: const Color(0x1AFFFFFF),
-                        minimumSize: const Size(40, 40),
-                        padding: EdgeInsets.zero,
-                        shape: const CircleBorder(),
-                      ),
-                      icon: Icon(Icons.close_rounded, size: 22),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  children: [
-                    _DrawerMenuTile(
-                      icon: Icons.home_rounded,
-                      title: AppStrings.text(
-                        context,
-                        en: 'Home',
-                        hi: '\u0939\u094b\u092e',
-                      ),
-                      onTap: () => Navigator.of(context).pop(),
-                    ),
-                    _DrawerMenuTile(
-                      icon: Icons.auto_awesome_rounded,
-                      title: 'New Chart / Kundli',
-                      onTap: _openDrawerKundli,
-                    ),
-                    _DrawerMenuTile(
-                      icon: Icons.wb_sunny_outlined,
-                      title: AppStrings.text(context, en: 'Horoscope'),
-                      onTap: _openDrawerHoroscope,
-                    ),
-                    _DrawerMenuTile(
-                      icon: Icons.tune_rounded,
-                      title: AppStrings.text(context, en: 'Set Preference'),
-                      onTap: _openDrawerSetPreference,
-                    ),
-                    _DrawerMenuTile(
-                      icon: Icons.workspace_premium_rounded,
-                      title: 'Upgrade / Manage Plan',
-                      onTap: _openDrawerSubscription,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-                      child: Material(
-                        color: Colors.transparent,
-                        borderRadius: BorderRadius.circular(18),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(18),
-                          onTap: () {
-                            Navigator.of(context).pop();
-
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const SupportHomeScreen(),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [Color(0xFFFFFCF4), Color(0xFFFFFFFF)],
-                              ),
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: AppColors.gold.withValues(alpha: 0.42),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.16),
-                                  blurRadius: 14,
-                                  offset: const Offset(0, 5),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 46,
-                                  height: 46,
-                                  decoration: BoxDecoration(
-                                    color: Color(0xFFFFF2C8),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: AppColors.gold.withValues(
-                                        alpha: 0.55,
-                                      ),
-                                    ),
-                                  ),
-                                  child: const Icon(
-                                    Icons.headset_mic_rounded,
-                                    color: AppColors.gold,
-                                    size: 24,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                const Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Text(
-                                            '24\u00D77 Support',
-                                            style: TextStyle(
-                                              color: Color(0xFF15172A),
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                          SizedBox(width: 7),
-                                          DecoratedBox(
-                                            decoration: BoxDecoration(
-                                              color: Color(0xFFE2F8EA),
-                                              borderRadius: BorderRadius.all(
-                                                Radius.circular(20),
-                                              ),
-                                            ),
-                                            child: Padding(
-                                              padding: EdgeInsets.symmetric(
-                                                horizontal: 7,
-                                                vertical: 3,
-                                              ),
-                                              child: Text(
-                                                'ONLINE',
-                                                style: TextStyle(
-                                                  color: Color(0xFF087D45),
-                                                  fontSize: 8,
-                                                  fontWeight: FontWeight.w900,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      SizedBox(height: 5),
-                                      Text(
-                                        'AI Assistant & Human Support',
-                                        style: TextStyle(
-                                          color: Color(0xFF596579),
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: AppColors.gold,
-                                  size: 26,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Divider(color: Color(0x224D6682), height: 20),
-                    _DrawerMenuTile(
-                      icon: Icons.person_outline_rounded,
-                      title: AppStrings.text(
-                        context,
-                        en: 'My Account',
-                        hi: '\u092e\u0947\u0930\u093e \u0916\u093e\u0924\u093e',
-                      ),
-                      onTap: _openDrawerProfile,
-                    ),
-                    _DrawerMenuTile(
-                      icon: Icons.language_rounded,
-                      title: AppStrings.text(
-                        context,
-                        en: 'Change Language',
-                        hi: '\u092d\u093e\u0937\u093e \u092c\u0926\u0932\u0947\u0902',
-                      ),
-                      onTap: _openDrawerChangeLanguage,
-                    ),
-                    _DrawerMenuTile(
-                      icon: Icons.person_add_alt_1_rounded,
-                      title: AppStrings.text(
-                        context,
-                        en: 'Join as Astrologer',
-                        hi: '\u091c\u094d\u092f\u094b\u0924\u093f\u0937\u0940 \u0915\u0947 \u0930\u0942\u092a \u092e\u0947\u0902 \u091c\u0941\u0921\u093c\u0947\u0902',
-                      ),
-                      onTap: _openDrawerJoinAstrologer,
-                    ),
-                    _DrawerMenuTile(
-                      icon: Icons.refresh_rounded,
-                      title: AppStrings.text(
-                        context,
-                        en: 'Refresh Profile',
-                        hi: '\u092a\u094d\u0930\u094b\u092b\u093c\u093e\u0907\u0932 \u0930\u0940\u092b\u094d\u0930\u0947\u0936 \u0915\u0930\u0947\u0902',
-                      ),
-                      onTap: () async {
-                        Navigator.of(context).pop();
-                        await _loadDrawerProfileData();
-                      },
-                    ),
-                    Divider(color: Color(0x224D6682), height: 20),
-                    _DrawerMenuTile(
-                      icon: Icons.share_rounded,
-                      title: AppStrings.text(
-                        context,
-                        en: 'Share App',
-                        hi: '\u0910\u092a \u0938\u093e\u091d\u093e \u0915\u0930\u0947\u0902',
-                      ),
-                      onTap: _shareAppFromDrawer,
-                    ),
-                    _DrawerMenuTile(
-                      icon: Icons.star_rate_rounded,
-                      title: AppStrings.text(
-                        context,
-                        en: 'Rate App',
-                        hi: '\u0910\u092a \u0915\u094b \u0930\u0947\u091f \u0915\u0930\u0947\u0902',
-                      ),
-                      onTap: _rateAppFromDrawer,
-                    ),
-                    _DrawerMenuTile(
-                      icon: Icons.info_outline_rounded,
-                      title: AppStrings.text(
-                        context,
-                        en: 'About Us',
-                        hi: '\u0939\u092e\u093e\u0930\u0947 \u092c\u093e\u0930\u0947 \u092e\u0947\u0902',
-                      ),
-                      onTap: _openAboutUs,
-                    ),
-                    _DrawerMenuTile(
-                      icon: Icons.rate_review_outlined,
-                      title: AppStrings.text(
-                        context,
-                        en: 'Feedback',
-                        hi: '\u092a\u094d\u0930\u0924\u093f\u0915\u094d\u0930\u093f\u092f\u093e',
-                      ),
-                      onTap: _openFeedback,
-                    ),
-                    _DrawerMenuTile(
-                      icon: Icons.logout_rounded,
-                      title: AppStrings.text(
-                        context,
-                        en: 'Logout',
-                        hi: '\u0932\u0949\u0917\u0906\u0909\u091f',
-                      ),
-                      onTap: _logoutFromDrawer,
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            height: 1,
-                            color: AppColors.muted.withValues(alpha: 0.28),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.spa_outlined,
-                          size: 22,
-                          color: AppColors.gold,
-                        ),
-                        const SizedBox(width: 7),
-                        Text(
-                          'Astro Soul Path',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Container(
-                            height: 1,
-                            color: AppColors.muted.withValues(alpha: 0.28),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      'Your Guide to a Brighter Tomorrow',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: AppColors.muted.withValues(alpha: 0.72),
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.15,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await Future.wait([_loadAstrologers(), _loadLiveSessions()]);
-        },
-        color: AppColors.gold,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            // ==================================================
-            // SOUL BAZAAR / MARKETPLACE ENTRY
-            // UI only. Product content will come from backend.
-            // ==================================================
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(22),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const MarketplaceHomeScreen(),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFFFFF8E8), Color(0xFFFFF1C7)],
-                        ),
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(color: const Color(0x55E5B63D)),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 54,
-                            height: 54,
-                            decoration: BoxDecoration(
-                              color: const Color(0x22F4C542),
-                              borderRadius: BorderRadius.circular(17),
-                              border: Border.all(
-                                color: const Color(0x44F4C542),
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.shopping_bag_outlined,
-                              color: Color(0xFFF4C542),
-                              size: 27,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        'Soul Bazaar',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: Color(0xFF17213D),
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(width: 7),
-                                    DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        color: Color(0x22F4C542),
-                                        borderRadius: BorderRadius.all(
-                                          Radius.circular(20),
-                                        ),
-                                      ),
-                                      child: Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 7,
-                                          vertical: 3,
-                                        ),
-                                        child: Text(
-                                          'NEW',
-                                          style: TextStyle(
-                                            color: Color(0xFFF4C542),
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(height: 5),
-                                Text(
-                                  'Explore spiritual products from verified sellers',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Color(0xFF6F7280),
-                                    fontSize: 12,
-                                    height: 1.35,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Container(
-                            width: 34,
-                            height: 34,
-                            decoration: const BoxDecoration(
-                              color: Color(0x18F4C542),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              color: Color(0xFFF4C542),
-                              size: 15,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AppColors.background,
-                      AppColors.surfaceLight,
-                      AppColors.surfaceLight,
-                    ],
-                  ),
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(28),
-                    bottomRight: Radius.circular(28),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: // CUSTOMER_PREMIUM_PHASE2
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // CUSTOMER_PREMIUM_HERO_PHASE1
-                              Container(
-                                // CUSTOMER_PREMIUM_STICKER_PHASE1
-                                width: double.infinity,
-                                constraints: const BoxConstraints(
-                                  minHeight: 218,
-                                ),
-                                padding: const EdgeInsets.fromLTRB(
-                                  20,
-                                  20,
-                                  18,
-                                  19,
-                                ),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(28),
-                                  gradient: const LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      Color(0xFF3A2700),
-                                      Color(0xFF24104A),
-                                      Color(0xFF11184A),
-                                      Color(0xFF35124F),
-                                      Color(0xFF4A3000),
-                                    ],
-                                    stops: [0.0, 0.25, 0.52, 0.78, 1.0],
-                                  ),
-                                  border: Border.all(
-                                    color: Color(0xFFF4C542),
-                                    width: 1.55,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.gold.withValues(
-                                        alpha: 0.34,
-                                      ),
-                                      blurRadius: 30,
-                                      spreadRadius: 1.0,
-                                      offset: const Offset(0, 9),
-                                    ),
-                                    BoxShadow(
-                                      color: const Color(
-                                        0xFF702CFF,
-                                      ).withValues(alpha: 0.18),
-                                      blurRadius: 32,
-                                      spreadRadius: 1.0,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                    const BoxShadow(
-                                      color: Color(0xB0000000),
-                                      blurRadius: 22,
-                                      offset: Offset(0, 13),
-                                    ),
-                                  ],
-                                ),
-                                child: Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    // ---------------------------------------
-                                    // PURPLE NEBULA GLOW
-                                    // ---------------------------------------
-                                    Positioned(
-                                      right: -25,
-                                      bottom: -34,
-                                      child: Container(
-                                        width: 190,
-                                        height: 190,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          gradient: RadialGradient(
-                                            colors: [
-                                              const Color(
-                                                0xFF803CFF,
-                                              ).withValues(alpha: 0.28),
-                                              const Color(
-                                                0xFF481B89,
-                                              ).withValues(alpha: 0.12),
-                                              Colors.transparent,
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    // ---------------------------------------
-                                    // GOLD NEBULA GLOW
-                                    // ---------------------------------------
-                                    Positioned(
-                                      left: -55,
-                                      top: -58,
-                                      child: Container(
-                                        width: 170,
-                                        height: 170,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          gradient: RadialGradient(
-                                            colors: [
-                                              AppColors.gold.withValues(
-                                                alpha: 0.30,
-                                              ),
-                                              AppColors.gold.withValues(
-                                                alpha: 0.08,
-                                              ),
-                                              Colors.transparent,
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    // ---------------------------------------
-                                    // LARGE ORBIT
-                                    // ---------------------------------------
-                                    Positioned(
-                                      right: -18,
-                                      top: -15,
-                                      child: Container(
-                                        width: 180,
-                                        height: 180,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: AppColors.gold.withValues(
-                                              alpha: 0.36,
-                                            ),
-                                            width: 1.3,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    Positioned(
-                                      right: 5,
-                                      top: 8,
-                                      child: Container(
-                                        width: 134,
-                                        height: 134,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: const Color(
-                                              0xFFC897FF,
-                                            ).withValues(alpha: 0.30),
-                                            width: 1.2,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    Positioned(
-                                      right: 35,
-                                      top: 38,
-                                      child: Container(
-                                        width: 75,
-                                        height: 75,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: AppColors.gold.withValues(
-                                              alpha: 0.48,
-                                            ),
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: AppColors.gold.withValues(
-                                                alpha: 0.10,
-                                              ),
-                                              blurRadius: 12,
-                                            ),
-                                          ],
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: Icon(
-                                          Icons.wb_sunny_rounded,
-                                          color: AppColors.gold.withValues(
-                                            alpha: 0.70,
-                                          ),
-                                          size: 37,
-                                        ),
-                                      ),
-                                    ),
-
-                                    // ---------------------------------------
-                                    // MOON
-                                    // ---------------------------------------
-                                    Positioned(
-                                      right: 24,
-                                      top: 5,
-                                      child: Icon(
-                                        Icons.nightlight_round,
-                                        color: const Color(0xFFFFD86B),
-                                        size: 38,
-                                        shadows: [
-                                          Shadow(
-                                            color: AppColors.gold,
-                                            blurRadius: 13,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-
-                                    // ---------------------------------------
-                                    // STARS
-                                    // ---------------------------------------
-                                    Positioned(
-                                      right: 128,
-                                      top: 15,
-                                      child: const Icon(
-                                        Icons.auto_awesome_rounded,
-                                        color: Color(0xFFFFE29A),
-                                        size: 18,
-                                      ),
-                                    ),
-
-                                    Positioned(
-                                      right: 10,
-                                      bottom: 15,
-                                      child: const Icon(
-                                        Icons.auto_awesome_rounded,
-                                        color: Color(0xFFF4C542),
-                                        size: 22,
-                                      ),
-                                    ),
-
-                                    Positioned(
-                                      right: 75,
-                                      bottom: 16,
-                                      child: Icon(
-                                        Icons.star_rounded,
-                                        color: AppColors.gold.withValues(
-                                          alpha: 0.70,
-                                        ),
-                                        size: 13,
-                                      ),
-                                    ),
-
-                                    // ---------------------------------------
-                                    // LEFT CONTENT
-                                    // ---------------------------------------
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 11,
-                                            vertical: 7,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              colors: [
-                                                AppColors.gold.withValues(
-                                                  alpha: 0.26,
-                                                ),
-                                                const Color(
-                                                  0xFF6D4500,
-                                                ).withValues(alpha: 0.50),
-                                                const Color(0xFF231800),
-                                              ],
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              22,
-                                            ),
-                                            border: Border.all(
-                                              color: AppColors.gold.withValues(
-                                                alpha: 0.78,
-                                              ),
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: AppColors.gold
-                                                    .withValues(alpha: 0.18),
-                                                blurRadius: 10,
-                                              ),
-                                            ],
-                                          ),
-                                          child: const Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.auto_awesome_rounded,
-                                                color: AppColors.gold,
-                                                size: 14,
-                                              ),
-                                              SizedBox(width: 7),
-                                              Text(
-                                                'YOUR COSMIC GUIDANCE',
-                                                style: TextStyle(
-                                                  color: Color(0xFFFFDF55),
-                                                  fontSize: 9.5,
-                                                  fontWeight: FontWeight.w900,
-                                                  letterSpacing: 0.9,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-
-                                        const SizedBox(height: 17),
-
-                                        const Text(
-                                          'Find Clarity',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 29,
-                                            height: 0.98,
-                                            fontWeight: FontWeight.w900,
-                                            letterSpacing: -0.75,
-                                            shadows: [
-                                              Shadow(
-                                                color: Color(0x66000000),
-                                                blurRadius: 8,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-
-                                        const SizedBox(height: 7),
-
-                                        const Text(
-                                          'Live a Better Tomorrow',
-                                          style: TextStyle(
-                                            color: Color(0xFFFFDD55),
-                                            fontSize: 18,
-                                            height: 1.05,
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: -0.2,
-                                          ),
-                                        ),
-
-                                        const SizedBox(height: 10),
-
-                                        SizedBox(
-                                          width: 225,
-                                          child: Text(
-                                            'Explore astrology, trusted guidance and personalized insights in one place.',
-                                            style: TextStyle(
-                                              color: Colors.white.withValues(
-                                                alpha: 0.82,
-                                              ),
-                                              fontSize: 11.2,
-                                              height: 1.42,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ),
-
-                                        const SizedBox(height: 17),
-
-                                        Material(
-                                          color: Colors.transparent,
-                                          borderRadius: BorderRadius.circular(
-                                            22,
-                                          ),
-                                          child: InkWell(
-                                            borderRadius: BorderRadius.circular(
-                                              22,
-                                            ),
-                                            onTap: () {
-                                              Scrollable.ensureVisible(
-                                                _exploreAstrologyKey
-                                                    .currentContext!,
-                                                duration: const Duration(
-                                                  milliseconds: 550,
-                                                ),
-                                                curve: Curves.easeInOutCubic,
-                                                alignment: 0.08,
-                                              );
-                                            },
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 17,
-                                                    vertical: 11,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                gradient: const LinearGradient(
-                                                  begin: Alignment.topLeft,
-                                                  end: Alignment.bottomRight,
-                                                  colors: [
-                                                    Color(0xFFFFEB82),
-                                                    Color(0xFFFFD232),
-                                                    Color(0xFFFFB300),
-                                                  ],
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(22),
-                                                border: Border.all(
-                                                  color: const Color(
-                                                    0xFFFFF0AA,
-                                                  ),
-                                                  width: 0.8,
-                                                ),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: AppColors.gold
-                                                        .withValues(
-                                                          alpha: 0.48,
-                                                        ),
-                                                    blurRadius: 18,
-                                                    spreadRadius: 0.5,
-                                                    offset: const Offset(0, 6),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: const Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Text(
-                                                    'Explore Your Path',
-                                                    style: TextStyle(
-                                                      color: Color(0xFF171000),
-                                                      fontSize: 11.5,
-                                                      fontWeight:
-                                                          FontWeight.w900,
-                                                    ),
-                                                  ),
-                                                  SizedBox(width: 9),
-                                                  Icon(
-                                                    Icons.arrow_forward_rounded,
-                                                    color: Color(0xFF171000),
-                                                    size: 17,
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              const SizedBox(height: 20),
-
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 39,
-                                    height: 39,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          AppColors.gold.withValues(
-                                            alpha: 0.36,
-                                          ),
-                                          const Color(0xFFFFF3C4),
-                                        ],
-                                      ),
-                                      border: Border.all(
-                                        color: AppColors.gold.withValues(
-                                          alpha: 0.76,
-                                        ),
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: AppColors.gold.withValues(
-                                            alpha: 0.18,
-                                          ),
-                                          blurRadius: 10,
-                                        ),
-                                      ],
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: const Icon(
-                                      Icons.explore_rounded,
-                                      color: AppColors.gold,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  const Expanded(
-                                    child: Text(
-                                      'Explore astrology',
-                                      style: TextStyle(
-                                        color: Color(0xFF17213D),
-                                        fontSize: 25,
-                                        height: 1,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: -0.45,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        Stack(
-                          clipBehavior: Clip.none,
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: const RadialGradient(
-                                  colors: [
-                                    Color(0xFFFFE58A),
-                                    Color(0xFFF4C542),
-                                  ],
-                                  stops: [0.0, 1.0],
+                            Text(
+                              _drawerProfile?.fullName?.trim().isNotEmpty ==
+                                      true
+                                  ? _drawerProfile!.fullName!
+                                  : _drawerProfile?.name.trim().isNotEmpty ==
+                                        true
+                                  ? _drawerProfile!.name
+                                  : 'Customer',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              CustomerEmailAddress.emailOf(_drawerSession),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFFDCE8F8),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            const Text(
+                              'Astro Soul Path',
+                              style: TextStyle(
+                                color: AppColors.gold,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        tooltip: 'Close menu',
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: IconButton.styleFrom(
+                          foregroundColor: Color(0xFFF7F8FC),
+                          backgroundColor: const Color(0x1AFFFFFF),
+                          minimumSize: const Size(40, 40),
+                          padding: EdgeInsets.zero,
+                          shape: const CircleBorder(),
+                        ),
+                        icon: Icon(Icons.close_rounded, size: 22),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    children: [
+                      _DrawerMenuTile(
+                        icon: Icons.home_rounded,
+                        title: AppStrings.text(
+                          context,
+                          en: 'Home',
+                          hi: '\u0939\u094b\u092e',
+                        ),
+                        onTap: () => Navigator.of(context).pop(),
+                      ),
+                      _DrawerMenuTile(
+                        icon: Icons.auto_awesome_rounded,
+                        title: 'New Chart / Kundli',
+                        onTap: _openDrawerKundli,
+                      ),
+                      _DrawerMenuTile(
+                        icon: Icons.wb_sunny_outlined,
+                        title: AppStrings.text(context, en: 'Horoscope'),
+                        onTap: _openDrawerHoroscope,
+                      ),
+                      _DrawerMenuTile(
+                        icon: Icons.tune_rounded,
+                        title: AppStrings.text(context, en: 'Set Preference'),
+                        onTap: _openDrawerSetPreference,
+                      ),
+                      _DrawerMenuTile(
+                        icon: Icons.workspace_premium_rounded,
+                        title: 'Upgrade / Manage Plan',
+                        onTap: _openDrawerSubscription,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                        child: Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(18),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: () {
+                              Navigator.of(context).pop();
+
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const SupportHomeScreen(),
                                 ),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.fromLTRB(
+                                14,
+                                13,
+                                12,
+                                13,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Color(0xFFFFFCF4),
+                                    Color(0xFFFFFFFF),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(18),
                                 border: Border.all(
-                                  color: const Color(0xFFFFD84D),
-                                  width: 1.15,
+                                  color: AppColors.gold.withValues(alpha: 0.42),
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(
-                                      0xFFFFD84D,
-                                    ).withValues(alpha: 0.20),
+                                    color: Colors.black.withValues(alpha: 0.16),
                                     blurRadius: 14,
-                                    spreadRadius: 1,
-                                  ),
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.32),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
+                                    offset: const Offset(0, 5),
                                   ),
                                 ],
-                              ),
-                              child: Text(
-                                '$onlineCount',
-                                style: const TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 19,
-                                  height: 1,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: -0.25,
-                                ),
-                              ),
-                            ),
-
-                            // Live status indicator
-                            Positioned(
-                              right: 1,
-                              top: 1,
-                              child: Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: const Color(0xFF48E59B),
-                                  border: Border.all(
-                                    color: const Color(0xFF171710),
-                                    width: 2,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(
-                                        0xFF48E59B,
-                                      ).withValues(alpha: 0.55),
-                                      blurRadius: 6,
-                                      spreadRadius: 1,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    Row(
-                      key: _exploreAstrologyKey,
-                      children: [
-                        Expanded(
-                          child: _HomeAstrologyAction(
-                            icon: Icons.auto_awesome_rounded,
-                            label: 'Kundli AI',
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const CustomerKundliScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _HomeAstrologyAction(
-                            icon: Icons.wb_sunny_rounded,
-                            label: AppStrings.text(context, en: 'Horoscope'),
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) =>
-                                      const GeneralHoroscopeScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _HomeAstrologyAction(
-                            icon: Icons.auto_fix_high_rounded,
-                            label: 'AI Astro',
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const AiAstroHomeScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _HomeAstrologyAction(
-                            icon: Icons.insights_rounded,
-                            label: 'Predictions',
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const PredictionsScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    TextField(
-                      controller: _searchController,
-                      onChanged: (value) {
-                        setState(() {
-                          _search = value;
-                        });
-                      },
-                      textInputAction: TextInputAction.search,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: _currentSearchHint,
-                        hintStyle: const TextStyle(
-                          color: Color(0xFF000000),
-                          fontSize: 11,
-                        ),
-                        prefixIcon: const Icon(
-                          Icons.search_rounded,
-                          color: AppColors.gold,
-                          size: 21,
-                        ),
-                        suffixIcon: _search.isEmpty
-                            ? null
-                            : IconButton(
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() {
-                                    _search = '';
-                                  });
-                                },
-                                icon: const Icon(
-                                  Icons.close_rounded,
-                                  color: Color(0xFFDCE8F8),
-                                ),
-                              ),
-                        filled: true,
-                        fillColor: AppColors.surfaceLight,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 13,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Color(0x665D79B5),
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Color(0x665D79B5),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: AppColors.gold,
-                            width: 1.3,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // =================================================
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 5),
-                child: SizedBox(
-                  height: 78,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    children: [
-                      _HomeAstrologyTopic(
-                        icon: Icons.work_rounded,
-                        label: AppStrings.text(context, en: 'Career'),
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => CategoryAiChatScreen(
-                                category: AspAiCategory.career,
-                                showFreeChatSticker: _canShowFirstFreeChat,
-                                freeChatMinutes: _backendFreeChatMinutes,
-                                onFreeChatStarted: () {
-                                  if (mounted) {
-                                    setState(() {
-                                      _hideFirstFreeChatCard = true;
-                                    });
-                                  }
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 10),
-
-                      _HomeAstrologyTopic(
-                        icon: Icons.favorite_rounded,
-                        label: AppStrings.text(context, en: 'Marriage'),
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => CategoryAiChatScreen(
-                                category: AspAiCategory.marriage,
-                                showFreeChatSticker: _canShowFirstFreeChat,
-                                freeChatMinutes: _backendFreeChatMinutes,
-                                onFreeChatStarted: () {
-                                  if (mounted) {
-                                    setState(() {
-                                      _hideFirstFreeChatCard = true;
-                                    });
-                                  }
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 10),
-
-                      _HomeAstrologyTopic(
-                        icon: Icons.candlestick_chart_rounded,
-                        label: AppStrings.text(context, en: 'Stock Market'),
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const CategoryAiChatScreen(
-                                category: AspAiCategory.stockMarket,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 10),
-
-                      _HomeAstrologyTopic(
-                        icon: Icons.event_available_rounded,
-                        label: AppStrings.text(context, en: 'Today'),
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const CategoryAiChatScreen(
-                                category: AspAiCategory.today,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 10),
-
-                      _HomeAstrologyTopic(
-                        icon: Icons.business_center_rounded,
-                        label: AppStrings.text(context, en: 'Business'),
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => CategoryAiChatScreen(
-                                category: AspAiCategory.business,
-                                showFreeChatSticker: _canShowFirstFreeChat,
-                                freeChatMinutes: _backendFreeChatMinutes,
-                                onFreeChatStarted: () {
-                                  if (mounted) {
-                                    setState(() {
-                                      _hideFirstFreeChatCard = true;
-                                    });
-                                  }
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            // FIRST CHAT FREE - PREMIUM VEDIC / BACKEND-AUTHORITATIVE
-            // =========================================================
-            if (_canShowFirstFreeChat)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                  child: Material(
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(22),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(22),
-                      onTap: () async {
-                        // The server atomically consumes this one-time offer when
-                        // the real free consultation request is created.
-                        setState(() {
-                          _hideFirstFreeChatCard = true;
-                        });
-
-                        final freeChatStarted = await Navigator.of(context)
-                            .push<bool>(
-                              MaterialPageRoute<bool>(
-                                builder: (_) => AstrologerSelectionScreen(
-                                  screenTitle: 'Choose Your Vedic Astrologer',
-                                  isFreeChatIntent: true,
-                                  freeChatMinutes: _backendFreeChatMinutes,
-                                ),
-                              ),
-                            );
-
-                        if (!mounted || freeChatStarted != true) {
-                          return;
-                        }
-
-                        setState(() {
-                          _hideFirstFreeChatCard = true;
-                        });
-                      },
-                      child: Ink(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(22),
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Color(0xFF17090D),
-                              Color(0xFF421014),
-                              Color(0xFF761A16),
-                            ],
-                          ),
-                          border: Border.all(
-                            color: const Color(0xB3FFD166),
-                            width: 1.15,
-                          ),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x407A1515),
-                              blurRadius: 18,
-                              offset: Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              right: -30,
-                              top: -45,
-                              child: Container(
-                                width: 145,
-                                height: 145,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: RadialGradient(
-                                    colors: [
-                                      Color(0x40FFD166),
-                                      Color(0x00FFD166),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              right: 18,
-                              bottom: -17,
-                              child: Icon(
-                                Icons.auto_awesome_rounded,
-                                size: 82,
-                                color: const Color(
-                                  0xFFFFD166,
-                                ).withValues(alpha: 0.07),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                17,
-                                15,
-                                14,
-                                15,
                               ),
                               child: Row(
                                 children: [
                                   Container(
-                                    width: 58,
-                                    height: 58,
+                                    width: 46,
+                                    height: 46,
                                     decoration: BoxDecoration(
+                                      color: Color(0xFFFFF2C8),
                                       shape: BoxShape.circle,
-                                      gradient: const LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: [
-                                          Color(0xFFFFE49A),
-                                          Color(0xFFD99B25),
-                                        ],
-                                      ),
                                       border: Border.all(
-                                        color: const Color(0xFFFFE9A9),
-                                      ),
-                                      boxShadow: const [
-                                        BoxShadow(
-                                          color: Color(0x55FFD166),
-                                          blurRadius: 13,
+                                        color: AppColors.gold.withValues(
+                                          alpha: 0.55,
                                         ),
-                                      ],
+                                      ),
                                     ),
                                     child: const Icon(
-                                      Icons.temple_hindu_rounded,
-                                      color: Color(0xFF50120F),
-                                      size: 30,
+                                      Icons.headset_mic_rounded,
+                                      color: AppColors.gold,
+                                      size: 24,
                                     ),
                                   ),
-                                  const SizedBox(width: 13),
-                                  Expanded(
+                                  const SizedBox(width: 12),
+                                  const Expanded(
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 3,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0x24FFD166),
-                                            borderRadius: BorderRadius.circular(
-                                              20,
+                                        Row(
+                                          children: [
+                                            Text(
+                                              '24\u00D77 Support',
+                                              style: TextStyle(
+                                                color: Color(0xFF15172A),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w800,
+                                              ),
                                             ),
-                                            border: Border.all(
-                                              color: const Color(0x66FFD166),
+                                            SizedBox(width: 7),
+                                            DecoratedBox(
+                                              decoration: BoxDecoration(
+                                                color: Color(0xFFE2F8EA),
+                                                borderRadius: BorderRadius.all(
+                                                  Radius.circular(20),
+                                                ),
+                                              ),
+                                              child: Padding(
+                                                padding: EdgeInsets.symmetric(
+                                                  horizontal: 7,
+                                                  vertical: 3,
+                                                ),
+                                                child: Text(
+                                                  'ONLINE',
+                                                  style: TextStyle(
+                                                    color: Color(0xFF087D45),
+                                                    fontSize: 8,
+                                                    fontWeight: FontWeight.w900,
+                                                  ),
+                                                ),
+                                              ),
                                             ),
-                                          ),
-                                          child: const Text(
-                                            'EXCLUSIVE WELCOME OFFER',
-                                            style: TextStyle(
-                                              color: Color(0xFFFFD978),
-                                              fontSize: 8.5,
-                                              letterSpacing: .7,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
+                                          ],
                                         ),
-                                        const SizedBox(height: 6),
+                                        SizedBox(height: 5),
                                         Text(
-                                          'Your First $_backendFreeChatMinutes Min Chat is FREE',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 16.5,
-                                            height: 1.05,
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 5),
-                                        const Text(
-                                          'Connect with a verified Vedic astrologer',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                          'AI Assistant & Human Support',
                                           style: TextStyle(
-                                            color: Color(0xFFE4CBC3),
-                                            fontSize: 10.5,
+                                            color: Color(0xFF596579),
+                                            fontSize: 12,
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(width: 9),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 9,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: [
-                                          Color(0xFFFFE08A),
-                                          Color(0xFFFFBC42),
-                                        ],
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow: const [
-                                        BoxShadow(
-                                          color: Color(0x44FFD166),
-                                          blurRadius: 9,
-                                        ),
-                                      ],
-                                    ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          'START',
+                                  const SizedBox(width: 8),
+                                  Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: AppColors.gold,
+                                    size: 26,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Divider(color: Color(0x224D6682), height: 20),
+                      _DrawerMenuTile(
+                        icon: Icons.person_outline_rounded,
+                        title: AppStrings.text(
+                          context,
+                          en: 'My Account',
+                          hi: '\u092e\u0947\u0930\u093e \u0916\u093e\u0924\u093e',
+                        ),
+                        onTap: _openDrawerProfile,
+                      ),
+                      _DrawerMenuTile(
+                        icon: Icons.language_rounded,
+                        title: AppStrings.text(
+                          context,
+                          en: 'Change Language',
+                          hi: '\u092d\u093e\u0937\u093e \u092c\u0926\u0932\u0947\u0902',
+                        ),
+                        onTap: _openDrawerChangeLanguage,
+                      ),
+                      _DrawerMenuTile(
+                        icon: Icons.person_add_alt_1_rounded,
+                        title: AppStrings.text(
+                          context,
+                          en: 'Join as Astrologer',
+                          hi: '\u091c\u094d\u092f\u094b\u0924\u093f\u0937\u0940 \u0915\u0947 \u0930\u0942\u092a \u092e\u0947\u0902 \u091c\u0941\u0921\u093c\u0947\u0902',
+                        ),
+                        onTap: _openDrawerJoinAstrologer,
+                      ),
+                      _DrawerMenuTile(
+                        icon: Icons.refresh_rounded,
+                        title: AppStrings.text(
+                          context,
+                          en: 'Refresh Profile',
+                          hi: '\u092a\u094d\u0930\u094b\u092b\u093c\u093e\u0907\u0932 \u0930\u0940\u092b\u094d\u0930\u0947\u0936 \u0915\u0930\u0947\u0902',
+                        ),
+                        onTap: () async {
+                          Navigator.of(context).pop();
+                          final refreshed = await _loadDrawerProfileData();
+                          if (!mounted || !context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                refreshed
+                                    ? 'Profile refreshed.'
+                                    : 'Profile could not be refreshed. Please retry.',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      Divider(color: Color(0x224D6682), height: 20),
+                      _DrawerMenuTile(
+                        icon: Icons.share_rounded,
+                        title: AppStrings.text(
+                          context,
+                          en: 'Share App',
+                          hi: '\u0910\u092a \u0938\u093e\u091d\u093e \u0915\u0930\u0947\u0902',
+                        ),
+                        onTap: _shareAppFromDrawer,
+                      ),
+                      _DrawerMenuTile(
+                        icon: Icons.star_rate_rounded,
+                        title: AppStrings.text(
+                          context,
+                          en: 'Rate App',
+                          hi: '\u0910\u092a \u0915\u094b \u0930\u0947\u091f \u0915\u0930\u0947\u0902',
+                        ),
+                        onTap: _rateAppFromDrawer,
+                      ),
+                      _DrawerMenuTile(
+                        icon: Icons.info_outline_rounded,
+                        title: AppStrings.text(
+                          context,
+                          en: 'About Us',
+                          hi: '\u0939\u092e\u093e\u0930\u0947 \u092c\u093e\u0930\u0947 \u092e\u0947\u0902',
+                        ),
+                        onTap: _openAboutUs,
+                      ),
+                      _DrawerMenuTile(
+                        icon: Icons.rate_review_outlined,
+                        title: AppStrings.text(
+                          context,
+                          en: 'Feedback',
+                          hi: '\u092a\u094d\u0930\u0924\u093f\u0915\u094d\u0930\u093f\u092f\u093e',
+                        ),
+                        onTap: _openFeedback,
+                      ),
+                      _DrawerMenuTile(
+                        icon: Icons.logout_rounded,
+                        title: AppStrings.text(
+                          context,
+                          en: 'Logout',
+                          hi: '\u0932\u0949\u0917\u0906\u0909\u091f',
+                        ),
+                        onTap: _logoutFromDrawer,
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              height: 1,
+                              color: AppColors.muted.withValues(alpha: 0.28),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(
+                            Icons.spa_outlined,
+                            size: 22,
+                            color: AppColors.gold,
+                          ),
+                          const SizedBox(width: 7),
+                          Text(
+                            'Astro Soul Path',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Container(
+                              height: 1,
+                              color: AppColors.muted.withValues(alpha: 0.28),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        'Your Guide to a Brighter Tomorrow',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.muted.withValues(alpha: 0.72),
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.15,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        body: RefreshIndicator(
+          onRefresh: () async {
+            await Future.wait([_loadAstrologers(), _loadLiveSessions()]);
+          },
+          color: AppColors.gold,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              // ==================================================
+              // SOUL BAZAAR / MARKETPLACE ENTRY
+              // UI only. Product content will come from backend.
+              // ==================================================
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(22),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const MarketplaceHomeScreen(),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFFFFF8E8), Color(0xFFFFF1C7)],
+                          ),
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(color: const Color(0x55E5B63D)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 54,
+                              height: 54,
+                              decoration: BoxDecoration(
+                                color: const Color(0x22F4C542),
+                                borderRadius: BorderRadius.circular(17),
+                                border: Border.all(
+                                  color: const Color(0x44F4C542),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.shopping_bag_outlined,
+                                color: Color(0xFFF4C542),
+                                size: 27,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          'Soul Bazaar',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
-                                            color: Color(0xFF3A0D0B),
-                                            fontSize: 10,
+                                            color: Color(0xFF17213D),
+                                            fontSize: 17,
                                             fontWeight: FontWeight.w900,
                                           ),
                                         ),
-                                        SizedBox(width: 3),
-                                        Icon(
-                                          Icons.arrow_forward_rounded,
-                                          color: Color(0xFF3A0D0B),
-                                          size: 14,
+                                      ),
+                                      SizedBox(width: 7),
+                                      DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          color: Color(0x22F4C542),
+                                          borderRadius: BorderRadius.all(
+                                            Radius.circular(20),
+                                          ),
                                         ),
-                                      ],
+                                        child: Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 7,
+                                            vertical: 3,
+                                          ),
+                                          child: Text(
+                                            'NEW',
+                                            style: TextStyle(
+                                              color: Color(0xFFF4C542),
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 5),
+                                  Text(
+                                    'Explore spiritual products from verified sellers',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Color(0xFF6F7280),
+                                      fontSize: 12,
+                                      height: 1.35,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            // =========================================================
-            // AI ASTROLOGERS - BACKEND CATALOG
-            // =================================================
-            const SliverToBoxAdapter(child: _AiAstrologersHomeSection()),
-            const SliverToBoxAdapter(child: AstrologyVideosHomeSection()),
-            // ORGANIZED ASTROLOGER EXPERT SECTIONS
-            // =================================================
-            if (_isLoading)
-              const SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 220,
-                  child: Center(
-                    child: CircularProgressIndicator(color: AppColors.gold),
-                  ),
-                ),
-              )
-            else if (_error.isNotEmpty)
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 240,
-                  child: _ErrorState(
-                    message: _error,
-                    onRetry: _loadAstrologers,
-                  ),
-                ),
-              )
-            else if (visibleAstrologers.isEmpty)
-              SliverToBoxAdapter(
-                child: SizedBox(height: 230, child: _EmptyState()),
-              )
-            else ...[
-              SliverToBoxAdapter(
-                child: _expertSectionWidget(
-                  title: AppStrings.text(
-                    context,
-                    en: 'Recommended for you',
-                    hi: '\u0906\u092a\u0915\u0947 \u0932\u093f\u090f \u0938\u0941\u091d\u093e\u0935',
-                  ),
-                  astrologers: _recommendedAstrologers,
-                  onTap: openAstrologer,
-                  onViewAll: () =>
-                      openAllAstrologers(title: 'Recommended Astrologers'),
-                ),
-              ),
-              if (_vedicAstrologers.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: _expertSectionWidget(
-                    title: AppStrings.text(
-                      context,
-                      en: 'Vedic Astrologers',
-                      hi: '\u0935\u0948\u0926\u093f\u0915 \u091c\u094d\u092f\u094b\u0924\u093f\u0937\u0940',
-                    ),
-                    astrologers: _vedicAstrologers,
-                    onTap: openAstrologer,
-                    onViewAll: () => openAllAstrologers(
-                      title: AppStrings.text(
-                        context,
-                        en: 'Vedic Astrologers',
-                        hi: '\u0935\u0948\u0926\u093f\u0915 \u091c\u094d\u092f\u094b\u0924\u093f\u0937\u0940',
-                      ),
-                      expertiseKeyword: 'vedic',
-                    ),
-                  ),
-                ),
-              if (_tarotAstrologers.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: _expertSectionWidget(
-                    title: 'Tarot Readers',
-                    astrologers: _tarotAstrologers,
-                    onTap: openAstrologer,
-                    onViewAll: () => openAllAstrologers(
-                      title: 'Tarot Readers',
-                      expertiseKeyword: 'tarot',
-                    ),
-                  ),
-                ),
-              SliverToBoxAdapter(
-                child: _expertSectionWidget(
-                  title: 'Trending Now',
-                  astrologers: _trendingAstrologers,
-                  onTap: openAstrologer,
-                  onViewAll: () => openAllAstrologers(
-                    title: 'Trending Astrologers',
-                    trendingOnly: true,
-                  ),
-                ),
-              ),
-            ],
-
-            // =================================================
-            // LIVE ASTROLOGERS SECTION
-            // =================================================
-            if (_liveSessions.isNotEmpty) ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 9,
-                        height: 9,
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Live',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 21,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFE7E7),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFFFF5A5F)),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.videocam_rounded,
-                              size: 13,
-                              color: Color(0xFFE53935),
-                            ),
-                            SizedBox(width: 3),
-                            Text(
-                              'LIVE',
-                              style: TextStyle(
-                                color: Color(0xFFE53935),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.4,
+                            const SizedBox(width: 10),
+                            Container(
+                              width: 34,
+                              height: 34,
+                              decoration: const BoxDecoration(
+                                color: Color(0x18F4C542),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                color: Color(0xFFF4C542),
+                                size: 15,
                               ),
                             ),
                           ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              SliverToBoxAdapter(
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppColors.background,
+                        AppColors.surfaceLight,
+                        AppColors.surfaceLight,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(28),
+                      bottomRight: Radius.circular(28),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: // CUSTOMER_PREMIUM_PHASE2
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                CelestialHomeHero(
+                                  onExplore: () {
+                                    final target =
+                                        _exploreAstrologyKey.currentContext;
+                                    if (target != null) {
+                                      Scrollable.ensureVisible(
+                                        target,
+                                        duration:
+                                            MediaQuery.disableAnimationsOf(
+                                              context,
+                                            )
+                                            ? Duration.zero
+                                            : const Duration(milliseconds: 550),
+                                        curve: Curves.easeInOutCubic,
+                                        alignment: 0.08,
+                                      );
+                                    }
+                                  },
+                                ),
+
+                                const SizedBox(height: 20),
+
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 39,
+                                      height: 39,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            AppColors.gold.withValues(
+                                              alpha: 0.36,
+                                            ),
+                                            const Color(0xFFFFF3C4),
+                                          ],
+                                        ),
+                                        border: Border.all(
+                                          color: AppColors.gold.withValues(
+                                            alpha: 0.76,
+                                          ),
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: AppColors.gold.withValues(
+                                              alpha: 0.18,
+                                            ),
+                                            blurRadius: 10,
+                                          ),
+                                        ],
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: const Icon(
+                                        Icons.explore_rounded,
+                                        color: AppColors.gold,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    const Expanded(
+                                      child: Text(
+                                        'Explore astrology',
+                                        style: TextStyle(
+                                          color: Color(0xFF17213D),
+                                          fontSize: 25,
+                                          height: 1,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: -0.45,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: const RadialGradient(
+                                    colors: [
+                                      Color(0xFFFFE58A),
+                                      Color(0xFFF4C542),
+                                    ],
+                                    stops: [0.0, 1.0],
+                                  ),
+                                  border: Border.all(
+                                    color: const Color(0xFFFFD84D),
+                                    width: 1.15,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFFFFD84D,
+                                      ).withValues(alpha: 0.20),
+                                      blurRadius: 14,
+                                      spreadRadius: 1,
+                                    ),
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.32,
+                                      ),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Text(
+                                  '$onlineCount',
+                                  style: const TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 19,
+                                    height: 1,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.25,
+                                  ),
+                                ),
+                              ),
+
+                              // Live status indicator
+                              Positioned(
+                                right: 1,
+                                top: 1,
+                                child: Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(0xFF48E59B),
+                                    border: Border.all(
+                                      color: const Color(0xFF171710),
+                                      width: 2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(
+                                          0xFF48E59B,
+                                        ).withValues(alpha: 0.55),
+                                        blurRadius: 6,
+                                        spreadRadius: 1,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      Row(
+                        key: _exploreAstrologyKey,
+                        children: [
+                          Expanded(
+                            child: _HomeAstrologyAction(
+                              icon: Icons.auto_awesome_rounded,
+                              label: 'Kundli AI',
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) =>
+                                        const CustomerKundliScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _HomeAstrologyAction(
+                              icon: Icons.wb_sunny_rounded,
+                              label: AppStrings.text(context, en: 'Horoscope'),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) =>
+                                        const GeneralHoroscopeScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _HomeAstrologyAction(
+                              icon: Icons.auto_fix_high_rounded,
+                              label: 'AI Astro',
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const AiAstroHomeScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _HomeAstrologyAction(
+                              icon: Icons.insights_rounded,
+                              label: 'Prediction',
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const PredictionsScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: CompactAstrologySticker(
+                              kind: HomeSticker.talk,
+                              label: 'Talk to Astrologer',
+                              onTap: () => openAllAstrologers(
+                                title: 'Talk to Astrologer',
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: CompactAstrologySticker(
+                              kind: HomeSticker.match,
+                              label: 'Match',
+                              onTap: () => openGuidance(AspAiCategory.match),
+                            ),
+                          ),
+                          Expanded(
+                            child: CompactAstrologySticker(
+                              kind: HomeSticker.love,
+                              label: 'Love',
+                              onTap: () => openGuidance(AspAiCategory.love),
+                            ),
+                          ),
+                          Expanded(
+                            child: CompactAstrologySticker(
+                              kind: HomeSticker.career,
+                              label: 'Career',
+                              onTap: () => openGuidance(AspAiCategory.career),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      TextField(
+                        controller: _searchController,
+                        onChanged: (value) {
+                          setState(() {
+                            _search = value;
+                          });
+                        },
+                        textInputAction: TextInputAction.search,
+                        style: const TextStyle(
+                          color: CelestialHomeStyle.ink,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: _currentSearchHint,
+                          hintStyle: const TextStyle(
+                            color: Color(0xFF6B5B79),
+                            fontSize: 13,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search_rounded,
+                            color: AppColors.gold,
+                            size: 21,
+                          ),
+                          suffixIcon: _search.isEmpty
+                              ? null
+                              : IconButton(
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _search = '';
+                                    });
+                                  },
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                    color: Color(0xFF6B5B79),
+                                  ),
+                                ),
+                          filled: true,
+                          fillColor: const Color(0xF2F4EDF9),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 13,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0x665D79B5),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0x665D79B5),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: AppColors.gold,
+                              width: 1.3,
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
+
+              // =================================================
               SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 176,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
-                    itemCount: _liveSessions.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 12),
-                    itemBuilder: (context, index) {
-                      final session = _liveSessions[index];
-                      final astrologer = session.astrologer;
-                      final avatar = astrologer.avatarUrl?.trim() ?? '';
-
-                      return GestureDetector(
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => CustomerLiveViewerScreen(
-                                liveSession: session,
-                              ),
-                            ),
-                          );
-
-                          if (context.mounted) {
-                            await _loadLiveSessions();
-                          }
-                        },
-                        child: SizedBox(
-                          width: 112,
-                          child: Column(
-                            children: [
-                              Stack(
-                                clipBehavior: Clip.none,
-                                alignment: Alignment.bottomCenter,
-                                children: [
-                                  Container(
-                                    width: 96,
-                                    height: 96,
-                                    padding: const EdgeInsets.all(3),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.red,
-                                        width: 2.5,
-                                      ),
-                                    ),
-                                    child: ClipOval(
-                                      child: avatar.isNotEmpty
-                                          ? Image.network(
-                                              avatar,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, _, _) =>
-                                                  const _LiveAvatarFallback(),
-                                            )
-                                          : const _LiveAvatarFallback(),
-                                    ),
-                                  ),
-                                  Positioned(
-                                    bottom: -6,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 9,
-                                        vertical: 3,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.red,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: const Text(
-                                        'LIVE',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                astrologer.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Color(0xFF14213D),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 5),
+                  child: SizedBox(
+                    height:
+                        148 +
+                        (MediaQuery.textScalerOf(context).scale(14) - 14).clamp(
+                              0,
+                              56,
+                            ) *
+                            3,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      children: [
+                        _HomeAstrologyTopic(
+                          icon: Icons.work_rounded,
+                          label: AppStrings.text(context, en: 'Career'),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => CategoryAiChatScreen(
+                                  category: AspAiCategory.career,
+                                  showFreeChatSticker: _canShowFirstFreeChat,
+                                  freeChatMinutes: _backendFreeChatMinutes,
+                                  onFreeChatStarted: () {
+                                    if (mounted) {
+                                      setState(() {
+                                        _hideFirstFreeChatCard = true;
+                                      });
+                                    }
+                                  },
                                 ),
                               ),
-                              const SizedBox(height: 2),
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 10),
+
+                        _HomeAstrologyTopic(
+                          icon: Icons.favorite_rounded,
+                          label: AppStrings.text(context, en: 'Marriage'),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => CategoryAiChatScreen(
+                                  category: AspAiCategory.marriage,
+                                  showFreeChatSticker: _canShowFirstFreeChat,
+                                  freeChatMinutes: _backendFreeChatMinutes,
+                                  onFreeChatStarted: () {
+                                    if (mounted) {
+                                      setState(() {
+                                        _hideFirstFreeChatCard = true;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 10),
+
+                        _HomeAstrologyTopic(
+                          icon: Icons.candlestick_chart_rounded,
+                          label: AppStrings.text(context, en: 'Stock Market'),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => const CategoryAiChatScreen(
+                                  category: AspAiCategory.stockMarket,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 10),
+
+                        _HomeAstrologyTopic(
+                          icon: Icons.event_available_rounded,
+                          label: AppStrings.text(context, en: 'Today'),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => const CategoryAiChatScreen(
+                                  category: AspAiCategory.today,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 10),
+
+                        _HomeAstrologyTopic(
+                          icon: Icons.business_center_rounded,
+                          label: AppStrings.text(context, en: 'Business'),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => CategoryAiChatScreen(
+                                  category: AspAiCategory.business,
+                                  showFreeChatSticker: _canShowFirstFreeChat,
+                                  freeChatMinutes: _backendFreeChatMinutes,
+                                  onFreeChatStarted: () {
+                                    if (mounted) {
+                                      setState(() {
+                                        _hideFirstFreeChatCard = true;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // FIRST CHAT FREE - PREMIUM VEDIC / BACKEND-AUTHORITATIVE
+              // =========================================================
+              if (_canShowFirstFreeChat &&
+                  _freeChatPromotionSession != null &&
+                  _freshFreeChat?.canPresent == true &&
+                  !_isLoading &&
+                  _error.isEmpty)
+                SliverToBoxAdapter(
+                  child: PremiumFreeChatBanner(
+                    key: ValueKey(
+                      'free-chat:${_freshFreeChat?.revision}:${_freshFreeChat?.userId}',
+                    ),
+                    entitlement: _freshFreeChat,
+                    session: _freeChatPromotionSession!,
+                    onContinue: (fresh) async {
+                      final started = await Navigator.of(context).push<bool>(
+                        MaterialPageRoute<bool>(
+                          builder: (_) => AstrologerSelectionScreen(
+                            screenTitle: 'Choose Your Vedic Astrologer',
+                            isFreeChatIntent: true,
+                            freeChatMinutes: fresh.minutes,
+                          ),
+                        ),
+                      );
+                      if (!mounted) return;
+                      if (started == true) {
+                        setState(() => _hideFirstFreeChatCard = true);
+                      }
+                      await _refreshFreeChat();
+                    },
+                  ),
+                ),
+              // =========================================================
+              // AI ASTROLOGERS - BACKEND CATALOG
+              // =================================================
+              const SliverToBoxAdapter(child: _AiAstrologersHomeSection()),
+              const SliverToBoxAdapter(child: AstrologyVideosHomeSection()),
+              // ORGANIZED ASTROLOGER EXPERT SECTIONS
+              // =================================================
+              if (_isLoading)
+                const SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 220,
+                    child: Center(
+                      child: CircularProgressIndicator(color: AppColors.gold),
+                    ),
+                  ),
+                )
+              else if (_error.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 240,
+                    child: _ErrorState(
+                      message: _error,
+                      onRetry: _loadAstrologers,
+                    ),
+                  ),
+                )
+              else if (visibleAstrologers.isEmpty)
+                SliverToBoxAdapter(
+                  child: SizedBox(height: 230, child: _EmptyState()),
+                )
+              else ...[
+                SliverToBoxAdapter(
+                  child: _expertSectionWidget(
+                    title: AppStrings.text(
+                      context,
+                      en: 'Recommended for you',
+                      hi: '\u0906\u092a\u0915\u0947 \u0932\u093f\u090f \u0938\u0941\u091d\u093e\u0935',
+                    ),
+                    astrologers: _recommendedAstrologers,
+                    onTap: openAstrologer,
+                    onViewAll: () =>
+                        openAllAstrologers(title: 'Recommended Astrologers'),
+                  ),
+                ),
+                if (_vedicAstrologers.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _expertSectionWidget(
+                      title: AppStrings.text(
+                        context,
+                        en: 'Vedic Astrologers',
+                        hi: '\u0935\u0948\u0926\u093f\u0915 \u091c\u094d\u092f\u094b\u0924\u093f\u0937\u0940',
+                      ),
+                      astrologers: _vedicAstrologers,
+                      onTap: openAstrologer,
+                      onViewAll: () => openAllAstrologers(
+                        title: AppStrings.text(
+                          context,
+                          en: 'Vedic Astrologers',
+                          hi: '\u0935\u0948\u0926\u093f\u0915 \u091c\u094d\u092f\u094b\u0924\u093f\u0937\u0940',
+                        ),
+                        expertiseKeyword: 'vedic',
+                      ),
+                    ),
+                  ),
+                if (_tarotAstrologers.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _expertSectionWidget(
+                      title: 'Tarot Readers',
+                      astrologers: _tarotAstrologers,
+                      onTap: openAstrologer,
+                      onViewAll: () => openAllAstrologers(
+                        title: 'Tarot Readers',
+                        expertiseKeyword: 'tarot',
+                      ),
+                    ),
+                  ),
+                SliverToBoxAdapter(
+                  child: _expertSectionWidget(
+                    title: 'Trending Now',
+                    astrologers: _trendingAstrologers,
+                    onTap: openAstrologer,
+                    onViewAll: () => openAllAstrologers(
+                      title: 'Trending Astrologers',
+                      trendingOnly: true,
+                    ),
+                  ),
+                ),
+              ],
+
+              // =================================================
+              // LIVE ASTROLOGERS SECTION
+              // =================================================
+              if (_liveSessions.isNotEmpty || _liveFeed.nextOffset != null) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 9,
+                          height: 9,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Live',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 21,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFE7E7),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFFFF5A5F)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.videocam_rounded,
+                                size: 13,
+                                color: Color(0xFFE53935),
+                              ),
+                              SizedBox(width: 3),
                               Text(
-                                '${session.viewerCount} watching',
-                                style: const TextStyle(
-                                  color: Colors.white60,
+                                'LIVE',
+                                style: TextStyle(
+                                  color: Color(0xFFE53935),
                                   fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.4,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      );
-                    },
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 176,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+                      itemCount:
+                          _liveSessions.length +
+                          (_liveFeed.nextOffset != null ? 1 : 0),
+                      separatorBuilder: (_, _) => const SizedBox(width: 12),
+                      itemBuilder: (context, index) {
+                        if (index == _liveSessions.length) {
+                          return SizedBox(
+                            width: 112,
+                            child: Center(
+                              child: TextButton(
+                                onPressed: _liveLoading
+                                    ? null
+                                    : () => _loadLiveSessions(loadMore: true),
+                                child: Text(
+                                  _liveLoading ? 'Loading...' : 'Load more',
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        final session = _liveSessions[index];
+                        final astrologer = session.astrologer;
+                        final avatar = astrologer.avatarUrl?.trim() ?? '';
 
-            const SliverToBoxAdapter(child: AstrologyArticlesHomeSection()),
-            const SliverToBoxAdapter(child: SizedBox(height: 18)),
-          ],
+                        return GestureDetector(
+                          onTap: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => CustomerLiveViewerScreen(
+                                  liveSession: session,
+                                ),
+                              ),
+                            );
+
+                            if (context.mounted) {
+                              await _loadLiveSessions();
+                            }
+                          },
+                          child: SizedBox(
+                            width: 112,
+                            child: Column(
+                              children: [
+                                Stack(
+                                  clipBehavior: Clip.none,
+                                  alignment: Alignment.bottomCenter,
+                                  children: [
+                                    Container(
+                                      width: 96,
+                                      height: 96,
+                                      padding: const EdgeInsets.all(3),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.red,
+                                          width: 2.5,
+                                        ),
+                                      ),
+                                      child: ClipOval(
+                                        child: avatar.isNotEmpty
+                                            ? Image.network(
+                                                avatar,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (_, _, _) =>
+                                                    const _LiveAvatarFallback(),
+                                              )
+                                            : const _LiveAvatarFallback(),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: -6,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 9,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'LIVE',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  astrologer.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Color(0xFF14213D),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${session.viewerCount} watching',
+                                  style: const TextStyle(
+                                    color: Colors.white60,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
+
+              const SliverToBoxAdapter(child: AstrologyArticlesHomeSection()),
+              const SliverToBoxAdapter(child: SizedBox(height: 18)),
+            ],
+          ),
         ),
       ),
     );
@@ -2988,47 +2352,22 @@ class _HomeAstrologyAction extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  String get _assetPath {
-    if (icon == Icons.auto_awesome_rounded)
-      return 'assets/stickers/home_astrology/kundli_ai.png';
-    if (icon == Icons.auto_fix_high_rounded)
-      return 'assets/stickers/home_astrology/ai_astro.png';
-    if (icon == Icons.wb_sunny_rounded)
-      return 'assets/stickers/home_astrology/horoscope.png';
-    return 'assets/stickers/home_astrology/predictions.png';
+  HomeSticker get _feature {
+    if (icon == Icons.auto_awesome_rounded) {
+      return HomeSticker.kundli;
+    }
+    if (icon == Icons.auto_fix_high_rounded) {
+      return HomeSticker.ai;
+    }
+    if (icon == Icons.wb_sunny_rounded) {
+      return HomeSticker.horoscope;
+    }
+    return HomeSticker.prediction;
   }
 
   @override
-  Widget build(BuildContext context) {
-    final assetPath = _assetPath;
-
-    return Semantics(
-      label: label,
-      button: true,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: SizedBox(
-            height: 118,
-            child: Center(
-              child: Image.asset(
-                assetPath,
-                width: 108,
-                height: 108,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
-                errorBuilder: (context, error, stackTrace) {
-                  return Icon(icon, size: 42, color: AppColors.gold);
-                },
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      CompactAstrologySticker(kind: _feature, label: label, onTap: onTap);
 }
 
 class _HomeAstrologyTopic extends StatelessWidget {
@@ -3042,50 +2381,21 @@ class _HomeAstrologyTopic extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  String get _assetPath {
-    if (icon == Icons.business_center_rounded)
-      return 'assets/stickers/home_astrology/business.png';
-    if (icon == Icons.candlestick_chart_rounded)
-      return 'assets/stickers/home_astrology/stock_market.png';
-    if (icon == Icons.event_available_rounded)
-      return 'assets/stickers/home_astrology/today.png';
-    if (icon == Icons.favorite_rounded)
-      return 'assets/stickers/home_astrology/marriage.png';
-    if (icon == Icons.work_rounded)
-      return 'assets/stickers/home_astrology/career.png';
-    return 'assets/stickers/home_astrology/business.png';
-  }
-
   @override
   Widget build(BuildContext context) {
-    final assetPath = _assetPath;
-
-    return Semantics(
+    final asset = icon == Icons.work_rounded
+        ? 'career'
+        : icon == Icons.favorite_rounded
+        ? 'marriage'
+        : icon == Icons.candlestick_chart_rounded
+        ? 'stock_market'
+        : icon == Icons.event_available_rounded
+        ? 'today'
+        : 'business';
+    return PremiumCategoryTile(
+      assetPath: 'assets/stickers/home_astrology/$asset-premium.webp',
       label: label,
-      button: true,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: SizedBox(
-            width: 68,
-            height: 88,
-            child: Center(
-              child: Image.asset(
-                assetPath,
-                width: 66,
-                height: 82,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
-                errorBuilder: (context, error, stackTrace) {
-                  return Icon(icon, size: 30, color: AppColors.gold);
-                },
-              ),
-            ),
-          ),
-        ),
-      ),
+      onTap: onTap,
     );
   }
 }
@@ -3204,7 +2514,7 @@ class _AiAstrologersHomeSectionState extends State<_AiAstrologersHomeSection> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const SizedBox(
-        height: 220,
+        height: 64,
         child: Center(child: CircularProgressIndicator(color: AppColors.gold)),
       );
     }
@@ -3246,191 +2556,41 @@ class _AiAstrologersHomeSectionState extends State<_AiAstrologersHomeSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
-          child: Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.30),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppColors.gold.withValues(alpha: 0.45),
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.auto_awesome_rounded,
-                  color: AppColors.gold,
-                  size: 19,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // CUSTOMER_PHASE2_DIVIDER
-                        Container(
-                          height: 1,
-                          width: double.infinity,
-                          margin: const EdgeInsets.only(top: 4, bottom: 14),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.transparent,
-                                AppColors.gold.withValues(alpha: 0.78),
-                                Colors.transparent,
-                              ],
-                            ),
-                          ),
-                        ),
-                        Text(
-                          AppStrings.text(
-                            context,
-                            en: 'AI Astrologers',
-                            hi: '\u090f\u0906\u0908 \u091c\u094d\u092f\u094b\u0924\u093f\u0937\u0940',
-                          ),
-                          style: TextStyle(
-                            color: Color(0xFF17213D),
-                            fontSize: 23,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Personalized AI guidance with your Kundli',
-                      style: TextStyle(
-                        color: const Color(0xFF685675),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              InkWell(
-                onTap: _openAll,
-                borderRadius: BorderRadius.circular(24),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0x55230E42),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFFFD84A)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        AppStrings.text(
-                          context,
-                          en: 'View All',
-                          hi: '\u0938\u092d\u0940 \u0926\u0947\u0916\u0947\u0902',
-                        ),
-                        style: TextStyle(
-                          color: AppColors.gold,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      SizedBox(width: 2),
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        color: AppColors.gold,
-                        size: 17,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+        CompactHomeSectionHeading(
+          title: AppStrings.text(context, en: 'AI Astrologers'),
+          onTap: _openAll,
         ),
-        SizedBox(
-          height: 208,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 2, 16, 14),
-            itemCount: _personas.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              final persona = _personas[index];
-
-              return SizedBox(
-                width: 128,
-                child: GestureDetector(
-                  onTap: () => _openPersona(persona),
-                  child: _AiDashboardPersonaCard(persona: persona),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var index = 0; index < _personas.length; index++) ...[
+                if (index > 0) const SizedBox(width: 12),
+                SizedBox(
+                  width:
+                      124 +
+                      (MediaQuery.textScalerOf(context).scale(14) - 14).clamp(
+                            0,
+                            28,
+                          ) *
+                          6,
+                  child: GestureDetector(
+                    onTap: () => _openPersona(_personas[index]),
+                    child: HomeAiAstrologerStickerCard(
+                      persona: _personas[index],
+                    ),
+                  ),
                 ),
-              );
-            },
+              ],
+            ],
           ),
         ),
       ],
     );
   }
-}
-
-class _AiSectionWavePainter extends CustomPainter {
-  const _AiSectionWavePainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final fillPaint = Paint()
-      ..color = const Color(0xFFFFFBF3)
-      ..style = PaintingStyle.fill;
-
-    final goldPaint = Paint()
-      ..color = const Color(0xFFE6B83B)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
-
-    final path = Path()
-      ..moveTo(0, 25)
-      ..cubicTo(
-        size.width * 0.18,
-        2,
-        size.width * 0.34,
-        10,
-        size.width * 0.50,
-        24,
-      )
-      ..cubicTo(size.width * 0.68, 40, size.width * 0.84, 39, size.width, 17)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-
-    canvas.drawPath(path, fillPaint);
-
-    final edge = Path()
-      ..moveTo(0, 25)
-      ..cubicTo(
-        size.width * 0.18,
-        2,
-        size.width * 0.34,
-        10,
-        size.width * 0.50,
-        24,
-      )
-      ..cubicTo(size.width * 0.68, 40, size.width * 0.84, 39, size.width, 17);
-
-    canvas.drawPath(edge, goldPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _AiSectionWavePainter oldDelegate) => false;
 }
 
 // CUSTOMER_ASTRO_SECTIONS_FINAL_PREMIUM
@@ -3438,131 +2598,14 @@ class _AiSectionWavePainter extends CustomPainter {
 // CUSTOMER_REFERENCE_PREMIUM_PHASE1
 class _TicketStickerShell extends StatelessWidget {
   const _TicketStickerShell({required this.child, required this.padding});
-
   final Widget child;
   final EdgeInsets padding;
-
   @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF12091B),
-                Color(0xFF26113A),
-                Color(0xFF3A1850),
-                Color(0xFF170B22),
-              ],
-              stops: [0.0, 0.34, 0.72, 1.0],
-            ),
-            borderRadius: BorderRadius.circular(25),
-            border: Border.all(color: const Color(0xFFE6B83B), width: 1.35),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF2A1235).withValues(alpha: 0.30),
-                blurRadius: 18,
-                offset: const Offset(0, 9),
-              ),
-              BoxShadow(
-                color: const Color(0xFFE6B83B).withValues(alpha: 0.10),
-                blurRadius: 10,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              const Positioned(
-                right: -15,
-                top: -20,
-                child: Icon(
-                  Icons.brightness_2_outlined,
-                  size: 72,
-                  color: Color(0x20FFD45A),
-                ),
-              ),
-              const Positioned(
-                left: 6,
-                top: 8,
-                child: Icon(
-                  Icons.auto_awesome,
-                  size: 17,
-                  color: Color(0x35FFD45A),
-                ),
-              ),
-              const Positioned(
-                right: 9,
-                bottom: 36,
-                child: Icon(
-                  Icons.star_rounded,
-                  size: 13,
-                  color: Color(0x45FFD45A),
-                ),
-              ),
-              child,
-            ],
-          ),
-        ),
-
-        // Premium gold top ticket accent.
-        Positioned(
-          left: 15,
-          right: 15,
-          top: 7,
-          child: Container(
-            height: 7,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [
-                  Color(0xFF8F6110),
-                  Color(0xFFFFD95A),
-                  Color(0xFFB47A13),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFFFD95A).withValues(alpha: 0.20),
-                  blurRadius: 7,
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        const Positioned(left: 6, top: 42, bottom: 34, child: _TicketDots()),
-        const Positioned(right: 6, top: 42, bottom: 34, child: _TicketDots()),
-      ],
-    );
-  }
-}
-
-class _TicketDots extends StatelessWidget {
-  const _TicketDots();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: List.generate(
-        10,
-        (_) => Container(
-          width: 3,
-          height: 3,
-          decoration: const BoxDecoration(
-            color: Color(0xFFC99528),
-            shape: BoxShape.circle,
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+    padding: padding,
+    decoration: CelestialHomeStyle.surface(radius: 22),
+    child: child,
+  );
 }
 
 class _VerifiedChip extends StatelessWidget {
@@ -3581,12 +2624,14 @@ class _VerifiedChip extends StatelessWidget {
         children: [
           Icon(Icons.verified_rounded, color: Color(0xFFB77700), size: 12),
           SizedBox(width: 3),
-          Text(
-            'Verified',
-            style: TextStyle(
-              color: Color(0xFF8B5A00),
-              fontSize: 9,
-              fontWeight: FontWeight.w900,
+          Flexible(
+            child: Text(
+              'Verified',
+              style: TextStyle(
+                color: Color(0xFF8B5A00),
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
         ],
@@ -3595,8 +2640,8 @@ class _VerifiedChip extends StatelessWidget {
   }
 }
 
-class _AiDashboardPersonaCard extends StatelessWidget {
-  const _AiDashboardPersonaCard({required this.persona});
+class HomeAiAstrologerStickerCard extends StatelessWidget {
+  const HomeAiAstrologerStickerCard({super.key, required this.persona});
   final AiAstroPersona persona;
 
   @override
@@ -3606,13 +2651,14 @@ class _AiDashboardPersonaCard extends StatelessWidget {
     return _TicketStickerShell(
       padding: const EdgeInsets.fromLTRB(9, 18, 9, 7),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Stack(
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 62,
-                height: 62,
+                width: 54,
+                height: 54,
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -3626,14 +2672,10 @@ class _AiDashboardPersonaCard extends StatelessWidget {
                       ? Image.network(
                           avatar,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => _AiDashboardAvatarFallback(
-                            initials: persona.initials,
-                          ),
+                          errorBuilder: (_, _, _) =>
+                              _HomeAiPortrait(initials: persona.initials),
                         )
-                      : AiAstroAvatar(
-                          personaName: persona.name,
-                          initials: persona.initials,
-                        ),
+                      : _HomeAiPortrait(initials: persona.initials),
                 ),
               ),
               Positioned(
@@ -3657,14 +2699,22 @@ class _AiDashboardPersonaCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 5),
-          const _VerifiedChip(),
+          const Text(
+            'AI ASTROLOGER',
+            style: TextStyle(
+              color: Color(0xFF6A467F),
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .7,
+            ),
+          ),
           const SizedBox(height: 5),
           Text(
             persona.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFFFFF4DC),
+            style: TextStyle(
+              color: const Color(0xFF30203E),
               fontSize: 13,
               fontWeight: FontWeight.w900,
             ),
@@ -3674,15 +2724,15 @@ class _AiDashboardPersonaCard extends StatelessWidget {
             persona.subtitle.isEmpty ? 'AI Astrologer' : persona.subtitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFFFFD66B),
+            style: TextStyle(
+              color: const Color(0xFF65536D),
               fontSize: 9,
               fontWeight: FontWeight.w800,
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 6),
           _TicketPriceRow(
-            rating: persona.rating.toStringAsFixed(1),
+            rating: persona.rating > 0 ? persona.rating.toStringAsFixed(1) : '',
             price: persona.aiPricing.displayLabel,
           ),
         ],
@@ -3691,49 +2741,61 @@ class _AiDashboardPersonaCard extends StatelessWidget {
   }
 }
 
-class _AiDashboardAvatarFallback extends StatelessWidget {
-  const _AiDashboardAvatarFallback({required this.initials});
-
+class _HomeAiPortrait extends StatelessWidget {
+  const _HomeAiPortrait({required this.initials});
   final String initials;
-
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.surfaceLight,
-      alignment: Alignment.center,
-      child: Text(
-        initials.trim().isEmpty ? 'AI' : initials,
-        style: const TextStyle(
-          color: AppColors.gold,
-          fontSize: 22,
-          fontWeight: FontWeight.w900,
-        ),
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      gradient: RadialGradient(
+        colors: [
+          HSLColor.fromAHSL(
+            1,
+            265 +
+                (initials.runes.fold<int>(0, (a, b) => a + b) % 38).toDouble(),
+            .35,
+            .46,
+          ).toColor(),
+          CelestialHomeStyle.navy,
+        ],
       ),
-    );
-  }
+    ),
+    child: const Center(
+      child: Icon(
+        Icons.auto_awesome_rounded,
+        color: CelestialHomeStyle.gold,
+        size: 25,
+      ),
+    ),
+  );
 }
 
-class _CompactAstrologerCard extends StatelessWidget {
-  const _CompactAstrologerCard({required this.astrologer});
+class HomeAstrologerStickerCard extends StatelessWidget {
+  const HomeAstrologerStickerCard({
+    super.key,
+    required this.astrologer,
+    required this.onChat,
+    required this.onCall,
+  });
+  final VoidCallback onChat, onCall;
   final PublicAstrologer astrologer;
 
   @override
   Widget build(BuildContext context) {
     final avatar = astrologer.avatarUrl?.trim() ?? '';
-    final initial = astrologer.name.trim().isEmpty
-        ? 'A'
-        : astrologer.name.trim()[0].toUpperCase();
 
     return _TicketStickerShell(
       padding: const EdgeInsets.fromLTRB(11, 18, 11, 5),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Stack(
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 62,
-                height: 62,
+                width: 54,
+                height: 54,
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -3747,10 +2809,11 @@ class _CompactAstrologerCard extends StatelessWidget {
                       ? Image.network(
                           avatar,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) =>
-                              _CompactAvatarFallback(initial: initial),
+                          errorBuilder: (_, _, _) => AstrologerDefaultAvatar(
+                            astrologerId: astrologer.id,
+                          ),
                         )
-                      : _CompactAvatarFallback(initial: initial),
+                      : AstrologerDefaultAvatar(astrologerId: astrologer.id),
                 ),
               ),
               Positioned(
@@ -3774,15 +2837,15 @@ class _CompactAstrologerCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          const _VerifiedChip(),
+          if (astrologer.isVerified) const _VerifiedChip(),
           const SizedBox(height: 5),
           Text(
             astrologer.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFFFFF4DC),
+            style: TextStyle(
+              color: const Color(0xFF30203E),
               fontSize: 13,
               fontWeight: FontWeight.w900,
             ),
@@ -3793,8 +2856,8 @@ class _CompactAstrologerCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFFFFD66B),
+            style: TextStyle(
+              color: const Color(0xFF65536D),
               fontSize: 9,
               fontWeight: FontWeight.w800,
             ),
@@ -3804,16 +2867,22 @@ class _CompactAstrologerCard extends StatelessWidget {
             astrologer.experienceLabel,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFFE8D9F0),
+            style: TextStyle(
+              color: const Color(0xFF65536D),
               fontSize: 9,
               fontWeight: FontWeight.w700,
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 6),
           _TicketPriceRow(
             rating: astrologer.ratingLabel,
             price: astrologer.priceLabel,
+          ),
+          const SizedBox(height: 6),
+          AstrologerStickerActions(
+            lightSurface: true,
+            onChat: astrologer.isOnline && !astrologer.isBusy ? onChat : null,
+            onCall: astrologer.isOnline && !astrologer.isBusy ? onCall : null,
           ),
         ],
       ),
@@ -3823,71 +2892,51 @@ class _CompactAstrologerCard extends StatelessWidget {
 
 class _TicketPriceRow extends StatelessWidget {
   const _TicketPriceRow({required this.rating, required this.price});
-  final String rating;
-  final String price;
-
+  final String rating, price;
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFF24112F),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFB98A2E), width: 0.9),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.star_rounded, size: 13, color: Color(0xFFE1A80B)),
-          const SizedBox(width: 2),
-          Text(
-            rating,
-            style: const TextStyle(
-              color: Color(0xFFFFF4DC),
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const Spacer(),
-          Flexible(
-            child: Text(
-              price,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.end,
-              style: const TextStyle(
-                color: Color(0xFFFFD66B),
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+    decoration: BoxDecoration(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        if (rating.isNotEmpty)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.star_rounded,
+                size: 13,
+                color: Color(0xFFE1A80B),
               ),
-            ),
+              const SizedBox(width: 2),
+              Text(
+                rating,
+                style: TextStyle(
+                  color: const Color(0xFF30203E),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CompactAvatarFallback extends StatelessWidget {
-  const _CompactAvatarFallback({required this.initial});
-
-  final String initial;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      alignment: Alignment.center,
-      color: AppColors.surfaceLight,
-      child: Text(
-        initial,
-        style: const TextStyle(
-          color: AppColors.gold,
-          fontSize: 24,
-          fontWeight: FontWeight.w900,
+        Text(
+          price,
+          style: TextStyle(
+            color: const Color(0xFF65536D),
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+          ),
         ),
-      ),
-    );
-  }
+      ],
+    ),
+  );
 }
 
 class _ErrorState extends StatelessWidget {
@@ -3982,22 +3031,22 @@ class _DrawerMenuTile extends StatelessWidget {
         width: 38,
         height: 38,
         decoration: BoxDecoration(
-          color: AppColors.surfaceLight,
+          color: CosmicIvory.lavender,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: AppColors.gold, size: 21),
+        child: Icon(icon, color: CosmicIvory.amethyst, size: 21),
       ),
       title: Text(
         title,
         style: const TextStyle(
-          color: Colors.white,
+          color: CosmicIvory.ink,
           fontSize: 15,
           fontWeight: FontWeight.w700,
         ),
       ),
       trailing: const Icon(
         Icons.chevron_right_rounded,
-        color: Color(0xFFDCE8F8),
+        color: CosmicIvory.muted,
         size: 20,
       ),
     );

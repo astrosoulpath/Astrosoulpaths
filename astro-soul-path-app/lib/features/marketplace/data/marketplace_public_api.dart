@@ -33,8 +33,17 @@ class MarketplacePublicApi {
     String? categoryId,
     bool featuredOnly = false,
     String? countryCode,
+    int? page,
+    int limit = 24,
   }) async {
     final query = <String, String>{};
+    if (page != null) {
+      if (page < 1 || limit < 1 || limit > 100) {
+        throw const MarketplacePublicApiException('Invalid catalogue page.');
+      }
+      query['page'] = '$page';
+      query['limit'] = '$limit';
+    }
 
     final normalizedSearch = search?.trim() ?? '';
     final normalizedCategoryId = categoryId?.trim() ?? '';

@@ -17,6 +17,16 @@ enum LiveRtcConnectionState {
 }
 
 class LiveRtcService {
+  LiveRtcService({RtcEngine Function()? engineFactory, this.permissionChecker})
+    : _engineFactory = engineFactory ?? createAgoraRtcEngine;
+  final RtcEngine Function() _engineFactory;
+  final Future<void> Function(LiveRtcRole)? permissionChecker;
+  int _generation = 0;
+  bool _renewingToken = false;
+  bool _connecting = false;
+
+  Future<void> ensureHostPermissions() =>
+      _ensurePermissions(LiveRtcRole.broadcaster);
   RtcEngine? _engine;
 
   LiveRtcRole? _role;
@@ -31,6 +41,8 @@ class LiveRtcService {
   bool _muted = false;
   bool _cameraEnabled = true;
   bool _speakerEnabled = true;
+  bool _remoteCameraEnabled = true;
+  bool _remoteAudioMuted = false;
 
   void Function()? onChanged;
   void Function(String message)? onError;
@@ -57,11 +69,26 @@ class LiveRtcService {
   bool get isCameraEnabled => _cameraEnabled;
 
   bool get isSpeakerEnabled => _speakerEnabled;
+  bool get remoteCameraEnabled => _remoteCameraEnabled;
+  bool get remoteAudioMuted => _remoteAudioMuted;
 
   Future<void> connect({
     required LiveRtcCredentials credentials,
     required LiveRtcRole role,
   }) async {
+    if (_engine != null || _connecting) {
+      throw StateError('A live RTC connection is already active.');
+    }
+    if (credentials.uid <= 0 ||
+        credentials.appId.trim().isEmpty ||
+        credentials.token.trim().isEmpty ||
+        credentials.channelName.trim().isEmpty ||
+        credentials.role !=
+            (role == LiveRtcRole.broadcaster ? 'PUBLISHER' : 'SUBSCRIBER')) {
+      throw StateError('Invalid live RTC credentials or role.');
+    }
+    _connecting = true;
+    final generation = ++_generation;
     _credentials = credentials;
     _role = role;
 
@@ -69,10 +96,14 @@ class LiveRtcService {
 
     try {
       await _ensurePermissions(role);
+      if (generation != _generation) {
+        throw StateError('Live connection cancelled.');
+      }
 
       debugPrint('LIVE_RTC_ENGINE_CREATE');
 
-      final engine = createAgoraRtcEngine();
+      final engine = _engineFactory();
+      _engine = engine;
 
       debugPrint('LIVE_RTC_ENGINE_CREATED');
 
@@ -171,11 +202,15 @@ class LiveRtcService {
         // It must never publish camera or microphone tracks.
         await engine.enableVideo();
         await engine.enableLocalVideo(false);
+        await engine.enableLocalAudio(false);
         _cameraEnabled = false;
         _muted = true;
       }
 
       _setState(LiveRtcConnectionState.joining);
+      if (generation != _generation) {
+        throw StateError('Live connection cancelled.');
+      }
 
       debugPrint(
         'LIVE_RTC_JOIN_START '
@@ -198,18 +233,79 @@ class LiveRtcService {
           autoSubscribeVideo: true,
         ),
       );
-    } catch (error, stackTrace) {
-      debugPrint('LIVE_RTC_CONNECT_FAILED: $error');
-
-      debugPrintStack(label: 'LIVE_RTC_CONNECT_STACK', stackTrace: stackTrace);
+    } catch (error) {
+      debugPrint('LIVE_RTC_CONNECT_FAILED');
 
       _setState(LiveRtcConnectionState.failed);
       onError?.call(error.toString());
+      final failedEngine = _engine;
+      _engine = null;
+      if (failedEngine != null) {
+        try {
+          await failedEngine.release();
+        } catch (_) {
+          /* Preserve startup error. */
+        }
+      }
       rethrow;
+    } finally {
+      _connecting = false;
+    }
+  }
+
+  Future<void> rejoin(LiveRtcCredentials credentials) async {
+    final engine = _engine;
+    final original = _credentials;
+    if (engine == null ||
+        original == null ||
+        _connecting ||
+        credentials.uid != original.uid ||
+        credentials.role != original.role ||
+        credentials.channelName != original.channelName ||
+        credentials.appId != original.appId ||
+        credentials.token.isEmpty) {
+      throw StateError('Cannot restore a different Live RTC identity.');
+    }
+    if (isConnected) {
+      await engine.renewToken(credentials.token);
+      return;
+    }
+    _connecting = true;
+    final generation = _generation;
+    try {
+      final host = _role == LiveRtcRole.broadcaster;
+      if (host) {
+        await engine.muteLocalAudioStream(_muted);
+        await engine.muteLocalVideoStream(!_cameraEnabled);
+        if (_cameraEnabled) await engine.startPreview();
+      }
+      if (generation != _generation) return;
+      await engine.joinChannel(
+        token: credentials.token,
+        channelId: original.channelName,
+        uid: original.uid,
+        options: ChannelMediaOptions(
+          channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
+          clientRoleType: host
+              ? ClientRoleType.clientRoleBroadcaster
+              : ClientRoleType.clientRoleAudience,
+          publishMicrophoneTrack: host,
+          publishCameraTrack: host,
+          autoSubscribeAudio: true,
+          autoSubscribeVideo: true,
+        ),
+      );
+    } finally {
+      _connecting = false;
     }
   }
 
   Future<void> _ensurePermissions(LiveRtcRole role) async {
+    final checker = permissionChecker;
+    if (checker != null) {
+      await checker(role);
+      return;
+    }
     if (role != LiveRtcRole.broadcaster) {
       return;
     }
@@ -246,6 +342,18 @@ class LiveRtcService {
             _notify();
           }
         },
+        onUserMuteVideo: (connection, uid, muted) {
+          if (uid == _remoteUid) {
+            _remoteCameraEnabled = !muted;
+            _notify();
+          }
+        },
+        onUserMuteAudio: (connection, uid, muted) {
+          if (uid == _remoteUid) {
+            _remoteAudioMuted = muted;
+            _notify();
+          }
+        },
         onUserOffline:
             (
               RtcConnection connection,
@@ -254,6 +362,8 @@ class LiveRtcService {
             ) {
               if (_remoteUid == remoteUid) {
                 _remoteUid = null;
+                _remoteCameraEnabled = true;
+                _remoteAudioMuted = false;
                 _notify();
               }
             },
@@ -265,17 +375,37 @@ class LiveRtcService {
             ) {
               final normalized = state.toString().toLowerCase();
 
-              if (normalized.contains('reconnecting')) {
+              if (normalized.endsWith('reconnecting')) {
+                _joined = false;
                 _setState(LiveRtcConnectionState.reconnecting);
                 return;
               }
 
-              if (normalized.contains('connected')) {
-                _joined = true;
-                _setState(LiveRtcConnectionState.connected);
+              if (normalized.endsWith('disconnected')) {
+                _joined = false;
+                _setState(LiveRtcConnectionState.idle);
+                return;
+              }
+              if (normalized.endsWith('failed')) {
+                _joined = false;
+                _setState(LiveRtcConnectionState.failed);
+                return;
+              }
+              if (normalized.endsWith('connecting')) {
+                _setState(LiveRtcConnectionState.joining);
+                return;
+              }
+              if (normalized.endsWith('connected')) {
+                // Transport connection does not prove successful channel admission.
+                _setState(
+                  _joined
+                      ? LiveRtcConnectionState.connected
+                      : LiveRtcConnectionState.joining,
+                );
               }
             },
         onConnectionLost: (RtcConnection connection) {
+          _joined = false;
           _setState(LiveRtcConnectionState.reconnecting);
         },
         onRejoinChannelSuccess: (RtcConnection connection, int elapsed) {
@@ -308,22 +438,27 @@ class LiveRtcService {
   }
 
   Future<void> _renewToken() async {
+    if (_renewingToken) return;
     final callback = onTokenRenewalRequested;
 
     if (callback == null) {
       return;
     }
 
+    _renewingToken = true;
+    final engine = _engine;
     try {
       final token = (await callback())?.trim() ?? '';
 
-      if (token.isEmpty || _engine == null) {
+      if (token.isEmpty || engine == null || !identical(engine, _engine)) {
         return;
       }
 
-      await _engine!.renewToken(token);
+      await engine.renewToken(token);
     } catch (error) {
       onError?.call('Unable to renew live-session token: $error');
+    } finally {
+      _renewingToken = false;
     }
   }
 
@@ -402,6 +537,7 @@ class LiveRtcService {
   }
 
   Future<void> leave() async {
+    ++_generation;
     final engine = _engine;
 
     if (engine == null) {
@@ -418,9 +554,8 @@ class LiveRtcService {
       }
     }
 
-    if (_joined) {
-      await engine.leaveChannel();
-    }
+    // Cancel a pending join as well as an established channel.
+    await engine.leaveChannel();
 
     _joined = false;
     _remoteUid = null;
@@ -429,6 +564,7 @@ class LiveRtcService {
   }
 
   Future<void> dispose() async {
+    ++_generation;
     final engine = _engine;
 
     if (engine == null) {
@@ -452,6 +588,8 @@ class LiveRtcService {
       _muted = false;
       _cameraEnabled = true;
       _speakerEnabled = true;
+      _remoteCameraEnabled = true;
+      _remoteAudioMuted = false;
 
       onChanged = null;
       onError = null;

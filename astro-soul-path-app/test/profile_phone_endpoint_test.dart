@@ -22,21 +22,21 @@ class Sessions extends AuthSessionStore {
 }
 
 void main() {
-  for (final provider in ['firebase', 'supabase']) {
+  for (final provider in ['firebase', 'asp-context', 'supabase']) {
     test('$provider selects correct endpoint and proof', () async {
       final api = ProfileApi(
         sessionStore: Sessions(provider),
         client: MockClient((request) async {
           expect(
             request.url.path,
-            provider == 'firebase'
+            provider != 'supabase'
                 ? '/user/profile/phone/firebase-attach'
                 : '/user/profile/phone/firebase-verify',
           );
           expect(request.headers['Authorization'], 'Bearer bearer-proof');
           expect(
             jsonDecode(request.body),
-            provider == 'firebase'
+            provider != 'supabase'
                 ? {'firebaseIdToken': 'otp-proof'}
                 : {'firebaseIdToken': 'otp-proof', 'confirmAccountLink': false},
           );
@@ -107,4 +107,39 @@ void main() {
       confirmAccountLink: true,
     );
   });
+  for (final identity in ['canonical', 'foreign']) {
+    test(
+      'verified phone refresh enforces canonical identity: $identity',
+      () async {
+        final api = ProfileApi(
+          sessionStore: Sessions('firebase'),
+          client: MockClient((request) async {
+            expect(request.url.path, '/user/session');
+            return http.Response(
+              jsonEncode({
+                'success': true,
+                'user': {
+                  'id': identity,
+                  'phone': '+919876543210',
+                  'isPhoneVerified': true,
+                },
+              }),
+              200,
+            );
+          }),
+        );
+        addTearDown(api.close);
+        if (identity == 'canonical') {
+          final state = await api.refreshVerifiedPhone();
+          expect(state['canonicalUserId'], 'canonical');
+          expect(state['phone'], '+919876543210');
+        } else {
+          await expectLater(
+            api.refreshVerifiedPhone(),
+            throwsA(isA<ProfileApiException>()),
+          );
+        }
+      },
+    );
+  }
 }

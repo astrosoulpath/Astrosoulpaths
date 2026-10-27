@@ -1,5 +1,9 @@
 "use client";
 
+import { refreshAdminSession } from "@/features/admin/auth/admin-session";
+
+import { getAdminApiBase } from "@/features/admin/auth/admin-contract";
+
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
@@ -21,20 +25,10 @@ type ApiResponse<T> = {
   message?: string;
 };
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
-  "http://localhost:4000";
+const API_BASE_URL = getAdminApiBase();
 
-function getStoredAdminToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return (
-    window.localStorage.getItem("asp_admin_access_token") ??
-    window.localStorage.getItem("asp_access_token") ??
-    window.localStorage.getItem("access_token")
-  );
+async function getStoredAdminToken() {
+  return refreshAdminSession();
 }
 
 function getErrorMessage(body: unknown, fallback: string) {
@@ -69,7 +63,7 @@ export default function MarketplaceCategoriesPage() {
       setLoading(true);
       setError(null);
 
-      const token = getStoredAdminToken();
+      const token = await getStoredAdminToken();
 
       if (!token) {
         throw new Error("Admin session token not found. Please login again.");
@@ -141,7 +135,7 @@ export default function MarketplaceCategoriesPage() {
         throw new Error("Sort order must be a whole number 0 or greater.");
       }
 
-      const token = getStoredAdminToken();
+      const token = await getStoredAdminToken();
 
       if (!token) {
         throw new Error("Admin session token not found. Please login again.");
@@ -213,7 +207,7 @@ export default function MarketplaceCategoriesPage() {
       setError(null);
       setNotice(null);
 
-      const token = getStoredAdminToken();
+      const token = await getStoredAdminToken();
 
       if (!token) {
         throw new Error("Admin session token not found. Please login again.");
@@ -306,7 +300,7 @@ export default function MarketplaceCategoriesPage() {
       setError(null);
       setNotice(null);
 
-      const token = getStoredAdminToken();
+      const token = await getStoredAdminToken();
 
       if (!token) {
         throw new Error("Admin session token not found. Please login again.");
@@ -351,17 +345,17 @@ export default function MarketplaceCategoriesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-black px-6 py-10 text-white">
+    <main className="min-h-screen bg-black px-6 py-10 text-[#14243D]">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-400">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8A6818]">
               Admin Controlled
             </p>
 
             <h1 className="mt-2 text-3xl font-bold">Marketplace Categories</h1>
 
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="mt-2 text-sm text-[#52627A]">
               Categories available to marketplace sellers and customers are
               controlled here.
             </p>
@@ -370,7 +364,7 @@ export default function MarketplaceCategoriesPage() {
           <div className="flex gap-3">
             <Link
               href="/admin/marketplace"
-              className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold hover:border-yellow-400"
+              className="rounded-lg border border-[#E5EAF1] px-4 py-2 text-sm font-semibold hover:border-yellow-400"
             >
               Sellers
             </Link>
@@ -378,7 +372,7 @@ export default function MarketplaceCategoriesPage() {
             <button
               type="button"
               onClick={() => void loadCategories()}
-              className="rounded-lg border border-yellow-500 px-4 py-2 text-sm font-semibold text-yellow-400"
+              className="rounded-lg border border-yellow-500 px-4 py-2 text-sm font-semibold text-[#8A6818]"
             >
               Refresh
             </button>
@@ -386,21 +380,21 @@ export default function MarketplaceCategoriesPage() {
         </div>
 
         {error ? (
-          <div className="mb-5 rounded-lg border border-red-800 bg-red-950/30 p-4 text-sm text-red-300">
+          <div className="mb-5 rounded-lg border border-red-800 bg-red-950/30 p-4 text-sm text-red-700">
             {error}
           </div>
         ) : null}
 
         {notice ? (
-          <div className="mb-5 rounded-lg border border-emerald-800 bg-emerald-950/30 p-4 text-sm text-emerald-300">
+          <div className="mb-5 rounded-lg border border-emerald-800 bg-emerald-950/30 p-4 text-sm text-emerald-700">
             {notice}
           </div>
         ) : null}
 
-        <section className="mb-8 rounded-xl border border-slate-800 bg-slate-950/70 p-6">
+        <section className="mb-8 rounded-xl border border-[#E5EAF1] bg-white p-6">
           <h2 className="text-xl font-bold">Create Category</h2>
 
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-[#52627A]">
             Add only genuine categories intended for the live marketplace.
           </p>
 
@@ -409,20 +403,20 @@ export default function MarketplaceCategoriesPage() {
             className="mt-5 grid gap-4 md:grid-cols-2"
           >
             <label className="text-sm">
-              <span className="mb-1 block text-slate-300">Category name *</span>
+              <span className="mb-1 block text-[#14243D]">Category name *</span>
 
               <input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 maxLength={120}
                 required
-                className="w-full rounded-lg border border-slate-700 bg-black px-3 py-2 outline-none focus:border-yellow-500"
+                className="w-full rounded-lg border border-[#E5EAF1] bg-black px-3 py-2 outline-none focus:border-yellow-500"
                 placeholder="Enter real category name"
               />
             </label>
 
             <label className="text-sm">
-              <span className="mb-1 block text-slate-300">Sort order</span>
+              <span className="mb-1 block text-[#14243D]">Sort order</span>
 
               <input
                 type="number"
@@ -430,31 +424,31 @@ export default function MarketplaceCategoriesPage() {
                 step="1"
                 value={sortOrder}
                 onChange={(event) => setSortOrder(event.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-black px-3 py-2 outline-none focus:border-yellow-500"
+                className="w-full rounded-lg border border-[#E5EAF1] bg-black px-3 py-2 outline-none focus:border-yellow-500"
               />
             </label>
 
             <label className="text-sm md:col-span-2">
-              <span className="mb-1 block text-slate-300">Description</span>
+              <span className="mb-1 block text-[#14243D]">Description</span>
 
               <textarea
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
                 maxLength={500}
                 rows={3}
-                className="w-full rounded-lg border border-slate-700 bg-black px-3 py-2 outline-none focus:border-yellow-500"
+                className="w-full rounded-lg border border-[#E5EAF1] bg-black px-3 py-2 outline-none focus:border-yellow-500"
                 placeholder="Optional category description"
               />
             </label>
 
             <label className="text-sm md:col-span-2">
-              <span className="mb-1 block text-slate-300">Image URL</span>
+              <span className="mb-1 block text-[#14243D]">Image URL</span>
 
               <input
                 type="url"
                 value={imageUrl}
                 onChange={(event) => setImageUrl(event.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-black px-3 py-2 outline-none focus:border-yellow-500"
+                className="w-full rounded-lg border border-[#E5EAF1] bg-black px-3 py-2 outline-none focus:border-yellow-500"
                 placeholder="Optional HTTPS image URL"
               />
             </label>
@@ -463,7 +457,7 @@ export default function MarketplaceCategoriesPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="rounded-lg bg-yellow-400 px-5 py-2.5 text-sm font-bold text-black disabled:opacity-50"
+                  className="rounded-lg bg-[#0B1730] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {saving ? "Creating..." : "Create Category"}
               </button>
@@ -475,18 +469,18 @@ export default function MarketplaceCategoriesPage() {
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold">Existing Categories</h2>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-[#52627A]">
                 Total: {categories.length}
               </p>
             </div>
           </div>
 
           {loading ? (
-            <div className="rounded-xl border border-slate-800 p-6 text-slate-400">
+            <div className="rounded-xl border border-[#E5EAF1] p-6 text-[#52627A]">
               Loading categories...
             </div>
           ) : categories.length === 0 ? (
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-6 text-slate-400">
+            <div className="rounded-xl border border-[#E5EAF1] bg-white p-6 text-[#52627A]">
               No marketplace categories exist yet.
             </div>
           ) : (
@@ -497,7 +491,7 @@ export default function MarketplaceCategoriesPage() {
                 return (
                   <article
                     key={category.id}
-                    className="rounded-xl border border-slate-800 bg-slate-950/70 p-5"
+                    className="rounded-xl border border-[#E5EAF1] bg-white p-5"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
@@ -507,25 +501,25 @@ export default function MarketplaceCategoriesPage() {
                           <span
                             className={
                               category.isActive
-                                ? "rounded-full border border-emerald-700 px-2 py-0.5 text-xs text-emerald-400"
-                                : "rounded-full border border-red-800 px-2 py-0.5 text-xs text-red-400"
+                                ? "rounded-full border border-emerald-700 px-2 py-0.5 text-xs text-emerald-700"
+                                : "rounded-full border border-red-800 px-2 py-0.5 text-xs text-red-700"
                             }
                           >
                             {category.isActive ? "ACTIVE" : "DISABLED"}
                           </span>
                         </div>
 
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="mt-1 text-xs text-[#52627A]">
                           Slug: {category.slug}
                         </p>
 
                         {category.description ? (
-                          <p className="mt-3 max-w-3xl text-sm text-slate-300">
+                          <p className="mt-3 max-w-3xl text-sm text-[#14243D]">
                             {category.description}
                           </p>
                         ) : null}
 
-                        <p className="mt-2 text-xs text-slate-500">
+                        <p className="mt-2 text-xs text-[#52627A]">
                           Sort order: {category.sortOrder ?? 0}
                         </p>
                       </div>
@@ -535,7 +529,7 @@ export default function MarketplaceCategoriesPage() {
                           type="button"
                           disabled={working}
                           onClick={() => void editCategory(category)}
-                          className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                          className="rounded-lg border border-[#E5EAF1] px-4 py-2 text-sm font-semibold disabled:opacity-50"
                         >
                           Edit
                         </button>
@@ -546,8 +540,8 @@ export default function MarketplaceCategoriesPage() {
                           onClick={() => void toggleCategory(category)}
                           className={
                             category.isActive
-                              ? "rounded-lg border border-red-800 px-4 py-2 text-sm font-semibold text-red-400 disabled:opacity-50"
-                              : "rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-400 disabled:opacity-50"
+                              ? "rounded-lg border border-red-800 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50"
+                              : "rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-700 disabled:opacity-50"
                           }
                         >
                           {working

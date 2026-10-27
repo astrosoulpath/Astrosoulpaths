@@ -1,3 +1,4 @@
+import '../marketplace_private_state.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
@@ -16,10 +17,11 @@ class MarketplaceSellerHomeScreen extends StatefulWidget {
 }
 
 class _MarketplaceSellerHomeScreenState
-    extends State<MarketplaceSellerHomeScreen> {
+    extends MarketplacePrivateState<MarketplaceSellerHomeScreen> {
   final MarketplaceSellerApi _api = MarketplaceSellerApi();
 
   bool _loading = true;
+  bool _changingListing = false;
   String? _error;
   Map<String, dynamic>? _profile;
   List<Map<String, dynamic>> _products = const <Map<String, dynamic>>[];
@@ -193,6 +195,61 @@ class _MarketplaceSellerHomeScreenState
     }
   }
 
+  Future<void> _setPaused(Map<String, dynamic> product, bool paused) async {
+    if (_changingListing) return;
+    final confirmed = await _confirm(
+      title: paused ? 'Pause listing?' : 'Resume listing?',
+      message: paused
+          ? 'The product will be hidden from the catalogue.'
+          : 'The listing will return to Admin approval before publication.',
+      action: paused ? 'Pause' : 'Submit for approval',
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => _changingListing = true);
+    try {
+      await _api.setProductPaused(_text(product['id']), paused);
+      if (mounted) await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unable to change listing availability. Refresh and retry.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _changingListing = false);
+    }
+  }
+
+  Future<void> _inventory(Map<String, dynamic> product) async {
+    if (_changingListing) return;
+    final expected = int.tryParse(_text(product['stock']));
+    if (expected == null) return;
+    final selected = await showDialog<int>(
+      context: context,
+      builder: (_) => _InventoryDialog(stock: expected),
+    );
+    if (selected == null || !mounted) return;
+    setState(() => _changingListing = true);
+    try {
+      await _api.updateInventory(_text(product['id']), expected, selected);
+      if (mounted) await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Inventory changed. Refresh and retry.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _changingListing = false);
+    }
+  }
+
   Future<void> _archiveProduct(Map<String, dynamic> product) async {
     final productId = _text(product['id']);
 
@@ -234,7 +291,7 @@ class _MarketplaceSellerHomeScreenState
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget buildMarketplace(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF8EE),
       appBar: AppBar(
@@ -316,6 +373,31 @@ class _MarketplaceSellerHomeScreenState
         const SizedBox(height: 20),
         if (!_sellerActive) _sellerAccessState(),
         if (_sellerActive) ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Wrap(
+                spacing: 20,
+                runSpacing: 12,
+                children: [
+                  Text('Products: ${_products.length}'),
+                  Text(
+                    'Active: ${_products.where((p) => p['status'] == 'ACTIVE').length}',
+                  ),
+                  Text(
+                    'Pending approval: ${_products.where((p) => p['status'] == 'PENDING_REVIEW').length}',
+                  ),
+                  Text(
+                    'Inventory alerts: ${_products.where((p) {
+                      final stock = int.tryParse(_text(p['stock']));
+                      final threshold = int.tryParse(_text(p['lowStockThreshold']));
+                      return stock != null && threshold != null && stock <= threshold;
+                    }).length}',
+                  ),
+                ],
+              ),
+            ),
+          ),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -597,7 +679,8 @@ class _MarketplaceSellerHomeScreenState
   Widget _productCard(Map<String, dynamic> product) {
     final status = _text(product['status']).toUpperCase();
 
-    final editable = status == 'DRAFT' || status == 'REJECTED';
+    final editable =
+        status == 'DRAFT' || status == 'REJECTED' || status == 'OUT_OF_STOCK';
 
     final category = product['category'];
 
@@ -673,23 +756,86 @@ class _MarketplaceSellerHomeScreenState
                   icon: const Icon(Icons.edit_outlined),
                   label: const Text('Edit'),
                 ),
-                FilledButton.icon(
-                  onPressed: () => _submitProduct(product),
-                  icon: const Icon(Icons.send_outlined),
-                  label: const Text('Submit Review'),
-                ),
-                TextButton.icon(
-                  onPressed: () => _archiveProduct(product),
-                  icon: const Icon(Icons.archive_outlined),
-                  label: const Text('Archive'),
-                ),
+                if (status != 'OUT_OF_STOCK')
+                  FilledButton.icon(
+                    onPressed: () => _submitProduct(product),
+                    icon: const Icon(Icons.send_outlined),
+                    label: const Text('Submit Review'),
+                  ),
+                if (status != 'OUT_OF_STOCK')
+                  TextButton.icon(
+                    onPressed: () => _archiveProduct(product),
+                    icon: const Icon(Icons.archive_outlined),
+                    label: const Text('Archive'),
+                  ),
               ],
             ),
           ],
+          if (status == 'ACTIVE' || status == 'OUT_OF_STOCK')
+            OutlinedButton.icon(
+              onPressed: _changingListing
+                  ? null
+                  : () => _setPaused(product, status == 'ACTIVE'),
+              icon: Icon(
+                status == 'ACTIVE'
+                    ? Icons.pause_circle_outline
+                    : Icons.play_circle_outline,
+              ),
+              label: Text(
+                status == 'ACTIVE' ? 'Pause listing' : 'Resume for approval',
+              ),
+            ),
+          if (status == 'ACTIVE' || status == 'OUT_OF_STOCK')
+            OutlinedButton.icon(
+              onPressed: _changingListing ? null : () => _inventory(product),
+              icon: const Icon(Icons.inventory_2_outlined),
+              label: const Text('Update stock'),
+            ),
         ],
       ),
     );
   }
+}
+
+class _InventoryDialog extends StatefulWidget {
+  const _InventoryDialog({required this.stock});
+  final int stock;
+  @override
+  State<_InventoryDialog> createState() => _InventoryDialogState();
+}
+
+class _InventoryDialogState extends State<_InventoryDialog> {
+  late final _input = TextEditingController(text: '${widget.stock}');
+  @override
+  void dispose() {
+    _input.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Update inventory'),
+    content: TextField(
+      controller: _input,
+      keyboardType: TextInputType.number,
+      decoration: const InputDecoration(labelText: 'Available stock'),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () {
+          final value = int.tryParse(_input.text);
+          if (value != null && value >= 0 && value <= 2147483647) {
+            Navigator.pop(context, value);
+          }
+        },
+        child: const Text('Save'),
+      ),
+    ],
+  );
 }
 
 class _MarketplaceCelestialBackground extends StatelessWidget {

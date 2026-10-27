@@ -1,3 +1,4 @@
+import '../marketplace_private_state.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,7 +7,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../data/marketplace_seller_api.dart';
 
 class MarketplaceProductFormScreen extends StatefulWidget {
-  const MarketplaceProductFormScreen({super.key, this.product});
+  const MarketplaceProductFormScreen({super.key, this.product, this.api});
+  final MarketplaceSellerApi? api;
 
   final Map<String, dynamic>? product;
 
@@ -18,9 +20,9 @@ class MarketplaceProductFormScreen extends StatefulWidget {
 }
 
 class _MarketplaceProductFormScreenState
-    extends State<MarketplaceProductFormScreen> {
+    extends MarketplacePrivateState<MarketplaceProductFormScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final MarketplaceSellerApi _api = MarketplaceSellerApi();
+  late final MarketplaceSellerApi _api = widget.api ?? MarketplaceSellerApi();
   final ImagePicker _imagePicker = ImagePicker();
 
   final List<XFile> _selectedImages = <XFile>[];
@@ -115,6 +117,10 @@ class _MarketplaceProductFormScreenState
   }
 
   Future<void> _loadCategories() async {
+    setState(() {
+      _loadingCategories = true;
+      _error = null;
+    });
     try {
       final categories = await _api.getCategories();
 
@@ -134,6 +140,12 @@ class _MarketplaceProductFormScreenState
       setState(() {
         _loadingCategories = false;
         _error = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingCategories = false;
+        _error = 'Unable to load categories. Please retry.';
       });
     }
   }
@@ -435,11 +447,18 @@ class _MarketplaceProductFormScreenState
         _saving = false;
         _error = error.message;
       });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error =
+            'Save could not be confirmed. Check your products before retrying.';
+      });
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget buildMarketplace(BuildContext context) {
     final validSelectedCategory =
         _selectedCategoryId != null &&
         _categories.any(
@@ -775,6 +794,11 @@ class _MarketplaceProductFormScreenState
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Weight in grams'),
             ),
+            if (!_loadingCategories && _categories.isEmpty)
+              TextButton(
+                onPressed: _loadCategories,
+                child: const Text('Retry categories'),
+              ),
             if (_error != null) ...[
               const SizedBox(height: 14),
               Text(

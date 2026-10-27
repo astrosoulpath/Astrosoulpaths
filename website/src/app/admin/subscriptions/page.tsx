@@ -1,17 +1,17 @@
 ﻿"use client";
 
+import { adminFetch } from "@/features/admin/auth/admin-session";
+import { HoroscopeMonitoringPanel } from "@/features/admin/HoroscopeMonitoringPanel";
+
 import Link from "next/link";
 import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:4000";
 
 type SubscriptionStatus =
   | "ACTIVE"
@@ -43,6 +43,9 @@ type AdminSubscription = {
   userId?: string | null;
   planId?: string | null;
   status: SubscriptionStatus;
+  subscriptionStatus?: SubscriptionStatus;
+  subscriptionPlanId?: string | null;
+  subscriptionPlan?: SubscriptionPlan | null;
   amount?: number | string | null;
   currency?: string | null;
   startDate?: string | null;
@@ -56,6 +59,7 @@ type AdminSubscription = {
 
 type AdminSubscriptionsResponse = {
   success?: boolean;
+  pagination?: {totalPages?:number};
   message?: string | string[];
   data?:
     | AdminSubscription[]
@@ -71,17 +75,6 @@ type StatusFilter =
   | "PENDING"
   | "EXPIRED"
   | "CANCELLED";
-
-function getAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return (
-    window.localStorage.getItem("asp_admin_access_token") ??
-    window.localStorage.getItem("access_token")
-  );
-}
 
 async function readJson(response: Response) {
   return response.json().catch(() => null);
@@ -162,14 +155,23 @@ function normalizeSubscriptions(
   }
 
   if (Array.isArray(response.data)) {
-    return response.data;
+    return response.data.map(normalizeSubscription);
   }
 
   return (
     response.data.subscriptions ??
     response.data.items ??
     []
-  );
+  ).map(normalizeSubscription);
+}
+
+function normalizeSubscription(subscription: AdminSubscription): AdminSubscription {
+  return {
+    ...subscription,
+    status: subscription.subscriptionStatus ?? subscription.status ?? 'UNKNOWN',
+    plan: subscription.subscriptionPlan ?? subscription.plan,
+    planId: subscription.subscriptionPlanId ?? subscription.planId,
+  };
 }
 
 function getErrorMessage(error: unknown) {
@@ -193,8 +195,12 @@ export default function AdminSubscriptionsPage() {
   const [errorMessage, setErrorMessage] =
     useState<string | null>(null);
 
+  const [page,setPage]=useState(1);
+  const [totalPages,setTotalPages]=useState(1);
+  const sequence=useRef(0);
   const loadSubscriptions = useCallback(
     async (refresh = false) => {
+      const version=++sequence.current;
       try {
         if (refresh) {
           setIsRefreshing(true);
@@ -203,23 +209,11 @@ export default function AdminSubscriptionsPage() {
       }
         setErrorMessage(null);
 
-        const token = getAccessToken();
-
-        if (!token) {
-          throw new Error(
-            "Admin login token is missing. Please log in as an admin.",
-          );
-        }
-
-        const response = await fetch(
-          `${API_BASE_URL.replace(
-            /\/+$/,
-            "",
-          )}/admin/subscriptions`,
+        const response = await adminFetch(
+          `/admin/subscriptions?${new URLSearchParams({page:String(page),limit:"20",search,status:statusFilter})}`,
           {
             headers: {
               Accept: "application/json",
-              Authorization: `Bearer ${token}`,
             },
             cache: "no-store",
           },
@@ -230,6 +224,7 @@ export default function AdminSubscriptionsPage() {
             response,
           )) as AdminSubscriptionsResponse | null;
 
+        if(version!==sequence.current)return;
         if (!response.ok) {
           const rawMessage = data?.message;
 
@@ -241,57 +236,26 @@ export default function AdminSubscriptionsPage() {
           );
         }
 
-        setSubscriptions(
-          normalizeSubscriptions(data),
-        );
+        setSubscriptions(normalizeSubscriptions(data));
+        setTotalPages(Math.max(1,data?.pagination?.totalPages??1));
       } catch (error) {
+        if(version!==sequence.current)return;
         setSubscriptions([]);
         setErrorMessage(getErrorMessage(error));
       } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
+        if(version===sequence.current){setIsLoading(false);setIsRefreshing(false);}
       }
     },
-    [],
+    [page,search,statusFilter],
   );
 
   useEffect(() => {
-    void loadSubscriptions();
+    const lifetime = sequence;
+    const timer=setTimeout(()=>{void loadSubscriptions();},250);
+    return ()=>{clearTimeout(timer);lifetime.current++;};
   }, [loadSubscriptions]);
 
-  const filteredSubscriptions = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
-
-    return subscriptions.filter((subscription) => {
-      const status = normalizeStatus(
-        subscription.status,
-      );
-
-      const matchesSearch =
-        !keyword ||
-        subscription.id
-          .toLowerCase()
-          .includes(keyword) ||
-        subscription.userId
-          ?.toLowerCase()
-          .includes(keyword) ||
-        getUserName(subscription)
-          .toLowerCase()
-          .includes(keyword) ||
-        subscription.plan?.name
-          ?.toLowerCase()
-          .includes(keyword);
-
-      if (!matchesSearch) {
-        return false;
-      }
-
-      return (
-        statusFilter === "ALL" ||
-        status === statusFilter
-      );
-    });
-  }, [subscriptions, search, statusFilter]);
+  const filteredSubscriptions = subscriptions;
 
   const stats = useMemo(() => {
     const active = subscriptions.filter(
@@ -340,6 +304,7 @@ export default function AdminSubscriptionsPage() {
   return (
     <main className="asp-admin-page px-4 py-10 sm:px-6 lg:px-8">
       <div className="asp-admin-shell">
+        <HoroscopeMonitoringPanel />
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="asp-admin-eyebrow">
@@ -409,7 +374,7 @@ export default function AdminSubscriptionsPage() {
               <p className="asp-admin-stat-label">
                 {label}
               </p>
-              <p className="mt-3 text-2xl font-extrabold text-[#0B1026]">
+              <p className="mt-3 text-2xl font-semibold text-[#0B1026]">
                 {value}
               </p>
             </article>
@@ -422,7 +387,7 @@ export default function AdminSubscriptionsPage() {
               type="search"
               value={search}
               onChange={(event) =>
-                setSearch(event.target.value)
+                {setPage(1);setSearch(event.target.value);}
               }
               placeholder="Search by customer, plan or subscription ID"
               className="asp-admin-input px-4 py-3"
@@ -431,9 +396,7 @@ export default function AdminSubscriptionsPage() {
             <select
               value={statusFilter}
               onChange={(event) =>
-                setStatusFilter(
-                  event.target.value as StatusFilter,
-                )
+                {setPage(1);setStatusFilter(event.target.value as StatusFilter);}
               }
               className="asp-admin-input px-4 py-3 font-semibold"
             >
@@ -455,13 +418,14 @@ export default function AdminSubscriptionsPage() {
             </select>
           </div>
 
+          <p className="my-3 text-sm">Summaries cover the loaded page and selected filters.</p><div className="my-4 flex gap-4 items-center" aria-label="Record pages"><button disabled={isLoading || page<=1} onClick={()=>setPage(page-1)}>Previous</button><span>Page {page} of {totalPages}</span><button disabled={isLoading || page>=totalPages} onClick={()=>setPage(page+1)}>Next</button></div>
           {isLoading ? (
             <div className="py-16 text-center font-semibold text-[#4B5C73]">
               Loading subscriptions...
             </div>
           ) : filteredSubscriptions.length === 0 ? (
             <div className="py-16 text-center">
-              <h2 className="text-2xl font-extrabold text-[#0B1026]">
+              <h2 className="text-2xl font-semibold text-[#0B1026]">
                 No subscriptions found
               </h2>
             </div>

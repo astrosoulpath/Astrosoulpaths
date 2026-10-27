@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { KundliResult } from "@/features/kundli/KundliResult";
 import {
@@ -31,6 +31,8 @@ export default function SavedKundliDetailPage() {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const [downloadError, setDownloadError] = useState("");
+  const [downloadNotice, setDownloadNotice] = useState("");
+  const downloadLock = useRef(false);
 
   const loadKundli = useCallback(async () => {
     if (!savedRecordId) {
@@ -115,15 +117,18 @@ export default function SavedKundliDetailPage() {
   }, [loadKundli]);
 
   async function handleDownloadPdf() {
-    if (!savedRecordId || downloadingPdf) {
+    if (!savedRecordId || downloadLock.current) {
       return;
     }
 
+    downloadLock.current = true;
     try {
       setDownloadingPdf(true);
       setDownloadError("");
+      setDownloadNotice("");
 
       await downloadSavedKundliPdf(savedRecordId);
+      setDownloadNotice("Your authorized PDF was received and handed to your browser. Check Downloads, or the browser's file preview on mobile.");
     } catch (err: unknown) {
       if (err instanceof KundliApiError) {
         if (err.code === "LOGIN_REQUIRED") {
@@ -168,6 +173,7 @@ export default function SavedKundliDetailPage() {
           : "Unable to download the Kundli PDF.",
       );
     } finally {
+      downloadLock.current = false;
       setDownloadingPdf(false);
     }
   }
@@ -198,7 +204,7 @@ export default function SavedKundliDetailPage() {
             )}
 
             <Link
-              href="/astrologer/kundli"
+              href="/kundli/consultations"
               className="inline-flex w-fit rounded-full bg-[#D4AF37] px-6 py-2.5 text-sm font-bold text-[#0B1026] transition hover:bg-[#C9A52F]"
             >
               Generate New Kundli
@@ -206,6 +212,7 @@ export default function SavedKundliDetailPage() {
           </div>
         </div>
 
+        {downloadNotice && <p role="status" className="mt-5 text-sm text-[#0B1026]">{downloadNotice}</p>}
         {downloadError && (
           <div
             role="alert"

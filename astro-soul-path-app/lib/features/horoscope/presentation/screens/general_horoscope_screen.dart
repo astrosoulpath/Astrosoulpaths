@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/widgets/golden_sparkle_loading.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter/services.dart';
@@ -162,7 +163,10 @@ class _AspWorldMapPainter extends CustomPainter {
 }
 
 class GeneralHoroscopeScreen extends StatefulWidget {
-  const GeneralHoroscopeScreen({super.key});
+  const GeneralHoroscopeScreen({super.key, this.api});
+
+  /// Optional owned client for isolated widget verification.
+  final GeneralHoroscopeApi? api;
 
   @override
   State<GeneralHoroscopeScreen> createState() => _GeneralHoroscopeScreenState();
@@ -184,7 +188,7 @@ class _GeneralHoroscopeScreenState extends State<GeneralHoroscopeScreen> {
     'Pisces',
   ];
 
-  final GeneralHoroscopeApi _api = GeneralHoroscopeApi();
+  late final GeneralHoroscopeApi _api = widget.api ?? GeneralHoroscopeApi();
   final GeoApi _geoApi = GeoApi();
 
   final TextEditingController _panchangCityController = TextEditingController();
@@ -197,6 +201,7 @@ class _GeneralHoroscopeScreenState extends State<GeneralHoroscopeScreen> {
 
   String _moonSign = 'Scorpio';
   String _selectedHoroscopeTab = 'Daily';
+  String _loadedHoroscopeTab = 'Daily';
   bool _loading = true;
   String? _error;
 
@@ -407,6 +412,7 @@ class _GeneralHoroscopeScreenState extends State<GeneralHoroscopeScreen> {
         }
 
         _loading = false;
+        _loadedHoroscopeTab = _selectedHoroscopeTab;
       });
     } catch (error) {
       if (!mounted) return;
@@ -841,43 +847,41 @@ class _GeneralHoroscopeScreenState extends State<GeneralHoroscopeScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
-          children: [
-            const Text(
-              'Moon Sign Horoscope',
-              style: TextStyle(
-                color: Color(0xFF24152F),
-                fontSize: 23,
-                fontWeight: FontWeight.w800,
+      body: GoldenSparkleLoading(
+        loading: _loading,
+        child: RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+            children: [
+              const Text(
+                'Moon Sign Horoscope',
+                style: TextStyle(
+                  color: Color(0xFF24152F),
+                  fontSize: 23,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-            const SizedBox(height: 5),
-            const SizedBox(height: 18),
+              const SizedBox(height: 5),
+              const SizedBox(height: 18),
 
-            _moonSignSelector(),
+              _moonSignSelector(),
 
-            const SizedBox(height: 18),
+              const SizedBox(height: 18),
 
-            if (_loading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 50),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_error != null)
-              _errorCard()
-            else ...[
-              _horoscopeTypeStrip(),
-              const SizedBox(height: 14),
-              _freeHoroscopeHero(),
-              _horoscopeActionBar(),
-              const SizedBox(height: 16),
-              _selectedHoroscopeContent(),
+              if (_error != null)
+                _errorCard()
+              else ...[
+                _horoscopeTypeStrip(),
+                const SizedBox(height: 14),
+                _freeHoroscopeHero(),
+                _horoscopeActionBar(),
+                const SizedBox(height: 16),
+                _selectedHoroscopeContent(),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -1073,7 +1077,7 @@ class _GeneralHoroscopeScreenState extends State<GeneralHoroscopeScreen> {
               return InkWell(
                 borderRadius: BorderRadius.circular(4),
                 onTap: () {
-                  if (_selectedHoroscopeTab == tab) return;
+                  if (_loading || _selectedHoroscopeTab == tab) return;
 
                   setState(() {
                     _selectedHoroscopeTab = tab;
@@ -1179,7 +1183,7 @@ class _GeneralHoroscopeScreenState extends State<GeneralHoroscopeScreen> {
   }
 
   Widget _selectedHoroscopeContentBody() {
-    switch (_selectedHoroscopeTab) {
+    switch (_loading ? _loadedHoroscopeTab : _selectedHoroscopeTab) {
       case 'Daily':
         return _dailyCard();
       case 'Panchang':

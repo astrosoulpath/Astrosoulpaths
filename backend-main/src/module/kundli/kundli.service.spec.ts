@@ -1,4 +1,5 @@
-﻿import { Test, TestingModule } from '@nestjs/testing';
+import { LocalVedicKundliProvider } from './providers/local-vedic-kundli.provider';
+import { Test, TestingModule } from '@nestjs/testing';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 
@@ -153,15 +154,20 @@ describe('KundliService', () => {
     expect(service).toBeDefined();
   });
 
-  it('returns complete cached Prokerala Kundli without calling provider or AI', async () => {
+  it('returns complete current Local Vedic cache without calling provider or AI', async () => {
     repoMock.findByHash.mockResolvedValue({
       id: 'kundli-1',
     });
 
     repoMock.findKundliData.mockResolvedValue({
       vedic: {
-        ...completeReport(),
-        provider: 'prokerala',
+        ...(await new LocalVedicKundliProvider().generate(params, 'en')),
+        analysis: {
+          ...completeReport().analysis,
+          remedies: ['Synthetic reflection'],
+          d1Explanation: 'Synthetic explanation',
+          d9Explanation: 'Synthetic explanation',
+        },
       },
     });
 
@@ -176,15 +182,12 @@ describe('KundliService', () => {
     expect(repoMock.saveKundliData).not.toHaveBeenCalled();
   });
 
-  it('enriches complete cached Prokerala calculation with AI when analysis is missing', async () => {
+  it('enriches current Local Vedic cache with AI when analysis is missing', async () => {
     repoMock.findByHash.mockResolvedValue({
       id: 'kundli-1',
     });
 
-    const report = {
-      ...completeReport(),
-      provider: 'prokerala',
-    };
+    const report = await new LocalVedicKundliProvider().generate(params, 'en');
 
     delete (report as any).analysis;
 
@@ -230,7 +233,7 @@ describe('KundliService', () => {
 
     expect(providerMock.generate).toHaveBeenCalledWith(params, 'en');
 
-    expect(aiMock.generateAnalysis).toHaveBeenCalledWith(providerReport);
+    expect(aiMock.generateAnalysis).toHaveBeenCalledWith(providerReport, 'en');
 
     expect(result.report.provider).toBe('vedicastro');
 

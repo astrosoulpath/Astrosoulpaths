@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Footer from "@/components/layouts/Footer";
 import Navbar from "@/components/layouts/Navbar";
 import FreeChatWelcomeModal from "@/components/auth/FreeChatWelcomeModal";
+import { PublicChrome } from "@/components/layouts/PublicChrome";
 
 import "./globals.css";
 import { AppProviders } from "./providers";
@@ -140,12 +141,12 @@ export default function RootLayout({ children }: RootLayoutProps) {
     >
       <body className="flex min-h-full flex-col bg-white text-[#0B1026]">
         <AppProviders>
-          <FreeChatWelcomeModal />
-          <Navbar />
+          <PublicChrome kind="promotion"><FreeChatWelcomeModal /></PublicChrome>
+          <PublicChrome kind="navigation"><Navbar /></PublicChrome>
 
           <main className="flex-1">{children}</main>
 
-          <Footer />
+          <PublicChrome kind="footer"><Footer /></PublicChrome>
         </AppProviders>
       </body>
     </html>

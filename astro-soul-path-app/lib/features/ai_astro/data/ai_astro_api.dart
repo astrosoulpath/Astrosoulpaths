@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../../../core/config/api_config.dart';
 import '../../auth/data/auth_session_store.dart';
 import 'ai_astro_models.dart';
+import 'ai_chat_language.dart';
 
 class AiAstroAnswer {
   const AiAstroAnswer({
@@ -211,6 +212,46 @@ class AiAstroApi {
 
   final http.Client _client;
   final AuthSessionStore _sessionStore;
+  final int _languageSessionRevision = AuthSessionStore.sessionRevision;
+  void _checkChatSession() {
+    if (_languageSessionRevision != AuthSessionStore.sessionRevision) {
+      throw const AiAstroApiException(
+        'Account changed. Open chat again.',
+        loginRequired: true,
+      );
+    }
+  }
+
+  final AiChatLanguagePreferences _languages = AiChatLanguagePreferences();
+
+  Future<String> preferredLanguage() async {
+    _checkChatSession();
+    final revision = AuthSessionStore.sessionRevision;
+    final session = await _sessionStore.read();
+    final id = session?.user['id'];
+    if (id is! String || id.isEmpty) return 'auto';
+    final value = await _languages.read(id);
+    if (revision != AuthSessionStore.sessionRevision) {
+      throw const AiAstroApiException('Account changed. Open chat again.');
+    }
+    return value;
+  }
+
+  Future<void> setPreferredLanguage(String code) async {
+    _checkChatSession();
+    final revision = AuthSessionStore.sessionRevision;
+    final session = await _sessionStore.read();
+    final id = session?.user['id'];
+    if (id is! String ||
+        id.isEmpty ||
+        revision != AuthSessionStore.sessionRevision) {
+      throw const AiAstroApiException('Please sign in again.');
+    }
+    await _languages.write(id, code);
+    if (revision != AuthSessionStore.sessionRevision) {
+      throw const AiAstroApiException('Account changed. Open chat again.');
+    }
+  }
 
   Future<AiAstroCatalog> getCatalog() async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/ai-astro/catalog');
@@ -263,6 +304,7 @@ class AiAstroApi {
   }
 
   Future<AiAstroAnswer> askStream({
+    String responseLanguage = 'auto',
     required String category,
     required String question,
     required String personaId,
@@ -270,7 +312,9 @@ class AiAstroApi {
     required FutureOr<void> Function(String chunk) onChunk,
     String? clientSessionId,
   }) async {
+    _checkChatSession();
     final session = await _sessionStore.read();
+    _checkChatSession();
     final accessToken = session?.accessToken.trim() ?? '';
 
     final clientRequestId = 'ai-${DateTime.now().microsecondsSinceEpoch}';
@@ -294,6 +338,7 @@ class AiAstroApi {
     });
 
     request.body = jsonEncode({
+      'responseLanguage': responseLanguage,
       'category': category,
       'question': question,
       'personaId': personaId,
@@ -318,7 +363,7 @@ class AiAstroApi {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final responseText = await response.stream.bytesToString();
 
-      String message = 'AI Astro could not answer right now.';
+      String message = aiChatLabel(responseLanguage, 'error');
 
       if (responseText.trim().isNotEmpty) {
         try {
@@ -349,6 +394,7 @@ class AiAstroApi {
         .transform(const LineSplitter());
 
     await for (final line in lines) {
+      _checkChatSession();
       final trimmed = line.trim();
 
       if (trimmed.isEmpty) {
@@ -404,6 +450,7 @@ class AiAstroApi {
       }
     }
 
+    _checkChatSession();
     if (streamError != null && streamError.isNotEmpty) {
       throw AiAstroApiException(streamError);
     }
@@ -412,25 +459,28 @@ class AiAstroApi {
       throw AiAstroApiException(
         receivedDelta
             ? 'AI Astro response could not be finalized.'
-            : 'AI Astro returned an empty answer.',
+            : aiChatLabel(responseLanguage, 'error'),
       );
     }
 
     if (finalAnswer.answer.isEmpty) {
-      throw const AiAstroApiException('AI Astro returned an empty answer.');
+      throw AiAstroApiException(aiChatLabel(responseLanguage, 'error'));
     }
 
     return finalAnswer;
   }
 
   Future<AiAstroAnswer> ask({
+    String responseLanguage = 'auto',
     required String category,
     required String question,
     required String personaId,
     required String consultantTypeCode,
     String? clientSessionId,
   }) async {
+    _checkChatSession();
     final session = await _sessionStore.read();
+    _checkChatSession();
     final accessToken = session?.accessToken.trim() ?? '';
 
     // Backend-required idempotency key.
@@ -453,6 +503,7 @@ class AiAstroApi {
             'Authorization': 'Bearer $accessToken',
           },
           body: jsonEncode({
+            'responseLanguage': responseLanguage,
             'category': category,
             'question': question,
             'personaId': personaId,
@@ -496,27 +547,31 @@ class AiAstroApi {
       }
 
       if (message.isEmpty) {
-        message = 'AI Astro could not answer right now.';
+        message = aiChatLabel(responseLanguage, 'error');
       }
 
       throw AiAstroApiException(message);
     }
 
+    _checkChatSession();
     final answer = AiAstroAnswer.fromJson(body);
 
     if (answer.answer.isEmpty) {
-      throw const AiAstroApiException('AI Astro returned an empty answer.');
+      throw AiAstroApiException(aiChatLabel(responseLanguage, 'error'));
     }
 
     return answer;
   }
 
   Future<AiAstroOpeningMessage> getOpeningMessage({
+    String responseLanguage = 'en',
     required String personaId,
     required String consultantTypeCode,
     required String category,
   }) async {
+    _checkChatSession();
     final session = await _sessionStore.read();
+    _checkChatSession();
     final accessToken = session?.accessToken.trim() ?? '';
 
     if (accessToken.isEmpty) {
@@ -536,6 +591,7 @@ class AiAstroApi {
           },
           body: jsonEncode({
             'personaId': personaId.trim(),
+            'responseLanguage': responseLanguage,
             'consultantTypeCode': consultantTypeCode.trim(),
             'category': category.trim(),
           }),
@@ -550,6 +606,7 @@ class AiAstroApi {
       );
     }
 
+    _checkChatSession();
     return AiAstroOpeningMessage.fromJson(body);
   }
 

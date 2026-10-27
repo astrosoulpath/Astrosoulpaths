@@ -1,0 +1,2 @@
+export function safeDiscoveryReturn(id:string){return `/astrologers/${encodeURIComponent(id)}?consultation=chat#consultation-options`;}
+export function astrologerRate(value:{currency?:string;billingUnit?:string;pricePerMin:number}){return value.currency&&value.billingUnit==='minute'&&value.pricePerMin>0?new Intl.NumberFormat(undefined,{style:'currency',currency:value.currency,maximumFractionDigits:2}).format(value.pricePerMin)+" / min":"Rate awaiting confirmation";}

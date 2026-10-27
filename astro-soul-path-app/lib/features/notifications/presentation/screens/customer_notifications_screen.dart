@@ -1,6 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import 'dart:async';
+import '../../../../core/notifications/notification_session_fence.dart';
 import '../../../astrology_questions/presentation/screens/astrology_questions_screen.dart';
 import '../../../ai_astro/presentation/screens/ai_astro_home_screen.dart';
 import '../../../category_ai/presentation/screens/category_ai_chat_screen.dart';
@@ -10,6 +12,8 @@ import '../../../horoscope/presentation/screens/daily_horoscope_screen.dart';
 import '../../../kundli/presentation/screens/customer_kundli_screen.dart';
 import '../../data/app_notification.dart';
 import '../../data/notifications_api.dart';
+import '../widgets/horoscope_reminder_tile.dart';
+import 'notification_reading_screen.dart';
 
 class CustomerNotificationsScreen extends StatefulWidget {
   const CustomerNotificationsScreen({super.key});
@@ -26,15 +30,30 @@ class _CustomerNotificationsScreenState
   List<AppNotification> _items = const [];
   bool _loading = true;
   String? _error;
+  String _category = 'all';
+  Timer? _identityWatch;
+  final _epoch = NotificationSessionFence.generation;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _identityWatch = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted &&
+          (NotificationSessionFence.suspended ||
+              _epoch != NotificationSessionFence.generation)) {
+        setState(() {
+          _items = const [];
+          _error = 'Account changed. Open notifications again.';
+        });
+        _identityWatch?.cancel();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _identityWatch?.cancel();
     _api.close();
     super.dispose();
   }
@@ -65,6 +84,7 @@ class _CustomerNotificationsScreenState
 
       setState(() {
         _error = error.message;
+        _items = const [];
         _loading = false;
       });
     } catch (_) {
@@ -74,6 +94,7 @@ class _CustomerNotificationsScreenState
 
       setState(() {
         _error = 'Notifications could not be loaded.';
+        _items = const [];
         _loading = false;
       });
     }
@@ -107,13 +128,27 @@ class _CustomerNotificationsScreenState
     switch (type) {
       case 'subscription':
         await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const DailyHoroscopeScreen(),
-          ),
+          MaterialPageRoute<void>(builder: (_) => const DailyHoroscopeScreen()),
         );
         return;
 
+      case 'smart_insight':
       case 'horoscope':
+        final isSmartInsight = type == 'smart_insight';
+        final readingId =
+            data[isSmartInsight ? 'insightId' : 'readingId']?.toString() ?? '';
+        if (readingId.isNotEmpty) {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => NotificationReadingScreen(
+                readingId: readingId,
+                smartInsight: isSmartInsight,
+              ),
+            ),
+          );
+          return;
+        }
+        if (isSmartInsight) return;
         await Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const DailyHoroscopeScreen()),
         );
@@ -263,15 +298,57 @@ class _CustomerNotificationsScreenState
           const SizedBox(width: 6),
         ],
       ),
-      body: RefreshIndicator(
-        color: AppColors.gold,
-        onRefresh: _load,
-        child: _buildBody(),
+      body: Column(
+        children: [
+          const HoroscopeReminderTile(),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final category in [
+                  'all',
+                  'love',
+                  'career',
+                  'prosperity',
+                  'marriage',
+                  'cosmic',
+                  'growth',
+                  'horoscope',
+                ])
+                  Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: ChoiceChip(
+                      label: Text(category == 'all' ? 'All' : category),
+                      selected: _category == category,
+                      onSelected: (_) => setState(() => _category = category),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              color: AppColors.gold,
+              onRefresh: _load,
+              child: _buildBody(),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildBody() {
+    final visible = _items
+        .where(
+          (item) =>
+              _category == 'all' ||
+              item.type == _category ||
+              (item.type == 'smart_insight' &&
+                  item.data?['category'] == _category) ||
+              (_category == 'prosperity' && item.type == 'finance'),
+        )
+        .toList();
     if (_loading && _items.isEmpty) {
       return const Center(
         child: CircularProgressIndicator(color: AppColors.gold),
@@ -305,7 +382,7 @@ class _CustomerNotificationsScreenState
       );
     }
 
-    if (_items.isEmpty) {
+    if (visible.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: const [
@@ -338,10 +415,10 @@ class _CustomerNotificationsScreenState
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
-      itemCount: _items.length,
+      itemCount: visible.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
-        final item = _items[index];
+        final item = visible[index];
 
         return InkWell(
           borderRadius: BorderRadius.circular(18),

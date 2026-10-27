@@ -1,8 +1,15 @@
 "use client";
 import Link from "next/link";
+import { adminModules } from "./ui/admin-navigation";
+import { AdminIcon } from "./ui/AdminIcon";
+import { AdminWelcomeArt } from "./ui/AdminWelcomeArt";
+import { AdminStatCard, AdminSectionCard, AdminModuleLink, AdminLoadingState, AdminErrorState } from "./ui/AdminUI";
 import { useEffect, useState } from "react";
 
 import { AstrologerTable } from "./components/AstrologerTable";
+import { adminFetch } from "./auth/admin-session";
+type CurrencyAmount = {currency: string; amount: number | string | null};
+
 type DashboardStats = {
   users: {
     total: number;
@@ -20,14 +27,17 @@ type DashboardStats = {
   payments: {
     totalOrders: number;
     successfulOrders: number;
-    successfulAmount: number | string;
+    successfulAmount: number | string | null;
+    successfulAmountByCurrency?: CurrencyAmount[];
     averageSuccessfulAmount: number | string;
     refundedOrders: number;
-    refundedAmount: number | string;
+    refundedAmount: number | string | null;
+    refundedAmountByCurrency?: CurrencyAmount[];
   };
   wallets: {
     totalWallets: number;
-    totalBalance: number | string;
+    totalBalance: number | string | null;
+    totalBalanceByCurrency?: CurrencyAmount[];
     totalLockedBalance: number | string;
   };
   reviews: {
@@ -41,111 +51,15 @@ type DashboardResponse = {
   message?: string;
 };
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
+const modules = adminModules;
 
-const modules = [
-  {
-    title: "Manage Customers",
-    description: "View users, profiles, wallets and account activity.",
-    href: "/admin/customers",
-  },
-  {
-    title: "Support Tickets",
-    description:
-      "Manage 24x7 customer support, replies, assignment and resolution.",
-    href: "/admin/support",
-  },
-  {
-    title: "Customer Feedback",
-    description: "Review customer ratings, messages, status and admin notes.",
-    href: "/admin/feedback",
-  },
-  {
-    title: "Approve Astrologers",
-    description: "Review pending astrologers and manage approval status.",
-    href: "/admin/astrologers",
-  },
-  {
-    title: "Manage Consultations",
-    description: "Monitor audio calls, chat sessions and consultation history.",
-    href: "/admin/consultations",
-  },
-  {
-    title: "Wallet & Transactions",
-    description: "Review wallet balances, ledger entries and deductions.",
-    href: "/admin/wallet",
-  },
-  {
-    title: "Payments",
-    description: "Track successful, pending, failed and refunded payments.",
-    href: "/admin/payments",
-  },
-  {
-    title: "Subscriptions",
-    description: "Manage active plans and subscription activity.",
-    href: "/admin/subscriptions",
-  },
-  {
-    title: "Platform Analytics",
-    description: "View revenue, usage and consultation performance.",
-    href: "/admin/reports",
-  },
-  {
-    title: "Reports",
-    description: "Generate operational and financial reports.",
-    href: "/admin/reports",
-  },
-  {
-    title: "Kundli Settings",
-    description: "Professional Kundli plan, charts and report controls",
-    href: "/admin/kundli-settings",
-    icon: "\u{1F52F}",
-  },
-  {
-    title: "Marketplace",
-    description:
-      "Manage sellers, products, categories, approvals and campaigns.",
-    href: "/admin/marketplace",
-  },
-  {
-    title: "Platform Settings",
-    description: "Manage platform commission and astrologer revenue share.",
-    href: "/admin/platform-settings",
-  },
-  {
-    title: "Video Management",
-    description:
-      "Add YouTube lessons, translations, country availability and publishing.",
-    href: "/admin/videos",
-    icon: "\u25B6",
-  },
-];
-
-function formatCurrency(value: number | string | null | undefined) {
-  const parsedValue = typeof value === "string" ? Number(value) : (value ?? 0);
-
-  if (!Number.isFinite(parsedValue)) {
-    return "\u20B90";
-  }
-
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 2,
-  }).format(parsedValue);
-}
-
-function getStoredAdminToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return (
-    window.localStorage.getItem("asp_admin_access_token") ??
-    window.localStorage.getItem("asp_access_token") ??
-    window.localStorage.getItem("access_token")
-  );
+function formatCurrencies(rows?: CurrencyAmount[]) {
+  if (!rows) return "Unavailable";
+  if (!rows.length) return "No records";
+  return rows.map(({currency, amount}) => {
+    if (amount === null || !/^[A-Z]{3}$/.test(currency) || !Number.isFinite(Number(amount))) return "Unavailable";
+    return new Intl.NumberFormat("en", {style:"currency", currency, currencyDisplay:"code"}).format(Number(amount));
+  }).join(" / ");
 }
 
 export function AdminDashboard() {
@@ -161,18 +75,9 @@ export function AdminDashboard() {
         setIsLoading(true);
         setErrorMessage(null);
 
-        const accessToken = getStoredAdminToken();
-
-        if (!accessToken) {
-          throw new Error(
-            "Admin authentication is not connected yet. Dashboard preview is available with temporary values.",
-          );
-        }
-
-        const response = await fetch(`${API_BASE_URL}/admin/stats`, {
+        const response = await adminFetch("/admin/stats", {
           method: "GET",
           headers: {
-            Authorization: `Bearer ${accessToken}`,
             Accept: "application/json",
           },
           cache: "no-store",
@@ -180,7 +85,7 @@ export function AdminDashboard() {
 
         const result = (await response.json()) as DashboardResponse;
 
-        if (!response.ok || !result.success) {
+        if (!response.ok || !result.success || !result.data) {
           throw new Error(
             result.message ||
               `Unable to load admin dashboard (${response.status}).`,
@@ -215,154 +120,62 @@ export function AdminDashboard() {
   const dashboardCards = [
     {
       title: "Total Customers",
-      value: stats?.users.total ?? 0,
+      value: stats?.users?.total ?? "Unavailable",
       description: "Registered customer accounts",
     },
     {
       title: "Pending Astrologers",
-      value: stats?.astrologers.pending ?? 0,
+      value: stats?.astrologers?.pending ?? "Unavailable",
       description: "Awaiting admin approval",
     },
     {
       title: "Approved Astrologers",
-      value: stats?.astrologers.approved ?? 0,
+      value: stats?.astrologers?.approved ?? "Unavailable",
       description: "Approved platform astrologers",
     },
     {
       title: "Online Astrologers",
-      value: stats?.astrologers.online ?? 0,
+      value: stats?.astrologers?.online ?? "Unavailable",
       description: "Currently marked online",
     },
     {
       title: "Consultations",
-      value: stats?.consultations.totalCallSessions ?? 0,
+      value: stats?.consultations?.totalCallSessions ?? "Unavailable",
       description: "Total call and chat sessions",
     },
     {
       title: "Successful Revenue",
-      value: formatCurrency(stats?.payments.successfulAmount),
-      description: `${stats?.payments.successfulOrders ?? 0} successful payments`,
+      value: formatCurrencies(stats?.payments?.successfulAmountByCurrency),
+      description: `${stats?.payments?.successfulOrders ?? "Unavailable"} successful payments`,
     },
     {
       title: "Wallet Balance",
-      value: formatCurrency(stats?.wallets.totalBalance),
-      description: `${stats?.wallets.totalWallets ?? 0} customer wallets`,
+      value: formatCurrencies(stats?.wallets?.totalBalanceByCurrency),
+      description: `${stats?.wallets?.totalWallets ?? "Unavailable"} customer wallets`,
     },
     {
       title: "Refunded Amount",
-      value: formatCurrency(stats?.payments.refundedAmount),
-      description: `${stats?.payments.refundedOrders ?? 0} refunded payments`,
+      value: formatCurrencies(stats?.payments?.refundedAmountByCurrency),
+      description: `${stats?.payments?.refundedOrders ?? "Unavailable"} refunded payments`,
     },
   ];
 
-  return (
-    <section className="relative overflow-hidden rounded-[28px] border border-slate-800/80 bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.08),_transparent_32%),linear-gradient(145deg,#07101f_0%,#0a1324_48%,#070d18_100%)] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.38)] sm:p-7 lg:p-8">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-400">
-            Platform Overview
-          </p>
-
-          <h1 className="mt-2 text-4xl font-black tracking-tight text-white sm:text-5xl">
-            Admin Dashboard
-          </h1>
-
-          <p className="mt-3 max-w-3xl text-base leading-7 text-slate-400 sm:text-lg">
-            Monitor customers, astrologers, consultations, payments, wallets and
-            overall platform activity.
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-700/70 bg-slate-900/80 px-4 py-3 text-xs font-semibold text-slate-400 shadow-inner backdrop-blur">
-          API: {API_BASE_URL}
-        </div>
-      </div>
-
-      {errorMessage ? (
-        <div className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4">
-          <p className="font-medium text-amber-300">
-            Admin data is not connected yet
-          </p>
-
-          <p className="mt-1 text-sm leading-6 text-amber-100/80">
-            {errorMessage}
-          </p>
-        </div>
-      ) : null}
-
-      <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {dashboardCards.map((item) => (
-          <article
-            key={item.title}
-            className="group relative overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-900/75 p-5 shadow-[0_12px_35px_rgba(0,0,0,0.22)] backdrop-blur transition duration-300 hover:-translate-y-1 hover:border-amber-400/50 hover:shadow-[0_18px_45px_rgba(0,0,0,0.34)]"
-          >
-            <p className="text-sm font-bold uppercase tracking-wide text-slate-400">
-              {item.title}
-            </p>
-
-            <h2 className="mt-3 text-4xl font-black tracking-tight text-white sm:text-5xl">
-              {isLoading ? "..." : item.value}
-            </h2>
-
-            <p className="mt-3 text-sm font-medium leading-6 text-slate-500">
-              {item.description}
-            </p>
-          </article>
-        ))}
-      </section>
-
-      <section className="mt-8 rounded-[26px] border border-slate-700/70 bg-slate-900/55 p-6 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
-        <div>
-          <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-400">
-            Administration
-          </p>
-
-          <h2 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
-            Management Modules
-          </h2>
-
-          <p className="mt-2 text-base text-slate-400">
-            Open a module to manage the corresponding platform area.
-          </p>
-        </div>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {modules.map((module) => (
-            <Link
-              key={`${module.href}-${module.title}`}
-              href={module.href}
-              className="group relative overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-950/75 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.18)] transition duration-300 hover:-translate-y-1 hover:border-amber-400/60 hover:bg-slate-900 hover:shadow-[0_16px_40px_rgba(0,0,0,0.30)]"
-            >
-              <h3 className="text-lg font-black tracking-tight text-white transition group-hover:text-amber-300">
-                {module.title}
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                {module.description}
-              </p>
-
-              <p className="mt-5 inline-flex items-center gap-2 text-sm font-black text-amber-400 transition group-hover:text-amber-300">
-                Open module <span aria-hidden="true">&rarr;</span>
-              </p>
-            </Link>
-          ))}
-        </div>
-      </section>
-      <section className="mt-8 rounded-[26px] border border-slate-700/70 bg-slate-900/55 p-6 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
-        <div>
-          <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-400">
-            Astrologer Management
-          </p>
-
-          <h2 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
-            Recent Astrologers
-          </h2>
-        </div>
-
-        <div className="mt-6 overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-950/70 shadow-[0_12px_35px_rgba(0,0,0,0.22)]">
-          <AstrologerTable />
-        </div>
-      </section>
+  if (isLoading) return <AdminLoadingState label="Loading verified Admin dashboard..."/>;
+  if (errorMessage || !stats) return <AdminErrorState title="Dashboard unavailable" actions={<div className="flex flex-wrap gap-4"><button type="button" onClick={() => window.location.reload()} className="admin-action">Retry</button><Link href="/admin/login" className="admin-action">Admin sign-in</Link></div>}>{errorMessage || "No dashboard data was returned."}</AdminErrorState>;
+  const statIcons = ["customers","astrologers","astrologers","astrologers","consultations","finance","wallet","payments"];
+  return <div>
+    <section className="admin-welcome" aria-labelledby="admin-welcome-title">
+      <div><p className="admin-eyebrow">Your administration workspace</p><h1 id="admin-welcome-title">Welcome to AstroSoulPath</h1><p>Monitor and manage your platform in real time.</p></div>
+      <AdminWelcomeArt/>
     </section>
-  );
+    <section className="admin-kpi-grid" aria-label="Verified platform statistics">
+      {dashboardCards.map((item,index)=><AdminStatCard key={item.title} title={item.title} value={item.value} description={item.description} icon={<AdminIcon name={statIcons[index]}/>}/>)}
+    </section>
+    <AdminSectionCard title="Administration Modules" description="Everything you need to keep your platform running smoothly.">
+      <div className="admin-module-grid">{modules.map(module=><AdminModuleLink key={module.href} href={module.href} title={module.title} description={module.description} icon={<AdminIcon name={module.icon}/>}/>)}</div>
+    </AdminSectionCard>
+    <AdminSectionCard title="Recent Astrologers" description="Review existing profiles and manage their approval status." actions={<Link href="/admin/astrologers" className="admin-action">View all astrologers</Link>}>
+      <AstrologerTable/>
+    </AdminSectionCard>
+  </div>;
 }
