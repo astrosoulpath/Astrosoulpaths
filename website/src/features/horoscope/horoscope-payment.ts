@@ -1,8 +1,8 @@
-import { createSubscriptionPaymentOrder, reconcileSubscriptionPayment } from '@/services/subscriptionService';
+import { createSubscriptionPaymentOrder, getSubscriptionCheckoutConfig, verifySubscriptionCheckout } from '@/services/subscriptionService';
 import { customerSession, isDailyOffer, type JsonRecord } from './horoscope-api';
 
 export type CheckoutState = 'PENDING' | 'VERIFIED' | 'FAILED' | 'CANCELLED';
-type Options = {key: string; amount: number; currency: string; name: string; description: string; order_id: string; handler: (result: {razorpay_order_id: string}) => Promise<void>; modal: {ondismiss: () => void}; theme: {color: string}};
+type Options = {key: string; amount: number; currency: string; name: string; description: string; order_id: string; handler: (result: {razorpay_order_id: string; razorpay_payment_id?: string; razorpay_signature?: string}) => Promise<void>; modal: {ondismiss: () => void}; theme: {color: string}};
 type Checkout = {open: () => void; close: () => void; on: (event: 'payment.failed', callback: () => void) => void};
 type Constructor = new (options: Options) => Checkout;
 let sdk: Promise<Constructor> | null = null;
@@ -31,15 +31,18 @@ export function loadCheckout(): Promise<Constructor> {
   return sdk;
 }
 
-/** Reuses existing order/reconciliation APIs. A browser callback never grants access.
- * New website checkout is sandbox-only; backend gates still control availability. */
+/** The backend supplies the public key and enforces its default-off LIVE gate. */
 export async function horoscopeCheckout(plan: JsonRecord, key: string, load = loadCheckout, signal?: AbortSignal): Promise<CheckoutState> {
-  if (!isDailyOffer(plan) || !key.startsWith('rzp_test_')) throw new Error('An approved sandbox checkout configuration is required. Live checkout is disabled here.');
+  if (!isDailyOffer(plan)) throw new Error('An authoritative daily horoscope offer is required.');
   const owner = customerSession();
   function assertOwner() {if (signal?.aborted || customerSession() !== owner) throw new Error('Account changed or checkout closed. Refresh status before retrying.');}
+  const config = await bounded(getSubscriptionCheckoutConfig()); assertOwner();
+  if (key && key !== config.keyId) throw new Error('Checkout environment changed. Refresh before retrying.');
   const Provider = await load(); assertOwner();
   const order = await bounded(createSubscriptionPaymentOrder('DAILY_HOROSCOPE_MONTHLY')); assertOwner();
   if (!order.id || order.currency !== plan.currency || order.amount !== Number(plan.price) * 100) throw new Error('Checkout order does not match the authoritative offer. No checkout opened.');
+  const latest = await bounded(getSubscriptionCheckoutConfig()); assertOwner();
+  if (latest.keyId !== config.keyId || latest.mode !== config.mode) throw new Error('Checkout environment changed. Check status before retrying.');
   return new Promise<CheckoutState>((resolve, reject) => {
     let finished = false, verifying = false;
     const finish = (state?: CheckoutState, error?: Error) => {
@@ -47,13 +50,13 @@ export async function horoscopeCheckout(plan: JsonRecord, key: string, load = lo
       if (error) reject(error); else resolve(state ?? 'PENDING');
     };
     const abort = () => {finish(undefined, new Error('Checkout closed. Refresh status before retrying.')); instance?.close();};
-    const instance = new Provider({key, amount: order.amount, currency: order.currency, name: 'Astro Soul Path', description: 'Personalized Daily Horoscope', order_id: order.id, theme: {color: '#5b3475'},
+    const instance = new Provider({key: config.keyId, amount: order.amount, currency: order.currency, name: 'Astro Soul Path', description: 'Personalized Daily Horoscope', order_id: order.id, theme: {color: '#5b3475'},
       handler: async result => {
         if (finished || verifying) return; verifying = true;
         try {
           assertOwner();
           if (result.razorpay_order_id !== order.id) throw new Error('Payment order mismatch. Refresh status.');
-          const verification = await bounded(reconcileSubscriptionPayment(order.id)); assertOwner();
+          const verification = await bounded(verifySubscriptionCheckout(order.id, result)); assertOwner();
           finish(verification.success && verification.status === 'SUCCESS' ? 'VERIFIED' : verification.status === 'FAILED' ? 'FAILED' : 'PENDING');
         } catch {finish(undefined, new Error('Payment verification was not confirmed. Refresh status before retrying.'));}
       }, modal: {ondismiss: () => {if (!verifying) finish('CANCELLED');}},

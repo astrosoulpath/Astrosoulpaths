@@ -226,7 +226,10 @@ class AuthApi {
     );
   }
 
-  Future<VerifyOtpResult> firebaseEmailLogin({required String idToken}) async {
+  Future<VerifyOtpResult> firebaseEmailLogin({
+    required String idToken,
+    AuthPortal portal = AuthPortal.customer,
+  }) async {
     final normalizedToken = idToken.trim();
 
     if (normalizedToken.isEmpty) {
@@ -235,7 +238,7 @@ class AuthApi {
 
     final body = await _post(
       endpoint: '/auth/firebase/email',
-      payload: {'idToken': normalizedToken, 'portal': 'customer'},
+      payload: {'idToken': normalizedToken, 'portal': portal.name},
       fallbackError: 'Firebase email login failed.',
     );
 
@@ -255,19 +258,12 @@ class AuthApi {
       );
     }
 
-    final session = <String, dynamic>{
-      'accessToken': normalizedToken,
-      'refreshToken': '',
-      'expiresIn': 3600,
-      'tokenType': 'bearer',
-      'authProvider': 'firebase',
-    };
-
+    final session = _contextSession(body, portal);
     return VerifyOtpResult(
       message: _readMessage(body, fallback: 'Email login successful.'),
       portal: responsePortal,
       role: role,
-      accessToken: normalizedToken,
+      accessToken: session['accessToken'] as String,
       user: user,
       session: session,
       nextStep: nextStep,
@@ -393,19 +389,14 @@ class AuthApi {
       );
     }
 
+    final session = _contextSession(body, portal);
     return VerifyOtpResult(
       message: _readMessage(body, fallback: 'Google login successful.'),
       portal: responsePortal,
       role: role,
-      accessToken: normalizedToken,
+      accessToken: session['accessToken'] as String,
       user: user,
-      session: {
-        'accessToken': normalizedToken,
-        'refreshToken': '',
-        'expiresIn': 3600,
-        'tokenType': 'bearer',
-        'authProvider': 'firebase',
-      },
+      session: session,
       nextStep: nextStep,
     );
   }
@@ -441,21 +432,41 @@ class AuthApi {
       );
     }
 
-    return VerifyOtpResult(
-      message: _readMessage(body, fallback: 'Google linked successfully.'),
-      portal: portal,
-      role: role,
-      accessToken: normalizedToken,
-      user: user,
-      session: {
-        'accessToken': normalizedToken,
-        'refreshToken': '',
-        'expiresIn': 3600,
-        'tokenType': 'bearer',
-        'authProvider': 'firebase',
-      },
-      nextStep: nextStep,
+    // Linking requires explicit consent above; exchange the verified identity
+    // separately rather than retaining a raw Firebase API credential.
+    final refreshed = await _post(
+      endpoint: '/auth/context/refresh',
+      payload: {'idToken': normalizedToken, 'portal': 'customer'},
+      fallbackError: 'Unable to establish the linked account session.',
     );
+    final session = _contextSession(refreshed, AuthPortal.customer);
+    return VerifyOtpResult(
+      message: 'Google linked successfully.',
+      portal: 'customer',
+      role: 'CUSTOMER',
+      accessToken: session['accessToken'] as String,
+      user: _readMap(refreshed['user']),
+      session: session,
+      nextStep: refreshed['nextStep']?.toString() ?? nextStep,
+    );
+  }
+
+  Map<String, dynamic> _contextSession(
+    Map<String, dynamic> body,
+    AuthPortal portal,
+  ) {
+    final session = _readMap(body['session']);
+    final expected = portal == AuthPortal.customer ? 'customer' : 'astrologer';
+    if (session['authProvider'] != 'asp-context' ||
+        session['authContext'] != expected ||
+        session['accessToken'] is! String ||
+        !(session['accessToken'] as String).startsWith('aspctx.') ||
+        _readMap(body['user'])['authContext'] != expected) {
+      throw const AuthApiException(
+        'A secure account context could not be established. Please sign in again.',
+      );
+    }
+    return session;
   }
 
   Future<Map<String, dynamic>> linkFirebaseGoogleToLegacyAccount({

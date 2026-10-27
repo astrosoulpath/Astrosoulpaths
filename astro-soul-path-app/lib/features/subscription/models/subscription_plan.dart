@@ -51,6 +51,9 @@ class SubscriptionPlan {
   }
 
   String get billingLabel {
+    if (isDailyHoroscope && durationDays == 30) {
+      return '30 days';
+    }
     if (durationDays >= 365) {
       return 'year';
     }

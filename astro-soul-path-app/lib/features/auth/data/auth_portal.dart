@@ -18,7 +18,7 @@ extension AuthPortalDetails on AuthPortal {
     AuthPortal.astrologer =>
       'Manage consultations, availability and your earnings.',
     AuthPortal.joinAstrologer =>
-      'Verify your mobile number to begin your application.',
+      'Sign in with Google or Email to begin your application.',
   };
 
   String get actionLabel => switch (this) {

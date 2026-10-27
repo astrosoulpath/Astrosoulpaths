@@ -23,6 +23,34 @@ class SubscriptionApi {
 
   final http.Client _client;
   final AuthSessionStore _sessionStore;
+  final int _revision = AuthSessionStore.sessionRevision;
+  bool _closed = false;
+  Future<StoredAuthSession> _ownedSession() async {
+    final session = await _sessionStore.read();
+    if (_closed ||
+        _revision != AuthSessionStore.sessionRevision ||
+        session == null ||
+        session.accessToken.trim().isEmpty ||
+        !['customer', 'astrologer'].contains(session.portal) ||
+        session.user['id'] is! String ||
+        (session.user['id'] as String).isEmpty) {
+      throw const SubscriptionApiException(
+        'Your account changed or expired. Reopen subscriptions.',
+        loginRequired: true,
+      );
+    }
+    return session;
+  }
+
+  Future<void> _unchanged(StoredAuthSession original) async {
+    final current = await _ownedSession();
+    if (current.user['id'] != original.user['id'] ||
+        current.portal != original.portal) {
+      throw const SubscriptionApiException(
+        'Account changed. Reopen subscriptions.',
+      );
+    }
+  }
 
   Future<List<SubscriptionPlan>> getPlans() async {
     try {
@@ -69,8 +97,8 @@ class SubscriptionApi {
   }
 
   Future<Map<String, dynamic>> createSubscriptionOrder(String planName) async {
-    final session = await _sessionStore.read();
-    final accessToken = session?.accessToken.trim() ?? '';
+    final session = await _ownedSession();
+    final accessToken = session.accessToken.trim();
 
     if (accessToken.isEmpty) {
       throw const SubscriptionApiException(
@@ -95,6 +123,7 @@ class SubscriptionApi {
           .timeout(ApiConfig.requestTimeout);
 
       final body = _decodeBody(response.body);
+      await _unchanged(session);
 
       if (response.statusCode == 401) {
         throw const SubscriptionApiException(
@@ -164,9 +193,40 @@ class SubscriptionApi {
     return fallback;
   }
 
+  Future<Map<String, dynamic>> verifyCheckout({
+    required String expectedOrderId,
+    required String? callbackOrderId,
+    required String? paymentId,
+    required String? signature,
+  }) async {
+    if (!RegExp(r'^order_[A-Za-z0-9]+$').hasMatch(expectedOrderId) ||
+        callbackOrderId != expectedOrderId ||
+        !RegExp(r'^pay_[A-Za-z0-9]+$').hasMatch(paymentId ?? '') ||
+        !RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(signature ?? '')) {
+      throw const SubscriptionApiException(
+        'Invalid checkout proof. Check payment status before retrying.',
+      );
+    }
+    return _postVerification('verify-checkout', {
+      'orderId': expectedOrderId,
+      'paymentId': paymentId,
+      'signature': signature,
+    });
+  }
+
   Future<Map<String, dynamic>> reconcileOrder(String razorpayOrderId) async {
-    final session = await _sessionStore.read();
-    final accessToken = session?.accessToken.trim() ?? '';
+    if (!RegExp(r'^order_[A-Za-z0-9]+$').hasMatch(razorpayOrderId)) {
+      throw const SubscriptionApiException('Invalid payment order reference.');
+    }
+    return _postVerification('reconcile/$razorpayOrderId', null);
+  }
+
+  Future<Map<String, dynamic>> _postVerification(
+    String path,
+    Map<String, dynamic>? proof,
+  ) async {
+    final session = await _ownedSession();
+    final accessToken = session.accessToken.trim();
 
     if (accessToken.isEmpty) {
       throw const SubscriptionApiException(
@@ -178,17 +238,18 @@ class SubscriptionApi {
     try {
       final response = await _client
           .post(
-            Uri.parse(
-              '${ApiConfig.baseUrl}/payments/reconcile/$razorpayOrderId',
-            ),
+            Uri.parse('${ApiConfig.baseUrl}/payments/$path'),
             headers: {
               'Accept': 'application/json',
+              'Content-Type': 'application/json',
               'Authorization': 'Bearer $accessToken',
             },
+            body: proof == null ? null : jsonEncode(proof),
           )
           .timeout(ApiConfig.requestTimeout);
 
       final body = _decodeBody(response.body);
+      await _unchanged(session);
 
       if (response.statusCode == 401) {
         throw const SubscriptionApiException(
@@ -217,8 +278,8 @@ class SubscriptionApi {
   }
 
   Future<Map<String, dynamic>?> getCurrentSubscription() async {
-    final session = await _sessionStore.read();
-    final accessToken = session?.accessToken.trim() ?? '';
+    final session = await _ownedSession();
+    final accessToken = session.accessToken.trim();
 
     if (accessToken.isEmpty) {
       throw const SubscriptionApiException(
@@ -239,6 +300,7 @@ class SubscriptionApi {
           .timeout(ApiConfig.requestTimeout);
 
       final body = _decodeBody(response.body);
+      await _unchanged(session);
 
       if (response.statusCode == 401) {
         throw const SubscriptionApiException(
@@ -260,11 +322,11 @@ class SubscriptionApi {
       }
 
       if (data is Map<String, dynamic>) {
-        return data;
+        return {...data, 'billing': body['billing']};
       }
 
       if (data is Map) {
-        return Map<String, dynamic>.from(data);
+        return {...Map<String, dynamic>.from(data), 'billing': body['billing']};
       }
 
       return null;
@@ -278,6 +340,35 @@ class SubscriptionApi {
   }
 
   void close() {
+    _closed = true;
     _client.close();
+  }
+
+  Future<void> cancelAtPeriodEnd({String? expectedUserId}) async {
+    final session = await _ownedSession();
+    if (expectedUserId == null ||
+        session.user['id']?.toString() != expectedUserId) {
+      throw const SubscriptionApiException(
+        'Account changed. Refresh your subscription before cancelling.',
+      );
+    }
+    final response = await _client
+        .post(
+          Uri.parse('${ApiConfig.baseUrl}/subscription/cancel'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${session.accessToken}',
+          },
+          body: jsonEncode({'cancelAtPeriodEnd': true}),
+        )
+        .timeout(ApiConfig.requestTimeout);
+    await _unchanged(session);
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        _decodeBody(response.body)['success'] != true) {
+      throw const SubscriptionApiException(
+        'Cancellation was not confirmed. Refresh your subscription before retrying.',
+      );
+    }
   }
 }

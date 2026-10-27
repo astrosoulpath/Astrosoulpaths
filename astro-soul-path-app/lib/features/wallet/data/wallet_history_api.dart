@@ -1,3 +1,4 @@
+import '../../../core/network/customer_session_client.dart';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -9,13 +10,16 @@ import 'wallet_transaction.dart';
 
 class WalletHistoryApi {
   WalletHistoryApi({http.Client? client, AuthSessionStore? sessionStore})
-    : _client = client ?? http.Client(),
+    : _client = CustomerSessionClient(client ?? http.Client()),
       _sessionStore = sessionStore ?? AuthSessionStore();
 
   final http.Client _client;
   final AuthSessionStore _sessionStore;
 
-  Future<List<WalletTransaction>> getHistory() async {
+  Future<List<WalletTransaction>> getHistory({
+    int page = 1,
+    int limit = 100,
+  }) async {
     final session = await _sessionStore.read();
     final accessToken = session?.accessToken.trim() ?? '';
 
@@ -29,7 +33,9 @@ class WalletHistoryApi {
     try {
       final response = await _client
           .get(
-            Uri.parse('${ApiConfig.baseUrl}/wallet/history'),
+            Uri.parse(
+              '${ApiConfig.baseUrl}/wallet/history?page=${page < 1 ? 1 : page}&limit=${limit.clamp(1, 100)}',
+            ),
             headers: {
               'Accept': 'application/json',
               'Authorization': 'Bearer $accessToken',

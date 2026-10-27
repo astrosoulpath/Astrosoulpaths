@@ -31,12 +31,18 @@ class CustomerWallet {
   final double availableBalance;
   final String currency;
 
-  String get availableBalanceLabel =>
-      'Ã¢â€šÂ¹${_formatAmount(availableBalance)}';
+  String get availableBalanceLabel => _label(availableBalance);
+  String get totalBalanceLabel => _label(balance);
+  String get lockedBalanceLabel => _label(lockedBalance);
 
-  String get totalBalanceLabel => 'Ã¢â€šÂ¹${_formatAmount(balance)}';
-
-  String get lockedBalanceLabel => 'Ã¢â€šÂ¹${_formatAmount(lockedBalance)}';
+  String _label(double value) {
+    final code = currency.trim().toUpperCase();
+    if (!RegExp(r'^[A-Z]{3}$').hasMatch(code) || !value.isFinite) {
+      return 'Unavailable';
+    }
+    final prefix = code == 'INR' ? '\u20B9' : '$code ';
+    return '$prefix${_formatAmount(value)}';
+  }
 
   bool canAfford(double amount) {
     return amount >= 0 && availableBalance >= amount;

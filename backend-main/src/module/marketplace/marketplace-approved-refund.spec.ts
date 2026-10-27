@@ -1,0 +1,26 @@
+import { MarketplaceApprovedRefund } from './marketplace-approved-refund';
+import { MarketplaceRefundWorkflow } from './marketplace-refund-workflow';
+import { getRazorpayInstance } from '../../config/razorpay.config';
+jest.mock('../../config/razorpay.config',()=>({getRazorpayInstance:jest.fn()}));
+describe('approved marketplace refund orchestration (isolated, no provider dispatch)',()=>{
+ const env={...process.env};
+ beforeEach(()=>{Object.assign(process.env,{RAZORPAY_KEY_ID:'rzp_test_synthetic',MARKETPLACE_REFUND_EXECUTION_ENABLED:'true',MARKETPLACE_REFUND_WORKFLOW_ENABLED:'true',MARKETPLACE_REFUND_POLICY_APPROVED:'true',RAZORPAY_REFUNDS_ENABLED:'true',MARKETPLACE_REFUND_POLICY_REVISION:'reviewed-v1',RAZORPAY_REFUND_POLICY_REVISION:'reviewed-v1'});});
+ afterEach(()=>{process.env={...env};jest.restoreAllMocks();});
+ function fixture(){
+  const actor={isActive:true,isBlocked:false,role:{name:'ADMIN'}};
+  const row={id:'approved-intent',caseId:'case',providerPaymentId:'pay_synthetic',orderId:'order_synthetic',amountMinor:100n,currency:'INR',policyRevision:'reviewed-v1',componentSnapshot:{version:1,allocations:[{sellerOrderId:'seller',currency:'INR',productMinor:100,discountMinor:0,shippingMinor:0,taxMinor:0,feeMinor:0}]}};
+  const tx:any={user:{findUnique:jest.fn().mockResolvedValue(actor)},$executeRaw:jest.fn().mockResolvedValue(1),marketplaceCaseEvent:{create:jest.fn()}};
+  const db:any={user:{findUnique:jest.fn().mockResolvedValue(actor)},$queryRaw:jest.fn().mockResolvedValue([row]),$transaction:jest.fn().mockImplementation(fn=>fn(tx))};
+  const provider={orders:{fetch:jest.fn().mockResolvedValue({id:'order_synthetic',status:'paid',amount:100,currency:'INR'})},payments:{fetch:jest.fn().mockResolvedValue({id:'pay_synthetic',order_id:'order_synthetic',amount:100,amount_refunded:0,status:'captured',captured:true,currency:'INR'}),fetchMultipleRefund:jest.fn().mockResolvedValue({items:[]}),refund:jest.fn().mockResolvedValue({id:'rfnd_synthetic',payment_id:'pay_synthetic',receipt:'approved-intent',amount:100,currency:'INR',status:'pending'})},refunds:{fetch:jest.fn().mockResolvedValue({id:'rfnd_synthetic',payment_id:'pay_synthetic',amount:100,currency:'INR',status:'pending'})}};
+  (getRazorpayInstance as jest.Mock).mockReturnValue(provider);
+  return {actor,row,tx,db,provider,service:new MarketplaceApprovedRefund(db)};
+ }
+ it('disabled gate prevents all database and provider work',async()=>{const f=fixture();delete process.env.MARKETPLACE_REFUND_EXECUTION_ENABLED;await expect(f.service.submit('approved-intent','admin','Approved test reason')).rejects.toThrow('not activated');expect(f.db.user.findUnique).not.toHaveBeenCalled();expect(f.provider.payments.refund).not.toHaveBeenCalled();});
+ it.each(['CUSTOMER','ASTROLOGER'])('canonical %s cannot submit refunds',async role=>{const f=fixture();f.actor.role.name=role;await expect(f.service.submit('approved-intent','actor','Approved test reason')).rejects.toThrow('Admin');expect(f.provider.payments.fetch).not.toHaveBeenCalled();});
+ it('blocked Admin cannot submit',async()=>{const f=fixture();f.actor.isBlocked=true;await expect(f.service.submit('approved-intent','admin','Approved test reason')).rejects.toThrow('Admin');});
+ it('policy revision drift prevents provider submission',async()=>{const f=fixture();f.row.policyRevision='old';await expect(f.service.submit('approved-intent','admin','Approved test reason')).rejects.toThrow('immutable');expect(f.provider.payments.refund).not.toHaveBeenCalled();});
+ it('failed audit transaction prevents provider refund POST',async()=>{const f=fixture();f.tx.$executeRaw.mockResolvedValueOnce(1).mockRejectedValueOnce(Error('audit unavailable'));await expect(f.service.submit('approved-intent','admin','Approved test reason')).rejects.toThrow('audit unavailable');expect(f.provider.payments.refund).not.toHaveBeenCalled();expect(f.db.$transaction.mock.calls[0][1]).toEqual({isolationLevel:'Serializable'});});
+ it('lost concurrent claim never sends provider refund',async()=>{const f=fixture();f.tx.$executeRaw.mockResolvedValue(0);await expect(f.service.submit('approved-intent','admin','Approved test reason')).rejects.toThrow('already claimed');expect(f.provider.payments.refund).not.toHaveBeenCalled();});
+ it('accepted refund persists reference before invoking confirmation/journal workflow',async()=>{const f=fixture();const reconciliation=jest.spyOn(MarketplaceRefundWorkflow.prototype,'reconcileAndPost').mockResolvedValue({pending:true});const result=await f.service.submit('approved-intent','admin','Approved test reason');expect(result.data).toMatchObject({pending:true,bankSettlementVerified:false});expect(f.provider.payments.refund).toHaveBeenCalledTimes(1);expect(reconciliation).toHaveBeenCalled();expect(f.tx.$executeRaw.mock.calls.some(c=>c[0].join('').includes('"providerRefundId"'))).toBe(true);});
+ it('uncertain provider response records UNKNOWN and never retries',async()=>{const f=fixture();f.provider.payments.refund.mockRejectedValue(Error('private provider failure'));await expect(f.service.submit('approved-intent','admin','Approved test reason')).rejects.toThrow('uncertain');expect(f.provider.payments.refund).toHaveBeenCalledTimes(1);expect(f.tx.$executeRaw.mock.calls.some(c=>c[0].join('').includes("state='UNKNOWN'"))).toBe(true);});
+});

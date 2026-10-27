@@ -546,6 +546,7 @@ export class PaymentsService {
     }
 
     if (event.event === 'payment.failed') {
+      if (!this.isPaymentAlreadyProcessed(paymentOrder)) this.assertKnownPaymentEnvironment(paymentOrder);
       return this.handleFailedPayment(event, paymentOrder, payment);
     }
 
@@ -650,6 +651,7 @@ export class PaymentsService {
       };
     }
 
+    this.assertKnownPaymentEnvironment(paymentOrder);
     const payments = await this.fetchOrderPaymentsFromRazorpay(razorpayOrderId);
 
     const capturedPayment = payments.find(
@@ -895,6 +897,16 @@ export class PaymentsService {
     return razorpayOrder;
   }
 
+  private assertKnownPaymentEnvironment(order: PaymentOrderWithRelations): void {
+    const mode = configuredPaymentMode();
+    if (mode === 'UNKNOWN' || (order.metadata as Record<string, unknown> | null)?.providerMode !== mode) {
+      throw new ConflictException('Payment environment is unknown or mismatched; operator review required.');
+    }
+    if (mode === 'LIVE' && process.env.RAZORPAY_LIVE_PAYMENTS_ENABLED !== 'true') {
+      throw new ServiceUnavailableException('Live payment fulfillment is disabled pending explicit approval.');
+    }
+  }
+
   private async handleCapturedPayment(
     event: RazorpayWebhookPayload,
     paymentOrder: PaymentOrderWithRelations,
@@ -920,6 +932,7 @@ export class PaymentsService {
       };
     }
 
+    this.assertKnownPaymentEnvironment(paymentOrder);
     this.assertCapturedAmountMatchesOrder(paymentOrder, payment);
 
     this.assertCapturedCurrencyMatchesOrder(paymentOrder, payment);

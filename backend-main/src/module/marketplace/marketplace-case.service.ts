@@ -9,10 +9,43 @@ import { getRazorpayInstance } from '../../config/razorpay.config';
 import { randomUUID } from 'crypto';
 import { refundComponents } from './marketplace-refund-journal';
 import { PrepareMarketplaceRefundDto } from './dto/prepare-marketplace-refund.dto';
+import { MarketplaceApprovedRefund } from './marketplace-approved-refund';
+import { configuredPaymentMode } from '../payments/payment-creation-command';
 
 @Injectable()
 export class MarketplaceCaseService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async submitApprovedRefund(subject: string, id: string, reason: string) {
+    this.enabled();
+    const admin = await this.actor(subject, true);
+    return new MarketplaceApprovedRefund(this.prisma).submit(id, admin.id, reason);
+  }
+
+  async refundStatus(subject: string, id: string) {
+    this.enabled();
+    await this.actor(subject, true);
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) throw new BadRequestException('Invalid refund reference');
+    const rows=await this.prisma.$queryRaw<any[]>`SELECT a.id,a.state,a."amountMinor",a.currency,a."providerRefundId",a."leaseToken",a."policyRevision",a."updatedAt",
+      jsonb_array_length(a."componentSnapshot"->'allocations')::int AS "expectedEntries",
+      (SELECT count(*)::int FROM "MarketplaceFinancialEntry" e WHERE e.kind='REFUND' AND e."eventKey"='refund:'||a.id||':'||e."sellerOrderId") AS "postedEntries"
+      FROM "MarketplaceRefundAttempt" a WHERE a.id=${id}`;
+    if(rows.length!==1)throw new NotFoundException('Refund attempt not found');
+    const row=rows[0];
+    const audit=await this.prisma.$queryRaw<any[]>`SELECT action,state,reason,"createdAt" FROM "AdminFinanceAction" WHERE "referenceId"=${id} ORDER BY "createdAt" DESC,id DESC LIMIT 50`;
+    const {leaseToken,...visible}=row;
+    return {success:true,data:{...visible,amountMinor:row.amountMinor.toString(),audit,
+      reconciliation:row.providerRefundId&&leaseToken?{refundId:row.providerRefundId,fence:leaseToken}:null,
+      submissionUncertain:row.state==='UNKNOWN'||row.state==='SUBMITTING',
+      providerConfirmed:row.state==='PROVIDER_CONFIRMED',
+      financialJournalPosted:row.state==='PROVIDER_CONFIRMED'&&row.expectedEntries>0&&row.postedEntries===row.expectedEntries,bankSettlement:'UNVERIFIED',
+      canSubmit:row.state==='PREPARED'&&process.env.MARKETPLACE_REFUND_EXECUTION_ENABLED==='true'&&
+        process.env.RAZORPAY_REFUNDS_ENABLED==='true'&&process.env.MARKETPLACE_REFUND_POLICY_APPROVED==='true'&&
+        process.env.MARKETPLACE_REFUND_WORKFLOW_ENABLED==='true'&&row.policyRevision===process.env.MARKETPLACE_REFUND_POLICY_REVISION&&
+        row.policyRevision===process.env.RAZORPAY_REFUND_POLICY_REVISION&&configuredPaymentMode()!=='UNKNOWN'&&
+        (configuredPaymentMode()!=='LIVE'||process.env.RAZORPAY_LIVE_PAYMENTS_ENABLED==='true'),
+    }};
+  }
 
   async submitTestRefund(subject:string,id:string) {
     this.enabled();
@@ -29,7 +62,10 @@ export class MarketplaceCaseService {
   async reconcileRefund(subject:string,id:string,dto:ReconcileMarketplaceRefundDto) {
     this.enabled();
     const admin=await this.actor(subject,true);
-    if(process.env.MARKETPLACE_REFUND_RECONCILE_ENABLED!=='true' || !process.env.RAZORPAY_KEY_ID?.startsWith('rzp_test_')) throw new ServiceUnavailableException('Sandbox refund reconciliation is not activated');
+    const mode = configuredPaymentMode();
+    if(process.env.MARKETPLACE_REFUND_RECONCILE_ENABLED!=='true' || mode==='UNKNOWN' ||
+       (mode==='LIVE' && (process.env.RAZORPAY_LIVE_PAYMENTS_ENABLED!=='true' || process.env.RAZORPAY_REFUNDS_ENABLED!=='true' || process.env.MARKETPLACE_REFUND_POLICY_APPROVED!=='true')))
+      throw new ServiceUnavailableException('Approved refund reconciliation is not activated');
     const attempts=await this.prisma.$queryRaw<{caseId:string}[]>`SELECT "caseId" FROM "MarketplaceRefundAttempt" WHERE id=${id}`;
     if(attempts.length!==1) throw new NotFoundException('Refund attempt not found');
     await this.prisma.marketplaceCaseEvent.create({data:{caseId:attempts[0].caseId,actorUserId:admin.id,action:'REFUND_RECONCILE_REQUESTED'}});

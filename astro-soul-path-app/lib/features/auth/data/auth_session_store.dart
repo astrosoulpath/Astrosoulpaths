@@ -8,7 +8,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/api_config.dart';
+import '../../../core/notifications/notification_session_fence.dart';
 import 'auth_api.dart';
+import 'customer_session_policy.dart';
 
 class AuthSessionStore {
   AuthSessionStore({
@@ -37,12 +39,39 @@ class AuthSessionStore {
   // request is sent to the backend.
   static Future<StoredAuthSession?>? _refreshInFlight;
   static String? _refreshInFlightKey;
+  static int _generation = 0;
+
+  /// Changes only on login/save and logout/clear, never ordinary token refresh.
+  static int get sessionRevision => _generation;
+  static Future<void> _writes = Future.value();
+
+  Future<void> _write({
+    required String key,
+    required String value,
+    required int generation,
+  }) {
+    final task = _writes.then((_) async {
+      if (generation == _generation) {
+        await _storage.write(key: key, value: value);
+      }
+    });
+    _writes = task.catchError((Object _) {});
+    return task;
+  }
 
   final FlutterSecureStorage _storage;
   final http.Client? _refreshClient;
   final Future<String?> Function(bool)? _firebaseTokenLoader;
 
   Future<void> save(VerifyOtpResult result) async {
+    if (isAdminInCustomerPortal(result.portal, result.user)) {
+      await clear();
+      throw const AuthApiException(
+        'The selected Google account is mapped to an Admin account. Choose a different existing customer Google account.',
+      );
+    }
+    NotificationSessionFence.activate();
+    final generation = ++_generation;
     final accessToken = result.accessToken.trim();
     final refreshToken = result.refreshToken.trim();
 
@@ -50,7 +79,16 @@ class AuthSessionStore {
         result.session['authProvider']?.toString().trim().toLowerCase() ??
         'supabase';
 
-    final isFirebase = authProvider == 'firebase';
+    final isFirebase =
+        authProvider == 'firebase' || authProvider == 'asp-context';
+    if (authProvider == 'asp-context' &&
+        (!accessToken.startsWith('aspctx.') ||
+            result.user['firebaseUid'] is! String ||
+            result.user['authContext'] !=
+                (result.portal == 'customer' ? 'customer' : 'astrologer'))) {
+      await clear();
+      throw StateError('Invalid account context. Please sign in again.');
+    }
 
     if (accessToken.isEmpty || (!isFirebase && refreshToken.isEmpty)) {
       await clear();
@@ -64,7 +102,12 @@ class AuthSessionStore {
       _roleKey: result.role.trim(),
       _portalKey: result.portal.trim(),
       _nextStepKey: result.nextStep.trim(),
-      _userKey: jsonEncode(result.user),
+      _userKey: jsonEncode({
+        ...result.user,
+        if (authProvider == 'asp-context')
+          'contextExpiresAt':
+              DateTime.now().millisecondsSinceEpoch ~/ 1000 + result.expiresIn,
+      }),
       _expiresInKey: result.expiresIn.toString(),
       _authProviderKey: authProvider,
     };
@@ -81,7 +124,7 @@ class AuthSessionStore {
     ]);
 
     for (final entry in values.entries) {
-      await _storage.write(key: entry.key, value: entry.value);
+      await _write(generation: generation, key: entry.key, value: entry.value);
     }
   }
 
@@ -120,6 +163,7 @@ class AuthSessionStore {
     }
 
     if (session.authProvider != 'firebase' &&
+        session.authProvider != 'asp-context' &&
         session.refreshToken.trim().isEmpty) {
       return null;
     }
@@ -128,6 +172,7 @@ class AuthSessionStore {
   }
 
   Future<StoredAuthSession?> _readRaw() async {
+    final generation = _generation;
     final accessToken = await _storage.read(key: _accessTokenKey);
 
     if (accessToken == null || accessToken.trim().isEmpty) {
@@ -143,19 +188,30 @@ class AuthSessionStore {
     final authProvider =
         await _storage.read(key: _authProviderKey) ?? 'supabase';
 
+    if (generation != _generation) return null;
+    final user = _decodeUser(userSource);
+    if (isAdminInCustomerPortal(portal, user)) {
+      await clear();
+      return null;
+    }
     return StoredAuthSession(
       accessToken: accessToken.trim(),
       refreshToken: refreshToken.trim(),
       role: role,
       portal: portal,
       nextStep: nextStep,
-      user: _decodeUser(userSource),
+      user: user,
       expiresIn: int.tryParse(expiresInSource) ?? 0,
       authProvider: authProvider,
     );
   }
 
   bool _shouldRefresh(StoredAuthSession session) {
+    if (session.authProvider == 'asp-context') {
+      final expires =
+          int.tryParse(session.user['contextExpiresAt']?.toString() ?? '') ?? 0;
+      return expires <= DateTime.now().millisecondsSinceEpoch ~/ 1000 + 120;
+    }
     if (session.authProvider != 'firebase' &&
         session.refreshToken.trim().isEmpty) {
       return false;
@@ -207,6 +263,7 @@ class AuthSessionStore {
   Future<StoredAuthSession?> _refreshFirebaseSession(
     StoredAuthSession current,
   ) async {
+    final generation = _generation;
     String? token;
     try {
       if (_firebaseTokenLoader != null) {
@@ -218,12 +275,14 @@ class AuthSessionStore {
           return null;
         }
         token = await user.getIdToken(true);
+        if (generation != _generation) return null;
         if (FirebaseAuth.instance.currentUser?.uid != user.uid) {
           await clear();
           return null;
         }
       }
     } on FirebaseAuthException catch (error) {
+      if (generation != _generation) return null;
       if (const {
         'user-disabled',
         'user-token-expired',
@@ -235,6 +294,7 @@ class AuthSessionStore {
       }
       rethrow;
     }
+    if (generation != _generation) return null;
     if (token == null ||
         token.trim().isEmpty ||
         _jwtSubject(current.accessToken) == null ||
@@ -243,12 +303,22 @@ class AuthSessionStore {
       return null;
     }
 
+    if (generation != _generation) return null;
     final normalizedToken = token.trim();
 
-    await _storage.write(key: _accessTokenKey, value: normalizedToken);
+    await _write(
+      generation: generation,
+      key: _accessTokenKey,
+      value: normalizedToken,
+    );
 
-    await _storage.write(key: _authProviderKey, value: 'firebase');
+    await _write(
+      generation: generation,
+      key: _authProviderKey,
+      value: 'firebase',
+    );
 
+    if (generation != _generation) return null;
     return StoredAuthSession(
       accessToken: normalizedToken,
       refreshToken: '',
@@ -267,6 +337,7 @@ class AuthSessionStore {
     final activeRefresh = _refreshInFlight;
 
     final refreshKey = [
+      _generation,
       current.authProvider,
       _jwtSubject(current.accessToken) ?? current.accessToken,
       current.portal,
@@ -275,7 +346,9 @@ class AuthSessionStore {
       return activeRefresh;
     }
 
-    final task = current.authProvider == 'firebase'
+    final task = current.authProvider == 'asp-context'
+        ? _refreshContextSession(current)
+        : current.authProvider == 'firebase'
         ? _refreshFirebaseSession(current)
         : _refreshFromServer(current);
     _refreshInFlight = task;
@@ -291,9 +364,144 @@ class AuthSessionStore {
     }
   }
 
+  Future<StoredAuthSession?> _refreshContextSession(
+    StoredAuthSession current,
+  ) async {
+    final generation = _generation;
+    final source = await _loadContextFirebaseToken(current, forceRefresh: true);
+    if (source == null || generation != _generation) return null;
+    final uid = current.user['firebaseUid'];
+    final owned = _refreshClient == null;
+    final client = _refreshClient ?? http.Client();
+    try {
+      final response = await client
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/auth/context/refresh'),
+            headers: const {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({'idToken': source, 'portal': current.portal}),
+          )
+          .timeout(ApiConfig.requestTimeout);
+      if (generation != _generation) return null;
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        await clear();
+        return null;
+      }
+      final body = _decodeBody(response.body);
+      final session = body['session'];
+      final user = body['user'];
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300 ||
+          body['success'] != true ||
+          session is! Map ||
+          user is! Map ||
+          session['authProvider'] != 'asp-context' ||
+          session['authContext'] != current.user['authContext'] ||
+          session['accessToken'] is! String ||
+          !(session['accessToken'] as String).startsWith('aspctx.')) {
+        throw AuthApiException(
+          'Secure session renewal failed. Please retry.',
+          code: response.statusCode >= 200 && response.statusCode < 300
+              ? 'CONTEXT_RENEWAL_INVALID_RESPONSE'
+              : 'CONTEXT_RENEWAL_HTTP_${response.statusCode}',
+        );
+      }
+      if (user['id'] != current.user['id'] ||
+          user['firebaseUid'] != uid ||
+          user['authContext'] != current.user['authContext']) {
+        await clear();
+        throw const AuthApiException('Account changed. Please sign in again.');
+      }
+      final expiresIn =
+          int.tryParse(session['expiresIn']?.toString() ?? '') ?? 0;
+      if (expiresIn <= 0) {
+        throw const AuthApiException(
+          'Invalid session expiry. Please sign in again.',
+        );
+      }
+      final metadata = Map<String, dynamic>.from(user)
+        ..['contextExpiresAt'] =
+            DateTime.now().millisecondsSinceEpoch ~/ 1000 + expiresIn;
+      await _write(
+        generation: generation,
+        key: _accessTokenKey,
+        value: session['accessToken'] as String,
+      );
+      await _write(
+        generation: generation,
+        key: _userKey,
+        value: jsonEncode(metadata),
+      );
+      if (generation != _generation) return null;
+      return StoredAuthSession(
+        accessToken: session['accessToken'] as String,
+        refreshToken: '',
+        role: body['role']?.toString() ?? current.role,
+        portal: current.portal,
+        nextStep: body['nextStep']?.toString() ?? current.nextStep,
+        user: metadata,
+        expiresIn: expiresIn,
+        authProvider: 'asp-context',
+      );
+    } finally {
+      if (owned) client.close();
+    }
+  }
+
+  Future<String?> _loadContextFirebaseToken(
+    StoredAuthSession current, {
+    required bool forceRefresh,
+  }) async {
+    final generation = _generation;
+    final uid = current.user['firebaseUid'];
+    if (uid is! String || uid.isEmpty) {
+      await clear();
+      return null;
+    }
+    String? source;
+    try {
+      if (_firebaseTokenLoader != null) {
+        source = await _firebaseTokenLoader(forceRefresh);
+      } else {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null || user.uid != uid) {
+          await clear();
+          return null;
+        }
+        source = await user.getIdToken(forceRefresh);
+        if (generation != _generation) return null;
+        if (FirebaseAuth.instance.currentUser?.uid != uid) {
+          await clear();
+          return null;
+        }
+      }
+    } on FirebaseAuthException catch (error) {
+      if (generation != _generation) return null;
+      if (const {
+        'user-disabled',
+        'user-token-expired',
+        'invalid-user-token',
+        'user-not-found',
+      }.contains(error.code)) {
+        await clear();
+        return null;
+      }
+      rethrow;
+    }
+    if (generation != _generation) return null;
+    if (source == null || _jwtSubject(source) != uid) {
+      await clear();
+      return null;
+    }
+    return source.trim();
+  }
+
   Future<StoredAuthSession?> _refreshFromServer(
     StoredAuthSession current,
   ) async {
+    final generation = _generation;
     final refreshToken = current.refreshToken.trim();
 
     if (refreshToken.isEmpty) {
@@ -320,6 +528,7 @@ class AuthSessionStore {
           )
           .timeout(ApiConfig.requestTimeout);
 
+      if (generation != _generation) return null;
       final body = _decodeBody(response.body);
 
       if (response.statusCode == 401 || response.statusCode == 403) {
@@ -364,12 +573,25 @@ class AuthSessionStore {
       // Refresh tokens may rotate.
       // Store the new refresh token first so an app interruption cannot
       // leave us with only an already-consumed old refresh token.
-      await _storage.write(key: _refreshTokenKey, value: newRefreshToken);
+      await _write(
+        generation: generation,
+        key: _refreshTokenKey,
+        value: newRefreshToken,
+      );
 
-      await _storage.write(key: _accessTokenKey, value: newAccessToken);
+      await _write(
+        generation: generation,
+        key: _accessTokenKey,
+        value: newAccessToken,
+      );
 
-      await _storage.write(key: _expiresInKey, value: expiresIn.toString());
+      await _write(
+        generation: generation,
+        key: _expiresInKey,
+        value: expiresIn.toString(),
+      );
 
+      if (generation != _generation) return null;
       return StoredAuthSession(
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
@@ -401,12 +623,20 @@ class AuthSessionStore {
     String? portal,
     bool persist = true,
   }) async {
+    final generation = _generation;
     final raw = await _readRaw();
     if (raw == null) return null;
     final current = raw.authProvider == 'firebase'
         ? await forceRefresh()
         : await read();
     if (current == null) return null;
+    // A fresh context is verified by GET /user/session, not reissued. Bind it
+    // to the current SDK identity without forcing a Firebase token refresh.
+    if (current.authProvider == 'asp-context' &&
+        await _loadContextFirebaseToken(current, forceRefresh: false) == null) {
+      return null;
+    }
+    if (generation != _generation) return null;
     final ownsClient = _refreshClient == null;
     final client = _refreshClient ?? http.Client();
     try {
@@ -421,6 +651,7 @@ class AuthSessionStore {
             },
           )
           .timeout(ApiConfig.requestTimeout);
+      if (generation != _generation) return null;
       if (response.statusCode == 401 || response.statusCode == 403) {
         await clear();
         return null;
@@ -437,6 +668,18 @@ class AuthSessionStore {
         );
       }
       final user = Map<String, dynamic>.from(body['user'] as Map);
+      if (current.authProvider == 'asp-context') {
+        if (user['authContext'] != current.user['authContext'] ||
+            user['firebaseUid'] != current.user['firebaseUid']) {
+          await clear();
+          return null;
+        }
+        user['contextExpiresAt'] = current.user['contextExpiresAt'];
+      }
+      if (isAdminInCustomerPortal(body['portal'] as String, user)) {
+        await clear();
+        return null;
+      }
       if (current.user['id'] == null || current.user['id'] != user['id']) {
         await clear();
         throw StateError('Account identity changed. Please sign in again.');
@@ -452,18 +695,37 @@ class AuthSessionStore {
         authProvider: current.authProvider,
       );
       if (persist) {
-        await _storage.write(key: _roleKey, value: restored.role);
-        await _storage.write(key: _portalKey, value: restored.portal);
-        await _storage.write(key: _nextStepKey, value: restored.nextStep);
-        await _storage.write(key: _userKey, value: jsonEncode(restored.user));
+        await _write(
+          generation: generation,
+          key: _roleKey,
+          value: restored.role,
+        );
+        await _write(
+          generation: generation,
+          key: _portalKey,
+          value: restored.portal,
+        );
+        await _write(
+          generation: generation,
+          key: _nextStepKey,
+          value: restored.nextStep,
+        );
+        await _write(
+          generation: generation,
+          key: _userKey,
+          value: jsonEncode(restored.user),
+        );
       }
-      return restored;
+      return generation == _generation ? restored : null;
     } finally {
       if (ownsClient) client.close();
     }
   }
 
   Future<void> clear() async {
+    NotificationSessionFence.suspend();
+    ++_generation;
+    await _writes;
     await Future.wait([
       _storage.delete(key: _accessTokenKey),
       _storage.delete(key: _refreshTokenKey),

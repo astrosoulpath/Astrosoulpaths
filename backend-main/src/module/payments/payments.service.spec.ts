@@ -100,7 +100,7 @@ describe('PaymentsService', () => {
     currency: 'INR',
     paymentMethod: null,
     type: PaymentType.WALLET_RECHARGE,
-    metadata: null,
+    metadata: {providerMode: 'TEST'},
     status: PaymentStatus.PENDING,
     rawWebhook: null,
     createdAt: new Date('2026-05-12T00:00:00.000Z'),
@@ -119,6 +119,7 @@ describe('PaymentsService', () => {
   });
 
   beforeEach(async () => {
+    process.env.RAZORPAY_KEY_ID = 'rzp_test_synthetic';
     const razorpayInstance = getRazorpayInstance();
 
     fetchPaymentsSpy = jest
@@ -420,6 +421,7 @@ describe('PaymentsService', () => {
       walletId: null,
       wallet: null,
       metadata: {
+        providerMode: 'TEST',
         kundliId: 'kundli_123',
         lang: 'en',
       },
@@ -605,6 +607,7 @@ describe('PaymentsService', () => {
       walletId: null,
       wallet: null,
       metadata: {
+        providerMode: 'TEST',
         subscriptionId: 'subscription_123',
         subscriptionPlanId: 'plan_123',
         planName: 'DAILY_HOROSCOPE_MONTHLY',
@@ -735,6 +738,7 @@ describe('PaymentsService', () => {
       walletId: null,
       wallet: null,
       metadata: {
+        providerMode: 'TEST',
         subscriptionId: 'subscription_123',
         subscriptionPlanId: 'plan_123',
         planName: 'DAILY_HOROSCOPE_MONTHLY',

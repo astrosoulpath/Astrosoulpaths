@@ -1,3 +1,4 @@
+import '../../../core/network/customer_session_client.dart';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -19,7 +20,7 @@ class WalletApiException implements Exception {
 
 class WalletApi {
   WalletApi({http.Client? client, AuthSessionStore? sessionStore})
-    : _client = client ?? http.Client(),
+    : _client = CustomerSessionClient(client ?? http.Client()),
       _sessionStore = sessionStore ?? AuthSessionStore();
 
   final http.Client _client;
@@ -41,7 +42,7 @@ class WalletApi {
 
       // Access JWT may expire between session read and API request.
       // Refresh the SAME authenticated session and retry exactly once.
-      if (response.statusCode == 401 || response.statusCode == 403) {
+      if (response.statusCode == 401) {
         final refreshedSession = await _sessionStore.forceRefresh();
         final refreshedToken = refreshedSession?.accessToken.trim() ?? '';
 
@@ -60,7 +61,7 @@ class WalletApi {
 
       // A second authentication rejection means the backend has genuinely
       // rejected the refreshed/current session.
-      if (response.statusCode == 401 || response.statusCode == 403) {
+      if (response.statusCode == 401) {
         throw const WalletApiException(
           'Your session has expired. Please login again.',
           loginRequired: true,
@@ -109,7 +110,7 @@ class WalletApi {
 
     var response = await request(token);
 
-    if (response.statusCode == 401 || response.statusCode == 403) {
+    if (response.statusCode == 401) {
       final refreshedSession = await _sessionStore.forceRefresh();
       final refreshedToken = refreshedSession?.accessToken.trim() ?? '';
 
@@ -124,7 +125,7 @@ class WalletApi {
       response = await request(token);
     }
 
-    if (response.statusCode == 401 || response.statusCode == 403) {
+    if (response.statusCode == 401) {
       throw const WalletApiException(
         'Your session has expired. Please login again.',
         loginRequired: true,
@@ -218,7 +219,7 @@ class WalletApi {
 
       final body = _decodeBody(response.body);
 
-      if (response.statusCode == 401 || response.statusCode == 403) {
+      if (response.statusCode == 401) {
         throw const WalletApiException(
           'Your session has expired. Please login again.',
           loginRequired: true,
@@ -272,7 +273,7 @@ class WalletApi {
 
       final body = _decodeBody(response.body);
 
-      if (response.statusCode == 401 || response.statusCode == 403) {
+      if (response.statusCode == 401) {
         throw const WalletApiException(
           'Your session has expired. Please login again.',
           loginRequired: true,
@@ -300,7 +301,10 @@ class WalletApi {
 
       final keyId = data['keyId']?.toString().trim() ?? '';
 
-      if (keyId.isEmpty) {
+      final mode = data['mode']?.toString();
+      if (!RegExp(r'^rzp_(test|live)_[A-Za-z0-9]+$').hasMatch(keyId) ||
+          (mode != null &&
+              mode != (keyId.startsWith('rzp_test_') ? 'TEST' : 'LIVE'))) {
         throw const WalletApiException('Payment configuration is unavailable.');
       }
 
@@ -348,7 +352,7 @@ class WalletApi {
 
       final body = _decodeBody(response.body);
 
-      if (response.statusCode == 401 || response.statusCode == 403) {
+      if (response.statusCode == 401) {
         throw const WalletApiException(
           'Your session has expired. Please login again.',
           loginRequired: true,
@@ -378,7 +382,34 @@ class WalletApi {
     }
   }
 
-  Future<Map<String, dynamic>> reconcileOrder(String razorpayOrderId) async {
+  Future<Map<String, dynamic>> verifyCheckout({
+    required String expectedOrderId,
+    required String? callbackOrderId,
+    required String? paymentId,
+    required String? signature,
+  }) async {
+    if (!RegExp(r'^order_[A-Za-z0-9]+$').hasMatch(expectedOrderId) ||
+        callbackOrderId != expectedOrderId ||
+        !RegExp(r'^pay_[A-Za-z0-9]+$').hasMatch(paymentId ?? '') ||
+        !RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(signature ?? '')) {
+      throw const WalletApiException(
+        'Payment verification is pending. Invalid checkout proof.',
+      );
+    }
+    return _postVerification('verify-checkout', {
+      'orderId': expectedOrderId,
+      'paymentId': paymentId,
+      'signature': signature,
+    });
+  }
+
+  Future<Map<String, dynamic>> reconcileOrder(String razorpayOrderId) =>
+      _postVerification('reconcile/$razorpayOrderId', null);
+
+  Future<Map<String, dynamic>> _postVerification(
+    String path,
+    Map<String, dynamic>? proof,
+  ) async {
     final session = await _sessionStore.read();
     final accessToken = session?.accessToken.trim() ?? '';
 
@@ -392,19 +423,19 @@ class WalletApi {
     try {
       final response = await _client
           .post(
-            Uri.parse(
-              '${ApiConfig.baseUrl}/payments/reconcile/$razorpayOrderId',
-            ),
+            Uri.parse('${ApiConfig.baseUrl}/payments/$path'),
             headers: {
               'Accept': 'application/json',
+              'Content-Type': 'application/json',
               'Authorization': 'Bearer $accessToken',
             },
+            body: proof == null ? null : jsonEncode(proof),
           )
           .timeout(ApiConfig.requestTimeout);
 
       final body = _decodeBody(response.body);
 
-      if (response.statusCode == 401 || response.statusCode == 403) {
+      if (response.statusCode == 401) {
         throw const WalletApiException(
           'Your session has expired. Please login again.',
           loginRequired: true,

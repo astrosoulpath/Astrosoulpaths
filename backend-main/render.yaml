@@ -20,7 +20,7 @@ services:
     region: singapore
 
     buildCommand: pnpm install --frozen-lockfile && pnpm prisma generate && pnpm run build
-    # Schema changes require a separate pinned migration approval.
+    # Database changes require a separately reviewed, target-pinned operation.
     startCommand: pnpm run start:prod
 
     healthCheckPath: /health

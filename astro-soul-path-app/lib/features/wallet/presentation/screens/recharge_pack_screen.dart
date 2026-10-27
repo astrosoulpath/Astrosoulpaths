@@ -5,16 +5,26 @@ import 'package:astro_soul_path/core/theme/app_theme.dart';
 import 'package:astro_soul_path/features/wallet/data/customer_wallet.dart';
 import 'package:astro_soul_path/features/wallet/data/recharge_pack.dart';
 import 'package:astro_soul_path/features/wallet/data/wallet_api.dart';
+import '../../data/pending_wallet_payment_store.dart';
+import '../../data/checkout_order.dart';
+import '../../data/wallet_verification_result.dart';
+import '../../../auth/data/auth_session_store.dart';
 
 class RechargePackScreen extends StatefulWidget {
-  const RechargePackScreen({super.key});
+  const RechargePackScreen({this.walletApi, this.pendingStore, super.key});
+
+  final WalletApi? walletApi;
+  final PendingWalletPaymentStore? pendingStore;
 
   @override
   State<RechargePackScreen> createState() => _RechargePackScreenState();
 }
 
 class _RechargePackScreenState extends State<RechargePackScreen> {
-  final WalletApi _walletApi = WalletApi();
+  late final WalletApi _walletApi;
+  late final PendingWalletPaymentStore _pendingStore;
+  final int _ownerRevision = AuthSessionStore.sessionRevision;
+  bool _verificationInFlight = false;
   late final Razorpay _razorpay;
 
   List<RechargePack> _packs = const [];
@@ -31,6 +41,8 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
   @override
   void initState() {
     super.initState();
+    _walletApi = widget.walletApi ?? WalletApi();
+    _pendingStore = widget.pendingStore ?? PendingWalletPaymentStore();
     _razorpay = Razorpay();
     _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
     _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
@@ -44,6 +56,7 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
     });
 
     try {
+      final pending = await _pendingStore.read();
       final results = await Future.wait([
         _walletApi.getWallet(),
         _walletApi.getRechargePacks(),
@@ -52,12 +65,13 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
       final wallet = results[0] as CustomerWallet;
       final packs = results[1] as List<RechargePack>;
 
-      if (!mounted) {
+      if (!mounted || _ownerRevision != AuthSessionStore.sessionRevision) {
         return;
       }
 
       setState(() {
         _wallet = wallet;
+        _pendingRazorpayOrderId = pending;
         _packs = packs;
         _selectedPack = null;
         _loading = false;
@@ -92,6 +106,8 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
   }
 
   Future<void> _startCustomAmountPayment(double rechargeAmount) async {
+    if (_pendingRazorpayOrderId != null) return _verifyPendingPayment();
+    if (_ownerRevision != AuthSessionStore.sessionRevision) return;
     if (_paymentLoading) {
       return;
     }
@@ -106,26 +122,18 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
 
       if (!mounted) return;
 
-      final orderId = order['id']?.toString().trim() ?? '';
-      final rawAmount = order['amount'];
-
-      final amount = rawAmount is num
-          ? rawAmount.toInt()
-          : int.tryParse(rawAmount?.toString() ?? '');
-
-      final currency = order['currency']?.toString().trim().isNotEmpty == true
-          ? order['currency'].toString().trim().toUpperCase()
-          : 'INR';
-
-      if (orderId.isEmpty || amount == null || amount <= 0) {
-        throw const WalletApiException(
-          'Invalid payment order returned by server.',
-        );
-      }
+      final checkout = CheckoutOrder.fromServer(order);
+      final orderId = checkout.id;
+      final amount = checkout.amount;
+      final currency = checkout.currency;
 
       setState(() {
         _pendingRazorpayOrderId = orderId;
       });
+      await _pendingStore.save(orderId);
+      if (!mounted || _ownerRevision != AuthSessionStore.sessionRevision) {
+        return;
+      }
 
       _razorpay.open({
         'key': keyId,
@@ -140,7 +148,6 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
 
       setState(() {
         _paymentLoading = false;
-        _pendingRazorpayOrderId = null;
       });
 
       ScaffoldMessenger.of(
@@ -150,6 +157,8 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
   }
 
   Future<void> _startPayment() async {
+    if (_pendingRazorpayOrderId != null) return _verifyPendingPayment();
+    if (_ownerRevision != AuthSessionStore.sessionRevision) return;
     final pack = _selectedPack;
 
     if (pack == null || _paymentLoading) {
@@ -166,24 +175,18 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
 
       if (!mounted) return;
 
-      final orderId = order['id']?.toString().trim() ?? '';
-      final rawAmount = order['amount'];
-      final amount = rawAmount is num
-          ? rawAmount.toInt()
-          : int.tryParse(rawAmount?.toString() ?? '');
-      final currency = order['currency']?.toString().trim().isNotEmpty == true
-          ? order['currency'].toString().trim().toUpperCase()
-          : 'INR';
-
-      if (orderId.isEmpty || amount == null || amount <= 0) {
-        throw const WalletApiException(
-          'Invalid payment order returned by server.',
-        );
-      }
+      final checkout = CheckoutOrder.fromServer(order);
+      final orderId = checkout.id;
+      final amount = checkout.amount;
+      final currency = checkout.currency;
 
       setState(() {
         _pendingRazorpayOrderId = orderId;
       });
+      await _pendingStore.save(orderId);
+      if (!mounted || _ownerRevision != AuthSessionStore.sessionRevision) {
+        return;
+      }
 
       _razorpay.open({
         'key': keyId,
@@ -198,7 +201,6 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
 
       setState(() {
         _paymentLoading = false;
-        _pendingRazorpayOrderId = null;
       });
 
       ScaffoldMessenger.of(
@@ -208,9 +210,15 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
   }
 
   Future<void> _handlePaymentSuccess(PaymentSuccessResponse response) async {
-    final orderId = response.orderId?.trim().isNotEmpty == true
-        ? response.orderId!.trim()
-        : _pendingRazorpayOrderId;
+    await _verifyPendingPayment(proof: response);
+  }
+
+  Future<void> _verifyPendingPayment({PaymentSuccessResponse? proof}) async {
+    if (_verificationInFlight ||
+        _ownerRevision != AuthSessionStore.sessionRevision) {
+      return;
+    }
+    final orderId = _pendingRazorpayOrderId;
 
     if (orderId == null || orderId.isEmpty) {
       if (!mounted) return;
@@ -228,15 +236,33 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
     }
 
     try {
-      final result = await _walletApi.reconcileOrder(orderId);
+      _verificationInFlight = true;
+      final result = proof == null
+          ? await _walletApi.reconcileOrder(orderId)
+          : await _walletApi.verifyCheckout(
+              expectedOrderId: orderId,
+              callbackOrderId: proof.orderId,
+              paymentId: proof.paymentId,
+              signature: proof.signature,
+            );
 
-      if (!mounted) return;
+      if (!mounted || _ownerRevision != AuthSessionStore.sessionRevision) {
+        return;
+      }
 
-      final status = result['status']?.toString().toLowerCase();
+      final status = walletVerificationStatus(result);
+      if (status == 'success' || status == 'failed') {
+        await _pendingStore.clear(orderId);
+      }
+      if (!mounted || _ownerRevision != AuthSessionStore.sessionRevision) {
+        return;
+      }
 
       setState(() {
         _paymentLoading = false;
-        _pendingRazorpayOrderId = null;
+        if (status == 'success' || status == 'failed') {
+          _pendingRazorpayOrderId = null;
+        }
       });
 
       if (status == 'success') {
@@ -392,6 +418,8 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      _verificationInFlight = false;
     }
   }
 
@@ -400,11 +428,12 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
 
     setState(() {
       _paymentLoading = false;
-      _pendingRazorpayOrderId = null;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(response.message ?? 'Payment was not completed.')),
+      const SnackBar(
+        content: Text('Checkout closed. Check payment status before retrying.'),
+      ),
     );
   }
 
@@ -432,7 +461,8 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
       body: SafeArea(
         child: RefreshIndicator(onRefresh: _loadPacks, child: _buildBody()),
       ),
-      bottomNavigationBar: _selectedPack == null
+      bottomNavigationBar:
+          _selectedPack == null && _pendingRazorpayOrderId == null
           ? null
           : SafeArea(
               top: false,
@@ -446,7 +476,9 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                     foregroundColor: AppColors.background,
                   ),
                   child: Text(
-                    'Continue with ${_money(_selectedPack!.amount)}',
+                    _pendingRazorpayOrderId != null
+                        ? 'Check payment status'
+                        : 'Continue with ${_money(_selectedPack!.amount)}',
                     style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
                 ),
@@ -550,7 +582,9 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                                   _customAmountController.text.trim(),
                                 );
 
-                                if (value == null || value < 50) {
+                                if (value == null ||
+                                    !value.isFinite ||
+                                    value < 50) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
@@ -622,29 +656,31 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(24),
-        children: const [
-          SizedBox(height: 100),
-          Icon(
+        children: [
+          const SizedBox(height: 24),
+          const Icon(
             Icons.account_balance_wallet_outlined,
             color: AppColors.gold,
             size: 52,
           ),
-          SizedBox(height: 18),
-          Text(
+          const SizedBox(height: 18),
+          const Text(
             'No recharge packs are available right now.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.navy,
               fontSize: 16,
               fontWeight: FontWeight.w800,
             ),
           ),
-          SizedBox(height: 8),
-          Text(
+          const SizedBox(height: 8),
+          const Text(
             'Please check again later.',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.muted, fontSize: 13),
           ),
+          const SizedBox(height: 20),
+          _buildCustomAmountSection(),
         ],
       );
     }

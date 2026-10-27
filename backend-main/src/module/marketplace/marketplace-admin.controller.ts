@@ -21,6 +21,7 @@ import { MarketplaceCaseService } from './marketplace-case.service';
 import { ReviewMarketplaceCaseDto } from './dto/marketplace-case.dto';
 import { ReconcileMarketplaceRefundDto } from './dto/reconcile-marketplace-refund.dto';
 import { PrepareMarketplaceRefundDto } from './dto/prepare-marketplace-refund.dto';
+import { ExecuteMarketplaceRefundDto } from './dto/execute-marketplace-refund.dto';
 
 import { CreateMarketplaceCategoryDto } from './dto/create-marketplace-category.dto';
 import { UpdateMarketplaceCategoryDto } from './dto/update-marketplace-category.dto';
@@ -48,6 +49,14 @@ export class MarketplaceAdminController {
   @Post('refunds/:id/execute-test')
   submitTestRefund(@CurrentUser() user:JWTPayload,@Param('id') id:string) {
     return this.cases.submitTestRefund(user.sub as string,id);
+  }
+  @Post('refunds/:id/execute')
+  submitApprovedRefund(@CurrentUser() user: JWTPayload, @Param('id') id: string, @Body() dto: ExecuteMarketplaceRefundDto) {
+    return this.cases.submitApprovedRefund(user.sub as string, id, dto.reason);
+  }
+  @Get('refunds/:id')
+  refundStatus(@CurrentUser() user: JWTPayload, @Param('id') id: string) {
+    return this.cases.refundStatus(user.sub as string, id);
   }
   @Post('cases/:id/refund-intent')
   prepareRefund(@CurrentUser() user:JWTPayload,@Param('id') id:string,@Body() dto:PrepareMarketplaceRefundDto) {

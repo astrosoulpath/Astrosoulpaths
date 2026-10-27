@@ -13,8 +13,12 @@ import {
   cancelSubscription,
   createSubscriptionPaymentOrder,
   getCurrentSubscription,
+  getPendingSubscriptionPaymentOrder,
   getSubscriptionPlans,
-  reconcileSubscriptionPayment,
+  getSubscriptionCheckoutConfig,
+  verifySubscriptionCheckout,
+  hasSubscriptionSession,
+  requireVerifiedSubscriptionPayment,
   type RazorpayOrder,
   type SubscriptionPlan,
   type SubscriptionPlanName,
@@ -168,7 +172,7 @@ function getBillingLabel(
     plan.name ===
     "DAILY_HOROSCOPE_MONTHLY"
   ) {
-    return "/ month";
+    return "/ 30 days";
   }
 
   if (
@@ -406,10 +410,6 @@ export default function SubscriptionsPage() {
   const [isLoggedIn, setIsLoggedIn] =
     useState(false);
 
-  const razorpayKeyId =
-    process.env
-      .NEXT_PUBLIC_RAZORPAY_KEY_ID;
-
   const loadPlans =
     useCallback(async () => {
       try {
@@ -440,10 +440,7 @@ export default function SubscriptionsPage() {
 
   const loadCurrentSubscription =
     useCallback(async () => {
-      const token =
-        localStorage.getItem(
-          "asp_access_token",
-        );
+      const token = hasSubscriptionSession();
 
       setIsLoggedIn(Boolean(token));
 
@@ -540,44 +537,11 @@ export default function SubscriptionsPage() {
     );
   }
 
-  async function reconcileAndRefresh(
-    order: RazorpayOrder,
-  ) {
-    setPaymentMessage(
-      "Verifying payment and activating your subscription...",
-    );
-
-    const reconciliation =
-      await reconcileSubscriptionPayment(
-        order.id,
-      );
-
-    if (
-      reconciliation.status === "FAILED"
-    ) {
-      throw new Error(
-        "Payment could not be verified. No subscription access was activated.",
-      );
-    }
-
-    await loadCurrentSubscription();
-
-    setPaymentMessage("");
-
-    setSuccessMessage(
-      "Payment verified. Your subscription has been activated.",
-    );
-  }
-
   async function openRazorpayCheckout(
     plan: SubscriptionPlan,
     order: RazorpayOrder,
   ) {
-    if (!razorpayKeyId) {
-      throw new Error(
-        "NEXT_PUBLIC_RAZORPAY_KEY_ID is not configured in the frontend environment.",
-      );
-    }
+    const checkoutConfig = await getSubscriptionCheckoutConfig();
 
     const scriptLoaded =
       await loadRazorpayScript();
@@ -594,8 +558,9 @@ export default function SubscriptionsPage() {
     const storedUser =
       readStoredUser();
 
+    let callbackHandled = false;
     const options: RazorpayOptions = {
-      key: razorpayKeyId,
+      key: checkoutConfig.keyId,
       amount: order.amount,
       currency: order.currency,
       name: "Astro Soul Path",
@@ -607,27 +572,18 @@ export default function SubscriptionsPage() {
         response:
           RazorpaySuccessResponse,
       ) => {
+        if (callbackHandled) return;
+        callbackHandled = true;
         try {
           setPaymentMessage(
             "Payment received. Verifying with Razorpay...",
           );
 
-          localStorage.setItem(
-            "asp_last_subscription_payment",
-            JSON.stringify({
-              planName: plan.name,
-              orderId:
-                response.razorpay_order_id,
-              paymentId:
-                response.razorpay_payment_id,
-              createdAt:
-                new Date().toISOString(),
-            }),
-          );
-
-          await reconcileAndRefresh(
-            order,
-          );
+          const verification = await verifySubscriptionCheckout(order.id, response);
+          requireVerifiedSubscriptionPayment(verification);
+          await loadCurrentSubscription();
+          setPaymentMessage("");
+          setSuccessMessage("Payment verified. Your subscription has been activated.");
         } catch (err: unknown) {
           setPaymentMessage("");
 
@@ -666,7 +622,7 @@ export default function SubscriptionsPage() {
           setProcessingPlan(null);
 
           setError(
-            "Payment window was closed. Your subscription was not activated. You can retry payment.",
+            "Payment window was closed. Check your subscription and payment status before retrying checkout.",
           );
 
           void loadCurrentSubscription();
@@ -711,10 +667,7 @@ export default function SubscriptionsPage() {
     const planName =
       plan.name as SubscriptionPlanName;
 
-    const token =
-      localStorage.getItem(
-        "asp_access_token",
-      );
+    const token = hasSubscriptionSession();
 
     if (!token) {
       router.push(
@@ -768,9 +721,10 @@ export default function SubscriptionsPage() {
       );
 
       const order =
-        await createSubscriptionPaymentOrder(
-          planName,
-        );
+        currentSubscription?.subscriptionStatus === "PENDING" &&
+        isCurrentPlan(plan) && currentSubscription.razorpayOrderId
+          ? await getPendingSubscriptionPaymentOrder(currentSubscription.razorpayOrderId)
+          : await createSubscriptionPaymentOrder(planName);
 
       if (
         !order?.id ||
@@ -1211,7 +1165,7 @@ export default function SubscriptionsPage() {
                               ? "Retry Payment"
                               : customerPlan
                                 ? "Pay $1 and Subscribe"
-                                : "Pay ₹3,000 and Subscribe"}
+                                : "Pay ₹3,500 and Subscribe"}
                     </button>
 
                     {!isLoggedIn && (

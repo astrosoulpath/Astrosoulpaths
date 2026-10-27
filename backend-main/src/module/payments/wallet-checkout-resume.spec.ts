@@ -30,6 +30,13 @@ describe('wallet checkout resume and public config (isolated)', () => {
   (getRazorpayInstance as jest.Mock).mockImplementationOnce(()=>{throw Error('Live disabled');});
   expect(()=>c.checkoutConfig()).toThrow('Live disabled');
  });
+ it('legacy native public config preserves envelope but uses the same LIVE validation boundary',()=>{
+  process.env.RAZORPAY_KEY_ID='rzp_test_synthetic';
+  const c=new PaymentsController({} as any,{} as any);
+  expect(c.getRazorpayPublicConfig()).toEqual({success:true,data:{keyId:'rzp_test_synthetic',mode:'TEST'}});
+  (getRazorpayInstance as jest.Mock).mockImplementationOnce(()=>{throw Error('Live disabled');});
+  expect(()=>c.getRazorpayPublicConfig()).toThrow('Live disabled');
+ });
  it('resumes only an unpaid matching owned wallet order, without mutations',async()=>{
   const {service}=setup();expect(await service.getPendingWalletOrder('subject','order_owned')).toEqual({id:'order_owned',amount:10000,currency:'INR'});
  });

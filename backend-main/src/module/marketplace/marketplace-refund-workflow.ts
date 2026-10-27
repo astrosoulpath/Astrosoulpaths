@@ -7,9 +7,8 @@ import { MarketplaceJournalService } from './marketplace-journal.service';
 export type VerifiedRefund = {id: string; paymentId: string; amountMinor: bigint; currency: string; status: 'processed'|'failed'|'pending'};
 type Attempt = {id: string; providerPaymentId: string; amountMinor: bigint; currency: string; state: string; providerRefundId: string|null; leaseToken: string|null};
 
-// Deliberately NOT registered in DI or routed. There is no producer or provider
-// dispatcher until shipping/tax allocation and refund policy approvals exist.
-// This repository never sends a refund. PROVIDER_CONFIRMED is not journal posting.
+// State repository used by separately gated approved-intent adapters. This class
+// never sends a refund; PROVIDER_CONFIRMED is not journal posting.
 export class MarketplaceRefundWorkflow {
   constructor(private readonly prisma: PrismaService) {}
   private enabled() {

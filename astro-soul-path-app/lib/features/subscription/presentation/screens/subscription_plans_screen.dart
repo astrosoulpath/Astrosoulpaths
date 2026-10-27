@@ -5,6 +5,9 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../wallet/data/wallet_api.dart';
 import '../../data/subscription_api.dart';
 import '../../models/subscription_plan.dart';
+import '../widgets/horoscope_subscription_status.dart';
+import '../../../auth/data/auth_session_store.dart';
+import '../../../wallet/data/pending_wallet_payment_store.dart';
 
 enum SubscriptionAudience { customer, astrologer }
 
@@ -18,7 +21,8 @@ class SubscriptionPlansScreen extends StatefulWidget {
       _SubscriptionPlansScreenState();
 }
 
-class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
+class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
+    with WidgetsBindingObserver {
   final SubscriptionApi _api = SubscriptionApi();
   final WalletApi _walletApi = WalletApi();
 
@@ -31,10 +35,22 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   String _pendingOrderId = '';
   String _error = '';
   List<SubscriptionPlan> _plans = const [];
+  final int _ownerRevision = AuthSessionStore.sessionRevision;
+  late final PendingWalletPaymentStore _pendingStore;
+  bool _verificationInFlight = false;
+  bool get _current =>
+      mounted && _ownerRevision == AuthSessionStore.sessionRevision;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _pendingStore = PendingWalletPaymentStore(
+      portal: widget.audience == SubscriptionAudience.customer
+          ? 'customer'
+          : 'astrologer',
+      purpose: 'subscription',
+    );
 
     _razorpay = Razorpay();
 
@@ -49,10 +65,20 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _razorpay.clear();
     _api.close();
     _walletApi.close();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        _current &&
+        _pendingOrderId.isNotEmpty) {
+      _verifyPendingPayment();
+    }
   }
 
   Future<void> _initializeSubscriptionScreen() async {
@@ -62,9 +88,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     });
 
     try {
+      _pendingOrderId = await _pendingStore.read() ?? '';
       final keyId = await _walletApi.getRazorpayPublicKeyId();
 
-      if (!mounted) return;
+      if (!mounted || !_current) return;
 
       if (keyId.trim().isEmpty) {
         throw const WalletApiException(
@@ -76,25 +103,25 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
 
       final plans = await _api.getPlans();
 
-      if (!mounted) return;
+      if (!mounted || !_current) return;
 
       setState(() {
         _plans = plans.where(_isAllowedPlan).toList();
       });
     } on WalletApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_current) return;
 
       setState(() {
         _error = error.message;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_current) return;
 
       setState(() {
         _error = error.toString();
       });
     } finally {
-      if (mounted) {
+      if (_current) {
         setState(() {
           _loading = false;
         });
@@ -111,19 +138,19 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     try {
       final plans = await _api.getPlans();
 
-      if (!mounted) return;
+      if (!mounted || !_current) return;
 
       setState(() {
         _plans = plans.where(_isAllowedPlan).toList();
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_current) return;
 
       setState(() {
         _error = error.toString();
       });
     } finally {
-      if (mounted) {
+      if (_current) {
         setState(() {
           _loading = false;
         });
@@ -171,7 +198,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   }
 
   Future<void> _subscribe(SubscriptionPlan plan) async {
-    if (_paymentInProgress) return;
+    if (!_current || _paymentInProgress) return;
+    if (_pendingOrderId.isNotEmpty) return _verifyPendingPayment();
 
     if (_razorpayKeyId.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -191,7 +219,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     try {
       final response = await _api.createSubscriptionOrder(plan.name);
 
-      if (!mounted) return;
+      if (!mounted || !_current) return;
 
       final rawData = response['data'];
 
@@ -205,13 +233,17 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
           order['razorpayOrderId']?.toString() ??
           '';
 
-      if (orderId.isEmpty) {
+      if (!RegExp(r'^order_[A-Za-z0-9]+$').hasMatch(orderId) ||
+          order['amount'] is! int ||
+          (order['amount'] as int) <= 0) {
         throw const SubscriptionApiException(
           'Payment gateway did not return an order id.',
         );
       }
 
       _pendingOrderId = orderId;
+      await _pendingStore.save(orderId);
+      if (!mounted || !_current) return;
       final orderCurrency =
           order['currency']?.toString().trim().toUpperCase() ?? '';
 
@@ -224,6 +256,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
       final options = <String, dynamic>{
         'key': _razorpayKeyId,
         'order_id': orderId,
+        'amount': order['amount'],
         'name': 'Astro Soul Path',
         'description': plan.displayTitle,
         'currency': orderCurrency,
@@ -232,7 +265,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
 
       _razorpay.open(options);
     } on SubscriptionApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_current) return;
 
       setState(() {
         _paymentInProgress = false;
@@ -242,7 +275,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || !_current) return;
 
       setState(() {
         _paymentInProgress = false;
@@ -254,15 +287,15 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     }
   }
 
-  Future<void> _handlePaymentSuccess(PaymentSuccessResponse response) async {
-    final responseOrderId = response.orderId?.trim() ?? '';
+  Future<void> _handlePaymentSuccess(PaymentSuccessResponse response) =>
+      _verifyPendingPayment(proof: response);
 
-    final orderId = responseOrderId.isNotEmpty
-        ? responseOrderId
-        : _pendingOrderId;
+  Future<void> _verifyPendingPayment({PaymentSuccessResponse? proof}) async {
+    if (!_current || _verificationInFlight) return;
+    final orderId = _pendingOrderId;
 
     if (orderId.isEmpty) {
-      if (!mounted) return;
+      if (!mounted || !_current) return;
 
       setState(() {
         _paymentInProgress = false;
@@ -270,7 +303,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Payment succeeded but verification is pending.'),
+          content: Text(
+            'Payment status unavailable. Reopen subscriptions to check.',
+          ),
         ),
       );
 
@@ -278,16 +313,40 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     }
 
     try {
-      final result = await _api.reconcileOrder(orderId);
+      _verificationInFlight = true;
+      setState(() {
+        _paymentInProgress = true;
+      });
+      final result = proof == null
+          ? await _api.reconcileOrder(orderId)
+          : await _api.verifyCheckout(
+              expectedOrderId: orderId,
+              callbackOrderId: proof.orderId,
+              paymentId: proof.paymentId,
+              signature: proof.signature,
+            );
 
-      if (!mounted) return;
+      if (!mounted || !_current) return;
 
       final status = result['status']?.toString() ?? '';
-      final reason = result['reason']?.toString() ?? '';
+      if (result['success'] != true ||
+          !['SUCCESS', 'FAILED', 'PENDING'].contains(status.toUpperCase())) {
+        throw const SubscriptionApiException(
+          'Payment verification was not confirmed. Check status again.',
+        );
+      }
+      if (status.toUpperCase() == 'SUCCESS' ||
+          status.toUpperCase() == 'FAILED') {
+        await _pendingStore.clear(orderId);
+      }
+      if (!mounted || !_current) return;
 
       setState(() {
         _paymentInProgress = false;
-        _pendingOrderId = '';
+        if (status.toUpperCase() == 'SUCCESS' ||
+            status.toUpperCase() == 'FAILED') {
+          _pendingOrderId = '';
+        }
       });
 
       if (status.toUpperCase() == 'SUCCESS') {
@@ -304,43 +363,59 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Payment received. Verification status: '
-              '$status $reason',
+              status.toUpperCase() == 'FAILED'
+                  ? 'The server confirmed this payment failed. No subscription was activated.'
+                  : 'Payment verification is pending. Check this order before starting another payment.',
             ),
           ),
         );
       }
     } on SubscriptionApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_current) return;
 
       setState(() {
         _paymentInProgress = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Payment received. Verification pending: ${error.message}',
-          ),
-        ),
+        SnackBar(content: Text('Verification pending: ${error.message}')),
       );
+    } catch (_) {
+      if (_current) {
+        setState(() {
+          _paymentInProgress = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Payment verification is unavailable. Your pending order is retained.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      _verificationInFlight = false;
     }
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
-    if (!mounted) return;
+    if (!mounted || !_current) return;
 
     setState(() {
       _paymentInProgress = false;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(response.message ?? 'Payment was not completed.')),
+      const SnackBar(
+        content: Text(
+          'Checkout closed. Check the existing payment status before retrying.',
+        ),
+      ),
     );
   }
 
   void _handleExternalWallet(ExternalWalletResponse response) {
-    if (!mounted) return;
+    if (!mounted || !_current) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -371,6 +446,17 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
             children: [
+              if (_pendingOrderId.isNotEmpty) ...[
+                const Text(
+                  'An earlier payment is awaiting verification. No new payment will be started until its status is confirmed.',
+                ),
+                TextButton(
+                  onPressed: _paymentInProgress ? null : _verifyPendingPayment,
+                  child: const Text('Check payment status'),
+                ),
+              ],
+              if (widget.audience == SubscriptionAudience.customer)
+                const HoroscopeSubscriptionStatus(),
               const Icon(
                 Icons.workspace_premium_rounded,
                 color: AppColors.gold,

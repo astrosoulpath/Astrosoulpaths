@@ -202,9 +202,15 @@ async function authenticatedRequest<T>(
       ...(options.headers ?? {}),
     },
     cache: "no-store",
+    credentials: "omit",
+    signal: options.signal ?? AbortSignal.timeout(20000),
   });
 
   const data = await readJson(response);
+
+  if (getAccessToken() !== token) {
+    throw new Error("Account changed. Reload payment status for the current account.");
+  }
 
   if (!response.ok) {
     if (response.status === 401) {
@@ -287,6 +293,29 @@ export async function reconcileSubscriptionPayment(
 export async function getPendingSubscriptionPaymentOrder(orderId: string): Promise<RazorpayOrder> {
   if (!/^order_[A-Za-z0-9_]{1,80}$/.test(orderId)) throw new Error("Invalid subscription payment reference.");
   return authenticatedRequest<RazorpayOrder>(`/payments/subscription-order/${encodeURIComponent(orderId)}`, { method: "GET" });
+}
+
+export async function getSubscriptionCheckoutConfig(): Promise<{keyId: string; mode: "TEST" | "LIVE"}> {
+  const config = await authenticatedRequest<{keyId: string; mode: "TEST" | "LIVE"}>("/payments/checkout-config");
+  if (!/^rzp_(test|live)_[A-Za-z0-9]+$/.test(config.keyId) ||
+      config.mode !== (config.keyId.startsWith("rzp_test_") ? "TEST" : "LIVE")) {
+    throw new Error("Checkout environment is unavailable.");
+  }
+  return config;
+}
+
+/** Checkout proof is sent only to the owning backend; never persisted in browser storage. */
+export async function verifySubscriptionCheckout(orderId: string, proof: {
+  razorpay_order_id?: string; razorpay_payment_id?: string; razorpay_signature?: string;
+}): Promise<ReconcilePaymentResponse> {
+  if (!/^order_[A-Za-z0-9]+$/.test(orderId) || proof.razorpay_order_id !== orderId ||
+      !/^pay_[A-Za-z0-9]+$/.test(proof.razorpay_payment_id ?? "") ||
+      !/^[a-f0-9]{64}$/i.test(proof.razorpay_signature ?? "")) {
+    throw new Error("Invalid checkout proof. Check payment status before retrying.");
+  }
+  return authenticatedRequest<ReconcilePaymentResponse>("/payments/verify-checkout", {
+    method: "POST", body: JSON.stringify({orderId, paymentId: proof.razorpay_payment_id, signature: proof.razorpay_signature}),
+  });
 }
 
 export async function cancelSubscription(

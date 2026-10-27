@@ -4,12 +4,12 @@ import 'recharge_pack_screen.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 import '../../../../core/theme/app_theme.dart';
-import '../../../profile/data/profile_api.dart';
-import '../../../customer/presentation/screens/customer_profile_screen.dart';
 import '../../data/customer_wallet.dart';
 import '../../data/wallet_api.dart';
 import '../../data/wallet_history_api.dart';
 import '../../data/wallet_transaction.dart';
+import '../../data/wallet_verification_result.dart';
+import '../../../auth/data/auth_session_store.dart';
 
 class CustomerWalletScreen extends StatefulWidget {
   const CustomerWalletScreen({super.key, this.returnAfterRecharge = false});
@@ -31,6 +31,8 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
   late final Razorpay _razorpay;
 
   bool _paymentInProgress = false;
+  bool _proofInFlight = false;
+  final int _ownerRevision = AuthSessionStore.sessionRevision;
   String _pendingOrderId = '';
 
   CustomerWallet? _wallet;
@@ -38,6 +40,9 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
 
   bool _loading = true;
   String? _error;
+  int _requestVersion = 0;
+  int _page = 0;
+  bool _hasMore = false;
 
   @override
   void initState() {
@@ -59,7 +64,10 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
     super.dispose();
   }
 
-  Future<void> _loadWallet() async {
+  Future<void> _loadWallet({bool append = false}) async {
+    if (append && _loading) return;
+    final version = ++_requestVersion;
+    final page = append ? _page + 1 : 1;
     if (mounted) {
       setState(() {
         _loading = true;
@@ -68,42 +76,32 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
     }
 
     try {
-      final profileApi = ProfileApi();
-      try {
-        final isPhoneVerified = await profileApi.isAuthenticatedPhoneVerified();
+      // Attach both error handlers immediately: history can fail before the
+      // wallet response completes. Neither failure may become unhandled.
+      final results = await Future.wait<Object>([
+        _walletApi.getWallet(),
+        _historyApi.getHistory(page: page),
+      ]);
+      final wallet = results[0] as CustomerWallet;
+      final transactions = results[1] as List<WalletTransaction>;
 
-        if (!mounted) return;
-
-        if (!isPhoneVerified) {
-          setState(() {
-            _wallet = null;
-            _transactions = <WalletTransaction>[];
-            _loading = false;
-            _error = 'Phone verification required to access your wallet.';
-          });
-          return;
-        }
-      } finally {
-        profileApi.close();
-      }
-
-      final walletFuture = _walletApi.getWallet();
-      final historyFuture = _historyApi.getHistory();
-
-      final CustomerWallet wallet = await walletFuture;
-      final transactions = await historyFuture;
-
-      if (!mounted) {
+      if (!mounted || version != _requestVersion) {
         return;
       }
 
       setState(() {
         _wallet = wallet;
-        _transactions = transactions;
+        _transactions = {
+          if (append)
+            for (final item in _transactions) item.id: item,
+          for (final item in transactions) item.id: item,
+        }.values.toList(growable: false);
+        _page = page;
+        _hasMore = transactions.length == 100;
         _loading = false;
       });
     } on WalletApiException catch (error) {
-      if (!mounted) {
+      if (!mounted || version != _requestVersion) {
         return;
       }
 
@@ -112,7 +110,7 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
         _error = error.message;
       });
     } catch (_) {
-      if (!mounted) {
+      if (!mounted || version != _requestVersion) {
         return;
       }
 
@@ -295,11 +293,10 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
   }
 
   Future<void> _handlePaymentSuccess(PaymentSuccessResponse response) async {
-    final responseOrderId = response.orderId?.trim() ?? '';
-
-    final orderId = responseOrderId.isNotEmpty
-        ? responseOrderId
-        : _pendingOrderId;
+    if (_proofInFlight || _ownerRevision != AuthSessionStore.sessionRevision) {
+      return;
+    }
+    final orderId = _pendingOrderId;
 
     if (orderId.isEmpty) {
       if (!mounted) {
@@ -320,11 +317,25 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
     }
 
     try {
-      await _walletApi.reconcileOrder(orderId);
+      _proofInFlight = true;
+      final result = await _walletApi.verifyCheckout(
+        expectedOrderId: orderId,
+        callbackOrderId: response.orderId,
+        paymentId: response.paymentId,
+        signature: response.signature,
+      );
+      if (!mounted || _ownerRevision != AuthSessionStore.sessionRevision) {
+        return;
+      }
+      if (walletVerificationStatus(result) != 'success') {
+        throw const WalletApiException(
+          'Payment verification is still pending.',
+        );
+      }
 
       await _loadWallet();
 
-      if (!mounted) {
+      if (!mounted || _ownerRevision != AuthSessionStore.sessionRevision) {
         return;
       }
 
@@ -337,7 +348,7 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
         const SnackBar(content: Text('Wallet recharge verified successfully.')),
       );
     } on WalletApiException catch (error) {
-      if (!mounted) {
+      if (!mounted || _ownerRevision != AuthSessionStore.sessionRevision) {
         return;
       }
 
@@ -348,6 +359,8 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Payment received. ${error.message}')),
       );
+    } finally {
+      _proofInFlight = false;
     }
   }
 
@@ -416,26 +429,6 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
       );
     }
 
-    if (_error == 'Phone verification required to access your wallet.' &&
-        _wallet == null) {
-      return _WalletMessage(
-        icon: Icons.verified_user_outlined,
-        title: 'Verify your phone',
-        message: 'Verify your phone number to access your wallet.',
-        buttonLabel: 'Verify Phone',
-        onPressed: () async {
-          await Navigator.of(context).push<void>(
-            MaterialPageRoute<void>(
-              builder: (_) => const CustomerProfileScreen(),
-            ),
-          );
-          if (mounted) {
-            await _loadWallet();
-          }
-        },
-      );
-    }
-
     if (_error != null && _wallet == null) {
       return _WalletMessage(
         icon: Icons.account_balance_wallet_outlined,
@@ -462,6 +455,13 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
+          if (_error != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('Refresh failed: $_error. Pull down to retry.'),
+              ),
+            ),
           SliverToBoxAdapter(
             child: _WalletBalanceCard(
               wallet: wallet,
@@ -477,7 +477,7 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
                 children: [
                   const Expanded(
                     child: Text(
-                      'Recent Transactions',
+                      'Loaded Transactions',
                       style: TextStyle(
                         color: AppColors.white,
                         fontSize: 20,
@@ -519,6 +519,13 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
                     currency: wallet.currency,
                   );
                 },
+              ),
+            ),
+          if (_hasMore)
+            SliverToBoxAdapter(
+              child: TextButton(
+                onPressed: _loading ? null : () => _loadWallet(append: true),
+                child: Text(_loading ? 'Loading…' : 'Load more transactions'),
               ),
             ),
         ],

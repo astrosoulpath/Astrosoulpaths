@@ -260,17 +260,15 @@ export class PaymentsController {
   }
 
   @Get('razorpay-public-config')
+  @Header('Cache-Control', 'private, no-store')
   getRazorpayPublicConfig() {
-    const keyId = process.env.RAZORPAY_KEY_ID?.trim() ?? '';
-
-    if (!keyId) {
-      throw new Error('Razorpay public key is not configured');
-    }
+    const config = this.checkoutConfig();
 
     return {
       success: true,
       data: {
-        keyId,
+        keyId: config.keyId,
+        mode: config.mode,
       },
     };
   }
