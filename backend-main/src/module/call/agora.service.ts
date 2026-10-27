@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { RtcRole, RtcTokenBuilder } from 'agora-token';
 
 const DEFAULT_TOKEN_EXPIRY_SECONDS = 60 * 60; // 1 hour
+const MAX_TOKEN_EXPIRY_SECONDS = 24 * 60 * 60;
 
 @Injectable()
 export class AgoraService {
@@ -12,6 +13,7 @@ export class AgoraService {
     channelName: string,
     uid: number,
     role: 'PUBLISHER' | 'SUBSCRIBER' = 'PUBLISHER',
+    lifetimeCapSeconds?: number,
   ) {
     const normalizedChannel = channelName?.trim();
 
@@ -39,9 +41,36 @@ export class AgoraService {
       );
     }
 
-    const expirySeconds =
-      Number(this.config.get('AGORA_TOKEN_EXPIRY')) ||
-      DEFAULT_TOKEN_EXPIRY_SECONDS;
+    const configuredExpiry = this.config.get<string | number>(
+      'AGORA_TOKEN_EXPIRY',
+    );
+    const rawExpiry = configuredExpiry?.toString().trim() ?? '';
+    let expirySeconds =
+      rawExpiry === '' ? DEFAULT_TOKEN_EXPIRY_SECONDS : Number(rawExpiry);
+
+    if (
+      (rawExpiry !== '' && !/^\d+$/.test(rawExpiry)) ||
+      !Number.isInteger(expirySeconds) ||
+      expirySeconds < 1 ||
+      expirySeconds > MAX_TOKEN_EXPIRY_SECONDS
+    ) {
+      throw new InternalServerErrorException(
+        'AGORA_TOKEN_EXPIRY must be an integer from 1 to 86400 seconds.',
+      );
+    }
+
+    // Live v2 may shorten (never extend) the existing configured lifetime.
+    // Existing consultation and legacy Live callers do not supply this cap.
+    if (lifetimeCapSeconds !== undefined) {
+      if (
+        !Number.isInteger(lifetimeCapSeconds) ||
+        lifetimeCapSeconds < 1 ||
+        lifetimeCapSeconds > MAX_TOKEN_EXPIRY_SECONDS
+      ) {
+        throw new InternalServerErrorException('Invalid Agora lifetime cap.');
+      }
+      expirySeconds = Math.min(expirySeconds, lifetimeCapSeconds);
+    }
 
     const currentTimestamp = Math.floor(Date.now() / 1000);
 
@@ -53,8 +82,10 @@ export class AgoraService {
       normalizedChannel,
       uid,
       role === 'SUBSCRIBER' ? RtcRole.SUBSCRIBER : RtcRole.PUBLISHER,
-      privilegeExpireTime,
-      privilegeExpireTime,
+      // AccessToken2 takes durations, not Unix timestamps. Keep absolute time
+      // only in the public response below.
+      expirySeconds,
+      expirySeconds,
     );
 
     return {

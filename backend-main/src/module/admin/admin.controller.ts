@@ -1,5 +1,7 @@
+import { AdminModerationService } from './admin-moderation.service';
 ﻿import {
   Body,
+  BadRequestException,
   Controller,
   Delete,
   DefaultValuePipe,
@@ -9,6 +11,7 @@
   Patch,
   Post,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -19,6 +22,7 @@ import { Roles, Role } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { NotificationsCampaignService } from '../notifications/notifications.campaign.service';
+import { notificationCatalog } from '../notifications/smart-astrology.catalog';
 
 import { CreateQualificationQuestionDto } from './dto/create-qualification-question.dto';
 import { UpdateQualificationQuestionDto } from './dto/update-qualification-question.dto';
@@ -31,11 +35,22 @@ import type { GenerateAdminReportInput } from './admin-report.service';
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 @Roles(Role.Admin)
 export class AdminController {
+  @Get('notifications/catalog')
+  getNotificationCatalog() { return notificationCatalog(); }
   constructor(
     private readonly adminService: AdminService,
+    private readonly moderation: AdminModerationService,
     private readonly adminReportService: AdminReportService,
     private readonly notificationsCampaignService: NotificationsCampaignService,
   ) {}
+
+  @Get('finance/overview')
+  getFinanceOverview() {
+    return this.adminService.getFinanceOverview();
+  }
+
+  @Get('horoscope/monitoring')
+  getHoroscopeMonitoring() { return this.adminService.getHoroscopeMonitoring(); }
 
   /*
    * ============================================================
@@ -78,11 +93,13 @@ export class AdminController {
     limit: number,
     @Query('search')
     search?: string,
+    @Query('status') status?: string,
   ) {
     return this.adminService.getCustomers({
       page,
       limit,
       search,
+      status,
     });
   }
   @Get('users/:id')
@@ -137,23 +154,27 @@ export class AdminController {
   }
 
   @Patch('astrologers/:id/approve')
-  approveAstrologer(@Param('id') id: string) {
-    return this.adminService.approveAstrologer(id);
+  approveAstrologer(@Req() request: Parameters<AdminModerationService['execute']>[0], @Param('id') id: string, @Body() body: unknown) {
+    if (!body || typeof body !== 'object' || (body as {action?:unknown}).action !== 'APPROVE') throw new BadRequestException('Action does not match this route');
+    return this.moderation.execute(request, 'ASTROLOGER', id, body);
   }
 
   @Patch('astrologers/:id/reject')
-  rejectAstrologer(@Param('id') id: string) {
-    return this.adminService.rejectAstrologer(id);
+  rejectAstrologer(@Req() request: Parameters<AdminModerationService['execute']>[0], @Param('id') id: string, @Body() body: unknown) {
+    if (!body || typeof body !== 'object' || (body as {action?:unknown}).action !== 'REJECT') throw new BadRequestException('Action does not match this route');
+    return this.moderation.execute(request, 'ASTROLOGER', id, body);
   }
 
   @Patch('astrologers/:id/verify')
-  verifyAstrologer(@Param('id') id: string) {
-    return this.adminService.verifyAstrologer(id);
+  verifyAstrologer(@Req() request: Parameters<AdminModerationService['execute']>[0], @Param('id') id: string, @Body() body: unknown) {
+    if (!body || typeof body !== 'object' || (body as {action?:unknown}).action !== 'VERIFY') throw new BadRequestException('Action does not match this route');
+    return this.moderation.execute(request, 'ASTROLOGER', id, body);
   }
 
   @Patch('astrologers/:id/suspend')
-  suspendAstrologer(@Param('id') id: string) {
-    return this.adminService.suspendAstrologer(id);
+  suspendAstrologer(@Req() request: Parameters<AdminModerationService['execute']>[0], @Param('id') id: string, @Body() body: unknown) {
+    if (!body || typeof body !== 'object' || (body as {action?:unknown}).action !== 'SUSPEND') throw new BadRequestException('Action does not match this route');
+    return this.moderation.execute(request, 'ASTROLOGER', id, body);
   }
 
 
@@ -183,10 +204,12 @@ export class AdminController {
     page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe)
     limit: number,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
   ) {
     return this.adminService.getSubscriptions({
       page,
-      limit,
+      limit, search, status,
     });
   }
 
@@ -196,10 +219,13 @@ export class AdminController {
     page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe)
     limit: number,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('mode') mode?: string,
   ) {
     return this.adminService.getCallSessions({
       page,
-      limit,
+      limit, search, status, mode,
     });
   }
   @Get('calls')
@@ -232,12 +258,13 @@ export class AdminController {
     page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe)
     limit: number,
+    @Query('search') search?: string,
     @Query('status')
     status?: PaymentStatus,
   ) {
     return this.adminService.getPaymentOrders({
       page,
-      limit,
+      limit, search,
       status,
     });
   }
@@ -290,6 +317,11 @@ export class AdminController {
     endDate?: string,
   ) {
     return this.adminService.getRevenueSummary(startDate, endDate);
+  }
+
+  @Get('payments/workflow-monitor')
+  getPaymentWorkflowMonitor() {
+    return this.adminService.getPaymentWorkflowMonitor();
   }
 
   @Get('payments/:id')
@@ -373,6 +405,7 @@ export class AdminController {
 
   @Patch('platform-settings')
   updatePlatformSettings(
+    @Req() request: { user?: { sub?: string } },
     @Body()
     body: {
       platformCommissionPercent?: number;
@@ -384,7 +417,7 @@ export class AdminController {
       aboutDescription?: string | null;
     },
   ) {
-    return this.adminService.updatePlatformSettings(body);
+    return this.adminService.updatePlatformSettings(body, request.user?.sub);
   }
 
   /*

@@ -1,4 +1,5 @@
-﻿import {
+import { historyWhere } from './history-query';
+import {
   BadRequestException,
   ConflictException,
   Injectable,
@@ -12,10 +13,14 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { approvedReleaseAt, financialLifecycleEnabled, readFinancialPolicy, snapshotCommission } from '../../common/finance/consultation-financial-policy';
 
 export type ConsultationPaginationParams = {
   page?: number;
   limit?: number;
+  search?: string;
+  mode?: string;
+  status?: string;
 };
 
 export type CreateConsultationParams = {
@@ -33,6 +38,7 @@ export type CreateConsultationParams = {
 
   ratePerMinute: number;
   purchasedMinutes: number;
+  requireFreeChat?: boolean;
   amountCharged: number;
   startedAt: Date;
   expiresAt: Date;
@@ -107,6 +113,11 @@ export class ConsultationRepository {
           : { count: 0 };
 
         const isFreeChat = freeChatClaim.count === 1;
+        // A racing/stale free-only request must never fall through to charging.
+        if (params.requireFreeChat && !isFreeChat) {
+          throw new ConflictException('Free chat is no longer available');
+        }
+        if (!isFreeChat && financialLifecycleEnabled()) approvedReleaseAt(now);
 
         const reservedAmount = this.toMoneyDecimal(
           isFreeChat ? 0 : params.amountCharged,
@@ -137,6 +148,11 @@ export class ConsultationRepository {
           },
         });
 
+        // Consultation rates and settlement are INR. Never treat another
+        // wallet currency's numeric balance as rupees or invent an FX charge.
+        if (!isFreeChat && wallet.currency !== 'INR') {
+          throw new BadRequestException('Paid consultations require an INR wallet');
+        }
         const availableBalance = wallet.balance.minus(wallet.lockedBalance);
 
         if (availableBalance.lessThan(reservedAmount)) {
@@ -163,7 +179,8 @@ export class ConsultationRepository {
           },
         });
 
-        const updatedWallet = await transaction.wallet.update({
+        if (!isFreeChat && financialLifecycleEnabled()) await snapshotCommission(transaction, consultation.id);
+        const updatedWallet = isFreeChat ? wallet : await transaction.wallet.update({
           where: { id: wallet.id },
           data: {
             lockedBalance: wallet.lockedBalance.plus(reservedAmount),
@@ -375,6 +392,18 @@ export class ConsultationRepository {
    * ============================================================
    */
 
+  /** Read-only all-history dashboard totals; never reserve or settle funds. */
+  async customerDashboardSummary(userId: string) {
+    if (!userId?.trim()) throw new BadRequestException('Customer ID required');
+    const finished = { userId, status: { in: ['COMPLETED', 'ENDED'] } };
+    const [active, completed, spend] = await this.prisma.$transaction([
+      this.prisma.callSession.count({ where: { userId, status: 'ACTIVE', endedAt: null, expiresAt: { gt: new Date() } } }),
+      this.prisma.callSession.count({ where: finished }),
+      this.prisma.callSession.aggregate({ where: finished, _sum: { amountCharged: true } }),
+    ]);
+    return { active, completed, recordedSpend: spend._sum.amountCharged ?? 0, currency: 'INR' };
+  }
+
   async findUserConsultationHistory(
     userId: string,
     params: ConsultationPaginationParams = {},
@@ -382,6 +411,7 @@ export class ConsultationRepository {
     const { page, limit, skip } = this.getPagination(params);
 
     const where: Prisma.CallSessionWhereInput = {
+      ...historyWhere(params, 'customer'),
       userId,
     };
 
@@ -390,13 +420,12 @@ export class ConsultationRepository {
         where,
         skip,
         take: limit,
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: {
           astrologer: {
-            include: {
-              userProfile: true,
+            select: {
+              id: true, name: true,
+              userProfile: { select: { fullName: true, avatarUrl: true } },
             },
           },
           earning: true,
@@ -437,8 +466,25 @@ export class ConsultationRepository {
   ) {
     const { page, limit, skip } = this.getPagination(params);
 
+    if ([params.search, params.mode, params.status].some(value => value !== undefined && typeof value !== 'string')) {
+      throw new BadRequestException('Invalid history filters');
+    }
+    const search = params.search?.trim() ?? '';
+    const mode = params.mode?.trim().toLowerCase() ?? '';
+    const status = params.status?.trim().toUpperCase() ?? '';
+    if (search.length > 100 || (mode && !['chat', 'audio', 'video'].includes(mode)) ||
+        (status && !['PENDING', 'ACTIVE', 'COMPLETED', 'ENDED', 'CANCELLED', 'REJECTED', 'EXPIRED'].includes(status))) {
+      throw new BadRequestException('Invalid history filters');
+    }
+
     const where: Prisma.CallSessionWhereInput = {
       astrologerId: astrologerUserId,
+      ...(mode ? { mode: { equals: mode, mode: 'insensitive' } } : {}),
+      ...(status ? { status: { equals: status, mode: 'insensitive' } } : {}),
+      ...(search ? { user: { OR: [
+        { name: { contains: search, mode: 'insensitive' } },
+        { userProfile: { fullName: { contains: search, mode: 'insensitive' } } },
+      ] } } : {}),
     };
 
     const [items, total] = await Promise.all([
@@ -446,16 +492,19 @@ export class ConsultationRepository {
         where,
         skip,
         take: limit,
-        orderBy: {
-          createdAt: 'desc',
-        },
-        include: {
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: {
+          id: true, userId: true, mode: true, status: true,
+          createdAt: true, startedAt: true, endedAt: true, expiresAt: true,
+          amountCharged: true, ratePerMinute: true, purchasedMinutes: true,
+          extendedMinutes: true, isFreeChat: true,
           user: {
-            include: {
-              userProfile: true,
+            select: {
+              id: true, name: true,
+              userProfile: { select: { fullName: true } },
             },
           },
-          earning: true,
+          earning: { select: { netAmount: true, currency: true, status: true } },
           _count: {
             select: {
               messages: true,
@@ -708,6 +757,9 @@ export class ConsultationRepository {
         }
 
         const chargeAmount = this.toMoneyDecimal(consultation.amountCharged);
+        if (consultation.isFreeChat && !chargeAmount.isZero()) {
+          throw new ConflictException('Free consultation has an inconsistent charge');
+        }
 
         if (wallet.lockedBalance.lessThan(chargeAmount)) {
           throw new ConflictException(
@@ -737,7 +789,7 @@ export class ConsultationRepository {
           },
         });
 
-        const updatedWallet = await transaction.wallet.update({
+        const updatedWallet = consultation.isFreeChat ? wallet : await transaction.wallet.update({
           where: { id: wallet.id },
           data: {
             balance: balanceAfter,
@@ -840,6 +892,10 @@ export class ConsultationRepository {
           throw new ConflictException(
             'Only an active consultation can be extended',
           );
+        }
+
+        if (consultation.isFreeChat) {
+          throw new ConflictException('Free chat cannot be extended into a paid consultation');
         }
 
         const wallet = await transaction.wallet.findUnique({
@@ -988,6 +1044,9 @@ export class ConsultationRepository {
         }
 
         const reservedAmount = this.toMoneyDecimal(consultation.amountCharged);
+        if (consultation.isFreeChat && !reservedAmount.isZero()) {
+          throw new ConflictException('Free consultation has an inconsistent reservation');
+        }
 
         const lockedBalanceAfter = wallet.lockedBalance.greaterThanOrEqualTo(
           reservedAmount,
@@ -995,7 +1054,7 @@ export class ConsultationRepository {
           ? wallet.lockedBalance.minus(reservedAmount)
           : new Prisma.Decimal(0);
 
-        await transaction.wallet.update({
+        if (!consultation.isFreeChat) await transaction.wallet.update({
           where: { id: wallet.id },
           data: {
             lockedBalance: lockedBalanceAfter,
@@ -1052,7 +1111,7 @@ export class ConsultationRepository {
     consultationId: string,
     params: CompleteConsultationParams,
   ) {
-    const platformFeePercent = params.platformFeePercent;
+    let platformFeePercent = params.platformFeePercent;
 
     if (
       !Number.isFinite(platformFeePercent) ||
@@ -1078,6 +1137,32 @@ export class ConsultationRepository {
           throw new NotFoundException('Consultation not found');
         }
 
+        // Free completion has no commission, earning, wallet or payout posting.
+        // Preserve historical entries: inconsistent existing earnings require review.
+        if (consultation.isFreeChat) {
+          if (consultation.endedAt && consultation.status.toUpperCase() === 'COMPLETED') {
+            return transaction.callSession.findUniqueOrThrow({ where: { id: consultationId }, include: {
+              user: { include: { userProfile: true } }, astrologer: { include: { userProfile: true } },
+              earning: true, _count: { select: { messages: true } },
+            } });
+          }
+          if (consultation.endedAt || consultation.status.toUpperCase() !== 'ACTIVE' ||
+              !grossAmount.isZero() || !new Prisma.Decimal(consultation.amountCharged).isZero()) {
+            throw new ConflictException('Free consultation cannot create paid earnings or settle inactive sessions');
+          }
+          if (await transaction.astrologerEarning.findUnique({ where: { callSessionId: consultationId } })) {
+            throw new ConflictException('Existing earning requires reconciliation');
+          }
+          await transaction.callSession.update({ where: { id: consultationId }, data: {
+            status: params.status ?? 'COMPLETED', endedAt: params.endedAt ?? new Date(),
+          } });
+          return transaction.callSession.findUniqueOrThrow({ where: { id: consultationId }, include: {
+            user: { include: { userProfile: true } }, astrologer: { include: { userProfile: true } },
+            earning: true, _count: { select: { messages: true } },
+          } });
+        }
+        const policy = await readFinancialPolicy(transaction, consultationId);
+        if (policy) platformFeePercent = Number(policy.platformPercent);
         const normalizedStatus = consultation.status.toUpperCase();
 
         if (consultation.endedAt && normalizedStatus === 'COMPLETED') {
@@ -1112,6 +1197,33 @@ export class ConsultationRepository {
           );
         }
 
+        // Fail closed on stale completion amounts and inconsistent historical state.
+        if (!grossAmount.eq(new Prisma.Decimal(consultation.amountCharged))) {
+          throw new ConflictException('Consultation amount changed; refresh before completion');
+        }
+        const existingEarning = await transaction.astrologerEarning.findUnique({ where: { callSessionId: consultationId } });
+        if (existingEarning) throw new ConflictException('Existing earning requires reconciliation');
+        if (consultation.isFreeChat) {
+          if (!grossAmount.isZero()) throw new ConflictException('Free consultation cannot create paid earnings');
+        } else {
+          const entries = await transaction.walletLedger.findMany({ where: {
+            userId: consultation.userId, referenceType: LedgerReferenceType.CALL_SESSION,
+            referenceId: consultationId, type: { in: [LedgerType.CALL_DEDUCTION, LedgerType.REFUND] },
+          } });
+          let debited = new Prisma.Decimal(0);
+          for (const entry of entries) {
+            const amount = new Prisma.Decimal(entry.amount).abs();
+            if (entry.type === LedgerType.REFUND || amount.lte(0) ||
+                !new Prisma.Decimal(entry.balanceBefore).minus(entry.balanceAfter).eq(amount)) {
+              throw new ConflictException('Consultation charge requires reconciliation');
+            }
+            debited = debited.plus(amount);
+          }
+          if (grossAmount.lte(0) || !debited.eq(grossAmount)) {
+            throw new ConflictException('Verified consultation charge is required');
+          }
+        }
+
         const astrologer = await transaction.astrologer.findUnique({
           where: {
             userId: consultation.astrologerId,
@@ -1131,6 +1243,8 @@ export class ConsultationRepository {
           .toDecimalPlaces(2);
 
         const netAmount = grossAmount.minus(platformFee);
+        const completedAt = params.endedAt ?? new Date();
+        const availableAt = policy ? approvedReleaseAt(completedAt) : new Date();
 
         await transaction.callSession.update({
           where: {
@@ -1157,7 +1271,7 @@ export class ConsultationRepository {
             netAmount,
             currency: 'INR',
             status: AstrologerEarningStatus.PENDING,
-            availableAt: new Date(Date.now() + 5 * 60 * 1000),
+            availableAt,
             paidAt: null,
             reversedAt: null,
           },
@@ -1171,7 +1285,7 @@ export class ConsultationRepository {
             netAmount,
             currency: 'INR',
             status: AstrologerEarningStatus.PENDING,
-            availableAt: new Date(),
+            availableAt,
           },
         });
 
@@ -1367,6 +1481,7 @@ export class ConsultationRepository {
         ratePerMinute: true,
         purchasedMinutes: true,
         extendedMinutes: true,
+        isFreeChat: true,
       },
     });
 

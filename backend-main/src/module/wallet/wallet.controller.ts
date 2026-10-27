@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards, Query, DefaultValuePipe, ParseIntPipe } from '@nestjs/common';
 import type { JWTPayload } from 'jose';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -21,8 +21,10 @@ export class WalletController {
     return this.walletService.getRechargePacks();
   }
   @Get('history')
-  getWalletHistory(@CurrentUser() user: JWTPayload) {
-    return this.walletService.getWalletHistory(user.sub as string);
+  getWalletHistory(@CurrentUser() user: JWTPayload,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(100), ParseIntPipe) limit: number) {
+    return this.walletService.getWalletHistory(user.sub as string, page, limit);
   }
 
   /**

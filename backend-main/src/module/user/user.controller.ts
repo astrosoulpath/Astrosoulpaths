@@ -3,6 +3,7 @@ import {
   Controller,
   BadRequestException,
   Headers,
+  Header,
   ServiceUnavailableException,
   Delete,
   Get,
@@ -26,6 +27,19 @@ import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  @Get('account/deletion-readiness')
+  @Header('Cache-Control', 'private, no-store')
+  @UseGuards(SupabaseAuthGuard)
+  deletionReadiness() {
+    // Informational only. No deletion request, entitlement or provider mutation.
+    return { success: true, data: {
+      available: false, status: 'NOT_ENABLED',
+      recentReauthenticationRequired: true,
+      blockers: ['RETENTION_POLICY_APPROVAL', 'FINANCIAL_OBLIGATION_WORKFLOW', 'PROVIDER_CLEANUP_WORKFLOW'],
+      message: 'Account deletion is not enabled. No deletion request has been recorded. Contact support for assistance.',
+    } };
+  }
+
   @Delete('account')
   @UseGuards(SupabaseAuthGuard)
   async deleteAccount(
@@ -41,9 +55,13 @@ export class UserController {
     );
   }
   @Get('session')
+  @Header('Cache-Control', 'private, no-store')
   @UseGuards(SupabaseAuthGuard)
-  getSession(@CurrentUser() user: JWTPayload, @Query('portal') portal?: string) {
-    return this.userService.getSessionState(user.sub as string, portal);
+  async getSession(@CurrentUser() user: JWTPayload, @Query('portal') portal?: string) {
+    if(user.asp_context && ((portal==='customer'&&user.asp_context!=='customer')||
+      (portal&&portal!=='customer'&&user.asp_context!=='astrologer')))throw new UnauthorizedException('Session context mismatch');
+    const state=await this.userService.getSessionState(user.sub as string, portal??(user.asp_context==='customer'?'customer':undefined));
+    return user.asp_context ? {...state,user:{...state.user,authContext:user.asp_context,firebaseUid:user.firebase_uid,isEmailVerified:true}} : state;
   }
 
   @Post('profile/phone/firebase-attach')

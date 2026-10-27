@@ -23,6 +23,8 @@ import {
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { SupabaseService } from '../../infrastructure/supabase/supabase.service';
 import { getRazorpayInstance } from '../../config/razorpay.config';
+import { MarketplaceCheckoutStore } from './marketplace-checkout-store';
+import { allocation } from './marketplace-accounting';
 import { AddMarketplaceCartItemDto } from './dto/add-marketplace-cart-item.dto';
 import { UpdateMarketplaceCartItemDto } from './dto/update-marketplace-cart-item.dto';
 import { CreateMarketplaceAddressDto } from './dto/create-marketplace-address.dto';
@@ -39,6 +41,7 @@ import { CreateMarketplaceCampaignDto } from './dto/create-marketplace-campaign.
 import { UpdateMarketplaceCampaignDto } from './dto/update-marketplace-campaign.dto';
 import { AddMarketplaceCampaignProductDto } from './dto/add-marketplace-campaign-product.dto';
 import { VerifyMarketplacePaymentDto } from './dto/verify-marketplace-payment.dto';
+import { marketplaceCommission, validateMarketplaceImage } from './marketplace-policy';
 
 @Injectable()
 export class MarketplaceService {
@@ -151,10 +154,16 @@ export class MarketplaceService {
       throw new BadRequestException('Authenticated user ID is required');
     }
 
+    const identity = await this.prisma.userAuthIdentity.findUnique({
+      where: { provider_providerUserId: { provider: 'supabase', providerUserId: normalized } },
+      select: { userId: true },
+    });
+    const legacy = await this.prisma.user.findUnique({ where: { supabaseId: normalized }, select: { id: true } });
+    if (identity && legacy && identity.userId !== legacy.id) {
+      throw new ForbiddenException('Conflicting marketplace identity');
+    }
     const user = await this.prisma.user.findUnique({
-      where: {
-        supabaseId: normalized,
-      },
+      where: identity ? { id: identity.userId } : { supabaseId: normalized },
       include: {
         astrologer: true,
       },
@@ -216,6 +225,9 @@ export class MarketplaceService {
   }
 
   private validateProductPrices(mrp: number, sellingPrice: number) {
+    if (![mrp, sellingPrice].every(value => Number.isFinite(value) && value > 0 && new Prisma.Decimal(value).decimalPlaces() <= 2)) {
+      throw new BadRequestException('Product prices must be positive INR amounts with at most two decimals');
+    }
     if (sellingPrice > mrp) {
       throw new BadRequestException('Selling price cannot exceed MRP');
     }
@@ -415,11 +427,12 @@ export class MarketplaceService {
     if (
       !(
         existing.status === MarketplaceProductStatus.DRAFT ||
-        existing.status === MarketplaceProductStatus.REJECTED
+        existing.status === MarketplaceProductStatus.REJECTED ||
+        existing.status === MarketplaceProductStatus.OUT_OF_STOCK
       )
     ) {
       throw new BadRequestException(
-        'Only draft or rejected products can be edited',
+        'Only draft, rejected or paused products can be edited',
       );
     }
 
@@ -472,9 +485,13 @@ export class MarketplaceService {
     const product = await this.prisma.marketplaceProduct.update({
       where: {
         id: productId,
+        astrologerId: astrologer.id,
+        status: { in: ['DRAFT','REJECTED','OUT_OF_STOCK'] },
       },
       data: {
         categoryId: dto.categoryId,
+        status: MarketplaceProductStatus.DRAFT,
+        approvedAt: null,
         name: dto.name?.trim(),
         slug,
         sku: dto.sku?.trim(),
@@ -540,6 +557,8 @@ export class MarketplaceService {
       throw new BadRequestException('Product image must be 8 MB or smaller');
     }
 
+    validateMarketplaceImage(file);
+
     const product = await this.prisma.marketplaceProduct.findFirst({
       where: {
         id: productId,
@@ -595,7 +614,7 @@ export class MarketplaceService {
 
     if (uploadError) {
       throw new InternalServerErrorException(
-        `Unable to upload product image: ${uploadError.message}`,
+        'Unable to upload product image',
       );
     }
 
@@ -612,15 +631,16 @@ export class MarketplaceService {
     }
 
     try {
-      const image = await this.prisma.marketplaceProductImage.create({
-        data: {
-          productId: product.id,
-          imageUrl: publicUrl,
-          altText: product.name,
-          isPrimary: product.images.length === 0,
-          sortOrder: product.images.length,
-        },
-      });
+      const image = await this.prisma.$transaction(async tx => {
+        const locked = await tx.marketplaceProduct.updateMany({
+          where: { id: product.id, astrologerId: astrologer.id, status: {in:['DRAFT','REJECTED']} },
+          data: {updatedAt:new Date()},
+        });
+        if (locked.count !== 1) throw new ConflictException('Product status changed during upload');
+        const count = await tx.marketplaceProductImage.count({where:{productId:product.id}});
+        if(count >= 8) throw new ConflictException('Maximum 8 images are allowed per product');
+        return tx.marketplaceProductImage.create({data:{productId:product.id,imageUrl:publicUrl,altText:product.name,isPrimary:count===0,sortOrder:count}});
+      }, {isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
 
       const updatedProduct = await this.prisma.marketplaceProduct.findUnique({
         where: {
@@ -753,6 +773,46 @@ export class MarketplaceService {
     };
   }
 
+  async setSellerProductPaused(supabaseId: string, productId: string, paused: boolean) {
+    const { astrologer } = await this.requireSellerAstrologer(supabaseId, true);
+    // OUT_OF_STOCK already means hidden from discovery. Resume requires re-review,
+    // so this endpoint can never bypass an administrator's listing decision.
+    const result = await this.prisma.marketplaceProduct.updateMany({
+      where: { id: productId, astrologerId: astrologer.id,
+        status: paused ? MarketplaceProductStatus.ACTIVE : MarketplaceProductStatus.OUT_OF_STOCK,
+        ...(paused ? {} : { stock: { gt: 0 }, images: { some: {} }, category: { isActive: true } }),
+      },
+      data: { status: paused ? MarketplaceProductStatus.OUT_OF_STOCK : MarketplaceProductStatus.PENDING_REVIEW },
+    });
+    if (result.count !== 1) throw new ConflictException('Listing is unavailable or its status changed');
+    return { success: true, message: paused ? 'Listing paused' : 'Listing submitted for approval' };
+  }
+
+  async updateSellerInventory(supabaseId: string, productId: string, expectedStock: number, stock: number) {
+    const { astrologer } = await this.requireSellerAstrologer(supabaseId, true);
+    const changed = await this.prisma.marketplaceProduct.updateMany({
+      where: { id: productId, astrologerId: astrologer.id, stock: expectedStock,
+        status: { in: ['DRAFT','REJECTED','ACTIVE','OUT_OF_STOCK'] } },
+      data: { stock },
+    });
+    if (changed.count !== 1) throw new ConflictException('Inventory changed or this listing cannot be updated. Refresh first.');
+    return { success: true };
+  }
+
+  async cancelCustomerUnpaidOrder(supabaseId: string, orderId: string) {
+    const user = await this.resolveMarketplaceCustomer(supabaseId);
+    return this.prisma.$transaction(async tx => {
+      const changed = await tx.marketplaceOrder.updateMany({
+        where: { id: orderId, customerUserId: user.id, status: 'PENDING_PAYMENT', paymentVerifiedAt: null, razorpayOrderId: null },
+        data: { status: 'CANCELLED', cancelledAt: new Date() },
+      });
+      if (changed.count !== 1) throw new ConflictException('Only unpaid orders without a provider payment in progress can be cancelled');
+      await tx.marketplaceSellerOrder.updateMany({ where: { orderId, status: 'PENDING' }, data: { status: 'CANCELLED', cancelledAt: new Date() } });
+      // Unpaid preparation never reserves stock; there is nothing to restore.
+      return { success: true };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
   async getPublicCategories() {
     const categories = await this.prisma.marketplaceCategory.findMany({
       where: {
@@ -779,8 +839,14 @@ export class MarketplaceService {
     categoryId?: string,
     featured?: boolean,
     countryCode?: string,
+    pagination?: { page: number; limit: number },
   ) {
+    // Legacy callers retain data[]; bounded defaults avoid an unbounded public scan.
+    pagination ??= { page: 1, limit: 100 };
     const normalizedSearch = search?.trim();
+    if ((normalizedSearch?.length ?? 0) > 200 || (categoryId?.length ?? 0) > 128) {
+      throw new BadRequestException('Marketplace search or category is too long');
+    }
 
     const products = await this.prisma.marketplaceProduct.findMany({
       where: {
@@ -889,8 +955,12 @@ export class MarketplaceService {
         {
           createdAt: 'desc',
         },
+        { id: 'asc' },
       ],
+      ...(pagination ? { skip: (pagination.page - 1) * pagination.limit, take: pagination.limit + 1 } : {}),
     });
+    const hasMore = pagination ? products.length > pagination.limit : false;
+    if (pagination && hasMore) products.pop();
 
     const displayCurrency = this.resolveMarketplacePaymentCurrency(countryCode);
 
@@ -952,6 +1022,7 @@ export class MarketplaceService {
     return {
       success: true,
       data,
+      ...(pagination ? { pagination: { ...pagination, hasMore } } : {}),
     };
   }
 
@@ -1111,6 +1182,7 @@ export class MarketplaceService {
           where: {
             product: {
               status: MarketplaceProductStatus.ACTIVE,
+              images: { some: {} },
 
               stock: {
                 gt: 0,
@@ -2229,28 +2301,12 @@ export class MarketplaceService {
     if (!normalizedSupabaseId) {
       throw new ForbiddenException('Authenticated user is required');
     }
-
-    // Resolve the canonical customer account. A customer can have more
-    // than one Supabase identity (for example phone OTP and Google).
-    const mappedIdentity = await this.prisma.userAuthIdentity.findUnique({
-      where: {
-        provider_providerUserId: {
-          provider: 'supabase',
-          providerUserId: normalizedSupabaseId,
-        },
-      },
-      select: {
-        userId: true,
-      },
-    });
+    // Resolve once with collision detection; never choose arbitrarily between owners.
+    const canonical = await this.resolveUserBySupabaseId(normalizedSupabaseId);
 
     const user = await this.prisma.user.findFirst({
       where: {
-        OR: [
-          ...(mappedIdentity?.userId ? [{ id: mappedIdentity.userId }] : []),
-          { supabaseId: normalizedSupabaseId },
-          { id: normalizedSupabaseId },
-        ],
+        id: canonical.id,
       },
       select: {
         id: true,
@@ -3256,11 +3312,12 @@ export class MarketplaceService {
         }
 
         if (
-          lockedOrder.status === MarketplaceOrderStatus.CONFIRMED &&
+          ['CONFIRMED', 'PROCESSING', 'COMPLETED'].includes(lockedOrder.status) &&
           lockedOrder.razorpayOrderId === razorpayOrderId &&
           lockedOrder.razorpayPaymentId === razorpayPaymentId &&
           lockedOrder.paymentVerifiedAt
         ) {
+          await new MarketplaceCheckoutStore(this.prisma).postCapture(tx, lockedOrder.id, razorpayPaymentId, input.amount, normalizedWebhookCurrency);
           return {
             orderNumber: lockedOrder.orderNumber,
             alreadyConfirmed: true,
@@ -3316,6 +3373,13 @@ export class MarketplaceService {
               stock: {
                 gte: quantity,
               },
+              category: { isActive: true },
+              images: { some: {} },
+              astrologer: {
+                isApproved: true, isVerified: true,
+                user: { isActive: true, isBlocked: false },
+                marketplaceSellerProfile: { status: MarketplaceSellerStatus.ACTIVE },
+              },
             },
             data: {
               stock: {
@@ -3360,6 +3424,7 @@ export class MarketplaceService {
             tx,
             lockedOrder.id,
           );
+        await new MarketplaceCheckoutStore(this.prisma).postCapture(tx, lockedOrder.id, razorpayPaymentId, input.amount, normalizedWebhookCurrency);
 
         let removedCartItems = 0;
 
@@ -3469,11 +3534,12 @@ export class MarketplaceService {
      * return success without touching stock/cart/earnings again.
      */
     if (
-      marketplaceOrder.status === MarketplaceOrderStatus.CONFIRMED &&
+      ['CONFIRMED', 'PROCESSING', 'COMPLETED'].includes(marketplaceOrder.status) &&
       marketplaceOrder.razorpayOrderId === razorpayOrderId &&
       marketplaceOrder.razorpayPaymentId === razorpayPaymentId &&
       marketplaceOrder.paymentVerifiedAt
     ) {
+      await new MarketplaceCheckoutStore(this.prisma).reconcileCaptured(marketplaceOrder.id);
       return {
         success: true,
         message: 'Marketplace payment already verified',
@@ -3673,11 +3739,12 @@ export class MarketplaceService {
            * Concurrent/idempotent retry protection.
            */
           if (
-            lockedOrder.status === MarketplaceOrderStatus.CONFIRMED &&
+            ['CONFIRMED', 'PROCESSING', 'COMPLETED'].includes(lockedOrder.status) &&
             lockedOrder.razorpayOrderId === razorpayOrderId &&
             lockedOrder.razorpayPaymentId === razorpayPaymentId &&
             lockedOrder.paymentVerifiedAt
           ) {
+            await new MarketplaceCheckoutStore(this.prisma).postCapture(tx, lockedOrder.id, razorpayPaymentId, providerPayment.amount, providerPayment.currency);
             return {
               orderNumber: lockedOrder.orderNumber,
               alreadyConfirmed: true,
@@ -3737,6 +3804,13 @@ export class MarketplaceService {
                 stock: {
                   gte: quantity,
                 },
+                category: { isActive: true },
+                images: { some: {} },
+                astrologer: {
+                  isApproved: true, isVerified: true,
+                  user: { isActive: true, isBlocked: false },
+                  marketplaceSellerProfile: { status: MarketplaceSellerStatus.ACTIVE },
+                },
               },
               data: {
                 stock: {
@@ -3792,6 +3866,7 @@ export class MarketplaceService {
               tx,
               lockedOrder.id,
             );
+          await new MarketplaceCheckoutStore(this.prisma).postCapture(tx, lockedOrder.id, razorpayPaymentId, providerPayment.amount, providerPayment.currency);
 
           /*
            * Clear ONLY purchased products from this customer's cart.
@@ -4171,7 +4246,7 @@ export class MarketplaceService {
 
     const livePaymentsEnabled =
       process.env.MARKETPLACE_LIVE_PAYMENTS_ENABLED?.trim().toLowerCase() ===
-      'true';
+      'true' && process.env.MARKETPLACE_PAID_CHECKOUT_APPROVED === 'true';
 
     if (!livePaymentsEnabled) {
       throw new ServiceUnavailableException(
@@ -4275,6 +4350,9 @@ export class MarketplaceService {
         );
       }
 
+      await new MarketplaceCheckoutStore(this.prisma).requireFresh(marketplaceOrder.id,user.id,existingSubunits,existingCurrency);
+      await new MarketplaceCheckoutStore(this.prisma).bindProviderOrder(marketplaceOrder.id,marketplaceOrder.razorpayOrderId);
+
       return {
         success: true,
         message: 'Marketplace Razorpay order already created',
@@ -4329,6 +4407,9 @@ export class MarketplaceService {
       );
     }
 
+    await new MarketplaceCheckoutStore(this.prisma).requireFresh(marketplaceOrder.id, user.id, amountSubunits, paymentCurrency);
+    await new MarketplaceCheckoutStore(this.prisma).claimProviderCreation(marketplaceOrder.id);
+
     const razorpayOrder = await getRazorpayInstance().orders.create({
       amount: amountSubunits,
       currency: paymentCurrency,
@@ -4342,7 +4423,7 @@ export class MarketplaceService {
       },
     });
 
-    if (!razorpayOrder?.id) {
+    if (!razorpayOrder?.id || !/^order_[a-zA-Z0-9]+$/.test(razorpayOrder.id) || Number(razorpayOrder.amount)!==amountSubunits || razorpayOrder.currency!==paymentCurrency) {
       throw new ConflictException(
         'Razorpay did not return an order identifier',
       );
@@ -4365,6 +4446,8 @@ export class MarketplaceService {
         razorpayAmountSubunits: new Prisma.Decimal(amountSubunits),
       },
     });
+
+    if(attached.count===1) await new MarketplaceCheckoutStore(this.prisma).bindProviderOrder(marketplaceOrder.id, razorpayOrder.id);
 
     if (attached.count !== 1) {
       const concurrentOrder = await this.prisma.marketplaceOrder.findFirst({
@@ -4526,6 +4609,12 @@ export class MarketplaceService {
 
     if (!address) {
       throw new NotFoundException('Marketplace address not found');
+    }
+
+    const deliveryCountry = address.countryCode?.trim().toUpperCase() ||
+      (address.country.trim().toLowerCase() === 'india' ? 'IN' : '');
+    if (deliveryCountry !== 'IN') {
+      throw new ServiceUnavailableException('International delivery requires an approved shipping and tax integration');
     }
 
     const cart = await this.prisma.marketplaceCart.findUnique({
@@ -4830,7 +4919,7 @@ export class MarketplaceService {
       },
       include: {
         items: true,
-        order: true,
+        order: { omit: { razorpaySignature: true } },
       },
       orderBy: {
         createdAt: 'desc',
@@ -4862,7 +4951,7 @@ export class MarketplaceService {
       },
       include: {
         items: true,
-        order: true,
+        order: { omit: { razorpaySignature: true } },
       },
     });
 
@@ -4885,7 +4974,7 @@ export class MarketplaceService {
         astrologerId: astrologer.id,
       },
       include: {
-        order: true,
+        order: { omit: { razorpaySignature: true } },
       },
     });
 
@@ -4932,7 +5021,7 @@ export class MarketplaceService {
         },
         include: {
           items: true,
-          order: true,
+          order: { omit: { razorpaySignature: true } },
         },
       });
 
@@ -5014,7 +5103,7 @@ export class MarketplaceService {
         },
         include: {
           items: true,
-          order: true,
+          order: { omit: { razorpaySignature: true } },
         },
       });
 
@@ -5106,7 +5195,7 @@ export class MarketplaceService {
       },
       include: {
         items: true,
-        order: true,
+        order: { omit: { razorpaySignature: true } },
       },
     });
 
@@ -5174,7 +5263,7 @@ export class MarketplaceService {
             },
             include: {
               items: true,
-              order: true,
+              order: { omit: { razorpaySignature: true } },
             },
           });
 
@@ -5190,7 +5279,11 @@ export class MarketplaceService {
           }
 
           const sellerAstrologerId = sellerOrder.astrologerId;
-          const earningRelease = await tx.marketplaceSellerEarning.updateMany({
+          const openCase = process.env.MARKETPLACE_CASES_ENABLED === 'true'
+            ? await tx.marketplaceOrderCase.count({where:{orderId:sellerOrder.orderId,status:{in:['REQUESTED','APPROVED']}}})
+            : 0;
+          const earningRelease = process.env.MARKETPLACE_DELIVERY_RELEASE_APPROVED === 'true' && openCase === 0
+            ? await tx.marketplaceSellerEarning.updateMany({
             where: {
               sellerOrderId: sellerOrder.id,
               astrologerId: sellerAstrologerId,
@@ -5201,7 +5294,7 @@ export class MarketplaceService {
               status: 'AVAILABLE',
               availableAt: new Date(),
             },
-          });
+          }) : { count: 0 };
 
           if (earningRelease.count > 1) {
             throw new ConflictException(
@@ -5230,7 +5323,11 @@ export class MarketplaceService {
             });
           }
 
-          return updated;
+          // Return the post-transition root order state, not the pre-completion read.
+          return tx.marketplaceSellerOrder.findUnique({
+            where: { id: sellerOrder.id },
+            include: { items: true, order: { omit: { razorpaySignature: true } } },
+          });
         },
         {
           isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -5271,20 +5368,7 @@ export class MarketplaceService {
   }
 
   async getCustomerOrders(supabaseId: string) {
-    const user = await this.prisma.user.findFirst({
-      where: {
-        supabaseId,
-        isActive: true,
-        isBlocked: false,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException('Customer not found');
-    }
+    const user = await this.resolveMarketplaceCustomer(supabaseId);
 
     const orders = await this.prisma.marketplaceOrder.findMany({
       where: {
@@ -5312,20 +5396,7 @@ export class MarketplaceService {
   }
 
   async getCustomerOrder(supabaseId: string, orderId: string) {
-    const user = await this.prisma.user.findFirst({
-      where: {
-        supabaseId,
-        isActive: true,
-        isBlocked: false,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException('Customer not found');
-    }
+    const user = await this.resolveMarketplaceCustomer(supabaseId);
 
     const order = await this.prisma.marketplaceOrder.findFirst({
       where: {
@@ -5382,7 +5453,7 @@ export class MarketplaceService {
             id: true,
             astrologerId: true,
             currency: true,
-            grandTotal: true,
+            subtotal: true,
             earning: {
               select: {
                 id: true,
@@ -5399,25 +5470,13 @@ export class MarketplaceService {
       );
     }
 
-    const platformSettings = await tx.platformSettings.findUnique({
-      where: {
-        id: 'default',
-      },
-      select: {
-        platformCommissionPercent: true,
-      },
-    });
-
-    const platformFeePercent =
-      platformSettings?.platformCommissionPercent ?? new Prisma.Decimal(30);
-
-    if (platformFeePercent.lt(0) || platformFeePercent.gt(100)) {
-      throw new ConflictException(
-        'Marketplace platform commission must be between 0 and 100',
-      );
-    }
+    const platformFeePercent = new Prisma.Decimal(30);
 
     let createdCount = 0;
+
+    const snapshotRows = process.env.MARKETPLACE_CHECKOUT_SNAPSHOT_ENABLED==='true'
+      ? await tx.$queryRaw<{payload:any[]}[]>`SELECT payload FROM "MarketplaceCheckoutSnapshot" WHERE "orderId"=${orderId}` : null;
+    if(snapshotRows && snapshotRows.length!==1) throw new ConflictException('Verified earning component snapshot required');
 
     for (const sellerOrder of order.sellerOrders) {
       if (!sellerOrder.astrologerId) {
@@ -5435,20 +5494,15 @@ export class MarketplaceService {
         continue;
       }
 
-      const grossAmount = new Prisma.Decimal(sellerOrder.grandTotal);
-
-      if (grossAmount.lt(0)) {
-        throw new ConflictException(
-          'Marketplace seller order total cannot be negative',
-        );
+      let { grossAmount, platformFeeAmount, netAmount } = marketplaceCommission(sellerOrder.subtotal, sellerOrder.currency);
+      if(snapshotRows) {
+        const component=snapshotRows[0].payload.find(s=>s.sellerOrderId===sellerOrder.id);
+        if(!component || component.amounts.currency!==sellerOrder.currency) throw new ConflictException('Earning snapshot ownership mismatch');
+        const split=allocation(component.amounts);
+        grossAmount=new Prisma.Decimal(split.commissionable.toString()).div(100);
+        platformFeeAmount=new Prisma.Decimal(split.platform.toString()).div(100);
+        netAmount=new Prisma.Decimal(split.seller.toString()).div(100);
       }
-
-      const platformFeeAmount = grossAmount
-        .mul(platformFeePercent)
-        .div(100)
-        .toDecimalPlaces(2);
-
-      const netAmount = grossAmount.sub(platformFeeAmount).toDecimalPlaces(2);
 
       await tx.marketplaceSellerEarning.create({
         data: {
@@ -5519,12 +5573,20 @@ export class MarketplaceService {
       data: {
         summary: grouped,
         earnings,
+        payoutRequestsEnabled: process.env.MARKETPLACE_PAYOUT_REQUESTS_ENABLED === 'true' && process.env.MARKETPLACE_CHECKOUT_SNAPSHOT_ENABLED !== 'true',
       },
     };
   }
 
   async requestSellerMarketplacePayout(supabaseId: string) {
     const { astrologer } = await this.requireSellerAstrologer(supabaseId, true);
+    // Creating payout requests is disabled until operational approval, independently of payments.
+    if (process.env.MARKETPLACE_PAYOUT_REQUESTS_ENABLED !== 'true') {
+      throw new ServiceUnavailableException('Marketplace payout requests are not enabled');
+    }
+    if(process.env.MARKETPLACE_CHECKOUT_SNAPSHOT_ENABLED==='true') {
+      throw new ServiceUnavailableException('Journal-based refund and settlement reconciliation is required before payout requests');
+    }
 
     const payout = await this.prisma.$transaction(
       async (tx) => {

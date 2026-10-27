@@ -8,10 +8,11 @@
   Req,
   UnauthorizedException,
   UseGuards,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Request } from 'express';
 
-import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
+import { NotificationsIdentityGuard } from './notifications-identity.guard';
 import { RegisterPushDeviceDto } from './dto/register-push-device.dto';
 import { NotificationsPushService } from './notifications.push.service';
 import { NotificationsService } from './notifications.service';
@@ -24,7 +25,7 @@ type AuthenticatedRequest = Request & {
 };
 
 @Controller('notifications')
-@UseGuards(SupabaseAuthGuard)
+@UseGuards(NotificationsIdentityGuard)
 export class NotificationsController {
   constructor(
     private readonly notificationsService: NotificationsService,
@@ -58,6 +59,20 @@ export class NotificationsController {
     );
   }
 
+  @Get('readings/:readingId')
+  getExactReading(@Req() request: AuthenticatedRequest, @Param('readingId') readingId: string) {
+    return this.notificationsService.getExactReading(this.externalUserId(request), readingId);
+  }
+
+  @Get('horoscope-preference')
+  getHoroscopePreference(@Req() request:AuthenticatedRequest) {
+    return this.notificationsService.getHoroscopePreference(this.externalUserId(request));
+  }
+  @Patch('horoscope-preference')
+  setHoroscopePreference(@Req() request:AuthenticatedRequest,@Body() body:{enabled?:unknown}) {
+    return this.notificationsService.setHoroscopePreference(this.externalUserId(request),body.enabled);
+  }
+
   @Patch('read-all')
   markAllAsRead(@Req() request: AuthenticatedRequest) {
     return this.notificationsService.markAllAsRead(
@@ -78,6 +93,9 @@ export class NotificationsController {
 
   @Post('test-push')
   async testPush(@Req() request: AuthenticatedRequest) {
+    if (process.env.NODE_ENV === 'production' || process.env.NOTIFICATION_SELF_TEST_ENABLED !== 'true') {
+      throw new ServiceUnavailableException('Notification self-test is disabled');
+    }
     const externalUserId = this.externalUserId(request);
 
     const userId =
@@ -85,11 +103,11 @@ export class NotificationsController {
 
     const notification = await this.notificationsService.createForUser({
       userId,
-      title: 'Personalized Daily Horoscope activated',
-      body: 'Your subscription is active. Your personalized Vedic horoscope is now available.',
-      type: 'subscription',
+      title: 'Notification delivery test',
+      body: 'This is a delivery test, not subscription activation.',
+      type: 'delivery_test',
       data: {
-        type: 'subscription',
+        type: 'delivery_test',
       },
     });
 
@@ -97,8 +115,8 @@ export class NotificationsController {
       title: notification.title,
       body: notification.body,
       data: {
-        type: notification.type ?? 'subscription',
-        screen: 'horoscope',
+        type: notification.type ?? 'delivery_test',
+        screen: 'notifications',
         notificationId: notification.id,
       },
     });
@@ -123,5 +141,10 @@ export class NotificationsController {
       platform: body.platform,
       deviceId: body.deviceId,
     });
+  }
+
+  @Post('devices/unregister')
+  unregisterDevice(@Req() request:AuthenticatedRequest,@Body() body:{fcmToken?:unknown}) {
+    return this.notificationsService.unregisterDevice(this.externalUserId(request),typeof body?.fcmToken==='string'?body.fcmToken:'');
   }
 }

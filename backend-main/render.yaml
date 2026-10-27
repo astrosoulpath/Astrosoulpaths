@@ -20,11 +20,11 @@ services:
     region: singapore
 
     buildCommand: pnpm install --frozen-lockfile && pnpm prisma generate && pnpm run build
-    preDeployCommand: pnpm prisma migrate deploy
+    # Schema changes require a separate pinned migration approval.
     startCommand: pnpm run start:prod
 
     healthCheckPath: /health
-    autoDeploy: true
+    autoDeploy: false
 
     envVars:
       # --------------------------------------------------------

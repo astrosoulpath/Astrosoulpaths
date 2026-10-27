@@ -1,8 +1,12 @@
-import { IsNotEmpty, IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsNotEmpty, IsEnum, IsOptional, IsString, MaxLength, MinLength, IsIn } from 'class-validator';
+import { AI_LANGUAGE_CODES } from '../domain/ai-language-policy';
 
 import { AiAstroCategory } from '../domain/ai-astro-category';
 
 export class AskAiAstroDto {
+  @IsOptional()
+  @IsIn(AI_LANGUAGE_CODES)
+  responseLanguage?: string;
   @IsOptional()
   @IsString()
   @MinLength(1)

@@ -4,6 +4,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpException,
   InternalServerErrorException,
   Logger,
@@ -22,6 +23,8 @@ import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { CreateKundliReportOrderDto } from './dto/create-kundli-report-order.dto';
 import { CreatePaymentOrderDto } from './dto/create-payment-order.dto';
 import { CreateSubscriptionOrderDto } from './dto/create-subscription-order.dto';
+import { VerifyCheckoutDto } from './dto/verify-checkout.dto';
+import { getRazorpayInstance } from '../../config/razorpay.config';
 
 import { PaymentsService } from './payments.service';
 import { RazorpayVerificationService } from './razorpay-verification.service';
@@ -30,7 +33,7 @@ type RazorpayWebhookRequest = Request & {
   rawBody?: Buffer;
 };
 
-type ReconciliationApiStatus = 'SUCCESS' | 'FAILED';
+type ReconciliationApiStatus = 'SUCCESS' | 'FAILED' | 'PENDING';
 
 @Controller('payments')
 export class PaymentsController {
@@ -121,6 +124,35 @@ export class PaymentsController {
     );
   }
 
+  @Post('verify-checkout')
+  @UseGuards(SupabaseAuthGuard)
+  async verifyCheckout(@CurrentUser() user: JWTPayload, @Body() dto: VerifyCheckoutDto) {
+    const result = await this.paymentsService.verifyCheckout(user.sub as string, dto);
+    return { success: true, status: this.mapReconciliationStatus(result.status) };
+  }
+
+  @Get('checkout-config')
+  @Header('Cache-Control', 'private, no-store')
+  @UseGuards(SupabaseAuthGuard)
+  checkoutConfig() {
+    getRazorpayInstance(); // Fail closed on invalid keys or an unapproved LIVE gate.
+    const keyId = process.env.RAZORPAY_KEY_ID!.trim();
+    return { keyId, mode: keyId.startsWith('rzp_test_') ? 'TEST' : 'LIVE' };
+  }
+
+  @Get('wallet-order/:orderId')
+  @Header('Cache-Control', 'private, no-store')
+  @UseGuards(SupabaseAuthGuard)
+  pendingWalletOrder(@CurrentUser() user: JWTPayload, @Param('orderId') orderId: string) {
+    return this.paymentsService.getPendingWalletOrder(user.sub as string, orderId);
+  }
+
+  @Get('subscription-order/:orderId')
+  @UseGuards(SupabaseAuthGuard)
+  pendingSubscriptionOrder(@CurrentUser() user: JWTPayload, @Param('orderId') orderId: string) {
+    return this.paymentsService.getPendingSubscriptionOrder(user.sub as string, orderId);
+  }
+
   /**
    * Checks Razorpay directly when:
    * - webhook arrives late,
@@ -192,9 +224,8 @@ export class PaymentsController {
         throw error;
       }
 
-      const message = error instanceof Error ? error.message : String(error);
-
-      this.logger.error(`webhook.unhandled_error reason=${message}`);
+      // Provider/database exceptions can contain credentials or request data.
+      this.logger.error('webhook.unhandled_error');
 
       throw new InternalServerErrorException('Failed to process webhook');
     }
@@ -211,10 +242,12 @@ export class PaymentsController {
   }
 
   private mapReconciliationStatus(status: string): ReconciliationApiStatus {
-    return status === 'failed' ? 'FAILED' : 'SUCCESS';
+    if (status === 'success' || status === 'duplicate') return 'SUCCESS';
+    return status === 'failed' ? 'FAILED' : 'PENDING';
   }
 
   private getFallbackReconciliationReason(status: string): string {
+    if (status === 'pending' || status === 'ignored') return 'gateway_payment_pending';
     if (status === 'failed') {
       return 'gateway_payment_failed';
     }

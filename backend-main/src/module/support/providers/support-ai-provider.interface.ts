@@ -7,6 +7,14 @@ export interface SupportAiProviderInput {
   question: string;
 
   conversation?: SupportAiConversationMessage[];
+  verifiedContext?: {
+    paymentStatus?: string;
+    consultationStatus?: string;
+    refundStatus: 'NOT_VERIFIED';
+    accountStatus?: 'ACTIVE';
+    subscriptions?: {plan:string|null;recordedStatus:string;expiresAt:string|null;entitlement:'NOT_VERIFIED'}[];
+  };
+  approvedKnowledge?: string[];
 
   customerContext?: {
     customerId?: string;

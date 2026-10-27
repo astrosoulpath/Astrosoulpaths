@@ -29,14 +29,16 @@ export function birthParamsToUtc(params: AstroParams): Date {
     throw new Error('Invalid birth date/time/timezone values');
   }
 
-  const localAsUtcMs = Date.UTC(
-    year,
-    month - 1,
-    day,
-    hour,
-    minute,
-    second,
-  );
+  // Date.UTC normalizes impossible dates and interprets years 00-99 as 1900-1999.
+  // Reject normalization rather than calculating a chart for another date.
+  const local = new Date(0);
+  local.setUTCFullYear(year, month - 1, day);
+  local.setUTCHours(hour, minute, second, 0);
+  if (year < 1 || local.getUTCFullYear() !== year ||
+      local.getUTCMonth() !== month - 1 || local.getUTCDate() !== day) {
+    throw new Error('Invalid calendar birth date');
+  }
+  const localAsUtcMs = local.getTime();
 
   const utcMs = localAsUtcMs - params.timezone * 60 * 60 * 1000;
   const result = new Date(utcMs);

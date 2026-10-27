@@ -1,9 +1,12 @@
+import { ROLES_KEY } from '../decorators/roles.decorator';
+import { bindAdminRequest } from '../auth/admin-identity-policy';
 ﻿import {
   CanActivate,
   ExecutionContext,
   Injectable,
   Logger,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { JWTPayload } from 'jose';
@@ -50,12 +53,19 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new UnauthorizedException('Missing access token');
     }
 
+    const roles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [context.getHandler(), context.getClass()]);
+    if (roles?.length && roles.every(role => role.toUpperCase() === 'ADMIN')) {
+      await bindAdminRequest(request, token, this.userService);
+      return true;
+    }
+
     /*
      * Development-only local auth remains unchanged.
      */
     const localSupabaseId = this.getLocalDevelopmentSupabaseId(token);
 
     if (localSupabaseId) {
+      if(/(^|\/)admin(\/|$)/i.test(String(request.originalUrl??request.url??'').split('?')[0]))throw new ForbiddenException('Admin context required');
       const localPayload: JWTPayload = {
         sub: localSupabaseId,
         aud: 'authenticated',
@@ -85,14 +95,28 @@ export class SupabaseAuthGuard implements CanActivate {
 
       await this.userService.assertActiveAccount(payload.sub as string);
 
+      const path=String(request.originalUrl??request.url??'').split('?')[0];
+      if(/(^|\/)admin(\/|$)/i.test(path)&&payload.asp_context!=='admin')throw new ForbiddenException('Admin context required');
+      if(payload.asp_context){
+        if(payload.asp_context==='admin')await bindAdminRequest(request,token,this.userService);
+        if(/^\/(api\/)?astrologer(\/|$)/.test(path)&&payload.asp_context!=='astrologer'&&
+          !/\/astrologer\/public(\/|$)/.test(path))throw new ForbiddenException('Astrologer context required');
+        if(payload.asp_context==='astrologer'&&payload.asp_account_role==='ASTROLOGER_APPLICANT'&&
+          !/^\/(api\/)?(user\/session|user\/profile|astrologer\/(register|kyc\/upload|onboarding-status|profile))(\/|$)/.test(path)){
+          throw new ForbiddenException('Approved astrologer context required');
+        }
+      }
+
       request.user = payload;
 
       this.logger.debug(
-        `Supabase authentication successful for user ${payload.sub}`,
+        'Canonical authentication successful',
       );
 
       return true;
-    } catch {
+    } catch (error) {
+      if(error instanceof ForbiddenException)throw error;
+      if(token.startsWith('aspctx.'))throw new UnauthorizedException('Invalid context session');
       // Not a valid Supabase JWT.
       // Only now try Firebase Phone Auth.
     }
@@ -128,6 +152,9 @@ export class SupabaseAuthGuard implements CanActivate {
       const decoded = await getAuth(firebaseApp).verifyIdToken(token, true);
 
       const firebaseUid = decoded.uid?.trim();
+      // Fallback may not synchronize or authorize an existing Admin identity.
+      if(firebaseUid){const existing=await this.userService.getUserByFirebaseUid(firebaseUid);
+        if(existing?.role?.name?.toUpperCase()==='ADMIN')throw new UnauthorizedException('Scoped session required');}
 
       const phone =
         typeof decoded.phone_number === 'string'
@@ -179,16 +206,12 @@ export class SupabaseAuthGuard implements CanActivate {
       request.user = firebasePayload;
 
       this.logger.debug(
-        `Firebase authentication successful for canonical user ${result.user.id}`,
+        'Firebase canonical authentication successful',
       );
 
       return true;
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-
-      this.logger.warn(
-        `Authentication failed for both Supabase and Firebase: ${message}`,
-      );
+      this.logger.warn('Authentication verification failed');
 
       throw new UnauthorizedException('Invalid token');
     }

@@ -1,5 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import OpenAI from 'openai';
+import { aiLanguageInstruction, resolveAiLanguage } from '../domain/ai-language-policy';
 
 import { buildAiConsultantInstructions } from '../domain/ai-consultant-instructions';
 import { serializeAiAstrologyContext } from '../../../common/utils/ai-context.util';
@@ -167,7 +168,7 @@ export class OpenAiAstroProvider implements AiAstroProvider {
       model: this.model,
       max_output_tokens: 800,
       stream: true,
-      instructions,
+      instructions: instructions + '\n' + aiLanguageInstruction(input.responseLanguage ?? resolveAiLanguage(undefined, input.question)),
       input: [
         ...previousConversation.slice(-2),
         {
@@ -197,7 +198,7 @@ export class OpenAiAstroProvider implements AiAstroProvider {
       ) {
         console.error(
           'AI_ASTRO_OPENAI_STREAM_TERMINAL_EVENT',
-          JSON.stringify(event),
+          'Provider stream could not be completed',
         );
       }
 
@@ -368,7 +369,7 @@ RESPONSE STYLE â€” MUST FOLLOW:
     const response = await this.client.responses.create({
       model: this.model,
       max_output_tokens: 800,
-      instructions: instructions + '\n\n' + responseStyleInstructions,
+      instructions: instructions + '\n\n' + responseStyleInstructions + '\n' + aiLanguageInstruction(input.responseLanguage ?? resolveAiLanguage(undefined, input.question)),
       input: [
         ...previousConversation.slice(-2),
         {

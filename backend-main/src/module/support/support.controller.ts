@@ -1,3 +1,5 @@
+import {UseFilters} from '@nestjs/common';
+import {SupportErrorFilter} from './support-error.filter';
 ﻿import {
   BadRequestException,
   Body,
@@ -6,6 +8,7 @@
   Param,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -15,11 +18,12 @@ import type { Express } from 'express';
 import { memoryStorage } from 'multer';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
+import { NotificationsIdentityGuard } from '../notifications/notifications-identity.guard';
 import { CreateSupportTicketDto } from './dto/create-support-ticket.dto';
 import { SendSupportMessageDto } from './dto/send-support-message.dto';
 import { SupportAttachmentService } from './support-attachment.service';
 import { SupportService } from './support.service';
+import { SupportTicketStatus } from '@prisma/client';
 
 const MAX_SUPPORT_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 
@@ -55,8 +59,9 @@ function supportAttachmentFileFilter(
   callback(null, true);
 }
 
+@UseFilters(SupportErrorFilter)
 @Controller('support')
-@UseGuards(SupabaseAuthGuard)
+@UseGuards(NotificationsIdentityGuard)
 export class SupportController {
   constructor(
     private readonly supportService: SupportService,
@@ -72,8 +77,8 @@ export class SupportController {
   }
 
   @Get('tickets')
-  getMyTickets(@CurrentUser() user: Record<string, any>) {
-    return this.supportService.getMyTickets(user);
+  getMyTickets(@CurrentUser() user: Record<string, any>, @Query('page') page?:string,@Query('limit') limit?:string,@Query('search') search?:string,@Query('status') status?:SupportTicketStatus) {
+    return this.supportService.getMyTickets(user,{page:page===undefined?undefined:Number(page),limit:limit===undefined?undefined:Number(limit),search,status});
   }
 
   @Get('tickets/:ticketId')

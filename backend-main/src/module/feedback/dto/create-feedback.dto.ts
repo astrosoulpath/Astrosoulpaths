@@ -11,6 +11,7 @@ import {
 import { FeedbackCategory } from '@prisma/client';
 
 export class CreateFeedbackDto {
+  @IsOptional() @IsString() @MaxLength(120) consultationId?:string;
   @IsEnum(FeedbackCategory)
   category!: FeedbackCategory;
 

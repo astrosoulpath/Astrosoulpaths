@@ -79,7 +79,7 @@ export class CallSocketService {
     const connectedSockets: Socket[] = [];
 
     for (const [socketId, socket] of sockets.entries()) {
-      if (socket.connected) {
+      if (socket.connected && socket.data.communicationAuthUntil > Date.now()) {
         connectedSockets.push(socket);
       } else {
         sockets.delete(socketId);
@@ -121,7 +121,7 @@ export class CallSocketService {
 
     const socket = this.userSockets.get(userId)?.get(socketId);
 
-    if (!socket || !socket.connected) {
+    if (!socket || !socket.connected || !(socket.data.communicationAuthUntil > Date.now())) {
       this.unregisterSocket(socketId);
       return false;
     }

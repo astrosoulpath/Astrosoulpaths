@@ -1,4 +1,12 @@
 import {
+  resolveSupportActor,
+  supportPage,
+  supportText,
+  supportLock,
+  supportDuplicate,
+} from './support-policy';
+import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -17,6 +25,7 @@ import { MailService } from '../mail/mail.service';
 import { CreateSupportTicketDto } from './dto/create-support-ticket.dto';
 import { SendSupportMessageDto } from './dto/send-support-message.dto';
 import { SupportAttachmentService } from './support-attachment.service';
+import { auditSupport } from './support-operations';
 
 type AuthUserLike = {
   id?: string;
@@ -38,73 +47,7 @@ export class SupportService {
   ) {}
 
   private async resolveCustomer(authUser: AuthUserLike) {
-    if (!authUser) {
-      throw new UnauthorizedException('Authentication required.');
-    }
-
-    const directId = authUser.id?.trim() || authUser.userId?.trim();
-
-    if (directId) {
-      const user = await this.prisma.user.findUnique({
-        where: { id: directId },
-      });
-
-      if (user) {
-        return user;
-      }
-    }
-
-    const supabaseId = authUser.supabaseId?.trim() || authUser.sub?.trim();
-
-    if (supabaseId) {
-      const identity = await this.prisma.userAuthIdentity.findUnique({
-        where: {
-          provider_providerUserId: {
-            provider: 'supabase',
-            providerUserId: supabaseId,
-          },
-        },
-        select: { userId: true },
-      });
-
-      const user = await this.prisma.user.findUnique({
-        where: identity
-          ? { id: identity.userId }
-          : { supabaseId },
-      });
-
-      if (user) {
-        return user;
-      }
-    }
-
-    const phone = authUser.phone?.trim();
-
-    if (phone) {
-      const user = await this.prisma.user.findUnique({
-        where: { phone },
-      });
-
-      if (user) {
-        return user;
-      }
-    }
-
-    const email = authUser.email?.trim();
-
-    if (email) {
-      const user = await this.prisma.user.findUnique({
-        where: { email },
-      });
-
-      if (user) {
-        return user;
-      }
-    }
-
-    throw new UnauthorizedException(
-      'Authenticated customer could not be resolved.',
-    );
+    return resolveSupportActor(this.prisma, authUser, false);
   }
 
   private buildTicketNumber(): string {
@@ -138,36 +81,79 @@ export class SupportService {
       ticketNumber = this.buildTicketNumber();
     }
 
-    const ticket = await this.prisma.supportTicket.create({
-      data: {
-        ticketNumber,
-        customerId: customer.id,
-        contactEmail:
-          dto.contactEmail?.trim().toLowerCase() || customer.email || null,
+    const ticket = await this.prisma.$transaction(async (tx) => {
+      await supportLock(tx, 'create:' + customer.id);
+      if (
+        (await tx.supportTicket.count({
+          where: {
+            customerId: customer.id,
+            createdAt: { gte: new Date(Date.now() - 3600000) },
+          },
+        })) >= 10
+      )
+        throw new BadRequestException(
+          'Support request limit reached. Please try later.',
+        );
+      for (const [id, model, where] of [
+        [
+          dto.relatedCallSessionId,
+          tx.callSession,
+          { OR: [{ userId: customer.id }, { astrologerId: customer.id }] },
+        ],
+        [dto.relatedPaymentId, tx.paymentOrder, { userId: customer.id }],
+        [dto.relatedWalletTxnId, tx.walletLedger, { userId: customer.id }],
+      ] as const) {
+        if (
+          id &&
+          !(await (model as any).findFirst({
+            where: { id: id.trim(), ...where },
+            select: { id: true },
+          }))
+        )
+          throw new BadRequestException('Related record is not accessible');
+      }
+      const created = await tx.supportTicket.create({
+        data: {
+          ticketNumber,
+          customerId: customer.id,
+          contactEmail:
+            dto.contactEmail?.trim().toLowerCase() || customer.email || null,
 
-        subject: dto.subject.trim(),
+          subject: supportText(dto.subject, 160, 3),
 
-        description: dto.description?.trim() || null,
+          description: dto.description?.trim() || null,
 
-        category: dto.category ?? SupportTicketCategory.GENERAL,
+          category: dto.category ?? SupportTicketCategory.GENERAL,
 
-        // Customer cannot self-promote urgency.
-        priority: SupportTicketPriority.NORMAL,
+          // Customer cannot self-promote urgency.
+          priority: SupportTicketPriority.NORMAL,
 
-        status: SupportTicketStatus.OPEN,
+          status: SupportTicketStatus.OPEN,
 
-        relatedCallSessionId: dto.relatedCallSessionId?.trim() || null,
+          relatedCallSessionId: dto.relatedCallSessionId?.trim() || null,
 
-        relatedPaymentId: dto.relatedPaymentId?.trim() || null,
+          relatedPaymentId: dto.relatedPaymentId?.trim() || null,
 
-        relatedWalletTxnId: dto.relatedWalletTxnId?.trim() || null,
-      },
+          relatedWalletTxnId: dto.relatedWalletTxnId?.trim() || null,
+        },
+      });
+      await auditSupport(
+        tx,
+        customer.id,
+        'TICKET',
+        created.id,
+        'CREATED',
+        {},
+        customer.id,
+        'created:' + created.id,
+      );
+      return created;
     });
 
-    if (ticket.contactEmail) {
+    if (customer.email) {
       try {
         await this.mailService.sendSupportTicketCreated({
-          to: ticket.contactEmail!,
+          to: customer.email,
           customerName: customer.name,
           ticketNumber: ticket.ticketNumber,
           subject: ticket.subject,
@@ -175,7 +161,7 @@ export class SupportService {
       } catch (error) {
         this.logger.error(
           `Support acknowledgement email failed for ticket ${ticket.ticketNumber}. Ticket remains saved.`,
-          error instanceof Error ? error.stack : String(error),
+          'SUPPORT_MAIL_FAILED',
         );
       }
     } else {
@@ -190,13 +176,39 @@ export class SupportService {
     };
   }
 
-  async getMyTickets(authUser: AuthUserLike) {
+  async getMyTickets(
+    authUser: AuthUserLike,
+    input: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      status?: SupportTicketStatus;
+    } = {},
+  ) {
     const customer = await this.resolveCustomer(authUser);
+    const { page, limit, search } = supportPage(input);
+    const where = {
+      customerId: customer.id,
+      ...(input.status ? { status: input.status } : {}),
+      ...(search
+        ? {
+            OR: [
+              { subject: { contains: search, mode: 'insensitive' as const } },
+              {
+                ticketNumber: {
+                  contains: search,
+                  mode: 'insensitive' as const,
+                },
+              },
+            ],
+          }
+        : {}),
+    };
 
     const tickets = await this.prisma.supportTicket.findMany({
-      where: {
-        customerId: customer.id,
-      },
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
 
       orderBy: [
         {
@@ -205,6 +217,7 @@ export class SupportService {
         {
           createdAt: 'desc',
         },
+        { id: 'desc' },
       ],
 
       include: {
@@ -219,15 +232,21 @@ export class SupportService {
     return {
       success: true,
       tickets,
+      pagination: {
+        page,
+        limit,
+        total: await this.prisma.supportTicket.count({ where }),
+      },
     };
   }
 
   async getMyTicket(authUser: AuthUserLike, ticketId: string) {
     const customer = await this.resolveCustomer(authUser);
 
-    const ticket = await this.prisma.supportTicket.findUnique({
+    const ticket = await this.prisma.supportTicket.findFirst({
       where: {
         id: ticketId,
+        customerId: customer.id,
       },
 
       include: {
@@ -259,6 +278,7 @@ export class SupportService {
         url: await this.attachmentService.createSignedUrl(
           attachment.storageBucket,
           attachment.storagePath,
+          ticket.id,
         ),
       })),
     );
@@ -279,9 +299,10 @@ export class SupportService {
   ) {
     const customer = await this.resolveCustomer(authUser);
 
-    const ticket = await this.prisma.supportTicket.findUnique({
+    const ticket = await this.prisma.supportTicket.findFirst({
       where: {
         id: ticketId,
+        customerId: customer.id,
       },
 
       select: {
@@ -303,7 +324,7 @@ export class SupportService {
       throw new ForbiddenException('This support ticket is closed.');
     }
 
-    const content = dto.content.trim();
+    const content = supportText(dto.content, 5000);
 
     const clientMessageId = dto.clientMessageId?.trim() || null;
 
@@ -316,6 +337,10 @@ export class SupportService {
       });
 
       if (duplicate) {
+        if (duplicate.ticketId !== ticketId)
+          throw new BadRequestException(
+            'Message key belongs to another ticket',
+          );
         return {
           success: true,
           duplicate: true,
@@ -325,6 +350,22 @@ export class SupportService {
     }
 
     const message = await this.prisma.$transaction(async (tx) => {
+      await supportLock(tx, 'sender:' + customer.id);
+      await supportLock(tx, 'ticket:' + ticketId);
+      const current = await tx.supportTicket.findUnique({
+        where: { id: ticketId },
+      });
+      if (!current || current.customerId !== customer.id)
+        throw new NotFoundException('Support ticket not found');
+      if (current.status === SupportTicketStatus.CLOSED)
+        throw new ForbiddenException('This support ticket is closed.');
+      const duplicate = await supportDuplicate(
+        tx,
+        customer.id,
+        ticketId,
+        clientMessageId,
+      );
+      if (duplicate) return duplicate;
       const created = await tx.supportMessage.create({
         data: {
           ticketId,
@@ -347,11 +388,29 @@ export class SupportService {
           // Customer response on resolved ticket
           // automatically re-opens it for support.
           status:
-            ticket.status === SupportTicketStatus.RESOLVED
+            current.status === SupportTicketStatus.RESOLVED
               ? SupportTicketStatus.OPEN
-              : ticket.status,
+              : current.status,
+          ...(current.status === SupportTicketStatus.RESOLVED
+            ? { resolvedAt: null, closedAt: null }
+            : {}),
         },
       });
+
+      await auditSupport(
+        tx,
+        customer.id,
+        'TICKET',
+        ticketId,
+        current.status === SupportTicketStatus.RESOLVED
+          ? 'REOPENED'
+          : 'CUSTOMER_REPLY',
+        {},
+        current.status === SupportTicketStatus.RESOLVED
+          ? customer.id
+          : undefined,
+        'message:' + created.id,
+      );
 
       return created;
     });
@@ -366,9 +425,10 @@ export class SupportService {
   async markAdminMessagesRead(authUser: AuthUserLike, ticketId: string) {
     const customer = await this.resolveCustomer(authUser);
 
-    const ticket = await this.prisma.supportTicket.findUnique({
+    const ticket = await this.prisma.supportTicket.findFirst({
       where: {
         id: ticketId,
+        customerId: customer.id,
       },
 
       select: {

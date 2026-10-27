@@ -1,3 +1,6 @@
+import { verifyFirebaseGoogleIdentity } from '../../common/auth/firebase-google-identity';
+import { assertContextConfigured, establishContextSession, verifyContextSession } from '../../common/auth/context-session';
+import { authorizeAdminIdentity, readAllowedAdminUid, rejectLegacyAdminAuthentication } from '../../common/auth/admin-identity-policy';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import {
@@ -10,6 +13,7 @@ import {
   UnauthorizedException,
   HttpException,
   HttpStatus,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Session } from '@supabase/supabase-js';
@@ -148,130 +152,14 @@ export class AuthService {
     };
   }
 
-  async verifyFirebaseEmailToken(idToken: string) {
-    const token = idToken?.trim();
-
-    if (!token) {
-      throw new BadRequestException({
-        success: false,
-        message: 'Firebase ID token is required',
-        code: 'FIREBASE_TOKEN_REQUIRED',
-      });
-    }
-
-    const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
-    const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY?.trim();
-
-    if (!projectId || !clientEmail || !privateKeyRaw) {
-      this.logger.error('Firebase Admin credentials are missing');
-
-      throw new InternalServerErrorException({
-        success: false,
-        message: 'Firebase email authentication is not configured',
-        code: 'FIREBASE_NOT_CONFIGURED',
-      });
-    }
-
-    try {
-      const app =
-        getApps().length > 0
-          ? getApps()[0]
-          : initializeApp({
-              credential: cert({
-                projectId,
-                clientEmail,
-                privateKey: privateKeyRaw.replace(/\\n/g, '\n'),
-              }),
-            });
-
-      const decoded = await getAuth(app).verifyIdToken(token, true);
-
-      const tokenAudience =
-        typeof decoded.aud === 'string' ? decoded.aud.trim() : '';
-
-      if (!tokenAudience || tokenAudience !== projectId) {
-        throw new UnauthorizedException({
-          success: false,
-          message: 'Firebase authentication project mismatch',
-          code: 'FIREBASE_PROJECT_MISMATCH',
-        });
-      }
-
-      const firebaseUid = decoded.uid?.trim();
-
-      const email =
-        typeof decoded.email === 'string'
-          ? decoded.email.trim().toLowerCase()
-          : '';
-
-      if (!firebaseUid) {
-        throw new UnauthorizedException({
-          success: false,
-          message: 'Firebase UID missing',
-          code: 'FIREBASE_UID_MISSING',
-        });
-      }
-
-      if (!email) {
-        throw new UnauthorizedException({
-          success: false,
-          message: 'Firebase email missing',
-          code: 'FIREBASE_EMAIL_MISSING',
-        });
-      }
-
-      // Critical account-linking protection:
-      // Never attach an unverified Firebase email to an existing ASP account.
-      if (decoded.email_verified !== true) {
-        throw new UnauthorizedException({
-          success: false,
-          message: 'Please verify your email before signing in',
-          code: 'FIREBASE_EMAIL_NOT_VERIFIED',
-        });
-      }
-
-      const result = await this.userService.syncFirebaseEmailUser({
-        firebaseUid,
-        email,
-      });
-
-      return {
-        success: true,
-        message: 'Firebase email verified',
-        portal: 'customer',
-        role: 'CUSTOMER',
-        user: this.buildCustomerUserPayload(result.user, result.isNewUser),
-        nextStep: this.getCustomerNextStep(result.user),
-        firebaseVerified: true,
-      };
-    } catch (error) {
-      if (
-        error instanceof BadRequestException ||
-        error instanceof UnauthorizedException ||
-        error instanceof ConflictException ||
-        error instanceof InternalServerErrorException
-      ) {
-        throw error;
-      }
-
-      this.logger.warn(
-        `Firebase email token verification failed: ${
-          error instanceof Error ? error.message : 'unknown error'
-        }`,
-      );
-
-      throw new UnauthorizedException({
-        success: false,
-        message: 'Invalid or expired Firebase email session',
-        code: 'FIREBASE_EMAIL_TOKEN_INVALID',
-      });
-    }
+  async verifyFirebaseEmailToken(idToken: string, portal: 'customer' | 'astrologer' | 'joinAstrologer' = 'customer') {
+    return this.loginFirebaseContext(idToken, portal, 'password');
   }
   async verifyFirebasePhoneToken(
     idToken: string,
     portal: 'customer' | 'astrologer' | 'joinAstrologer' | 'admin' = 'customer',
   ) {
+    if (portal === 'admin') rejectLegacyAdminAuthentication();
     const token = idToken?.trim();
 
     if (!token) {
@@ -656,6 +544,7 @@ export class AuthService {
     };
   }
   async sendAdminOtp(phone: string) {
+    rejectLegacyAdminAuthentication();
     const response = await this.sendOtp(phone);
 
     return {
@@ -954,6 +843,7 @@ export class AuthService {
     };
   }
   async verifyAdminOtp(phone: string, token: string) {
+    rejectLegacyAdminAuthentication();
     const loginResponse = await this.verifyOtp(phone, token);
 
     const fullUser = await this.userService.getUserWithRelations(
@@ -1005,6 +895,7 @@ export class AuthService {
     refreshToken: string,
     portal: 'customer' | 'astrologer' | 'joinAstrologer' | 'admin' = 'customer',
   ) {
+    if (portal === 'admin') rejectLegacyAdminAuthentication();
     const normalizedRefreshToken = refreshToken?.trim();
 
     if (!normalizedRefreshToken) {
@@ -1444,121 +1335,73 @@ export class AuthService {
       confirmAccountLink,
     );
   }
-  private async verifyFirebaseGoogleIdToken(
-    idToken: string,
-    requireGoogleSignInProvider = true,
-  ) {
-    const token = idToken?.trim();
+  private async verifyFirebaseGoogleIdToken(idToken: string, requireGoogleSignInProvider = true) {
+    return verifyFirebaseGoogleIdentity(idToken, requireGoogleSignInProvider);
+  }
 
-    if (!token) {
-      throw new BadRequestException({
-        success: false,
-        message: 'Firebase ID token is required',
-        code: 'FIREBASE_TOKEN_REQUIRED',
-      });
-    }
-
-    const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.trim();
-
-    if (!projectId || !clientEmail || !privateKey) {
-      throw new InternalServerErrorException({
-        success: false,
-        message: 'Firebase Google authentication is not configured',
-        code: 'FIREBASE_NOT_CONFIGURED',
-      });
-    }
-
-    const app =
-      getApps().find(
-        (candidate) => candidate.options.projectId === projectId,
-      ) ??
-      initializeApp(
-        {
-          credential: cert({
-            projectId,
-            clientEmail,
-            privateKey: privateKey.replace(/\\n/g, '\n'),
-          }),
-          projectId,
-        },
-        `asp-google-${projectId}`,
-      );
-
-    let decoded;
-
-    try {
-      decoded = await getAuth(app).verifyIdToken(token, true);
-    } catch {
-      throw new UnauthorizedException({
-        success: false,
-        message: 'Invalid or expired Firebase Google session',
-        code: 'FIREBASE_GOOGLE_TOKEN_INVALID',
-      });
-    }
-
-    const uid = decoded.uid?.trim();
-    const email = decoded.email?.trim().toLowerCase();
-    const firebaseProvider = decoded.firebase?.sign_in_provider;
-
-    if (decoded.aud !== projectId) {
-      throw new UnauthorizedException({
-        success: false,
-        message: 'Firebase authentication project mismatch',
-        code: 'FIREBASE_PROJECT_MISMATCH',
-      });
-    }
-
-    if (!uid || !email || decoded.email_verified !== true) {
-      throw new UnauthorizedException({
-        success: false,
-        message: 'A verified Firebase Google identity is required',
-        code: 'FIREBASE_GOOGLE_EMAIL_NOT_VERIFIED',
-      });
-    }
-
-    if (requireGoogleSignInProvider && firebaseProvider !== 'google.com') {
-      throw new UnauthorizedException({
-        success: false,
-        message: 'A Google-authenticated Firebase session is required',
-        code: 'FIREBASE_GOOGLE_PROVIDER_REQUIRED',
-      });
-    }
-
-    let firebaseUser;
-
-    try {
-      firebaseUser = await getAuth(app).getUser(uid);
-    } catch {
-      throw new UnauthorizedException({
-        success: false,
-        message: 'Firebase Google identity could not be verified',
-        code: 'FIREBASE_GOOGLE_IDENTITY_INVALID',
-      });
-    }
-
-    const googleProviderIdentity = firebaseUser.providerData.find(
-      (provider) => provider.providerId === 'google.com',
-    );
-    const hasEmailPasswordProvider = firebaseUser.providerData.some(
-      (provider) => provider.providerId === 'password',
-    );
-
-    if (!googleProviderIdentity?.uid) {
-      throw new UnauthorizedException({
-        success: false,
-        message: 'Google provider identity is missing from Firebase',
-        code: 'FIREBASE_GOOGLE_IDENTITY_INVALID',
-      });
-    }
+  async loginAdminWithFirebaseGoogle(idToken: string) {
+    readAllowedAdminUid();
+    const identity = await this.verifyFirebaseGoogleIdToken(idToken);
+    const user = await authorizeAdminIdentity(identity, this.userService);
+    const session = await establishContextSession(idToken,'admin',this.userService);
 
     return {
-      uid,
-      email,
-      googleSubject: googleProviderIdentity.uid,
-      hasEmailPasswordProvider,
+      success: true,
+      adminPolicy: 'single-google-v1',
+      portal: 'admin',
+      role: 'ADMIN',
+      firebaseVerified: true,
+      nextStep: 'OPEN_ADMIN_DASHBOARD',
+      ...session, session,
+      user: { id: user.id, email: user.email, role: 'ADMIN', portal: 'admin' },
     };
+  }
+
+  async loginAdminWithFirebaseEmail(idToken:string){
+    const identity=await verifyFirebaseGoogleIdentity(idToken,false,true);
+    if(identity.signInProvider!=='password')throw new UnauthorizedException('Email authentication required');
+    const user=await authorizeAdminIdentity(identity,this.userService);
+    const session=await establishContextSession(idToken,'admin',this.userService);
+    return {success:true,adminPolicy:'single-google-v1',portal:'admin',role:'ADMIN',firebaseVerified:true,
+      nextStep:'OPEN_ADMIN_DASHBOARD',...session,session,user:{id:user.id,email:user.email,role:'ADMIN',portal:'admin'}};
+  }
+
+  async verifyAdminContext(accessToken:string){
+    const proof=await verifyContextSession(accessToken,'admin',this.userService);
+    return {success:true,adminPolicy:'single-google-v1',role:'ADMIN',portal:'admin',authContext:'admin',accessToken,
+      expiresIn:Math.max(0,proof.expiresAt-Math.floor(Date.now()/1000)),
+      user:{id:proof.user.id,email:proof.user.email,role:'ADMIN',portal:'admin'}};
+  }
+
+  async loginFirebaseContext(idToken:string,portal:'customer'|'astrologer'|'joinAstrologer'='customer',method?:string,renewal=false){
+    assertContextConfigured();
+    if(!['customer','astrologer','joinAstrologer'].includes(portal))throw new BadRequestException('Invalid login portal');
+    const identity=await verifyFirebaseGoogleIdentity(idToken,false,true);
+    if(method&&identity.signInProvider!==method)throw new UnauthorizedException('Authentication method mismatch');
+    let user=await this.userService.getUserByFirebaseUid(identity.uid),isNewUser=false;
+    if(!user){
+      if(renewal)throw new UnauthorizedException('Existing mapping required');
+      const sync=()=>this.userService.syncFirebaseEmailUser({firebaseUid:identity.uid,email:identity.email,
+        identityType:identity.signInProvider==='password'?'email':'google'});
+      let mapped:Awaited<ReturnType<UserService['syncFirebaseEmailUser']>>;
+      try{mapped=await sync();}catch(error){
+        const response=error instanceof ConflictException?error.getResponse():null;
+        if(identity.signInProvider!=='google.com'||!response||typeof response!=='object'||(response as {code?:string}).code!=='FIREBASE_GOOGLE_LINK_REQUIRED')throw error;
+        if(!await this.userService.recoverLegacyFirebaseGoogleIdentity(identity.uid,identity.email,identity.googleSubject))throw error;
+        mapped=await sync();
+      }
+      user=mapped.user;isNewUser=mapped.isNewUser;
+    }
+    if(!user.isActive||user.isBlocked)throw new UnauthorizedException('Account unavailable');
+    if(portal==='astrologer'&&!user.isAstrologer)throw new UnauthorizedException('Use Join as Astrologer to register');
+    const authContext=portal==='customer'?'customer':'astrologer';
+    const session=await establishContextSession(idToken,authContext,this.userService);
+    if(portal==='customer')return {success:true,message:'Customer login successful',portal:'customer',role:'CUSTOMER',
+      ...session,session,user:{...this.buildCustomerUserPayload(user,isNewUser),authContext,firebaseUid:identity.uid,isEmailVerified:true},
+      nextStep:this.getCustomerNextStep(user),firebaseVerified:true};
+    const state=await this.userService.getSessionState(user.supabaseId,portal);
+    return {...state,message:'Astrologer access verified',...session,session,firebaseVerified:true,
+      user:{...state.user,authContext,firebaseUid:identity.uid,isEmailVerified:true}};
   }
 
   async linkFirebaseGoogleToEmailAccount(
@@ -1609,147 +1452,8 @@ export class AuthService {
     };
   }
 
-  async loginWithFirebaseGoogle(
-    idToken: string,
-    portal: 'customer' | 'astrologer' | 'joinAstrologer' = 'customer',
-  ) {
-    const identity = await this.verifyFirebaseGoogleIdToken(idToken);
-
-    if (!['customer', 'astrologer', 'joinAstrologer'].includes(portal)) {
-      throw new BadRequestException({
-        success: false,
-        message: 'Invalid Firebase Google login portal',
-        code: 'INVALID_GOOGLE_PORTAL',
-      });
-    }
-
-    const syncIdentity = () => this.userService.syncFirebaseEmailUser({
-      firebaseUid: identity.uid,
-      email: identity.email,
-      identityType: 'google',
-    });
-    let synced: Awaited<ReturnType<UserService['syncFirebaseEmailUser']>>;
-    try {
-      synced = await syncIdentity();
-    } catch (error) {
-      const response = error instanceof ConflictException ? error.getResponse() : null;
-      if (!response || typeof response !== 'object' ||
-          (response as { code?: string }).code !== 'FIREBASE_GOOGLE_LINK_REQUIRED') throw error;
-      const recovered = await this.userService.recoverLegacyFirebaseGoogleIdentity(
-        identity.uid, identity.email, identity.googleSubject,
-      );
-      if (!recovered) throw error;
-      synced = await syncIdentity();
-    }
-    const { user, isNewUser } = synced;
-
-    if (!user.isActive || user.isBlocked) {
-      throw new UnauthorizedException({
-        success: false,
-        message: 'Account is inactive or blocked',
-        code: 'ACCOUNT_UNAVAILABLE',
-      });
-    }
-
-    if (portal === 'customer') {
-      return {
-        success: true,
-        message: 'Firebase Google login successful',
-        portal: 'customer',
-        role: 'CUSTOMER',
-        user: this.buildCustomerUserPayload(user, isNewUser),
-        nextStep: this.getCustomerNextStep(user),
-        firebaseVerified: true,
-      };
-    }
-
-    const fullUser = await this.userService.getUserWithRelations(
-      user.supabaseId,
-    );
-
-    if (!fullUser) {
-      throw new NotFoundException({
-        success: false,
-        message: 'User not found',
-        code: 'USER_NOT_FOUND',
-      });
-    }
-
-    if (portal === 'astrologer') {
-      if (!fullUser.isAstrologer) {
-        throw new UnauthorizedException({
-          success: false,
-          message: 'Astrologer access is not enabled for this account',
-          code: 'ASTROLOGER_ACCESS_DENIED',
-        });
-      }
-
-      const astrologer = this.buildAstrologerPayload(fullUser);
-      const nextStep = !astrologer.hasAstrologerProfile
-        ? 'COMPLETE_ASTROLOGER_ONBOARDING'
-        : astrologer.isApproved && astrologer.isVerified
-          ? 'OPEN_ASTROLOGER_DASHBOARD'
-          : 'WAIT_FOR_ADMIN_APPROVAL';
-
-      return {
-        success: true,
-        message: 'Firebase Google astrologer login successful',
-        portal: 'astrologer',
-        role: 'ASTROLOGER',
-        user: {
-          ...this.buildCustomerUserPayload(user, isNewUser),
-          role: 'ASTROLOGER',
-          portal: 'astrologer',
-          accountRole: fullUser.role?.name ?? 'ASTROLOGER',
-          isAstrologer: true,
-        },
-        astrologer,
-        nextStep,
-        firebaseVerified: true,
-      };
-    }
-
-    const hasAstrologerProfile = Boolean(fullUser.astrologer);
-    const isApprovedAstrologer =
-      hasAstrologerProfile &&
-      Boolean(fullUser.astrologer?.isApproved) &&
-      Boolean(fullUser.astrologer?.isVerified);
-    const hasMobileNumber = (await this.userService.getSessionState(
-      fullUser.supabaseId, 'joinAstrologer',
-    )).user.isPhoneVerified;
-    const nextStep = !hasAstrologerProfile
-      ? hasMobileNumber
-        ? 'COMPLETE_ASTROLOGER_ONBOARDING'
-        : 'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING'
-      : isApprovedAstrologer
-        ? 'OPEN_ASTROLOGER_DASHBOARD'
-        : 'WAIT_FOR_ADMIN_APPROVAL';
-
-    return {
-      success: true,
-      message:
-        nextStep === 'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING'
-          ? 'Google account verified. Verify your mobile number to continue your astrologer application.'
-          : hasAstrologerProfile
-            ? 'Astrologer application found'
-            : 'Continue your astrologer application.',
-      portal: 'joinAstrologer',
-      role: 'ASTROLOGER_APPLICANT',
-      user: {
-        ...this.buildCustomerUserPayload(user, isNewUser),
-        portal: 'joinAstrologer',
-        accountRole: fullUser.role?.name ?? 'USER',
-        isAstrologer: Boolean(fullUser.isAstrologer),
-      },
-      astrologer: {
-        hasAstrologerProfile,
-        astrologerId: fullUser.astrologer?.id ?? null,
-        isApproved: fullUser.astrologer?.isApproved ?? false,
-        isVerified: fullUser.astrologer?.isVerified ?? false,
-      },
-      nextStep,
-      firebaseVerified: true,
-    };
+  async loginWithFirebaseGoogle(idToken: string, portal: 'customer' | 'astrologer' | 'joinAstrologer' = 'customer') {
+    return this.loginFirebaseContext(idToken, portal, 'google.com');
   }
 
   async linkFirebaseGoogleToLegacyAccount(

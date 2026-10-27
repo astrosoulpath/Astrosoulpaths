@@ -13,6 +13,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
+import { validateKycFile } from './kyc-document-policy';
 import type { Express } from 'express';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -22,6 +23,9 @@ import { UpdateAstrologerAvailabilityDto } from './dto/update-astrologer-availab
 import { SupabaseService } from '../../infrastructure/supabase/supabase.service';
 
 type PublicAstrologerFilters = {
+  page?: number;
+  limit?: number;
+  sort?: string;
   search?: string;
   language?: string;
   expertise?: string;
@@ -78,6 +82,7 @@ export class AstrologerService {
     if (file.size > maxFileSize) {
       throw new BadRequestException('KYC document must be 10 MB or smaller');
     }
+    validateKycFile(file);
 
     const mappedIdentity =
       await this.prisma.userAuthIdentity.findUnique({
@@ -98,11 +103,16 @@ export class AstrologerService {
         : { supabaseId: normalizedSupabaseId },
       select: {
         id: true,
+        isActive: true,
+        isBlocked: true,
       },
     });
 
     if (!user) {
       throw new NotFoundException('User account not found');
+    }
+    if (!user.isActive || user.isBlocked) {
+      throw new ForbiddenException('An active account is required to upload KYC documents');
     }
 
     const extensionMap: Record<string, string> = {
@@ -132,7 +142,7 @@ export class AstrologerService {
         });
 
       if (uploadError) {
-        throw new BadRequestException(uploadError.message);
+        throw new BadRequestException('Unable to upload KYC document. Please retry.');
       }
 
       return {
@@ -584,6 +594,14 @@ export class AstrologerService {
     };
   }
   async getPublicAstrologers(filters: PublicAstrologerFilters = {}) {
+    const paged = filters.page !== undefined || filters.limit !== undefined || filters.sort !== undefined;
+    const page = filters.page ?? 1, limit = filters.limit ?? 12;
+    if (!Number.isInteger(page) || page < 1 || page > 10000 || !Number.isInteger(limit) || limit < 1 || limit > 50)
+      throw new BadRequestException('Invalid public listing pagination');
+    if (filters.sort && !['recommended','rating-high','experience-high','price-low','price-high'].includes(filters.sort))
+      throw new BadRequestException('Invalid public listing sort');
+    for (const value of [filters.search, filters.language, filters.expertise, filters.category])
+      if (value !== undefined && (typeof value !== 'string' || value.length > 120)) throw new BadRequestException('Invalid public listing filter');
     const search = filters.search?.trim();
 
     const language = filters.language?.trim();
@@ -592,8 +610,7 @@ export class AstrologerService {
 
     const category = filters.category?.trim().toLowerCase();
 
-    const astrologers = await this.prisma.astrologer.findMany({
-      where: {
+    const where: Prisma.AstrologerWhereInput = {
         ...(category
             ? {
                 consultationCategories: {
@@ -676,9 +693,11 @@ export class AstrologerService {
               ],
             }
           : {}),
-      },
-
+      };
+    const astrologers = await this.prisma.astrologer.findMany({
+      where,
       include: {
+        _count: { select: { reviews: true } },
         user: {
           select: {
             id: true,
@@ -693,7 +712,10 @@ export class AstrologerService {
         },
       },
 
-      orderBy: [
+      orderBy: filters.sort && filters.sort !== 'recommended' ? [
+        filters.sort === 'rating-high' ? {rating:'desc'} : filters.sort === 'experience-high' ? {experience:'desc'} : {pricePerMin:filters.sort === 'price-low' ? 'asc' : 'desc'},
+        {id:'asc'},
+      ] : [
         {
           isOnline: 'desc',
         },
@@ -703,9 +725,11 @@ export class AstrologerService {
         {
           createdAt: 'desc',
         },
+        { id: 'asc' },
       ],
 
-      take: 100,
+      take: paged ? limit : 100,
+      ...(paged ? {skip:(page-1)*limit} : {}),
     });
 
     const now = new Date();
@@ -769,6 +793,13 @@ export class AstrologerService {
 
           isOnline: astrologer.isOnline,
 
+          isBusy: Boolean(activeCall),
+          chatWaitMinutes,
+          isVerified: true,
+          reviewCount: astrologer._count?.reviews,
+          currency: 'INR',
+          billingUnit: 'minute',
+
           consultationCategories: astrologer.consultationCategories,
           expertise: astrologer.expertise.map((item) => item.expertise.name),
 
@@ -781,7 +812,8 @@ export class AstrologerService {
       }),
 
       meta: {
-        total: astrologers.length,
+        total: paged ? await this.prisma.astrologer.count({where}) : astrologers.length,
+        ...(paged ? {page,limit} : {}),
       },
     };
   }
@@ -800,9 +832,11 @@ export class AstrologerService {
         isApproved: true,
 
         isVerified: true,
+        user: { is: { isActive: true, isBlocked: false, isAstrologer: true } },
       },
 
       include: {
+        _count: {select:{reviews:true}},
         user: {
           select: {
             id: true,
@@ -821,6 +855,11 @@ export class AstrologerService {
     if (!astrologer) {
       throw new NotFoundException('Approved astrologer profile not found');
     }
+
+    const activeCall = await this.prisma.callSession.findFirst({
+      where: { astrologerId: astrologer.user.id, status: 'ACTIVE', endedAt: null, expiresAt: { gt: new Date() } },
+      select: { expiresAt: true },
+    });
 
     return {
       success: true,
@@ -853,10 +892,17 @@ export class AstrologerService {
 
         isOnline: astrologer.isOnline,
 
+        isVerified: true,
+        reviewCount: astrologer._count?.reviews,
+        currency: 'INR',
+        billingUnit: 'minute',
+        isBusy: Boolean(activeCall),
+        chatWaitMinutes: activeCall ? Math.max(1, Math.ceil((activeCall.expiresAt.getTime() - Date.now()) / 60_000)) : 0,
+
         consultationCategories: astrologer.consultationCategories,
         expertise: astrologer.expertise.map((item) => item.expertise.name),
 
-        availability: astrologer.isOnline
+        availability: activeCall ? 'Currently in consultation' : astrologer.isOnline
           ? 'Available for consultation'
           : 'Currently offline',
 
@@ -886,9 +932,11 @@ export class AstrologerService {
     const profileCompletion = Math.round(
       (completed / profileChecks.length) * 100,
     );
-    const [totalEarnings, todayAudioCalls, todayVideoCalls, todayChats] =
+    const [totalEarnings, todayAudioCalls, todayVideoCalls, todayChats, pendingConsultations] =
       await this.prisma.$transaction([
-        this.prisma.astrologerEarning.aggregate({
+        this.prisma.astrologerEarning.groupBy({
+          by: ['currency'],
+          orderBy: { currency: 'asc' },
           where: {
             astrologerId: astrologer.id,
             status: {
@@ -927,6 +975,7 @@ export class AstrologerService {
             },
           },
         }),
+        this.prisma.callSession.count({where:{astrologerId:astrologer.user.id,status:'PENDING',endedAt:null,expiresAt:{gt:new Date()}}}),
       ]);
 
     return {
@@ -945,7 +994,9 @@ export class AstrologerService {
 
         avatarUrl: astrologer.user.avatarUrl ?? null,
 
-        earnings: Number(totalEarnings._sum.netAmount ?? 0),
+        earnings: totalEarnings.length === 1 ? Number(totalEarnings[0]._sum!.netAmount ?? 0) : null,
+        earningsByCurrency: totalEarnings.map((row) => ({currency: row.currency, amount: Number(row._sum!.netAmount ?? 0)})),
+        earningsCurrency: totalEarnings.length === 1 ? totalEarnings[0].currency : null,
 
         todayCalls: todayAudioCalls,
 
@@ -962,7 +1013,7 @@ export class AstrologerService {
 
         profileCompletion,
 
-        pendingConsultations: 0,
+        pendingConsultations,
 
         todaySchedule: [],
 
@@ -1011,7 +1062,9 @@ export class AstrologerService {
       lifetimeResult,
       totalTransactions,
     ] = await this.prisma.$transaction([
-      this.prisma.astrologerEarning.aggregate({
+      this.prisma.astrologerEarning.groupBy({
+          by: ['currency'],
+          orderBy: { currency: 'asc' },
         where: {
           astrologerId: astrologer.id,
 
@@ -1023,7 +1076,9 @@ export class AstrologerService {
         },
       }),
 
-      this.prisma.astrologerEarning.aggregate({
+      this.prisma.astrologerEarning.groupBy({
+          by: ['currency'],
+          orderBy: { currency: 'asc' },
         where: {
           astrologerId: astrologer.id,
 
@@ -1035,7 +1090,9 @@ export class AstrologerService {
         },
       }),
 
-      this.prisma.astrologerEarning.aggregate({
+      this.prisma.astrologerEarning.groupBy({
+          by: ['currency'],
+          orderBy: { currency: 'asc' },
         where: {
           astrologerId: astrologer.id,
 
@@ -1047,7 +1104,9 @@ export class AstrologerService {
         },
       }),
 
-      this.prisma.astrologerEarning.aggregate({
+      this.prisma.astrologerEarning.groupBy({
+          by: ['currency'],
+          orderBy: { currency: 'asc' },
         where: {
           astrologerId: astrologer.id,
 
@@ -1065,7 +1124,9 @@ export class AstrologerService {
         },
       }),
 
-      this.prisma.astrologerEarning.aggregate({
+      this.prisma.astrologerEarning.groupBy({
+          by: ['currency'],
+          orderBy: { currency: 'asc' },
         where: {
           astrologerId: astrologer.id,
 
@@ -1083,7 +1144,9 @@ export class AstrologerService {
         },
       }),
 
-      this.prisma.astrologerEarning.aggregate({
+      this.prisma.astrologerEarning.groupBy({
+          by: ['currency'],
+          orderBy: { currency: 'asc' },
         where: {
           astrologerId: astrologer.id,
 
@@ -1101,7 +1164,9 @@ export class AstrologerService {
         },
       }),
 
-      this.prisma.astrologerEarning.aggregate({
+      this.prisma.astrologerEarning.groupBy({
+          by: ['currency'],
+          orderBy: { currency: 'asc' },
         where: {
           astrologerId: astrologer.id,
 
@@ -1128,21 +1193,28 @@ export class AstrologerService {
       data: {
         astrologerId: astrologer.id,
 
-        currency: 'INR',
+        currency: lifetimeResult.length === 1 ? lifetimeResult[0].currency : null,
 
-        availableBalance: Number(availableResult._sum.netAmount ?? 0),
+        availableBalance: availableResult.length === 1 ? Number(availableResult[0]._sum!.netAmount ?? 0) : null,
+        availableBalanceByCurrency: availableResult.map((row) => ({currency: row.currency, amount: Number(row._sum!.netAmount ?? 0)})),
 
-        pendingBalance: Number(pendingResult._sum.netAmount ?? 0),
+        pendingBalance: pendingResult.length === 1 ? Number(pendingResult[0]._sum!.netAmount ?? 0) : null,
+        pendingBalanceByCurrency: pendingResult.map((row) => ({currency: row.currency, amount: Number(row._sum!.netAmount ?? 0)})),
 
-        paidAmount: Number(paidResult._sum.netAmount ?? 0),
+        paidAmount: paidResult.length === 1 ? Number(paidResult[0]._sum!.netAmount ?? 0) : null,
+        paidAmountByCurrency: paidResult.map((row) => ({currency: row.currency, amount: Number(row._sum!.netAmount ?? 0)})),
 
-        todayEarnings: Number(todayResult._sum.netAmount ?? 0),
+        todayEarnings: todayResult.length === 1 ? Number(todayResult[0]._sum!.netAmount ?? 0) : null,
+        todayEarningsByCurrency: todayResult.map((row) => ({currency: row.currency, amount: Number(row._sum!.netAmount ?? 0)})),
 
-        weekEarnings: Number(weekResult._sum.netAmount ?? 0),
+        weekEarnings: weekResult.length === 1 ? Number(weekResult[0]._sum!.netAmount ?? 0) : null,
+        weekEarningsByCurrency: weekResult.map((row) => ({currency: row.currency, amount: Number(row._sum!.netAmount ?? 0)})),
 
-        monthEarnings: Number(monthResult._sum.netAmount ?? 0),
+        monthEarnings: monthResult.length === 1 ? Number(monthResult[0]._sum!.netAmount ?? 0) : null,
+        monthEarningsByCurrency: monthResult.map((row) => ({currency: row.currency, amount: Number(row._sum!.netAmount ?? 0)})),
 
-        lifetimeEarnings: Number(lifetimeResult._sum.netAmount ?? 0),
+        lifetimeEarnings: lifetimeResult.length === 1 ? Number(lifetimeResult[0]._sum!.netAmount ?? 0) : null,
+        lifetimeEarningsByCurrency: lifetimeResult.map((row) => ({currency: row.currency, amount: Number(row._sum!.netAmount ?? 0)})),
 
         totalTransactions,
       },
@@ -1276,7 +1348,9 @@ export class AstrologerService {
             bankName,
             providerContactId: provider.contactId,
             providerFundAccountId: provider.fundAccountId,
-            isVerified: true,
+            // Fund-account creation is not bank ownership validation.
+            // New accounts remain payout-ineligible until verified evidence exists.
+            isVerified: false,
             isActive: true,
           },
         });
@@ -1353,6 +1427,9 @@ export class AstrologerService {
     supabaseId: string,
     mode: 'IMPS' | 'NEFT' | 'RTGS' = 'IMPS',
   ) {
+    if (process.env.FINANCIAL_PAYOUTS_ENABLED !== 'true') {
+      throw new BadRequestException('New payouts are disabled pending bank verification and policy approval');
+    }
     const astrologer = await this.findAstrologerBySupabaseId(supabaseId);
 
     if (!astrologer.isApproved) {
@@ -2031,8 +2108,8 @@ export class AstrologerService {
 
     for (const day of dto.days) {
       if (
-        !/^\d{2}:\d{2}$/.test(day.startTime) ||
-        !/^\d{2}:\d{2}$/.test(day.endTime)
+        !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(day.startTime) ||
+        !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(day.endTime)
       ) {
         throw new BadRequestException(
           'Availability time must use HH:mm format',

@@ -10,7 +10,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { JWTPayload } from 'jose';
 import type { Server, Socket } from 'socket.io';
-import { SupabaseJwtService } from '../../infrastructure/supabase/supabase-jwt.service';
+import { CommunicationAuthService } from '../../infrastructure/supabase/communication-auth.service';
 
 import { ChatService } from './chat.service';
 import { JoinChatDto } from './dto/join-chat.dto';
@@ -70,7 +70,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly chatService: ChatService,
     private readonly configService: ConfigService,
-    private readonly supabaseJwtService: SupabaseJwtService,
+    private readonly communicationAuth: CommunicationAuthService,
   ) {}
 
   async handleConnection(client: AuthenticatedSocket): Promise<void> {
@@ -96,6 +96,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         );
       }
 
+      await this.communicationAuth.protectSocket(client, jwtPayload);
       client.data.supabaseId = supabaseId;
 
       client.data.joinedRooms = new Set<string>();
@@ -151,7 +152,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     dto: JoinChatDto,
   ) {
     try {
-      const supabaseId = this.getSupabaseId(client);
+      const supabaseId = await this.getSupabaseId(client);
 
       const callSessionId = this.normalizeCallSessionId(dto.callSessionId);
 
@@ -302,7 +303,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     dto: SendMessageDto,
   ) {
     try {
-      const supabaseId = this.getSupabaseId(client);
+      const supabaseId = await this.getSupabaseId(client);
 
       const callSessionId = this.normalizeCallSessionId(dto.callSessionId);
 
@@ -332,7 +333,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     dto: MarkMessageReadDto,
   ) {
     try {
-      const supabaseId = this.getSupabaseId(client);
+      const supabaseId = await this.getSupabaseId(client);
 
       const callSessionId = this.normalizeCallSessionId(dto.callSessionId);
 
@@ -375,7 +376,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     payload: ReadAllPayload,
   ) {
     try {
-      const supabaseId = this.getSupabaseId(client);
+      const supabaseId = await this.getSupabaseId(client);
 
       const callSessionId = this.normalizeCallSessionId(payload?.callSessionId);
 
@@ -418,7 +419,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     payload: TypingPayload,
   ) {
     try {
-      const supabaseId = this.getSupabaseId(client);
+      const supabaseId = await this.getSupabaseId(client);
 
       const callSessionId = this.normalizeCallSessionId(payload?.callSessionId);
 
@@ -470,106 +471,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   private async verifyAccessToken(token: string): Promise<JWTPayload> {
-    const isProduction =
-      this.configService.get<string>('NODE_ENV') === 'production';
-
-    const isLocalOtpEnabled =
-      this.configService.get<string>('LOCAL_OTP_ENABLED') === 'true';
-
-    /*
-     * ============================================================
-     * LOCAL DEVELOPMENT AUTHENTICATION
-     * ============================================================
-     *
-     * Local tokens are accepted ONLY when:
-     * - NODE_ENV !== production
-     * - LOCAL_OTP_ENABLED === true
-     *
-     * Customer / local user:
-     *   local-dev-token:<supabaseId>
-     *
-     * Legacy local customer:
-     *   local-dev-token
-     *
-     * Seed astrologer:
-     *   local-astrologer-token
-     *
-     * These branches are unreachable in production.
-     */
-    if (!isProduction && isLocalOtpEnabled) {
-      const localDevTokenPrefix = 'local-dev-token:';
-
-      if (token.startsWith(localDevTokenPrefix)) {
-        const localSupabaseId = token.slice(localDevTokenPrefix.length).trim();
-
-        if (!localSupabaseId) {
-          throw this.createSocketError(
-            'NOT_AUTHENTICATED',
-            'Invalid local development token',
-          );
-        }
-
-        const now = Math.floor(Date.now() / 1000);
-
-        return {
-          sub: localSupabaseId,
-          aud: 'authenticated',
-          role: 'authenticated',
-          iss: 'astro-soul-path-local-auth',
-          iat: now,
-          exp: now + 60 * 60,
-        };
-      }
-
-      if (token === 'local-dev-token') {
-        const now = Math.floor(Date.now() / 1000);
-
-        return {
-          sub: 'local-supabase-user',
-          aud: 'authenticated',
-          role: 'authenticated',
-          iss: 'astro-soul-path-local-auth',
-          iat: now,
-          exp: now + 60 * 60,
-        };
-      }
-
-      if (token === 'local-astrologer-token') {
-        const now = Math.floor(Date.now() / 1000);
-
-        return {
-          sub: 'seed-astrologer-supabase-id',
-          aud: 'authenticated',
-          role: 'authenticated',
-          iss: 'astro-soul-path-local-auth',
-          iat: now,
-          exp: now + 60 * 60,
-        };
-      }
-    }
-
-    /*
-     * ============================================================
-     * PRODUCTION / REAL SUPABASE JWT AUTHENTICATION
-     * ============================================================
-     */
-    try {
-      const payload = await this.supabaseJwtService.verifyAccessToken(token);
-
-      if (typeof payload.sub !== 'string' || !payload.sub.trim()) {
-        throw new Error('JWT subject is missing');
-      }
-
-      return payload;
-    } catch {
-      throw this.createSocketError(
-        'NOT_AUTHENTICATED',
-        'Invalid or expired authentication token',
-      );
-    }
+    return this.communicationAuth.verify(token);
   }
 
-  private getSupabaseId(client: AuthenticatedSocket): string {
+  private async getSupabaseId(client: AuthenticatedSocket): Promise<string> {
+    try {
+      const verified = await this.communicationAuth.verify(this.extractToken(client) || "");
+      if (verified.sub !== client.data.supabaseId) throw new Error();
+    } catch {
+      client.emit("auth:required", { code: "AUTH_REQUIRED" });
+      client.disconnect(true);
+      throw this.createSocketError("NOT_AUTHENTICATED", "Communication authentication required");
+    }
     const supabaseId = client.data.supabaseId?.trim();
 
     if (!supabaseId) {

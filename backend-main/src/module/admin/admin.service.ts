@@ -1,4 +1,13 @@
-﻿import {
+import { subscriptionWhere } from './admin-record-query';
+import { ownsKycDocument } from '../astrologer/kyc-document-policy';
+import { paymentWorkflowMonitor } from './payment-workflow-monitor';
+import { validateCommissionPercent } from '../../common/finance/commission-policy';
+import { commissionAuditEnabled, lockCommissionPolicy } from '../../common/finance/consultation-financial-policy';
+import { randomUUID } from 'node:crypto';
+import { durableHoroscopeEnabled, horoscopeOutboxEnabled } from '../subscription/horoscope-durable.store';
+import { assertKundliPlan } from '../subscription/kundli-plan-policy';
+import { syncLegacyAbout } from '../app-config/about-legacy-sync';
+import {
   BadRequestException,
   ConflictException,
   Injectable,
@@ -49,6 +58,31 @@ export class AdminService {
     };
   }
 
+  async getFinanceOverview() {
+    return { success: true, data: await this.adminRepository.getFinanceOverview() };
+  }
+
+  async getPaymentWorkflowMonitor() {
+    return {success:true,data:await paymentWorkflowMonitor(this.prisma)};
+  }
+
+  async getHoroscopeMonitoring() {
+    const now=new Date();
+    const [active,expired,pending,paymentStates]=await Promise.all([
+      this.prisma.subscription.count({where:{subscriptionPlan:{name:'DAILY_HOROSCOPE_MONTHLY'},subscriptionStatus:'ACTIVE',startDate:{lte:now},endDate:{gt:now}}}),
+      this.prisma.subscription.count({where:{subscriptionPlan:{name:'DAILY_HOROSCOPE_MONTHLY'},OR:[{subscriptionStatus:'EXPIRED'},{endDate:{lte:now},subscriptionStatus:'ACTIVE'}]}}),
+      this.prisma.subscription.count({where:{subscriptionPlan:{name:'DAILY_HOROSCOPE_MONTHLY'},subscriptionStatus:'PENDING'}}),
+      this.prisma.paymentOrder.groupBy({by:['currency','status'],where:{type:'SUBSCRIPTION',metadata:{path:['planName'],equals:'DAILY_HOROSCOPE_MONTHLY'}},_count:{id:true},_sum:{amount:true}}),
+    ]);
+    const readiness={schedulerStatus:horoscopeOutboxEnabled()?'CONFIGURED':'DISABLED',providerConfigured:this.notificationsPushService.isConfigured?.()===true};
+    if(!durableHoroscopeEnabled()) return {success:true,data:{...readiness,active,expired,pending,paymentStates,paymentScope:'DAILY_HOROSCOPE_MONTHLY',durableStatus:'NOT_ACTIVATED',generation:[],delivery:[]}};
+    const generation=await this.prisma.$queryRaw`SELECT "locale","state","failureCode",COUNT(*)::int AS "count",SUM("attempts")::int AS "attempts"
+      FROM public."PersonalizedHoroscopeReading" GROUP BY "locale","state","failureCode" ORDER BY "locale","state"`;
+    const delivery=await this.prisma.$queryRaw`SELECT "locale","state","failureCode",COUNT(*)::int AS "count",SUM("attempts")::int AS "attempts"
+      FROM public."HoroscopeNotificationOutbox" GROUP BY "locale","state","failureCode" ORDER BY "locale","state"`;
+    return {success:true,data:{...readiness,active,expired,pending,paymentStates,paymentScope:'DAILY_HOROSCOPE_MONTHLY',durableStatus:'RECORDED',generation,delivery}};
+  }
+
   /*
    * ============================================================
    * USER MANAGEMENT
@@ -66,32 +100,8 @@ export class AdminService {
   }
 
   async getCustomers(params: AdminUserListParams = {}) {
-    const requestedPage = Math.max(params.page ?? 1, 1);
-    const requestedLimit = Math.min(Math.max(params.limit ?? 20, 1), 100);
-
-    const result = await this.adminRepository.findUsers({
-      page: 1,
-      limit: 100,
-      search: params.search,
-    });
-
-    const customers = result.items.filter(
-      (item) => item.role?.name?.toUpperCase() === 'CUSTOMER',
-    );
-
-    const start = (requestedPage - 1) * requestedLimit;
-    const items = customers.slice(start, start + requestedLimit);
-
-    return {
-      success: true,
-      data: items,
-      pagination: {
-        page: requestedPage,
-        limit: requestedLimit,
-        total: customers.length,
-        totalPages: Math.ceil(customers.length / requestedLimit),
-      },
-    };
+    const result = await this.adminRepository.findUsers({...params, customerOnly: true});
+    return { success: true, data: result.items, pagination: result.pagination };
   }
   async getUserById(userId: string) {
     const user = await this.adminRepository.findUserById(userId);
@@ -211,11 +221,16 @@ export class AdminService {
           }
         | null
         | undefined,
+      expectedType: string,
     ) {
       const storagePath = document?.url?.trim();
 
       if (!storagePath) {
         return null;
+      }
+      if (!ownsKycDocument(storagePath, response.userId, expectedType)) {
+        return { type: expectedType, name: document?.name ?? null,
+          path: null, signedUrl: null, error: 'Document reference requires ownership review' };
       }
 
       const { data, error } = await client.storage
@@ -232,7 +247,7 @@ export class AdminService {
 
           signedUrl: null,
 
-          error: error.message,
+          error: 'Document link unavailable. Please retry.',
         };
       }
 
@@ -247,15 +262,15 @@ export class AdminService {
       };
     }
 
-    const identityProof = await signDocument(documents?.identityProof);
+    const identityProof = await signDocument(documents?.identityProof, 'identity');
 
     const certificates = await Promise.all(
-      (documents?.certificates ?? []).map((document) => signDocument(document)),
+      (documents?.certificates ?? []).map((document) => signDocument(document, 'certificate')),
     );
 
     const experienceProofs = await Promise.all(
       (documents?.experienceProofs ?? []).map((document) =>
-        signDocument(document),
+        signDocument(document, 'experience'),
       ),
     );
 
@@ -389,20 +404,22 @@ export class AdminService {
     params: {
       page?: number;
       limit?: number;
+      search?: string;
+      status?: string;
     } = {},
   ) {
     const page = Math.max(params.page ?? 1, 1);
     const limit = Math.min(Math.max(params.limit ?? 20, 1), 100);
 
     const skip = (page - 1) * limit;
+    const where = subscriptionWhere(params.search,params.status);
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.subscription.findMany({
+        where,
         skip,
         take: limit,
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: {
           user: {
             include: {
@@ -412,7 +429,7 @@ export class AdminService {
           subscriptionPlan: true,
         },
       }),
-      this.prisma.subscription.count(),
+      this.prisma.subscription.count({where}),
     ]);
 
     return {
@@ -627,22 +644,9 @@ export class AdminService {
     shareMessage?: string;
     aboutTitle?: string | null;
     aboutDescription?: string | null;
-  }) {
+  }, actorSubject?: string) {
+    if (input.platformCommissionPercent !== undefined) validateCommissionPercent(input.platformCommissionPercent);
     let settings = await this.adminRepository.getPlatformSettings();
-
-    if (input.platformCommissionPercent !== undefined) {
-      if (
-        !Number.isFinite(input.platformCommissionPercent) ||
-        input.platformCommissionPercent < 0 ||
-        input.platformCommissionPercent > 100
-      ) {
-        throw new Error('platformCommissionPercent must be between 0 and 100');
-      }
-
-      settings = await this.adminRepository.updatePlatformSettings(
-        input.platformCommissionPercent,
-      );
-    }
 
     const normalizeOptionalUrl = (
       value: string | null | undefined,
@@ -724,7 +728,35 @@ export class AdminService {
     ) {
       throw new Error('aboutDescription cannot be empty');
     }
-    const appConfig = await this.prisma.appConfig.update({
+    // Both settings writes commit together; validation above is side-effect free.
+    const saved = await this.prisma.$transaction(async (tx) => {
+      if (aboutTitle !== undefined || aboutDescription !== undefined) {
+        await syncLegacyAbout(tx, actorSubject, { title: aboutTitle, introduction: aboutDescription });
+      }
+      const commission = input.platformCommissionPercent;
+      if (commission !== undefined && !commissionAuditEnabled() &&
+          !new Prisma.Decimal(commission).equals(settings.platformCommissionPercent)) {
+        throw new ConflictException('Commission audit schema must be activated before changing commission');
+      }
+      if (commissionAuditEnabled() && commission !== undefined) {
+        await lockCommissionPolicy(tx);
+        if (!actorSubject) throw new ConflictException('Authenticated commission audit actor is required');
+        const actor = await tx.user.findUnique({ where: { supabaseId: actorSubject }, select: { id: true, isActive: true, isBlocked: true } });
+        if (!actor?.isActive || actor.isBlocked) throw new ConflictException('Invalid commission audit actor');
+        const previous = await tx.platformSettings.findUnique({ where: { id: 'default' } });
+        const oldPercent = previous?.platformCommissionPercent ?? settings.platformCommissionPercent;
+        await tx.$executeRaw`INSERT INTO public."CommissionPolicyAudit"
+          ("id", "actorUserId", "previousPercent", "newPercent", "effectiveAt", "createdAt")
+          VALUES (${randomUUID()}, ${actor.id}, ${oldPercent}, ${new Prisma.Decimal(commission)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`;
+      }
+      const savedSettings = commission === undefined
+        ? await tx.platformSettings.findUnique({ where: { id: 'default' } })
+        : await tx.platformSettings.upsert({
+            where: { id: 'default' },
+            create: { id: 'default', platformCommissionPercent: new Prisma.Decimal(commission) },
+            update: { platformCommissionPercent: new Prisma.Decimal(commission) },
+          });
+      const appConfig = await tx.appConfig.update({
       where: {
         key: 'PUBLIC_APP_CONFIG',
       },
@@ -746,7 +778,11 @@ export class AdminService {
         aboutDescription: true,
         updatedAt: true,
       },
+      });
+      return { settings: savedSettings, appConfig };
     });
+    settings = saved.settings ?? settings;
+    const appConfig = saved.appConfig;
 
     const storedCommission = Number(
       settings.platformCommissionPercent.toString(),
@@ -884,6 +920,13 @@ export class AdminService {
     ) {
       throw new BadRequestException('durationDays must be between 1 and 3650');
     }
+
+    assertKundliPlan({
+      name: planName,
+      price: body.price ?? existing.price,
+      currency: existing.currency,
+      durationDays: body.durationDays ?? existing.durationDays,
+    });
 
     const displayName = body.displayName?.trim();
 

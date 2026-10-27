@@ -18,5 +18,6 @@ import { LocalizedPricingService } from './pricing/localized-pricing.service';
     LocalizedPricingService,
   ],
   controllers: [PaymentsController],
+  exports: [PaymentsService],
 })
 export class PaymentsModule {}

@@ -1,4 +1,5 @@
 "use client";
+import {publicAuthBase,sessionCandidate} from "@/features/auth/public-auth";
 
 import {
   io,
@@ -203,46 +204,10 @@ function getSocketBaseUrl(): string {
     );
   }
 
-  return baseUrl.replace(/\/+$/, "");
+  return publicAuthBase(baseUrl);
 }
 
-function getAccessToken(): string {
-  if (
-    typeof window ===
-    "undefined"
-  ) {
-    return "";
-  }
-
-  return (
-    window.localStorage.getItem(
-      "asp_access_token",
-    ) ?? ""
-  ).trim();
-}
-
-function requireAccessToken(): string {
-  if (typeof window === "undefined") {
-    throw new Error("LOGIN_REQUIRED");
-  }
-
-  const token =
-    window.localStorage
-      .getItem("asp_astrologer_access_token")
-      ?.trim() ||
-    window.localStorage
-      .getItem("asp_access_token")
-      ?.trim() ||
-    window.localStorage
-      .getItem("access_token")
-      ?.trim();
-
-  if (!token) {
-    throw new Error("LOGIN_REQUIRED");
-  }
-
-  return token;
-}
+function requireAccessToken():string{const candidate=typeof window==='undefined'?null:sessionCandidate(window.location.pathname);if(!candidate?.token)throw new Error('LOGIN_REQUIRED');return candidate.token;}
 
 function normalizeCallSessionId(
   callSessionId: string,
@@ -275,6 +240,7 @@ export function connectChatSocket():
   const token =
     requireAccessToken();
 
+  if(socket && (socket.auth as {token?:string}).token !== token)disconnectChatSocket();
   if (socket) {
     socket.auth = {
       token,

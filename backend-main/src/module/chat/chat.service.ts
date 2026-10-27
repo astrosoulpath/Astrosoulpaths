@@ -14,6 +14,7 @@ import { MarkMessageReadDto } from './dto/mark-message-read.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { RegisterChatEncryptionDeviceDto } from './dto/register-chat-encryption-device.dto';
 import { ReportChatUserDto } from './dto/chat-safety.dto';
+import { assertChatAttachmentPath, legacyChatAttachmentPath } from './chat-attachment-policy';
 
 const ACTIVE_CALL_STATUS = 'ACTIVE';
 
@@ -659,11 +660,13 @@ export class ChatService {
   private async createAttachmentAccessUrl(
     attachmentPath: string | null | undefined,
     legacyAttachmentUrl: string | null | undefined,
+    callSessionId: string,
   ): Promise<string | null> {
     const normalizedPath = attachmentPath?.trim();
 
     if (normalizedPath) {
       try {
+        assertChatAttachmentPath(normalizedPath, callSessionId);
         const client = this.supabaseService.getStorageClient();
 
         const { data, error } = await client.storage
@@ -685,6 +688,13 @@ export class ChatService {
     // may only contain the old attachmentUrl.
     const normalizedLegacyUrl = legacyAttachmentUrl?.trim();
 
+    if (normalizedLegacyUrl) {
+      const legacyPath = legacyChatAttachmentPath(normalizedLegacyUrl);
+      if (legacyPath) {
+        try { assertChatAttachmentPath(legacyPath, callSessionId); }
+        catch { return null; }
+      }
+    }
     return normalizedLegacyUrl || null;
   }
 
@@ -692,12 +702,14 @@ export class ChatService {
     const attachmentUrl = await this.createAttachmentAccessUrl(
       message.attachmentPath,
       message.attachmentUrl,
+      message.callSessionId,
     );
 
     const replyAttachmentUrl = message.replyToMessage
       ? await this.createAttachmentAccessUrl(
           message.replyToMessage.attachmentPath,
           message.replyToMessage.attachmentUrl,
+          message.callSessionId,
         )
       : null;
 
@@ -1238,6 +1250,14 @@ export class ChatService {
 
     this.validateMessagePayload(dto);
 
+    // getAccessibleCallSession above binds the authenticated sender to this session.
+    // Legacy clients may supply only the existing signed storage URL.
+    const suppliedPath = dto.attachmentPath?.trim() || legacyChatAttachmentPath(dto.attachmentUrl || '');
+    if (suppliedPath) assertChatAttachmentPath(suppliedPath, callSession.id);
+    else if (new Set<ChatMessageType>([ChatMessageType.IMAGE, ChatMessageType.FILE, ChatMessageType.AUDIO]).has(dto.messageType)) {
+      throw new BadRequestException('A consultation attachment path is required');
+    }
+
     const messageType = dto.messageType ?? ChatMessageType.TEXT;
     const clientMessageId = this.normalizeOptionalValue(dto.clientMessageId);
     const replyToMessageId = this.normalizeOptionalValue(dto.replyToMessageId);
@@ -1346,7 +1366,7 @@ export class ChatService {
 
           attachmentUrl: this.normalizeOptionalValue(dto.attachmentUrl),
 
-          attachmentPath: this.normalizeOptionalValue(dto.attachmentPath),
+          attachmentPath: suppliedPath || null,
 
           attachmentName: this.normalizeOptionalValue(dto.attachmentName),
 

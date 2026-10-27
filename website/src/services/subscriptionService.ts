@@ -83,9 +83,17 @@ export type CheckoutSubscriptionResponse = {
 
 export type ReconcilePaymentResponse = {
   success: boolean;
-  status: "SUCCESS" | "FAILED";
+  status: "SUCCESS" | "FAILED" | "PENDING";
   reason?: string;
 };
+
+export function requireVerifiedSubscriptionPayment(result: ReconcilePaymentResponse): void {
+  if (!result.success || result.status !== "SUCCESS") {
+    throw new Error(result.status === "PENDING"
+      ? "Payment verification is pending. No subscription access has been confirmed. Check status before retrying checkout."
+      : "Payment could not be verified. No subscription access was activated.");
+  }
+}
 
 function getApiBaseUrl(): string {
   if (!API_BASE_URL) {
@@ -122,17 +130,17 @@ function getAccessToken(): string {
       : (localStorage.getItem("asp_customer_access_token") ??
         localStorage.getItem("asp_access_token"));
 
-  const fallbackToken =
-    portalToken ??
-    localStorage.getItem("asp_astrologer_access_token") ??
-    localStorage.getItem("asp_customer_access_token") ??
-    localStorage.getItem("asp_access_token");
+  const fallbackToken = portalToken;
 
   if (!fallbackToken) {
     throw new Error("LOGIN_REQUIRED");
   }
 
   return fallbackToken;
+}
+
+export function hasSubscriptionSession(): boolean {
+  try { return Boolean(getAccessToken()); } catch { return false; }
 }
 
 async function readJson(response: Response): Promise<unknown> {
@@ -225,7 +233,7 @@ export async function getCurrentSubscription(): Promise<CurrentSubscriptionRespo
  */
 export async function checkoutSubscription(
   planName: SubscriptionPlanName,
-  autoRenew = true,
+  autoRenew = false,
 ): Promise<CheckoutSubscriptionResponse> {
   return authenticatedRequest<CheckoutSubscriptionResponse>(
     "/subscription/checkout",
@@ -274,6 +282,11 @@ export async function reconcileSubscriptionPayment(
       method: "POST",
     },
   );
+}
+
+export async function getPendingSubscriptionPaymentOrder(orderId: string): Promise<RazorpayOrder> {
+  if (!/^order_[A-Za-z0-9_]{1,80}$/.test(orderId)) throw new Error("Invalid subscription payment reference.");
+  return authenticatedRequest<RazorpayOrder>(`/payments/subscription-order/${encodeURIComponent(orderId)}`, { method: "GET" });
 }
 
 export async function cancelSubscription(

@@ -28,6 +28,7 @@ export class EarningReleaseProcessor {
           },
           reversedAt: null,
           paidAt: null,
+          payoutId: null,
         },
         data: {
           status: AstrologerEarningStatus.AVAILABLE,

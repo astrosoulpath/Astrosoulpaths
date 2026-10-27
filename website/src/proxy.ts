@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { ADMIN_COOKIE_OPTIONS, ADMIN_SESSION_COOKIE, checkAdminToken } from "./features/admin/auth/admin-contract";
 
 type StoredUser = {
   role?: string;
@@ -49,7 +50,7 @@ function redirect(
   );
 }
 
-export function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   /* CANONICAL_LOCAL_HOST_V3
    * localhost is the single local frontend origin.
    * Real production domains do not match this condition.
@@ -61,6 +62,11 @@ export function middleware(request: NextRequest) {
   }
 
   const path = request.nextUrl.pathname;
+  if (startsWithRoute(path, '/admin.backup-before-token-fix')) {
+    return new NextResponse('Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } });
+  }
+  if (startsWithRoute(path, '/admin/verify-otp')) return redirect(request, '/admin/login');
+
 
   /*
    * Public login and registration routes.
@@ -153,6 +159,22 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Admin authority never comes from the unsigned Customer/Astrologer cookie.
+  if (startsWithRoute(path, "/admin")) {
+    try {
+      if (await checkAdminToken(request.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+        const response = NextResponse.next();
+        response.headers.set("Cache-Control", "private, no-store");
+        return response;
+      }
+      const response = redirect(request, "/admin/login");
+      response.cookies.set(ADMIN_SESSION_COOKIE, "", { ...ADMIN_COOKIE_OPTIONS, maxAge: 0 });
+      return response;
+    } catch {
+      return new NextResponse("Admin authorization is temporarily unavailable. Please retry.", { status: 503, headers: { "Cache-Control": "no-store" } });
+    }
+  }
+
   const userCookie =
     request.cookies.get("asp_user")?.value;
 
@@ -220,19 +242,13 @@ export function middleware(request: NextRequest) {
     .trim()
     .toUpperCase();
 
-  const isAdmin =
-    role === "ADMIN" ||
-    accountRole === "ADMIN" ||
-    portal === "ADMIN";
+  // Context is a routing hint only; the Admin branch above verifies its own server cookie.
+  const isAdmin = portal === "ADMIN" || (!portal && (role === "ADMIN" || accountRole === "ADMIN"));
 
-  const hasAstrologerRole =
-    role === "ASTROLOGER" ||
-    role === "ASTROLOGER_USER" ||
-    accountRole === "ASTROLOGER" ||
-    portal === "ASTROLOGER";
+  const hasAstrologerRole = portal !== "CUSTOMER" && (role === "ASTROLOGER" || role === "ASTROLOGER_USER" || accountRole === "ASTROLOGER" || portal === "ASTROLOGER");
 
   const isAstrologerPending =
-    Boolean(user.isAstrologer) &&
+    portal !== "CUSTOMER" && Boolean(user.isAstrologer) &&
     PENDING_STATUSES.includes(astrologerStatus);
 
   /*
@@ -241,8 +257,8 @@ export function middleware(request: NextRequest) {
    * role is accepted unless status is explicitly pending.
    */
   const isAstrologerApproved =
-    hasAstrologerRole &&
-    !PENDING_STATUSES.includes(astrologerStatus);
+    hasAstrologerRole && role !== "ASTROLOGER_APPLICANT" &&
+    (!astrologerStatus || APPROVED_STATUSES.includes(astrologerStatus));
 
   /*
    * Admin routes
@@ -267,6 +283,10 @@ export function middleware(request: NextRequest) {
     }
 
     return NextResponse.next();
+  }
+
+  if (portal === "ASTROLOGER" && astrologerStatus === "ONBOARDING" && path.startsWith("/astrologer")) {
+    return startsWithRoute(path,"/astrologer/onboarding") ? NextResponse.next() : redirect(request,"/astrologer/onboarding");
   }
 
   /*
@@ -352,6 +372,7 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/admin/:path*",
+    "/admin.backup-before-token-fix/:path*",
     "/astrologer/:path*",
     "/dashboard/:path*",
     "/wallet/:path*",

@@ -1,10 +1,21 @@
 import {
+  resolveSupportActor,
+  supportLock,
+  supportText,
+} from './support-policy';
+import { hasSupportCredential } from './support-input-policy';
+import { auditSupport } from './support-operations';
+import { SupportCatalogueService } from './support-catalogue.service';
+import { RedisService } from '../../infrastructure/redis/redis.service';
+import {
   BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  HttpException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   AssistantConversationStatus,
@@ -13,13 +24,14 @@ import {
   SupportTicketPriority,
   SupportTicketStatus,
 } from '@prisma/client';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { EscalateAssistantDto } from './dto/escalate-assistant.dto';
 import { SendAssistantMessageDto } from './dto/send-assistant-message.dto';
 import {
   SUPPORT_AI_PROVIDER,
   type SupportAiProvider,
+  type SupportAiProviderInput,
 } from './providers/support-ai-provider.interface';
 
 type AuthUserLike = {
@@ -38,6 +50,8 @@ export class SupportAssistantService {
 
     @Inject(SUPPORT_AI_PROVIDER)
     private readonly aiProvider: SupportAiProvider,
+    private readonly catalogue: SupportCatalogueService,
+    private readonly redis: RedisService,
   ) {}
 
   async getProviderHealth() {
@@ -50,69 +64,7 @@ export class SupportAssistantService {
   }
 
   private async resolveCustomer(authUser: AuthUserLike) {
-    if (!authUser) {
-      throw new UnauthorizedException('Authentication required.');
-    }
-
-    const directId = authUser.id?.trim() || authUser.userId?.trim();
-
-    if (directId) {
-      const user = await this.prisma.user.findUnique({
-        where: {
-          id: directId,
-        },
-      });
-
-      if (user) {
-        return user;
-      }
-    }
-
-    const supabaseId = authUser.supabaseId?.trim() || authUser.sub?.trim();
-
-    if (supabaseId) {
-      const user = await this.prisma.user.findUnique({
-        where: {
-          supabaseId,
-        },
-      });
-
-      if (user) {
-        return user;
-      }
-    }
-
-    const phone = authUser.phone?.trim();
-
-    if (phone) {
-      const user = await this.prisma.user.findUnique({
-        where: {
-          phone,
-        },
-      });
-
-      if (user) {
-        return user;
-      }
-    }
-
-    const email = authUser.email?.trim();
-
-    if (email) {
-      const user = await this.prisma.user.findUnique({
-        where: {
-          email,
-        },
-      });
-
-      if (user) {
-        return user;
-      }
-    }
-
-    throw new UnauthorizedException(
-      'Authenticated customer could not be resolved.',
-    );
+    return resolveSupportActor(this.prisma, authUser, false);
   }
 
   private createTicketNumber() {
@@ -130,52 +82,28 @@ export class SupportAssistantService {
 
   async startOrGetConversation(authUser: AuthUserLike) {
     const customer = await this.resolveCustomer(authUser);
-
-    const existing = await this.prisma.assistantConversation.findFirst({
-      where: {
-        customerId: customer.id,
-        status: AssistantConversationStatus.ACTIVE,
-      },
-
-      orderBy: {
-        updatedAt: 'desc',
-      },
-
-      include: {
-        messages: {
-          orderBy: {
-            createdAt: 'asc',
-          },
+    return this.prisma.$transaction(async (tx) => {
+      await supportLock(tx, `assistant-start:${customer.id}`);
+      const existing = await tx.assistantConversation.findFirst({
+        where: {
+          customerId: customer.id,
+          status: AssistantConversationStatus.ACTIVE,
         },
-      },
+        orderBy: { updatedAt: 'desc' },
+        include: { messages: { orderBy: { createdAt: 'asc' } } },
+      });
+      if (existing)
+        return { success: true, created: false, conversation: existing };
+      const conversation = await tx.assistantConversation.create({
+        data: {
+          customerId: customer.id,
+          status: AssistantConversationStatus.ACTIVE,
+        },
+        include: { messages: true },
+      });
+      return { success: true, created: true, conversation };
     });
-
-    if (existing) {
-      return {
-        success: true,
-        created: false,
-        conversation: existing,
-      };
-    }
-
-    const conversation = await this.prisma.assistantConversation.create({
-      data: {
-        customerId: customer.id,
-        status: AssistantConversationStatus.ACTIVE,
-      },
-
-      include: {
-        messages: true,
-      },
-    });
-
-    return {
-      success: true,
-      created: true,
-      conversation,
-    };
   }
-
   async getMyConversations(authUser: AuthUserLike) {
     const customer = await this.resolveCustomer(authUser);
 
@@ -250,6 +178,39 @@ export class SupportAssistantService {
     dto: SendAssistantMessageDto,
   ) {
     const customer = await this.resolveCustomer(authUser);
+    const key = createHash('sha256').update(customer.id).digest('hex');
+    const owner = randomBytes(16).toString('hex');
+    const lock = `support-ai-inflight:${key}`;
+    if (!(await this.redis.setNX(lock, owner, 60)))
+      throw new HttpException(
+        'A support message is already processing, or support is temporarily unavailable. Retry shortly.',
+        409,
+      );
+    try {
+      const rateKey = `support-ai-rate:${key}:${Math.floor(Date.now() / 60000)}`;
+      const count = await this.redis.increment(rateKey);
+      if (count === 1) await this.redis.expire(rateKey, 90);
+      if (count < 1 || (await this.redis.ttl(rateKey)) < 0)
+        throw new ServiceUnavailableException(
+          'Support rate protection is unavailable',
+        );
+      if (count > 10)
+        throw new HttpException(
+          'Please wait a minute before sending more support messages.',
+          429,
+        );
+      return await this.processCustomerMessage(authUser, conversationId, dto);
+    } finally {
+      await this.redis.releaseLock(lock, owner);
+    }
+  }
+
+  private async processCustomerMessage(
+    authUser: AuthUserLike,
+    conversationId: string,
+    dto: SendAssistantMessageDto,
+  ) {
+    const customer = await this.resolveCustomer(authUser);
 
     const conversation = await this.prisma.assistantConversation.findUnique({
       where: {
@@ -275,7 +236,23 @@ export class SupportAssistantService {
       throw new BadRequestException('This assistant conversation is closed.');
     }
 
-    const content = dto.content.trim();
+    const content = supportText(dto.content, 5000);
+    if (hasSupportCredential(content))
+      throw new BadRequestException(
+        'Do not share passwords, API keys or credentials in support chat.',
+      );
+    if (Boolean(dto.questionId) !== Boolean(dto.categoryId))
+      throw new BadRequestException('Select a valid support question');
+    if (dto.questionId && dto.categoryId) {
+      const expected = await this.catalogue.question(
+        dto.categoryId,
+        dto.questionId,
+      );
+      if (content !== expected)
+        throw new BadRequestException(
+          'Support question changed. Reload the topics or send your own message.',
+        );
+    }
 
     const clientMessageId = dto.clientMessageId?.trim() || null;
 
@@ -294,6 +271,13 @@ export class SupportAssistantService {
         });
 
       if (existingCustomerMessage) {
+        if (
+          existingCustomerMessage.conversationId !== conversationId ||
+          existingCustomerMessage.content !== content
+        )
+          throw new BadRequestException(
+            'Message reference belongs to a different request',
+          );
         return {
           success: true,
           duplicate: true,
@@ -349,16 +333,57 @@ export class SupportAssistantService {
     // No mock / no canned answer / no fake fallback.
     // --------------------------------------------------------
 
+    const verifiedContext: NonNullable<
+      SupportAiProviderInput['verifiedContext']
+    > = { refundStatus: 'NOT_VERIFIED', accountStatus: 'ACTIVE' };
+    const subscriptions = await this.prisma.subscription.findMany({
+      where: { userId: customer.id },
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        subscriptionStatus: true,
+        endDate: true,
+        subscriptionPlan: { select: { name: true } },
+      },
+    });
+    verifiedContext.subscriptions = subscriptions.map((s) => ({
+      plan: s.subscriptionPlan?.name ?? null,
+      recordedStatus: s.subscriptionStatus,
+      expiresAt: s.endDate?.toISOString() ?? null,
+      entitlement: 'NOT_VERIFIED',
+    }));
+    if (dto.paymentOrderId) {
+      const payment = await this.prisma.paymentOrder.findFirst({
+        where: { id: dto.paymentOrderId, userId: customer.id },
+        select: { status: true },
+      });
+      if (!payment)
+        throw new NotFoundException(
+          'Payment reference is unavailable for this account',
+        );
+      verifiedContext.paymentStatus = payment.status;
+    }
+    if (dto.consultationId) {
+      const consultation = await this.prisma.callSession.findFirst({
+        where: { id: dto.consultationId, userId: customer.id },
+        select: { status: true },
+      });
+      if (!consultation)
+        throw new NotFoundException(
+          'Consultation reference is unavailable for this account',
+        );
+      verifiedContext.consultationStatus = /^[A-Z_]{1,32}$/.test(
+        consultation.status,
+      )
+        ? consultation.status
+        : 'UNKNOWN';
+    }
     const aiResult = await this.aiProvider.generate({
+      verifiedContext,
+      approvedKnowledge: await this.catalogue.reference(),
       question: content,
 
       conversation: history,
-
-      customerContext: {
-        customerId: customer.id,
-
-        name: customer.name,
-      },
     });
 
     // --------------------------------------------------------
@@ -494,10 +519,12 @@ export class SupportAssistantService {
       ticketNumber = this.createTicketNumber();
     }
 
-    const recentContext = conversation.messages
+    const recentContext = (
+      dto.includeConversation === true ? conversation.messages : []
+    )
       .map((message) => `${message.senderType}: ${message.content}`)
       .join('\n')
-      .slice(0, 8000);
+      .slice(0, 3500);
 
     const subject = dto.subject?.trim() || '24x7 Assistant Support';
 
@@ -508,6 +535,20 @@ export class SupportAssistantService {
         : 'Escalated from assistant conversation.');
 
     const result = await this.prisma.$transaction(async (tx) => {
+      await supportLock(tx, `assistant-escalation:${conversationId}`);
+      const current = await tx.assistantConversation.findFirst({
+        where: { id: conversationId, customerId: customer.id },
+        include: { supportTicket: true },
+      });
+      if (!current)
+        throw new NotFoundException('Assistant conversation not found.');
+      if (current.supportTicket) {
+        return {
+          ticket: current.supportTicket,
+          conversation: current,
+          alreadyEscalated: true,
+        };
+      }
       const ticket = await tx.supportTicket.create({
         data: {
           ticketNumber,
@@ -542,15 +583,25 @@ export class SupportAssistantService {
         },
       });
 
+      await auditSupport(
+        tx,
+        customer.id,
+        'TICKET',
+        ticket.id,
+        'CREATED_FROM_ASSISTANT',
+        { conversationIncluded: dto.includeConversation === true },
+        customer.id,
+        `assistant:${conversationId}`,
+      );
       return {
         ticket,
         conversation: updatedConversation,
+        alreadyEscalated: false,
       };
     });
 
     return {
       success: true,
-      alreadyEscalated: false,
       ...result,
     };
   }

@@ -50,6 +50,7 @@ type StartConsultationBody = {
   astrologerUserId: string;
 
   purchasedMinutes: number;
+  requireFreeChat?: boolean;
 
   mode: ConsultationMode;
 };
@@ -93,6 +94,7 @@ export class ConsultationController {
       astrologerUserId: body.astrologerUserId,
 
       purchasedMinutes: body.purchasedMinutes,
+      requireFreeChat: body.requireFreeChat,
 
       mode: body.mode,
     });
@@ -148,13 +150,21 @@ export class ConsultationController {
 
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe)
     limit: number,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('mode') mode?: string,
   ) {
     const userId = await this.getAuthenticatedInternalUserId(request);
 
     return this.consultationService.getUserConsultationHistory(userId, {
       page,
-      limit,
+      limit, search, status, mode,
     });
+  }
+
+  @Get('summary')
+  async customerSummary(@Req() request: AuthenticatedRequest) {
+    return this.consultationService.getCustomerDashboardSummary(await this.getAuthenticatedInternalUserId(request));
   }
 
   /*
@@ -173,6 +183,9 @@ export class ConsultationController {
 
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe)
     limit: number,
+    @Query('search') search?: string,
+    @Query('mode') mode?: string,
+    @Query('status') status?: string,
   ) {
     const astrologerUserId = await this.getAuthenticatedInternalUserId(request);
 
@@ -181,6 +194,7 @@ export class ConsultationController {
       {
         page,
         limit,
+        search, mode, status,
       },
     );
   }

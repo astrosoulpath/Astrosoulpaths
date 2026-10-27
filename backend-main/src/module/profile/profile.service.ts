@@ -1,5 +1,6 @@
 ﻿import { randomUUID } from 'crypto';
 import type { Express } from 'express';
+import { resolveIanaBirthTime } from '../../common/utils/iana-birth-time.util';
 import {
   BadRequestException,
   ForbiddenException,
@@ -354,6 +355,11 @@ export class ProfileService {
 
     this.logger.log(`Generating astro for profileId=${profileId} lang=${lang}`);
 
+    if (profile.timezoneName) {
+      try { params.timezone = resolveIanaBirthTime(params.dob, params.tob, profile.timezoneName).offsetHours; }
+      catch { throw new BadRequestException('Birth time or IANA timezone is invalid or ambiguous. Confirm the birth location and historical time.'); }
+    }
+
     try {
       const astro = await this.astroService.generateAstro(params, lang);
 
@@ -445,6 +451,10 @@ export class ProfileService {
       lang,
     };
 
+    if (profile.timezoneName) {
+      try { params.timezone = resolveIanaBirthTime(params.dob, params.tob, profile.timezoneName).offsetHours; }
+      catch { throw new BadRequestException('Birth time or IANA timezone is invalid or ambiguous. Confirm the birth location and historical time.'); }
+    }
     const astro = await this.astroService.generateAstro(params, lang);
 
     const kundliId = astro.kundliId?.toString().trim();

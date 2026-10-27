@@ -8,63 +8,117 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model ConsultationBirthSharing {
+  profileRef String
+  revision Int @default(1)
+  consultationId String @id
+  customerId String
+  astrologerId String
+  birthVersion String
+  policyVersion String
+  expiresAt DateTime @db.Timestamp(3)
+  revokedAt DateTime? @db.Timestamp(3)
+  consultation CallSession @relation(fields: [consultationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  customer User @relation("BirthSharingCustomer", fields: [customerId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  astrologer User @relation("BirthSharingAstrologer", fields: [astrologerId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+}
+
+model ConsultationBirthSharingAudit {
+  profileRef String
+  birthVersion String
+  revision Int
+  id String @id
+  consultationId String
+  actorId String
+  action String
+  policyVersion String
+  createdAt DateTime @default(now()) @db.Timestamp(3)
+  consultation CallSession @relation(fields: [consultationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  @@index([consultationId, createdAt])
+}
+
 model User {
-  astrologerFollows       AstrologerFollow[]               @relation("UserAstrologerFollows")
-  aiAstroFollows          AiAstroFollow[]                  @relation("UserAiAstroFollows")
-  id                      String                           @id @default(uuid())
-  supabaseId              String                           @unique
-  phone                   String?                          @unique
-  email                   String?                          @unique
-  name                    String?
-  avatarUrl               String?
-  gender                  Gender?
-  roleId                  String
-  isActive                Boolean                          @default(true)
-  isBlocked               Boolean                          @default(false)
-  isVerified              Boolean                          @default(false)
-  lastLoginAt             DateTime?
-  createdAt               DateTime                         @default(now())
-  updatedAt               DateTime                         @updatedAt
-  isAstrologer            Boolean                          @default(false)
-  isNewUser               Boolean                          @default(true)
-  freeChatGrantedAt       DateTime?
-  freeChatUsedAt          DateTime?
-  freeChatMinutes         Int                              @default(1)
-  isProfileComplete       Boolean                          @default(false)
-  razorpayCustomerId      String?
-  subscriptionPlanId      String?
-  subscriptionStatus      SubscriptionStatus               @default(FREE)
-  astrologer              Astrologer?
-  astrologerCalls         CallSession[]                    @relation("AstrologerCalls")
-  calls                   CallSession[]                    @relation("UserCalls")
-  kundliOrders            KundliOrder[]
-  savedKundlis            KundliSavedRecord[]
-  profiles                Profile[]                        @relation("UserProfiles")
-  reviews                 Review[]
-  blocksCreated           UserBlock[]                      @relation("UserBlocksCreated")
-  blocksReceived          UserBlock[]                      @relation("UserBlocksReceived")
-  reportsCreated          UserReport[]                     @relation("UserReportsCreated")
-  reportsReceived         UserReport[]                     @relation("UserReportsReceived")
-  subscriptions           Subscription[]
-  dailyHoroscopeHistory   DailyHoroscopeHistory[]
-  astrologyAnswerCaches   AstrologyQuestionAnswerCache[]
-  role                    Role                             @relation(fields: [roleId], references: [id])
-  subscriptionPlan        SubscriptionPlan?                @relation(fields: [subscriptionPlanId], references: [id])
-  userProfile             UserProfile?
-  sentChatMessages        ChatMessage[]                    @relation("ChatMessageSender")
-  paymentOrders           PaymentOrder[]
-  walletLedger            WalletLedger[]
-  wallet                  Wallet?
-  pushDevices             PushDevice[]
-  qualificationAttempts   AstrologerQualificationAttempt[]
-  e2eeDevices             ChatEncryptionDevice[]
-  liveViews               LiveViewer[]
-  liveMessages            LiveMessage[]
-  aiAstroUsages           AiAstroUsage[]
-  aiAstroConversations    AiAstroConversation[]
-  appNotifications        AppNotification[]
-  marketplaceAdminActions MarketplaceAdminAction[]         @relation("MarketplaceAdminActor")
-  UserPreference          UserPreference?
+  moderationSubjects AdminModerationSubject[]
+  moderationActions AdminModerationAudit[] @relation("ModerationActor")
+  supportOperationAudits SupportOperationAudit[]
+  supportPrivateNotes SupportPrivateNote[]
+  supportDeliveries SupportDelivery[]
+  birthSharingAsCustomer ConsultationBirthSharing[] @relation("BirthSharingCustomer")
+  birthSharingAsAstrologer ConsultationBirthSharing[] @relation("BirthSharingAstrologer")
+  birthSharingAudits ConsultationBirthSharingAudit[]
+  smartNotificationConsents SmartNotificationConsent[]
+  smartNotificationInsights SmartNotificationInsight[]
+  smartCampaignsCreated SmartNotificationCampaign[] @relation("SmartCampaignCreator")
+  smartCampaignsApproved SmartNotificationCampaign[] @relation("SmartCampaignApprover")
+  smartNotificationAudits SmartNotificationAudit[]
+  kundliConsentsAsCustomer   KundliGenerationConsent[]        @relation("KundliConsentCustomer")
+  kundliConsentsAsAstrologer KundliGenerationConsent[]        @relation("KundliConsentAstrologer")
+  kundliConsentsGranted      KundliGenerationConsent[]        @relation("KundliConsentGrantor")
+  kundliConsentAudits        KundliGenerationConsentAudit[]
+  kundliGenerationRequests   KundliGenerationRequest[]
+  horoscopeReadings          PersonalizedHoroscopeReading[]
+  horoscopeOutbox            HoroscopeNotificationOutbox[]
+  horoscopePreference        HoroscopeNotificationPreference?
+  astrologerFollows          AstrologerFollow[]               @relation("UserAstrologerFollows")
+  aiAstroFollows             AiAstroFollow[]                  @relation("UserAiAstroFollows")
+  id                         String                           @id @default(uuid())
+  supabaseId                 String                           @unique
+  phone                      String?                          @unique
+  email                      String?                          @unique
+  name                       String?
+  avatarUrl                  String?
+  gender                     Gender?
+  roleId                     String
+  isActive                   Boolean                          @default(true)
+  isBlocked                  Boolean                          @default(false)
+  isVerified                 Boolean                          @default(false)
+  lastLoginAt                DateTime?
+  createdAt                  DateTime                         @default(now())
+  updatedAt                  DateTime                         @updatedAt
+  isAstrologer               Boolean                          @default(false)
+  isNewUser                  Boolean                          @default(true)
+  freeChatGrantedAt          DateTime?
+  freeChatUsedAt             DateTime?
+  freeChatMinutes            Int                              @default(1)
+  isProfileComplete          Boolean                          @default(false)
+  razorpayCustomerId         String?
+  subscriptionPlanId         String?
+  subscriptionStatus         SubscriptionStatus               @default(FREE)
+  astrologer                 Astrologer?
+  astrologerCalls            CallSession[]                    @relation("AstrologerCalls")
+  calls                      CallSession[]                    @relation("UserCalls")
+  kundliOrders               KundliOrder[]
+  savedKundlis               KundliSavedRecord[]
+  profiles                   Profile[]                        @relation("UserProfiles")
+  reviews                    Review[]
+  blocksCreated              UserBlock[]                      @relation("UserBlocksCreated")
+  blocksReceived             UserBlock[]                      @relation("UserBlocksReceived")
+  reportsCreated             UserReport[]                     @relation("UserReportsCreated")
+  reportsReceived            UserReport[]                     @relation("UserReportsReceived")
+  subscriptions              Subscription[]
+  dailyHoroscopeHistory      DailyHoroscopeHistory[]
+  astrologyAnswerCaches      AstrologyQuestionAnswerCache[]
+  role                       Role                             @relation(fields: [roleId], references: [id])
+  subscriptionPlan           SubscriptionPlan?                @relation(fields: [subscriptionPlanId], references: [id])
+  userProfile                UserProfile?
+  sentChatMessages           ChatMessage[]                    @relation("ChatMessageSender")
+  paymentOrders              PaymentOrder[]
+  paymentCreationCommands    PaymentCreationCommand[]
+  financeActions             AdminFinanceAction[]
+  walletLedger               WalletLedger[]
+  wallet                     Wallet?
+  pushDevices                PushDevice[]
+  qualificationAttempts      AstrologerQualificationAttempt[]
+  e2eeDevices                ChatEncryptionDevice[]
+  liveViews                  LiveViewer[]
+  liveMessages               LiveMessage[]
+  liveConnections            LiveConnection[]
+  aiAstroUsages              AiAstroUsage[]
+  aiAstroConversations       AiAstroConversation[]
+  appNotifications           AppNotification[]
+  marketplaceAdminActions    MarketplaceAdminAction[]         @relation("MarketplaceAdminActor")
+  UserPreference             UserPreference?
 
   // 24x7 Support System
   authIdentities         UserAuthIdentity[]
@@ -78,6 +132,9 @@ model User {
   marketplaceCart       MarketplaceCart?
   marketplaceAddresses  MarketplaceAddress[]
   marketplaceOrders     MarketplaceOrder[]       @relation("MarketplaceCustomerOrders")
+  marketplaceCheckoutSnapshots MarketplaceCheckoutSnapshot[]
+  marketplaceCases      MarketplaceOrderCase[]
+  marketplaceCaseEvents MarketplaceCaseEvent[]
   customerKundliReports AstrologerKundliReport[] @relation("AstrologerKundliReportCustomer")
   authoredKundliReports AstrologerKundliReport[] @relation("AstrologerKundliReportAstrologer")
 
@@ -296,17 +353,18 @@ model Kundli {
 }
 
 model KundliSavedRecord {
-  id                    String   @id @default(cuid())
+  generationRequests    KundliGenerationRequest[]
+  id                    String                    @id @default(cuid())
   kundliId              String
   createdByAstrologerId String
   customerUserId        String?
   name                  String
   gender                Gender?
   birthPlace            String?
-  lang                  String   @default("en")
-  idempotencyKey        String   @unique
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  lang                  String                    @default("en")
+  idempotencyKey        String                    @unique
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
 
   kundli              Kundli     @relation(fields: [kundliId], references: [id], onDelete: Cascade)
   createdByAstrologer Astrologer @relation(fields: [createdByAstrologerId], references: [id], onDelete: Cascade)
@@ -319,26 +377,30 @@ model KundliSavedRecord {
 }
 
 model Subscription {
-  id                     String             @id @default(uuid())
+  horoscopeControl       HoroscopeSubscriptionControl?
+  horoscopeAudit         HoroscopeSubscriptionAudit[]
+  horoscopeReadings      PersonalizedHoroscopeReading[]
+  horoscopeOutbox        HoroscopeNotificationOutbox[]
+  id                     String                         @id @default(uuid())
   userId                 String
   subscriptionPlanId     String?
-  subscriptionStatus     SubscriptionStatus @default(FREE)
-  amount                 Decimal?           @db.Decimal(12, 3)
-  currency               String             @default("INR")
-  razorpaySubscriptionId String?            @unique
+  subscriptionStatus     SubscriptionStatus             @default(FREE)
+  amount                 Decimal?                       @db.Decimal(12, 3)
+  currency               String                         @default("INR")
+  razorpaySubscriptionId String?                        @unique
   razorpayCustomerId     String?
   razorpayPaymentId      String?
   razorpayOrderId        String?
   startDate              DateTime?
   endDate                DateTime?
   nextBillingAt          DateTime?
-  isTrial                Boolean            @default(false)
+  isTrial                Boolean                        @default(false)
   cancelledAt            DateTime?
   expiredAt              DateTime?
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
-  subscriptionPlan       SubscriptionPlan?  @relation(fields: [subscriptionPlanId], references: [id])
-  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt              DateTime                       @default(now())
+  updatedAt              DateTime                       @updatedAt
+  subscriptionPlan       SubscriptionPlan?              @relation(fields: [subscriptionPlanId], references: [id])
+  user                   User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([subscriptionStatus])
@@ -377,6 +439,7 @@ model Wallet {
   ledgerEntries WalletLedger[]
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([id, userId], map: "wallets_id_owner_key")
   @@map("wallets")
 }
 
@@ -385,7 +448,7 @@ model PaymentOrder {
   userId            String
   walletId          String?
   razorpayOrderId   String        @unique
-  razorpayPaymentId String?
+  razorpayPaymentId String?       @unique(map: "payment_orders_provider_payment_key")
   razorpaySignature String?
   amount            Decimal       @db.Decimal(12, 2)
   currency          String        @default("INR")
@@ -396,9 +459,10 @@ model PaymentOrder {
   updatedAt         DateTime      @updatedAt
   type              PaymentType   @default(WALLET_RECHARGE)
   metadata          Json?
+  creationCommand   PaymentCreationCommand?
   kundliOrder       KundliOrder?
   user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  wallet            Wallet?       @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  wallet            Wallet?       @relation(fields: [walletId, userId], references: [id, userId], onDelete: Cascade, onUpdate: Restrict, map: "payment_orders_wallet_owner_fkey")
 
   @@index([userId])
   @@index([walletId])
@@ -445,30 +509,92 @@ model WalletLedger {
 }
 
 model CallSession {
-  id                       String                  @id @default(cuid())
+  feedbackContexts FeedbackContext[]
+  birthSharing ConsultationBirthSharing?
+  birthSharingAudits ConsultationBirthSharingAudit[]
+  kundliConsents           KundliGenerationConsent[]
+  kundliGenerationRequests KundliGenerationRequest[]
+  financialPolicy          ConsultationFinancialPolicy?
+  id                       String                       @id @default(cuid())
   userId                   String
   astrologerId             String
   channelName              String
   ratePerMinute            Float
   purchasedMinutes         Int
-  extendedMinutes          Int                     @default(0)
+  extendedMinutes          Int                          @default(0)
   amountCharged            Float
-  isFreeChat               Boolean                 @default(false)
+  isFreeChat               Boolean                      @default(false)
   startedAt                DateTime
   expiresAt                DateTime
   endedAt                  DateTime?
   status                   String
-  createdAt                DateTime                @default(now())
-  mode                     String                  @default("audio")
+  createdAt                DateTime                     @default(now())
+  mode                     String                       @default("audio")
   astrologyQuestionId      String?
   astrologyQuestionText    String?
   astrologyCategorySlug    String?
-  astrologer               User                    @relation("AstrologerCalls", fields: [astrologerId], references: [id])
-  user                     User                    @relation("UserCalls", fields: [userId], references: [id])
+  astrologer               User                         @relation("AstrologerCalls", fields: [astrologerId], references: [id])
+  user                     User                         @relation("UserCalls", fields: [userId], references: [id])
   earning                  AstrologerEarning?
   messages                 ChatMessage[]
   review                   Review?
   kundliProfessionalReport AstrologerKundliReport?
+}
+
+// Optional relation preserves all historical CallSession scalar selections.
+model ConsultationFinancialPolicy {
+  callSessionId   String      @id
+  platformPercent Decimal     @db.Decimal(5, 2)
+  policyVersion   String
+  lockedAt        DateTime    @default(now())
+  lifecycle       String
+  callSession     CallSession @relation(fields: [callSessionId], references: [id], onDelete: Restrict)
+}
+
+model CommissionPolicyAudit {
+  id              String   @id
+  actorUserId     String
+  previousPercent Decimal  @db.Decimal(5, 2)
+  newPercent      Decimal  @db.Decimal(5, 2)
+  effectiveAt     DateTime
+  createdAt       DateTime @default(now())
+
+  @@index([effectiveAt])
+}
+
+model PaymentCreationCommand {
+  id              String   @id
+  userId          String
+  scopeKey        String
+  quoteHash       String
+  providerMode    String
+  amountMinor     BigInt
+  currency        String
+  state           String
+  providerOrderId String?  @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  paymentOrder    PaymentOrder? @relation(fields: [providerOrderId], references: [razorpayOrderId], onDelete: Restrict)
+
+  @@index([userId, state])
+}
+
+model AdminFinanceAction {
+  id           String   @id
+  actorUserId  String
+  action       String
+  referenceId  String
+  providerMode String
+  reason       String
+  requestKey   String   @unique
+  state        String
+  result       Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  actor        User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([referenceId, createdAt])
 }
 
 model AstrologerEarning {
@@ -617,31 +743,31 @@ model UserPreference {
 }
 
 model UserProfile {
-  id             String    @id @default(cuid())
-  userId         String    @unique
-  fullName       String
-  username       String?   @unique
-  email          String?   @unique
-  phoneNumber    String?   @unique
-  dateOfBirth    DateTime?
-  timeOfBirth    String?
-  birthTimeKnown Boolean   @default(true)
-  latitude       Float?
-  longitude      Float?
-  timezone       Float?
-  city           String?
-  state          String?
-  country        String?
-  countryCode    String?
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  fullName             String
+  username             String?   @unique
+  email                String?   @unique
+  phoneNumber          String?   @unique
+  dateOfBirth          DateTime?
+  timeOfBirth          String?
+  birthTimeKnown       Boolean   @default(true)
+  latitude             Float?
+  longitude            Float?
+  timezone             Float?
+  city                 String?
+  state                String?
+  country              String?
+  countryCode          String?
   residenceCountryCode String?
-  timezoneName   String?
-  gender         Gender
-  location       String?
-  avatarUrl      String?
-  lang           String    @default("en")
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timezoneName         String?
+  gender               Gender
+  location             String?
+  avatarUrl            String?
+  lang                 String    @default("en")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum Gender {
@@ -676,6 +802,86 @@ model DailyHoroscopeHistory {
   @@map("daily_horoscope_history")
 }
 
+// Additive v2 storage; legacy daily_horoscope_history remains unchanged.
+model PersonalizedHoroscopeReading {
+  id                 String                        @id
+  userId             String
+  subscriptionId     String
+  localDate          DateTime                      @db.Date
+  locale             String
+  contentVersion     String
+  timezone           String
+  profileFingerprint String
+  state              String                        @default("GENERATING")
+  response           Json?
+  attempts           Int                           @default(1)
+  leaseToken         String?
+  leaseUntil         DateTime?
+  nextAttemptAt      DateTime?
+  failureCode        String?
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @default(now())
+  user               User                          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  subscription       Subscription                  @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  deliveries         HoroscopeNotificationOutbox[]
+
+  @@unique([userId, localDate, locale, contentVersion], map: "horoscope_reading_identity_key")
+  @@index([state, nextAttemptAt])
+}
+
+model HoroscopeNotificationPreference {
+  userId    String   @id
+  enabled   Boolean  @default(false)
+  updatedAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+}
+
+model HoroscopeNotificationOutbox {
+  id               String                       @id
+  idempotencyKey   String                       @unique
+  userId           String
+  subscriptionId   String
+  readingId        String
+  deviceId         String
+  localDate        DateTime                     @db.Date
+  locale           String
+  notificationType String                       @default("horoscope")
+  scheduledAt      DateTime
+  state            String                       @default("QUEUED")
+  attempts         Int                          @default(0)
+  nextAttemptAt    DateTime
+  leaseToken       String?
+  leaseUntil       DateTime?
+  providerResponse Json?
+  failureCode      String?
+  acceptedAt       DateTime?
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @default(now())
+  user             User                         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  subscription     Subscription                 @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  reading          PersonalizedHoroscopeReading @relation(fields: [readingId], references: [id], onDelete: Restrict)
+
+  @@index([state, nextAttemptAt])
+}
+
+model HoroscopeSubscriptionControl {
+  subscriptionId    String       @id
+  renewalMode       String       @default("MANUAL")
+  cancelAtPeriodEnd Boolean      @default(false)
+  updatedAt         DateTime     @default(now())
+  subscription      Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+}
+
+model HoroscopeSubscriptionAudit {
+  id             String       @id
+  subscriptionId String
+  action         String
+  createdAt      DateTime     @default(now())
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+
+  @@index([subscriptionId, createdAt])
+}
+
 enum SubscriptionStatus {
   PENDING
   ACTIVE
@@ -705,6 +911,7 @@ enum PaymentStatus {
 
 enum LedgerType {
   RECHARGE
+  RECHARGE_REFUND
   CALL_DEDUCTION
   AI_ASTRO_DEDUCTION
   REFUND
@@ -1054,18 +1261,22 @@ model AiReceptionistMessage {
 }
 
 model LiveSession {
-  id           String        @id @default(cuid())
-  astrologerId String
-  channelName  String        @unique
-  title        String?
-  status       String        @default("LIVE")
-  startedAt    DateTime      @default(now())
-  endedAt      DateTime?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  astrologer   Astrologer    @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
-  viewers      LiveViewer[]
-  messages     LiveMessage[]
+  id                 String           @id @default(cuid())
+  astrologerId       String
+  channelName        String           @unique
+  title              String?
+  status             String           @default("LIVE")
+  startedAt          DateTime         @default(now())
+  endedAt            DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  astrologer         Astrologer       @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
+  viewers            LiveViewer[]
+  messages           LiveMessage[]
+  connectionProtocol Int              @default(1)
+  hostConnectionId   String?          @unique
+  hostConnection     LiveConnection?  @relation("DesignatedLiveHost", fields: [hostConnectionId], references: [id], onDelete: Restrict)
+  connections        LiveConnection[] @relation("LiveConnections")
 
   @@index([astrologerId, status])
   @@index([status, startedAt])
@@ -1092,12 +1303,45 @@ model LiveViewer {
   joinedAt      DateTime  @default(now())
   leftAt        DateTime?
 
-  liveSession LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  liveSession LiveSession     @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection  LiveConnection?
 
   @@index([liveSessionId, leftAt])
   @@index([userId, leftAt])
   @@index([liveSessionId, userId])
+}
+
+enum LiveConnectionRole {
+  PUBLISHER
+  SUBSCRIBER
+}
+
+model LiveConnection {
+  id                  String             @id @default(uuid())
+  liveSessionId       String
+  userId              String
+  role                LiveConnectionRole
+  agoraUid            Int
+  resumeSecretHash    String
+  joinRequestId       String
+  generation          Int                @default(1)
+  lastResumeRequestId String?
+  lastHeartbeatAt     DateTime           @default(now())
+  leaseExpiresAt      DateTime
+  closedAt            DateTime?
+  createdAt           DateTime           @default(now())
+  legacyViewerId      String?            @unique
+
+  liveSession      LiveSession  @relation("LiveConnections", fields: [liveSessionId], references: [id], onDelete: Restrict)
+  user             User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  legacyViewer     LiveViewer?  @relation(fields: [legacyViewerId], references: [id], onDelete: Restrict)
+  designatedHostOf LiveSession? @relation("DesignatedLiveHost")
+
+  @@unique([liveSessionId, agoraUid])
+  @@unique([userId, joinRequestId])
+  @@index([liveSessionId, role, closedAt, leaseExpiresAt])
+  @@index([closedAt, leaseExpiresAt])
 }
 
 model AiAstroPricing {
@@ -1276,6 +1520,9 @@ enum AssistantSenderType {
 }
 
 model SupportTicket {
+  privateNotes SupportPrivateNote[]
+  deliveries SupportDelivery[]
+  feedbackEscalation FeedbackEscalation?
   id           String @id @default(cuid())
   ticketNumber String @unique
 
@@ -1319,6 +1566,59 @@ model SupportTicket {
   @@index([assignedAdminId, status])
   @@index([lastMessageAt])
   @@map("support_tickets")
+  @@unique([id,customerId],map:"support_tickets_id_customerId_key")
+}
+
+// Support operations remain gated until separately approved migration/postflight.
+model SupportOperationAudit {
+  id String @id
+  objectType String
+  objectId String
+  actorId String
+  action String
+  details Json @default("{}")
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  actor User @relation(fields:[actorId],references:[id],onDelete:Restrict)
+  @@index([objectType,objectId,createdAt])
+}
+model SupportPrivateNote {
+  id String @id
+  ticketId String
+  authorId String
+  content String
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  ticket SupportTicket @relation(fields:[ticketId],references:[id],onDelete:Restrict)
+  author User @relation(fields:[authorId],references:[id],onDelete:Restrict)
+  @@index([ticketId,createdAt])
+}
+model SupportDelivery {
+  id String @id
+  ticketId String
+  ownerId String
+  eventKey String @unique
+  event String
+  state String @default("QUEUED")
+  attempts Int @default(0)
+  leaseToken String?
+  leaseUntil DateTime? @db.Timestamptz(6)
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  ticket SupportTicket @relation(fields:[ticketId,ownerId],references:[id,customerId],onDelete:Restrict)
+  owner User @relation(fields:[ownerId],references:[id],onDelete:Restrict)
+  @@index([state,nextAttemptAt])
+}
+model FeedbackContext {
+  feedbackId String @id
+  consultationId String
+  feedback Feedback @relation(fields:[feedbackId],references:[id],onDelete:Restrict)
+  consultation CallSession @relation(fields:[consultationId],references:[id],onDelete:Restrict)
+  @@index([consultationId])
+}
+model FeedbackEscalation {
+  feedbackId String @id
+  ticketId String @unique
+  feedback Feedback @relation(fields:[feedbackId],references:[id],onDelete:Restrict)
+  ticket SupportTicket @relation(fields:[ticketId],references:[id],onDelete:Restrict)
 }
 
 model SupportAttachment {
@@ -1461,6 +1761,8 @@ enum FeedbackStatus {
 }
 
 model Feedback {
+  context FeedbackContext?
+  escalation FeedbackEscalation?
   id         String           @id @default(cuid())
   customerId String
   category   FeedbackCategory
@@ -1896,10 +2198,34 @@ model MarketplaceOrder {
 
   sellerOrders      MarketplaceSellerOrder[]
   paymentExceptions MarketplacePaymentException[]
+  cases             MarketplaceOrderCase[]
+  checkoutSnapshot MarketplaceCheckoutSnapshot?
 
   @@unique([customerUserId, prepareIdempotencyKey])
   @@index([customerUserId, createdAt])
   @@index([status, createdAt])
+}
+
+model MarketplaceCheckoutSnapshot {
+  paymentCommand MarketplacePaymentCommand?
+  orderId String @id
+  customerUserId String
+  currency String
+  amountMinor BigInt
+  expiresAt DateTime @db.Timestamp(3)
+  payload Json
+  sha256 String
+  createdAt DateTime @default(now()) @db.Timestamp(3)
+  order MarketplaceOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  customer User @relation(fields: [customerUserId], references: [id], onDelete: Restrict)
+}
+
+model MarketplacePaymentCommand {
+  orderId String @id
+  state String @default("CREATING")
+  providerOrderId String? @unique
+  createdAt DateTime @default(now()) @db.Timestamp(3)
+  snapshot MarketplaceCheckoutSnapshot @relation(fields: [orderId], references: [orderId], onDelete: Restrict)
 }
 
 model MarketplaceSellerOrder {
@@ -1931,6 +2257,7 @@ model MarketplaceSellerOrder {
 
   items   MarketplaceOrderItem[]
   earning MarketplaceSellerEarning?
+  financialEntries MarketplaceFinancialEntry[]
 
   @@index([orderId])
   @@index([astrologerId, status])
@@ -2387,4 +2714,281 @@ model AiAstroFollow {
   @@unique([followerId, personaId])
   @@index([followerId])
   @@index([personaId])
+}
+
+// REVIEW FRAGMENT ONLY. Do not paste/apply without relation and migration review.
+// Physical FKs, partial unique scope, triggers and audit immutability are in review SQL.
+model KundliGenerationConsent {
+  consultation     CallSession                    @relation(fields: [consultationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  customer         User                           @relation("KundliConsentCustomer", fields: [customerUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  astrologer       User                           @relation("KundliConsentAstrologer", fields: [astrologerUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  grantor          User                           @relation("KundliConsentGrantor", fields: [grantedByUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  audits           KundliGenerationConsentAudit[]
+  requests         KundliGenerationRequest[]
+  id               String                         @id
+  consultationId   String
+  customerUserId   String
+  astrologerUserId String
+  grantedByUserId  String
+  birthDataVersion String
+  purpose          String
+  policyVersion    String
+  fieldScope       String[]
+  grantedAt        DateTime                       @default(now()) @db.Timestamptz(6)
+  expiresAt        DateTime                       @db.Timestamptz(6)
+  revokedAt        DateTime?                      @db.Timestamptz(6)
+
+  @@index([customerUserId, grantedAt], map: "KundliGenerationConsent_customer_idx")
+  @@index([astrologerUserId, expiresAt], map: "KundliGenerationConsent_astrologer_idx")
+}
+
+model KundliGenerationConsentAudit {
+  consent     KundliGenerationConsent @relation(fields: [consentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  actor       User                    @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  id          BigInt                  @id @default(autoincrement())
+  consentId   String
+  action      String
+  actorUserId String
+  occurredAt  DateTime                @default(now()) @db.Timestamptz(6)
+
+  @@unique([consentId, action])
+}
+
+model KundliGenerationRequest {
+  actor          User                    @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  consultation   CallSession             @relation(fields: [consultationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  consent        KundliGenerationConsent @relation(fields: [consentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  savedRecord    KundliSavedRecord?      @relation(fields: [savedRecordId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  id             String                  @id
+  actorUserId    String
+  consultationId String
+  requestKey     String
+  consentId      String
+  lang           String
+  leaseToken     String
+  leaseExpiresAt DateTime                @db.Timestamptz(6)
+  status         String
+  savedRecordId  String?
+  createdAt      DateTime                @default(now()) @db.Timestamptz(6)
+
+  @@unique([actorUserId, consultationId, requestKey])
+  @@index([actorUserId, status, leaseExpiresAt], map: "KundliGenerationRequest_lease_idx")
+}
+
+// Additive smart notification contract; deployment requires separate reviewed DDL.
+model SmartNotificationPolicy {
+  category String @id
+  enabled Boolean @default(false)
+  languages String[] @default([])
+  controlVersion Int @default(1)
+  scheduleMinute Int @default(540)
+  approved Boolean @default(false)
+  entitlement String @default("UNAPPROVED")
+  revision Int @default(1)
+  dailyLimit Int @default(1)
+  minimumIntervalMs Int @default(86400000)
+  quietStart Int @default(1320)
+  quietEnd Int @default(480)
+  consents SmartNotificationConsent[]
+  campaigns SmartNotificationCampaign[]
+  insights SmartNotificationInsight[]
+}
+model SmartNotificationConsent {
+  userId String
+  category String
+  version Int @default(1)
+  granted Boolean @default(false)
+  birthUse Boolean @default(false)
+  engagementGranted Boolean @default(false)
+  expiresAt DateTime @db.Timestamptz(6)
+  timezone String
+  user User @relation(fields:[userId], references:[id], onDelete:Restrict, onUpdate:NoAction)
+  policy SmartNotificationPolicy @relation(fields:[category], references:[category], onDelete:Restrict, onUpdate:NoAction)
+  @@id([userId,category])
+}
+model SmartNotificationCampaign {
+  id String @id
+  category String
+  locale String
+  title String
+  body String
+  provenance String @default("ADMIN_EDITORIAL")
+  revision Int @default(1)
+  state String @default("DRAFT")
+  createdBy String
+  approvedBy String?
+  scheduledAt DateTime? @db.Timestamptz(6)
+  expiresAt DateTime @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  creator User @relation("SmartCampaignCreator",fields:[createdBy],references:[id],onDelete:Restrict,onUpdate:NoAction)
+  approver User? @relation("SmartCampaignApprover",fields:[approvedBy],references:[id],onDelete:Restrict,onUpdate:NoAction)
+  policy SmartNotificationPolicy @relation(fields:[category],references:[category],onDelete:Restrict,onUpdate:NoAction)
+  insights SmartNotificationInsight[]
+}
+model SmartNotificationInsight {
+  id String @id
+  userId String
+  category String
+  locale String
+  title String
+  body String
+  provenance String
+  factors Json @default("[]")
+  sourceVersion String
+  generationKey String? @unique
+  consentVersion Int
+  policyRevision Int
+  campaignId String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt DateTime @db.Timestamptz(6)
+  user User @relation(fields:[userId],references:[id],onDelete:Restrict,onUpdate:NoAction)
+  policy SmartNotificationPolicy @relation(fields:[category],references:[category],onDelete:Restrict,onUpdate:NoAction)
+  campaign SmartNotificationCampaign? @relation(fields:[campaignId],references:[id],onDelete:Restrict,onUpdate:NoAction)
+  delivery SmartNotificationDelivery[]
+  opens SmartNotificationOpen[]
+  @@unique([userId,campaignId])
+  @@unique([id,userId])
+  @@index([userId,createdAt],map:"SmartNotificationInsight_owner_idx")
+}
+model SmartNotificationDelivery {
+  id String @id
+  insightId String @unique
+  userId String
+  state String @default("QUEUED")
+  attempts Int @default(0)
+  leaseToken String?
+  leaseUntil DateTime? @db.Timestamptz(6)
+  resultCode String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(6)
+  attemptedAt DateTime? @db.Timestamptz(6)
+  insight SmartNotificationInsight @relation(fields:[insightId,userId],references:[id,userId],onDelete:Restrict,onUpdate:NoAction)
+  @@index([state,createdAt],map:"SmartNotificationDelivery_claim_idx")
+  @@index([state,nextAttemptAt,createdAt,id],map:"SmartNotificationDelivery_due_idx")
+  @@index([userId,attemptedAt],map:"SmartNotificationDelivery_frequency_idx")
+}
+model SmartNotificationAudit {
+  id String @id
+  actorId String
+  objectId String
+  action String
+  details Json @default("{}")
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  actor User @relation(fields:[actorId],references:[id],onDelete:Restrict,onUpdate:NoAction)
+  @@index([objectId,action],map:"SmartNotificationAudit_object_action_idx")
+}
+
+model SmartNotificationOpen {
+  insightId String @id
+  userId String
+  viewedAt DateTime @default(now()) @db.Timestamptz(6)
+  insight SmartNotificationInsight @relation(fields:[insightId,userId],references:[id,userId],onDelete:Restrict,onUpdate:NoAction)
+}
+
+// Additive marketplace review cases. Approval never implies a provider refund.
+model MarketplaceOrderCase {
+  refundAttempt MarketplaceRefundAttempt?
+  id String @id @default(uuid())
+  orderId String
+  customerUserId String
+  kind String
+  status String @default("REQUESTED")
+  amountMinor Int?
+  currency String
+  reason String
+  idempotencyKey String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  order MarketplaceOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  customer User @relation(fields: [customerUserId], references: [id], onDelete: Restrict)
+  events MarketplaceCaseEvent[]
+  @@unique([customerUserId, idempotencyKey])
+  @@index([orderId, status])
+}
+
+// Default-off provider-workflow foundation, not a financial refund approval.
+model MarketplaceRefundAttempt {
+  id String @id
+  caseId String @unique
+  providerPaymentId String
+  amountMinor BigInt
+  currency String
+  policyRevision String
+  componentSnapshot Json
+  state String @default("PREPARED")
+  leaseToken String?
+  leaseUntil DateTime? @db.Timestamp(3)
+  providerRefundId String? @unique
+  createdAt DateTime @default(now()) @db.Timestamp(3)
+  updatedAt DateTime @default(now()) @db.Timestamp(3)
+  case MarketplaceOrderCase @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  events MarketplaceRefundAttemptEvent[]
+  @@index([state, leaseUntil])
+}
+
+model MarketplaceRefundAttemptEvent {
+  id String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  attemptId String
+  state String
+  createdAt DateTime @default(now()) @db.Timestamp(3)
+  attempt MarketplaceRefundAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  @@index([attemptId, createdAt])
+}
+
+model MarketplaceCaseEvent {
+  id String @id @default(uuid())
+  caseId String
+  actorUserId String
+  action String
+  createdAt DateTime @default(now())
+  case MarketplaceOrderCase @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  @@index([caseId, createdAt])
+}
+
+// Append-only component journal; old orders are never silently backfilled.
+model MarketplaceFinancialEntry {
+  id String @id @default(uuid())
+  sellerOrderId String
+  eventKey String @unique
+  kind String
+  currency String
+  productMinor BigInt
+  discountMinor BigInt
+  shippingMinor BigInt
+  taxMinor BigInt
+  feeMinor BigInt
+  sellerMinor BigInt
+  platformMinor BigInt
+  createdAt DateTime @default(now())
+  sellerOrder MarketplaceSellerOrder @relation(fields: [sellerOrderId], references: [id], onDelete: Restrict)
+  @@index([sellerOrderId, createdAt])
+}
+
+// Prepared additive moderation schema. Rollout remains default-off.
+model AdminModerationSubject {
+  kind String
+  userId String
+  state String
+  version Int @default(0)
+  updatedAt DateTime @default(now()) @db.Timestamp(3)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  history AdminModerationAudit[]
+  @@id([kind, userId])
+}
+model AdminModerationAudit {
+  requestId String @id
+  actorId String
+  userId String
+  kind String
+  action String
+  reason String
+  previousState String
+  nextState String
+  version Int
+  createdAt DateTime @default(now()) @db.Timestamp(3)
+  actor User @relation("ModerationActor", fields: [actorId], references: [id], onDelete: Restrict)
+  subject AdminModerationSubject @relation(fields: [kind, userId], references: [kind, userId], onDelete: Restrict)
+  @@unique([kind, userId, version])
+  @@index([kind, userId, createdAt])
 }

@@ -8,6 +8,10 @@ import {
 import { SubscriptionStatus } from '@prisma/client';
 
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+import {
+  KUNDLI_INR_PRICE,
+  KUNDLI_YEAR_DAYS,
+} from '../../subscription/kundli-plan-policy';
 
 const KUNDLI_PLAN_NAME = 'ASTROLOGER_KUNDLI_YEARLY';
 
@@ -41,6 +45,13 @@ export class KundliSubscriptionGuard implements CanActivate {
     }
 
     const now = new Date();
+    const method = String(request.method ?? '').toUpperCase();
+    const path = String(
+      request.route?.path ?? request.path ?? request.url ?? '',
+    );
+    const isGenerateRequest =
+      method === 'POST' &&
+      (path.endsWith('/generate') || path.endsWith('/regenerate'));
 
     const user = await this.prisma.user.findUnique({
       where: {
@@ -63,40 +74,54 @@ export class KundliSubscriptionGuard implements CanActivate {
         subscriptions: {
           where: {
             subscriptionStatus: {
-              in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL],
+              in: isGenerateRequest
+                ? [SubscriptionStatus.ACTIVE]
+                : [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL],
             },
 
             subscriptionPlan: {
               name: KUNDLI_PLAN_NAME,
               isActive: true,
+              ...(isGenerateRequest
+                ? {
+                    price: KUNDLI_INR_PRICE,
+                    currency: 'INR',
+                    durationDays: KUNDLI_YEAR_DAYS,
+                  }
+                : {}),
             },
+            ...(isGenerateRequest
+              ? { amount: KUNDLI_INR_PRICE, currency: 'INR' }
+              : {}),
 
-            AND: [
-              {
-                OR: [
+            AND: isGenerateRequest
+              ? [{ startDate: { lte: now } }, { endDate: { gt: now } }]
+              : [
                   {
-                    startDate: null,
+                    OR: [
+                      {
+                        startDate: null,
+                      },
+                      {
+                        startDate: {
+                          lte: now,
+                        },
+                      },
+                    ],
                   },
                   {
-                    startDate: {
-                      lte: now,
-                    },
+                    OR: [
+                      {
+                        endDate: null,
+                      },
+                      {
+                        endDate: {
+                          gt: now,
+                        },
+                      },
+                    ],
                   },
                 ],
-              },
-              {
-                OR: [
-                  {
-                    endDate: null,
-                  },
-                  {
-                    endDate: {
-                      gt: now,
-                    },
-                  },
-                ],
-              },
-            ],
           },
 
           select: {
@@ -104,6 +129,8 @@ export class KundliSubscriptionGuard implements CanActivate {
             subscriptionStatus: true,
             startDate: true,
             endDate: true,
+            amount: true,
+            currency: true,
 
             subscriptionPlan: {
               select: {
@@ -111,6 +138,9 @@ export class KundliSubscriptionGuard implements CanActivate {
                 name: true,
                 isActive: true,
                 features: true,
+                price: true,
+                currency: true,
+                durationDays: true,
               },
             },
           },
@@ -167,6 +197,29 @@ export class KundliSubscriptionGuard implements CanActivate {
     }
 
     const subscription = user.subscriptions[0];
+    // New calculations require a current paid entitlement. Historical read access
+    // keeps its existing compatibility rules; no records are modified here.
+    if (
+      isGenerateRequest &&
+      (subscription.subscriptionStatus !== SubscriptionStatus.ACTIVE ||
+        !subscription.startDate ||
+        subscription.startDate > now ||
+        !subscription.endDate ||
+        subscription.endDate <= now ||
+        subscription.subscriptionPlan?.isActive !== true ||
+        Number(subscription.amount) !== KUNDLI_INR_PRICE ||
+        subscription.currency !== 'INR' ||
+        Number(subscription.subscriptionPlan.price) !== KUNDLI_INR_PRICE ||
+        subscription.subscriptionPlan.currency !== 'INR' ||
+        subscription.subscriptionPlan.durationDays !== KUNDLI_YEAR_DAYS)
+    ) {
+      throw new ForbiddenException({
+        success: false,
+        code: 'KUNDLI_SUBSCRIPTION_REQUIRED',
+        message:
+          'A current active Professional Kundli subscription is required for new calculations',
+      });
+    }
 
     const rawFeatures = subscription.subscriptionPlan?.features;
 
@@ -183,17 +236,6 @@ export class KundliSubscriptionGuard implements CanActivate {
      * Missing flags remain enabled for backward compatibility.
      * Explicit false from Admin disables that feature immediately.
      */
-    const method = String(request.method ?? '').toUpperCase();
-    const path = String(
-      request.route?.path ?? request.path ?? request.url ?? '',
-    );
-
-    const isGenerateRequest =
-      method === 'POST' &&
-      (path === '/generate' ||
-        path.endsWith('/kundli/generate') ||
-        path.endsWith('/generate'));
-
     const isSavedPdfRequest =
       method === 'GET' && (path.includes('/pdf') || path.endsWith('/pdf'));
 

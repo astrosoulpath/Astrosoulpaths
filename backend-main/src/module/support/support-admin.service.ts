@@ -1,4 +1,13 @@
-﻿import {
+import { requireSupportOperations, auditSupport } from './support-operations';
+import {
+  changeSupportTicket,
+  resolveSupportActor,
+  supportPage,
+  supportText,
+  supportLock,
+  supportDuplicate,
+} from './support-policy';
+import {
   BadRequestException,
   Injectable,
   Logger,
@@ -44,57 +53,52 @@ export class SupportAdminService {
   ) {}
 
   private async resolveAdmin(authUser: AuthUserLike) {
-    if (!authUser) {
-      throw new UnauthorizedException('Admin authentication required.');
-    }
+    return resolveSupportActor(this.prisma, authUser, true);
+  }
 
-    const directId = authUser.id?.trim() || authUser.userId?.trim();
-
-    if (directId) {
-      const user = await this.prisma.user.findUnique({
-        where: {
-          id: directId,
+  async assistantConversations(authUser: AuthUserLike, page = 1) {
+    await this.resolveAdmin(authUser);
+    const paging = supportPage({ page, limit: 20 });
+    const conversations = await this.prisma.assistantConversation.findMany({
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      skip: (paging.page - 1) * 20,
+      take: 20,
+      select: {
+        id: true,
+        status: true,
+        updatedAt: true,
+        supportTicketId: true,
+      },
+    });
+    return { conversations, page: paging.page };
+  }
+  async assistantConversation(authUser: AuthUserLike, id: string) {
+    await this.resolveAdmin(authUser);
+    const conversation = await this.prisma.assistantConversation.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        supportTicketId: true,
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+          select: {
+            id: true,
+            content: true,
+            senderType: true,
+            createdAt: true,
+          },
         },
-      });
-
-      if (user) {
-        return user;
-      }
-    }
-
-    const supabaseId = authUser.supabaseId?.trim() || authUser.sub?.trim();
-
-    if (supabaseId) {
-      const user = await this.prisma.user.findUnique({
-        where: {
-          supabaseId,
-        },
-      });
-
-      if (user) {
-        return user;
-      }
-    }
-
-    if (authUser.email?.trim()) {
-      const user = await this.prisma.user.findUnique({
-        where: {
-          email: authUser.email.trim(),
-        },
-      });
-
-      if (user) {
-        return user;
-      }
-    }
-
-    throw new UnauthorizedException('Admin user could not be resolved.');
+      },
+    });
+    if (!conversation)
+      throw new NotFoundException('Support conversation not found');
+    return { ...conversation, messages: conversation.messages.reverse() };
   }
 
   async getTickets(filters: AdminTicketFilters) {
-    const page = Math.max(1, filters.page ?? 1);
-
-    const limit = Math.min(100, Math.max(1, filters.limit ?? 25));
+    const { page, limit } = supportPage(filters);
 
     const search = filters.search?.trim() || undefined;
 
@@ -163,6 +167,7 @@ export class SupportAdminService {
           {
             updatedAt: 'desc',
           },
+          { id: 'desc' },
         ],
 
         include: {
@@ -277,6 +282,7 @@ export class SupportAdminService {
         url: await this.attachmentService.createSignedUrl(
           attachment.storageBucket,
           attachment.storagePath,
+          ticket.id,
         ),
       })),
     );
@@ -323,6 +329,7 @@ export class SupportAdminService {
         id: true,
         roleId: true,
         isActive: true,
+        isBlocked: true,
         name: true,
         email: true,
 
@@ -347,36 +354,25 @@ export class SupportAdminService {
       );
     }
 
-    if (!targetAdmin.isActive) {
+    if (!targetAdmin.isActive || targetAdmin.isBlocked) {
       throw new BadRequestException(
         'Cannot assign ticket to an inactive admin.',
       );
     }
 
-    const updated = await this.prisma.supportTicket.update({
-      where: {
-        id: ticketId,
-      },
-
-      data: {
+    const updated = await changeSupportTicket(
+      this.prisma,
+      currentAdmin.id,
+      ticketId,
+      'ASSIGNED',
+      (current) => ({
         assignedAdminId: targetAdmin.id,
-
         status:
-          ticket.status === SupportTicketStatus.OPEN
+          current.status === SupportTicketStatus.OPEN
             ? SupportTicketStatus.IN_PROGRESS
-            : ticket.status,
-      },
-
-      include: {
-        assignedAdmin: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-    });
+            : current.status,
+      }),
+    );
 
     return {
       success: true,
@@ -384,69 +380,46 @@ export class SupportAdminService {
     };
   }
 
-  async unassignTicket(ticketId: string) {
-    const existing = await this.prisma.supportTicket.findUnique({
-      where: {
-        id: ticketId,
-      },
-
-      select: {
-        id: true,
-      },
-    });
-
-    if (!existing) {
-      throw new NotFoundException('Support ticket not found.');
-    }
-
-    const ticket = await this.prisma.supportTicket.update({
-      where: {
-        id: ticketId,
-      },
-
-      data: {
-        assignedAdminId: null,
-      },
-    });
-
+  async unassignTicket(ticketId: string, authUser: AuthUserLike) {
+    const admin = await this.resolveAdmin(authUser);
     return {
       success: true,
-      ticket,
+      ticket: await changeSupportTicket(
+        this.prisma,
+        admin.id,
+        ticketId,
+        'UNASSIGNED',
+        () => ({ assignedAdminId: null }),
+      ),
     };
   }
 
-  async updatePriority(ticketId: string, priority: SupportTicketPriority) {
-    const existing = await this.prisma.supportTicket.findUnique({
-      where: {
-        id: ticketId,
-      },
-
-      select: {
-        id: true,
-      },
-    });
-
-    if (!existing) {
-      throw new NotFoundException('Support ticket not found.');
-    }
-
-    const ticket = await this.prisma.supportTicket.update({
-      where: {
-        id: ticketId,
-      },
-
-      data: {
-        priority,
-      },
-    });
-
+  async updatePriority(
+    ticketId: string,
+    priority: SupportTicketPriority,
+    authUser: AuthUserLike,
+  ) {
+    if (!Object.values(SupportTicketPriority).includes(priority))
+      throw new BadRequestException('Invalid priority');
+    const admin = await this.resolveAdmin(authUser);
     return {
       success: true,
-      ticket,
+      ticket: await changeSupportTicket(
+        this.prisma,
+        admin.id,
+        ticketId,
+        'PRIORITY_CHANGED',
+        () => ({ priority }),
+      ),
     };
   }
 
-  async updateStatus(ticketId: string, status: SupportTicketStatus) {
+  async updateStatus(
+    ticketId: string,
+    status: SupportTicketStatus,
+    authUser: AuthUserLike,
+    resolutionNote?: string,
+  ) {
     const existing = await this.prisma.supportTicket.findUnique({
       where: {
         id: ticketId,
@@ -464,27 +437,47 @@ export class SupportAdminService {
 
     const now = new Date();
 
-    const ticket = await this.prisma.supportTicket.update({
-      where: {
-        id: ticketId,
+    const admin = await this.resolveAdmin(authUser);
+    if (!Object.values(SupportTicketStatus).includes(status))
+      throw new BadRequestException('Invalid status');
+    if (resolutionNote) {
+      requireSupportOperations();
+      supportText(resolutionNote, 3000);
+      if (status !== SupportTicketStatus.RESOLVED)
+        throw new BadRequestException(
+          'Resolution note requires resolved status',
+        );
+    }
+    let changed = false;
+    const ticket = await changeSupportTicket(
+      this.prisma,
+      admin.id,
+      ticketId,
+      'STATUS_CHANGED',
+      (current) => {
+        changed = current.status !== status;
+        return changed
+          ? {
+              status,
+              resolvedAt: status === SupportTicketStatus.RESOLVED ? now : null,
+              closedAt: status === SupportTicketStatus.CLOSED ? now : null,
+            }
+          : {};
       },
-
-      data: {
-        status,
-
-        resolvedAt:
-          status === SupportTicketStatus.RESOLVED
-            ? now
-            : status === SupportTicketStatus.OPEN ||
-                status === SupportTicketStatus.IN_PROGRESS
-              ? null
-              : undefined,
-
-        closedAt: status === SupportTicketStatus.CLOSED ? now : null,
+      async (tx) => {
+        if (resolutionNote)
+          await tx.supportMessage.create({
+            data: {
+              ticketId,
+              senderType: SupportSenderType.SYSTEM,
+              senderUserId: admin.id,
+              content: supportText(resolutionNote, 3000),
+            },
+          });
       },
-    });
+    );
 
-    if (existing.status !== status) {
+    if (changed) {
       const mailTicket = await this.prisma.supportTicket.findUnique({
         where: {
           id: ticketId,
@@ -502,13 +495,10 @@ export class SupportAdminService {
         },
       });
 
-      if (
-        mailTicket &&
-        (mailTicket.contactEmail || mailTicket.customer.email)
-      ) {
+      if (mailTicket && mailTicket.customer.email) {
         try {
           await this.mailService.sendSupportStatusChanged({
-            to: (mailTicket.contactEmail || mailTicket.customer.email)!,
+            to: mailTicket.customer.email!,
             customerName: mailTicket.customer.name,
             ticketNumber: mailTicket.ticketNumber,
             subject: mailTicket.subject,
@@ -517,7 +507,7 @@ export class SupportAdminService {
         } catch (error) {
           this.logger.error(
             `Support status email failed for ticket ${mailTicket.ticketNumber}. Status remains saved.`,
-            error instanceof Error ? error.stack : String(error),
+            'SUPPORT_MAIL_FAILED',
           );
         }
       } else if (mailTicket) {
@@ -562,7 +552,7 @@ export class SupportAdminService {
       );
     }
 
-    const content = dto.content.trim();
+    const content = supportText(dto.content, 5000);
 
     const clientMessageId = dto.clientMessageId?.trim() || null;
 
@@ -575,6 +565,10 @@ export class SupportAdminService {
       });
 
       if (duplicate) {
+        if (duplicate.ticketId !== ticketId)
+          throw new BadRequestException(
+            'Message key belongs to another ticket',
+          );
         return {
           success: true,
           duplicate: true,
@@ -584,6 +578,21 @@ export class SupportAdminService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
+      await supportLock(tx, 'sender:' + admin.id);
+      await supportLock(tx, 'ticket:' + ticketId);
+      const current = await tx.supportTicket.findUnique({
+        where: { id: ticketId },
+      });
+      if (!current || current.status === SupportTicketStatus.CLOSED)
+        throw new BadRequestException('Reopen the ticket before replying');
+      const duplicate = await supportDuplicate(
+        tx,
+        admin.id,
+        ticketId,
+        clientMessageId,
+      );
+      if (duplicate)
+        return { message: duplicate, ticket: current, duplicate: true };
       const message = await tx.supportMessage.create({
         data: {
           ticketId,
@@ -608,23 +617,35 @@ export class SupportAdminService {
         data: {
           lastMessageAt: new Date(),
 
-          assignedAdminId: ticket.assignedAdminId || admin.id,
+          assignedAdminId: current.assignedAdminId || admin.id,
 
           status:
-            ticket.status === SupportTicketStatus.OPEN
+            current.status === SupportTicketStatus.OPEN
               ? SupportTicketStatus.IN_PROGRESS
-              : ticket.status,
+              : current.status,
 
           adminLastReadAt: new Date(),
         },
       });
 
+      await auditSupport(
+        tx,
+        admin.id,
+        'TICKET',
+        ticketId,
+        'ADMIN_REPLY',
+        {},
+        current.customerId,
+        'message:' + message.id,
+      );
       return {
         message,
         ticket: updatedTicket,
       };
     });
 
+    if ('duplicate' in result && result.duplicate)
+      return { success: true, ...result };
     const mailTicket = await this.prisma.supportTicket.findUnique({
       where: {
         id: ticketId,
@@ -642,10 +663,10 @@ export class SupportAdminService {
       },
     });
 
-    if (mailTicket && (mailTicket.contactEmail || mailTicket.customer.email)) {
+    if (mailTicket && mailTicket.customer.email) {
       try {
         await this.mailService.sendSupportAdminReply({
-          to: (mailTicket.contactEmail || mailTicket.customer.email)!,
+          to: mailTicket.customer.email!,
           customerName: mailTicket.customer.name,
           ticketNumber: mailTicket.ticketNumber,
           subject: mailTicket.subject,
@@ -654,7 +675,7 @@ export class SupportAdminService {
       } catch (error) {
         this.logger.error(
           `Support reply email failed for ticket ${mailTicket.ticketNumber}. Reply remains saved.`,
-          error instanceof Error ? error.stack : String(error),
+          'SUPPORT_MAIL_FAILED',
         );
       }
     } else if (mailTicket) {
@@ -763,7 +784,11 @@ export class SupportAdminService {
             priority: SupportTicketPriority.URGENT,
 
             status: {
-              not: SupportTicketStatus.CLOSED,
+              in: [
+                SupportTicketStatus.OPEN,
+                SupportTicketStatus.IN_PROGRESS,
+                SupportTicketStatus.WAITING_FOR_CUSTOMER,
+              ],
             },
           },
         }),
@@ -773,7 +798,11 @@ export class SupportAdminService {
             assignedAdminId: null,
 
             status: {
-              in: [SupportTicketStatus.OPEN, SupportTicketStatus.IN_PROGRESS],
+              in: [
+                SupportTicketStatus.OPEN,
+                SupportTicketStatus.IN_PROGRESS,
+                SupportTicketStatus.WAITING_FOR_CUSTOMER,
+              ],
             },
           },
         }),

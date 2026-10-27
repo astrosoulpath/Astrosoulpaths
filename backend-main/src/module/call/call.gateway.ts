@@ -9,7 +9,7 @@
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 
-import { SupabaseJwtService } from '../../infrastructure/supabase/supabase-jwt.service';
+import { CommunicationAuthService } from '../../infrastructure/supabase/communication-auth.service';
 
 import { CallService } from './call.service';
 import { CallSocketService } from './call-socket.service';
@@ -106,7 +106,7 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly socketService: CallSocketService,
     private readonly callService: CallService,
-    private readonly supabaseJwtService: SupabaseJwtService,
+    private readonly communicationAuth: CommunicationAuthService,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
@@ -116,6 +116,7 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const canonicalUserId =
         await this.callService.resolveAuthenticatedUserId(authenticatedId);
 
+      await this.communicationAuth.protectSocket(client);
       client.data.callUserId = canonicalUserId;
 
       client.emit('call:connected', {
@@ -142,10 +143,19 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('call:register')
-  register(
+  async register(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RegisterCallSocketPayload,
   ) {
+    try {
+      const subject = await this.authenticateSocket(client);
+      const id = await this.callService.resolveAuthenticatedUserId(subject);
+      if (id !== client.data.callUserId) throw new Error();
+    } catch {
+      client.emit('auth:required', { code: 'AUTH_REQUIRED' });
+      client.disconnect(true);
+      return;
+    }
     const authenticatedUserId = this.normalizeValue(
       client.data?.callUserId as string | undefined,
     );
@@ -190,11 +200,11 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return registeredPayload;
   }
   @SubscribeMessage('call:initiate')
-  initiateCall(
+  async initiateCall(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: InitiateCallPayload,
   ) {
-    const registeredUserId = this.getRegisteredUserId(client);
+    const registeredUserId = await this.getRegisteredUserId(client);
 
     if (!registeredUserId) {
       return this.emitError(
@@ -207,8 +217,7 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const callId = this.normalizeValue(payload?.callId);
     const recipientUserId = this.normalizeValue(payload?.recipientUserId);
     const callerId = this.normalizeValue(payload?.callerId);
-    const callerName =
-      this.normalizeValue(payload?.callerName) || 'Astro Soul Path User';
+    let callerName = 'Astro Soul Path User';
 
     const consultationType = this.normalizeConsultationType(
       payload?.consultationType,
@@ -237,6 +246,11 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
         'You cannot call your own account.',
       );
     }
+
+    try {
+      const authorized = await this.callService.authorizeSignalling(callId, callerId, recipientUserId, consultationType);
+      callerName = authorized.callerName;
+    } catch { return this.emitError(client, 'UNAUTHORIZED_ACTION', 'Consultation signalling is not authorized.'); }
 
     if (this.ringingCalls.has(callId)) {
       return this.emitError(
@@ -330,11 +344,11 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('call:accept')
-  acceptCall(
+  async acceptCall(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: AcceptCallPayload,
   ) {
-    const registeredUserId = this.getRegisteredUserId(client);
+    const registeredUserId = await this.getRegisteredUserId(client);
 
     if (!registeredUserId) {
       return this.emitError(
@@ -385,6 +399,11 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
     }
 
+    try {
+      await this.callService.authorizeSignalling(callId, callerUserId, receiverUserId, ringingCall.consultationType, 'ACCEPT');
+      if (this.ringingCalls.get(callId) !== ringingCall) throw new Error();
+    } catch { return this.emitError(client, 'UNAUTHORIZED_ACTION', 'Consultation signalling is not authorized.'); }
+
     this.clearRingingCall(callId);
 
     const acceptedPayload = {
@@ -411,11 +430,11 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('call:reject')
-  rejectCall(
+  async rejectCall(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RejectCallPayload,
   ) {
-    const registeredUserId = this.getRegisteredUserId(client);
+    const registeredUserId = await this.getRegisteredUserId(client);
 
     if (!registeredUserId) {
       return this.emitError(
@@ -468,6 +487,11 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
     }
 
+    try {
+      await this.callService.authorizeSignalling(callId, callerUserId, receiverUserId, ringingCall.consultationType, 'REJECT');
+      if (this.ringingCalls.get(callId) !== ringingCall) throw new Error();
+    } catch { return this.emitError(client, 'UNAUTHORIZED_ACTION', 'Consultation signalling is not authorized.'); }
+
     this.clearRingingCall(callId);
 
     const rejectedPayload = {
@@ -495,11 +519,11 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('call:cancel')
-  cancelCall(
+  async cancelCall(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: CancelCallPayload,
   ) {
-    const registeredUserId = this.getRegisteredUserId(client);
+    const registeredUserId = await this.getRegisteredUserId(client);
 
     if (!registeredUserId) {
       return this.emitError(
@@ -557,6 +581,11 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
     }
 
+    try {
+      await this.callService.authorizeSignalling(callId, ringingCall.callerUserId,
+        ringingCall.recipientUserId, ringingCall.consultationType, 'CANCEL');
+      if (this.ringingCalls.get(callId) !== ringingCall) throw new Error();
+    } catch { return this.emitError(client, 'UNAUTHORIZED_ACTION', 'Consultation cancellation is not authorized.'); }
     this.clearRingingCall(callId);
 
     const cancelledPayload = {
@@ -638,8 +667,17 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.ringingCalls.delete(callId);
   }
 
-  private getRegisteredUserId(client: Socket): string | undefined {
-    return this.registeredSocketUsers.get(client.id);
+  private async getRegisteredUserId(client: Socket): Promise<string | undefined> {
+    try {
+      const subject = await this.authenticateSocket(client);
+      const id = await this.callService.resolveAuthenticatedUserId(subject);
+      if (id !== client.data.callUserId) throw new Error();
+      return this.registeredSocketUsers.get(client.id);
+    } catch {
+      client.emit('auth:required', { code: 'AUTH_REQUIRED' });
+      client.disconnect(true);
+      return undefined;
+    }
   }
 
   private emitToCallParticipants(
@@ -671,17 +709,7 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
       throw new Error('Missing call socket access token');
     }
 
-    /*
-     * Development-only compatibility for the existing local OTP flow.
-     * This path cannot execute in NODE_ENV=production.
-     */
-    const localIdentity = this.getLocalDevelopmentIdentity(token);
-
-    if (localIdentity) {
-      return localIdentity;
-    }
-
-    const payload = await this.supabaseJwtService.verifyAccessToken(token);
+    const payload = await this.communicationAuth.verify(token);
 
     const subject = typeof payload.sub === 'string' ? payload.sub.trim() : '';
 
@@ -690,29 +718,6 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     return subject;
-  }
-
-  private getLocalDevelopmentIdentity(token: string): string | null {
-    if (
-      process.env.NODE_ENV === 'production' ||
-      process.env.LOCAL_OTP_ENABLED !== 'true'
-    ) {
-      return null;
-    }
-
-    const localCustomerPrefix = 'local-dev-token:';
-
-    if (token.startsWith(localCustomerPrefix)) {
-      const identity = token.slice(localCustomerPrefix.length).trim();
-
-      return identity || null;
-    }
-
-    if (token === 'local-astrologer-token') {
-      return 'seed-astrologer-supabase-id';
-    }
-
-    return null;
   }
 
   private extractBearerToken(

@@ -17,6 +17,10 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 
 import { MarketplaceService } from './marketplace.service';
+import { MarketplaceCaseService } from './marketplace-case.service';
+import { ReviewMarketplaceCaseDto } from './dto/marketplace-case.dto';
+import { ReconcileMarketplaceRefundDto } from './dto/reconcile-marketplace-refund.dto';
+import { PrepareMarketplaceRefundDto } from './dto/prepare-marketplace-refund.dto';
 
 import { CreateMarketplaceCategoryDto } from './dto/create-marketplace-category.dto';
 import { UpdateMarketplaceCategoryDto } from './dto/update-marketplace-category.dto';
@@ -32,7 +36,28 @@ import { AddMarketplaceCampaignProductDto } from './dto/add-marketplace-campaign
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 @Roles(Role.Admin)
 export class MarketplaceAdminController {
-  constructor(private readonly marketplaceService: MarketplaceService) {}
+  constructor(private readonly marketplaceService: MarketplaceService, private readonly cases: MarketplaceCaseService) {}
+
+  @Get('cases')
+  getCases(@CurrentUser() user: JWTPayload) { return this.cases.list(user.sub as string, true); }
+
+  @Post('refunds/:id/reconcile')
+  reconcileRefund(@CurrentUser() user:JWTPayload,@Param('id') id:string,@Body() dto:ReconcileMarketplaceRefundDto) {
+    return this.cases.reconcileRefund(user.sub as string,id,dto);
+  }
+  @Post('refunds/:id/execute-test')
+  submitTestRefund(@CurrentUser() user:JWTPayload,@Param('id') id:string) {
+    return this.cases.submitTestRefund(user.sub as string,id);
+  }
+  @Post('cases/:id/refund-intent')
+  prepareRefund(@CurrentUser() user:JWTPayload,@Param('id') id:string,@Body() dto:PrepareMarketplaceRefundDto) {
+    return this.cases.prepareRefund(user.sub as string,id,dto);
+  }
+
+  @Patch('cases/:id')
+  reviewCase(@CurrentUser() user: JWTPayload, @Param('id') id: string, @Body() dto: ReviewMarketplaceCaseDto) {
+    return this.cases.review(user.sub as string, id, dto);
+  }
 
   @Get('sellers')
   getSellers() {

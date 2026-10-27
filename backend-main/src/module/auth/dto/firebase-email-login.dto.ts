@@ -6,6 +6,6 @@ export class FirebaseEmailLoginDto {
   idToken: string;
 
   @IsString()
-  @IsIn(['customer'])
-  portal: 'customer' = 'customer';
+  @IsIn(['customer','astrologer','joinAstrologer'])
+  portal: 'customer'|'astrologer'|'joinAstrologer' = 'customer';
 }

@@ -1,10 +1,15 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import {
+  hasLiveV2Schema,
+  legacySessionSelect,
+} from './live-schema-compatibility';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AgoraService } from '../call/agora.service';
@@ -15,6 +20,29 @@ export class LiveService {
     private readonly prisma: PrismaService,
     private readonly agoraService: AgoraService,
   ) {}
+
+  private async sessionRead(
+    db: any,
+    method: 'findFirst' | 'findUnique' | 'findMany',
+    args: any,
+  ) {
+    const v2 = await hasLiveV2Schema(db);
+    const { include, ...rest } = args;
+    const where = { ...rest.where };
+    if (!v2) delete where.connectionProtocol;
+    const result = await db.liveSession[method]({
+      ...rest,
+      where,
+      select: {
+        ...legacySessionSelect,
+        ...(v2 ? { connectionProtocol: true } : {}),
+        ...include,
+      },
+    });
+    const normalize = (row: any) =>
+      row && { ...row, connectionProtocol: v2 ? row.connectionProtocol : 1 };
+    return Array.isArray(result) ? result.map(normalize) : normalize(result);
+  }
 
   private async getUserBySupabaseId(supabaseId: string) {
     const normalized = supabaseId?.trim();
@@ -113,38 +141,70 @@ export class LiveService {
       );
     }
 
-    const existing = await this.prisma.liveSession.findFirst({
-      where: {
-        astrologerId: astrologer.id,
-        status: 'LIVE',
-        endedAt: null,
-      },
-      include: {
-        astrologer: {
-          include: {
-            user: true,
+    // Serialize starts for this host across API workers. The lock and the
+    // existence check must share a transaction (an in-memory mutex is not enough).
+    const session = await this.prisma.$transaction(
+      async (tx) => {
+        const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "Astrologer"
+        WHERE "id" = ${astrologer.id}
+          AND "isApproved" = true AND "isVerified" = true
+        FOR UPDATE
+      `;
+        if (locked.length !== 1) {
+          throw new ForbiddenException(
+            'Only approved and verified astrologers can go live',
+          );
+        }
+        const existing = await this.sessionRead(tx, 'findFirst', {
+          where: {
+            astrologerId: astrologer.id,
+            status: 'LIVE',
+            endedAt: null,
           },
-        },
-      },
-    });
-
-    const session =
-      existing ??
-      (await this.prisma.liveSession.create({
-        data: {
-          astrologerId: astrologer.id,
-          channelName: `live_${randomUUID().replace(/-/g, '')}`,
-          title: title?.trim() || null,
-          status: 'LIVE',
-        },
-        include: {
-          astrologer: {
-            include: {
-              user: true,
+          include: {
+            astrologer: {
+              include: {
+                user: true,
+              },
             },
           },
-        },
-      }));
+        });
+
+        if (existing && existing.connectionProtocol !== 1) {
+          throw new ConflictException('Use Live v2 for this session');
+        }
+        if (existing) return existing;
+        const channelName = 'live_' + randomUUID().replace(/-/g, '');
+        if (!(await hasLiveV2Schema(tx))) {
+          // Prisma create may inject new defaults despite a restricted select.
+          // Bind every value and write only the original schema's columns.
+          const id = randomUUID();
+          await tx.$executeRaw`
+          INSERT INTO "LiveSession" ("id", "astrologerId", "channelName", "title", "status", "updatedAt")
+          VALUES (${id}, ${astrologer.id}, ${channelName}, ${title?.trim() || null}, 'LIVE', CURRENT_TIMESTAMP)
+        `;
+          return this.sessionRead(tx, 'findUnique', {
+            where: { id },
+            include: { astrologer: { include: { user: true } } },
+          });
+        }
+        return tx.liveSession.create({
+          data: {
+            astrologerId: astrologer.id,
+            channelName,
+            title: title?.trim() || null,
+            status: 'LIVE',
+          },
+          select: {
+            ...legacySessionSelect,
+            connectionProtocol: true,
+            astrologer: { include: { user: true } },
+          },
+        });
+      },
+      { isolationLevel: 'ReadCommitted' },
+    );
 
     const uid = Math.floor(Math.random() * 2_000_000_000) + 1;
 
@@ -178,12 +238,16 @@ export class LiveService {
       throw new ForbiddenException('Astrologer account is required');
     }
 
-    const session = await this.prisma.liveSession.findUnique({
+    const session = await this.sessionRead(this.prisma, 'findUnique', {
       where: { id: liveSessionId },
     });
 
     if (!session) {
       throw new NotFoundException('Live session not found');
+    }
+
+    if (session.connectionProtocol !== 1) {
+      throw new ConflictException('Use Live v2 for this session');
     }
 
     if (session.astrologerId !== astrologer.id) {
@@ -194,6 +258,7 @@ export class LiveService {
 
     const [updated] = await this.prisma.$transaction([
       this.prisma.liveSession.update({
+        select: legacySessionSelect,
         where: { id: session.id },
         data: {
           status: 'ENDED',
@@ -218,10 +283,11 @@ export class LiveService {
   }
 
   async listLive() {
-    const sessions = await this.prisma.liveSession.findMany({
+    const sessions = await this.sessionRead(this.prisma, 'findMany', {
       where: {
         status: 'LIVE',
         endedAt: null,
+        connectionProtocol: 1,
         astrologer: {
           isApproved: true,
           isVerified: true,
@@ -259,7 +325,7 @@ export class LiveService {
   async joinLive(supabaseId: string, liveSessionId: string) {
     const user = await this.getUserBySupabaseId(supabaseId);
 
-    const session = await this.prisma.liveSession.findFirst({
+    const session = await this.sessionRead(this.prisma, 'findFirst', {
       where: {
         id: liveSessionId,
         status: 'LIVE',
@@ -276,6 +342,10 @@ export class LiveService {
 
     if (!session) {
       throw new NotFoundException('Live session is no longer available');
+    }
+
+    if (session.connectionProtocol !== 1) {
+      throw new ConflictException('Use Live v2 for this session');
     }
 
     await this.prisma.liveViewer.updateMany({
@@ -324,7 +394,7 @@ export class LiveService {
   async joinLiveChat(supabaseId: string, liveSessionId: string) {
     const user = await this.getUserBySupabaseId(supabaseId);
 
-    const session = await this.prisma.liveSession.findFirst({
+    const session = await this.sessionRead(this.prisma, 'findFirst', {
       where: {
         id: liveSessionId,
         status: 'LIVE',
@@ -341,6 +411,10 @@ export class LiveService {
 
     if (!session) {
       throw new NotFoundException('Live session not found');
+    }
+
+    if (session.connectionProtocol !== 1) {
+      throw new ConflictException('Use Live v2 for this session');
     }
 
     const isHost = session.astrologer.userId === user.id;
@@ -407,6 +481,13 @@ export class LiveService {
   }
   async leaveLive(supabaseId: string, liveSessionId: string) {
     const user = await this.getUserBySupabaseId(supabaseId);
+    const session = await this.sessionRead(this.prisma, 'findUnique', {
+      where: { id: liveSessionId },
+    });
+    if (!session) throw new NotFoundException('Live session not found');
+    if (session.connectionProtocol !== 1) {
+      throw new ConflictException('Use Live v2 for this session');
+    }
 
     await this.prisma.liveViewer.updateMany({
       where: {

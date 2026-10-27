@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 
@@ -9,7 +10,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 export class FollowService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async customerId(supabaseId: string): Promise<string> {
+  private async customerId(supabaseId: string, customerContext = false): Promise<string> {
     const clean = supabaseId?.trim();
 
     if (!clean) {
@@ -29,22 +30,27 @@ export class FollowService {
     const user = identity
       ? await this.prisma.user.findUnique({
           where: { id: identity.userId },
-          select: { id: true },
+          select: { id: true, isActive: true, isBlocked: true, role: { select: { name: true } } },
         })
       : await this.prisma.user.findUnique({
           where: { supabaseId: clean },
-          select: { id: true },
+          select: { id: true, isActive: true, isBlocked: true, role: { select: { name: true } } },
         });
 
     if (!user) {
       throw new UnauthorizedException('Customer account not found');
     }
 
+    if (!user.isActive || user.isBlocked ||
+        (!customerContext && !['CUSTOMER', 'USER'].includes(user.role?.name?.toUpperCase() ?? ''))) {
+      throw new ForbiddenException('An active Customer session is required');
+    }
+
     return user.id;
   }
 
-  async realStatus(supabaseId: string, astrologerId: string) {
-    const followerId = await this.customerId(supabaseId);
+  async realStatus(supabaseId: string, astrologerId: string, customerContext = false) {
+    const followerId = await this.customerId(supabaseId, customerContext);
 
     const astrologer = await this.prisma.astrologer.findUnique({
       where: { id: astrologerId },
@@ -77,31 +83,45 @@ export class FollowService {
     };
   }
 
-  async followReal(supabaseId: string, astrologerId: string) {
-    const followerId = await this.customerId(supabaseId);
+  async followReal(supabaseId: string, astrologerId: string, customerContext = false) {
+    const followerId = await this.customerId(supabaseId, customerContext);
 
     const astrologer = await this.prisma.astrologer.findUnique({
       where: { id: astrologerId },
-      select: { id: true },
+      select: { id: true, userId: true, isApproved: true, user: { select: { isActive: true, isBlocked: true } } },
     });
 
     if (!astrologer) {
       throw new NotFoundException('Astrologer not found');
     }
 
-    await this.prisma.astrologerFollow.upsert({
-      where: {
-        followerId_astrologerId: {
+    if (astrologer.userId === followerId) throw new ForbiddenException('Self-following is not permitted');
+    if (!astrologer.isApproved || !astrologer.user.isActive || astrologer.user.isBlocked) {
+      throw new NotFoundException('Astrologer is not available');
+    }
+
+    try {
+      await this.prisma.astrologerFollow.upsert({
+        where: {
+          followerId_astrologerId: {
+            followerId,
+            astrologerId,
+          },
+        },
+        update: {},
+        create: {
           followerId,
           astrologerId,
         },
-      },
-      update: {},
-      create: {
-        followerId,
-        astrologerId,
-      },
-    });
+      });
+    } catch (error) {
+      // Some Prisma versions emulate upsert. A concurrent winner is success
+      // only when this exact canonical ownership key now exists; never retry inserts.
+      if ((error as {code?: string})?.code !== 'P2002' ||
+          !await this.prisma.astrologerFollow.findUnique({where:{followerId_astrologerId:{followerId,astrologerId}},select:{id:true}})) {
+        throw error;
+      }
+    }
 
     const followerCount = await this.prisma.astrologerFollow.count({
       where: { astrologerId },
@@ -114,8 +134,8 @@ export class FollowService {
     };
   }
 
-  async unfollowReal(supabaseId: string, astrologerId: string) {
-    const followerId = await this.customerId(supabaseId);
+  async unfollowReal(supabaseId: string, astrologerId: string, customerContext = false) {
+    const followerId = await this.customerId(supabaseId, customerContext);
 
     await this.prisma.astrologerFollow.deleteMany({
       where: {
@@ -135,8 +155,8 @@ export class FollowService {
     };
   }
 
-  async aiStatus(supabaseId: string, personaId: string) {
-    const followerId = await this.customerId(supabaseId);
+  async aiStatus(supabaseId: string, personaId: string, customerContext = false) {
+    const followerId = await this.customerId(supabaseId, customerContext);
 
     const persona = await this.prisma.aiAstroPersona.findUnique({
       where: { id: personaId },
@@ -169,8 +189,8 @@ export class FollowService {
     };
   }
 
-  async followAi(supabaseId: string, personaId: string) {
-    const followerId = await this.customerId(supabaseId);
+  async followAi(supabaseId: string, personaId: string, customerContext = false) {
+    const followerId = await this.customerId(supabaseId, customerContext);
 
     const persona = await this.prisma.aiAstroPersona.findUnique({
       where: { id: personaId },
@@ -206,8 +226,8 @@ export class FollowService {
     };
   }
 
-  async unfollowAi(supabaseId: string, personaId: string) {
-    const followerId = await this.customerId(supabaseId);
+  async unfollowAi(supabaseId: string, personaId: string, customerContext = false) {
+    const followerId = await this.customerId(supabaseId, customerContext);
 
     await this.prisma.aiAstroFollow.deleteMany({
       where: {

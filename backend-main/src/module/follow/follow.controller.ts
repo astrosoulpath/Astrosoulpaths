@@ -5,6 +5,7 @@
   Param,
   Post,
   UnauthorizedException,
+  ForbiddenException,
   UseGuards,
 } from '@nestjs/common';
 import type { JWTPayload } from 'jose';
@@ -25,6 +26,10 @@ export class FollowController {
       throw new UnauthorizedException('Authenticated customer is required');
     }
 
+    if (user.asp_context && (user.asp_context !== 'customer' || user.asp_account_role !== 'CUSTOMER')) {
+      throw new ForbiddenException('Customer context required');
+    }
+
     return value;
   }
 
@@ -33,7 +38,7 @@ export class FollowController {
     @CurrentUser() user: JWTPayload,
     @Param('astrologerId') astrologerId: string,
   ) {
-    return this.service.realStatus(this.sub(user), astrologerId);
+    return this.service.realStatus(this.sub(user), astrologerId, user.asp_context === 'customer');
   }
 
   @Post('astrologers/:astrologerId')
@@ -41,7 +46,7 @@ export class FollowController {
     @CurrentUser() user: JWTPayload,
     @Param('astrologerId') astrologerId: string,
   ) {
-    return this.service.followReal(this.sub(user), astrologerId);
+    return this.service.followReal(this.sub(user), astrologerId, user.asp_context === 'customer');
   }
 
   @Delete('astrologers/:astrologerId')
@@ -49,7 +54,7 @@ export class FollowController {
     @CurrentUser() user: JWTPayload,
     @Param('astrologerId') astrologerId: string,
   ) {
-    return this.service.unfollowReal(this.sub(user), astrologerId);
+    return this.service.unfollowReal(this.sub(user), astrologerId, user.asp_context === 'customer');
   }
 
   @Get('ai/:personaId')
@@ -57,7 +62,7 @@ export class FollowController {
     @CurrentUser() user: JWTPayload,
     @Param('personaId') personaId: string,
   ) {
-    return this.service.aiStatus(this.sub(user), personaId);
+    return this.service.aiStatus(this.sub(user), personaId, user.asp_context === 'customer');
   }
 
   @Post('ai/:personaId')
@@ -65,7 +70,7 @@ export class FollowController {
     @CurrentUser() user: JWTPayload,
     @Param('personaId') personaId: string,
   ) {
-    return this.service.followAi(this.sub(user), personaId);
+    return this.service.followAi(this.sub(user), personaId, user.asp_context === 'customer');
   }
 
   @Delete('ai/:personaId')
@@ -73,6 +78,6 @@ export class FollowController {
     @CurrentUser() user: JWTPayload,
     @Param('personaId') personaId: string,
   ) {
-    return this.service.unfollowAi(this.sub(user), personaId);
+    return this.service.unfollowAi(this.sub(user), personaId, user.asp_context === 'customer');
   }
 }

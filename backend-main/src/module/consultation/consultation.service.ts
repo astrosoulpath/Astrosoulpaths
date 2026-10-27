@@ -1,3 +1,5 @@
+import { DEFAULT_PLATFORM_COMMISSION_PERCENT } from '../../common/finance/commission-policy';
+import { readFinancialPolicy } from '../../common/finance/consultation-financial-policy';
 import {
   BadRequestException,
   ConflictException,
@@ -34,6 +36,7 @@ export type StartConsultationParams = {
   astrologerUserId: string;
 
   purchasedMinutes: number;
+  requireFreeChat?: boolean;
 
   mode: 'chat' | 'audio' | 'video';
 
@@ -75,7 +78,7 @@ export type RateConsultationParams = {
   comment?: string;
 };
 
-const DEFAULT_PLATFORM_FEE_PERCENT = 30;
+const DEFAULT_PLATFORM_FEE_PERCENT = DEFAULT_PLATFORM_COMMISSION_PERCENT;
 
 @Injectable()
 export class ConsultationService {
@@ -175,6 +178,9 @@ export class ConsultationService {
    */
 
   async startConsultation(params: StartConsultationParams) {
+    if (params.requireFreeChat !== undefined && typeof params.requireFreeChat !== 'boolean') {
+      throw new BadRequestException('Invalid free chat intent');
+    }
     let userId = params.userId?.trim();
 
     const astrologerUserId = params.astrologerUserId?.trim();
@@ -278,6 +284,9 @@ export class ConsultationService {
       databaseUser.freeChatUsedAt === null;
 
     const purchasedMinutes = freeChatEligible ? 1 : requestedMinutes;
+    if (params.requireFreeChat && !freeChatEligible) {
+      throw new ForbiddenException('Free chat is no longer available');
+    }
 
     await this.releaseExpiredCustomerReservations(userId);
 
@@ -341,6 +350,7 @@ export class ConsultationService {
         mode,
         ratePerMinute,
         purchasedMinutes,
+        requireFreeChat: params.requireFreeChat,
         amountCharged,
         startedAt,
         expiresAt,
@@ -485,6 +495,10 @@ export class ConsultationService {
    * CUSTOMER CONSULTATION HISTORY
    * ============================================================
    */
+
+  async getCustomerDashboardSummary(userId: string) {
+    return { success: true, data: await this.consultationRepository.customerDashboardSummary(userId) };
+  }
 
   async getUserConsultationHistory(
     userId: string,
@@ -808,8 +822,12 @@ export class ConsultationService {
     }
 
     const additionalAmount = this.roundMoney(
+      // The repository repeats the free-only protection transactionally.
       consultation.ratePerMinute * additionalMinutes,
     );
+    if (consultation.isFreeChat) {
+      throw new ConflictException('Free chat cannot be extended into a paid consultation');
+    }
 
     const expiryBase =
       consultation.expiresAt.getTime() > Date.now()
@@ -1052,7 +1070,8 @@ export class ConsultationService {
      * Completion creates/updates AstrologerEarning
      * and applies the platform commission.
      */
-    const platformFeePercent = await this.getPlatformFeePercent();
+    const lockedPolicy = consultation.isFreeChat ? null : await readFinancialPolicy(this.prisma, consultationId);
+    const platformFeePercent = consultation.isFreeChat ? 0 : lockedPolicy ? Number(lockedPolicy.platformPercent) : await this.getPlatformFeePercent();
 
     const completedConsultation =
       await this.consultationRepository.completeConsultation(consultationId, {

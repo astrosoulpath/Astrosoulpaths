@@ -19,6 +19,9 @@ import { VedicDailyContextMapper } from './vedic-daily-context.mapper';
 import { TodayForYouMapper } from './today-for-you.mapper';
 import { LocalVedicKundliProvider } from '../../../kundli/providers/local-vedic-kundli.provider';
 import { birthParamsToUtc } from '../../../kundli/engine/vedic-time.util';
+import { requireHoroscopeLocale } from '../../../subscription/horoscope-localization';
+import { durableHoroscopeEnabled, HoroscopeDurableStore, HOROSCOPE_CONTENT_VERSION } from '../../../subscription/horoscope-durable.store';
+import { createHash } from 'node:crypto';
 import { calculateVedicTransit } from '../../../kundli/engine/vedic-transit.util';
 import { calculatePanchang } from '../../../kundli/engine/panchang.util';
 
@@ -57,7 +60,8 @@ export class NakshatraDailyInsightService {
     supabaseUserId: string,
     day: DailyInsightDay = 'today',
     requestedLanguageOverride?: string,
-  ) {
+    internal?: { skipLegacyHistory: true },
+  ): Promise<DailyHoroscopeResponse> {
     const normalizedSupabaseId = supabaseUserId?.trim();
 
     if (!normalizedSupabaseId) {
@@ -132,7 +136,7 @@ export class NakshatraDailyInsightService {
       where: {
         userId: user.id,
         subscriptionStatus: {
-          in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL],
+          in: [SubscriptionStatus.ACTIVE],
         },
         startDate: {
           lte: now,
@@ -206,6 +210,8 @@ export class NakshatraDailyInsightService {
     const requestedLanguageCode =
       requestedLanguageOverride?.trim().toLowerCase() ||
       profile.lang?.trim().toLowerCase();
+    if (!requestedLanguageCode) throw new BadRequestException('Select a supported horoscope language');
+    requireHoroscopeLocale(requestedLanguageCode);
 
     const language = requestedLanguageCode
       ? await this.prisma.appLanguage.findFirst({
@@ -261,12 +267,25 @@ export class NakshatraDailyInsightService {
     }
 
     const targetDateKey = targetDate.toISOString().slice(0, 10);
+    if(durableHoroscopeEnabled() && !internal) {
+      const reading=await new HoroscopeDurableStore(this.prisma).generate({userId:user.id,subscriptionId:subscription.id,
+        localDate:targetDateKey,locale:language.code,timezone:profile.timezoneName ?? String(profile.timezone),
+        profileFingerprint:createHash('sha256').update(JSON.stringify([birthDate.toISOString(),timeOfBirth,profile.latitude,profile.longitude,profile.timezone])).digest('hex')},
+        ()=>this.getNakshatraDailyInsight(supabaseUserId,day,language.code,{skipLegacyHistory:true}));
+      const stillEntitled=await this.prisma.subscription.findFirst({where:{id:subscription.id,userId:user.id,subscriptionStatus:SubscriptionStatus.ACTIVE,
+        startDate:{lte:new Date()},endDate:{gt:new Date()},subscriptionPlan:{name:'DAILY_HOROSCOPE_MONTHLY',isActive:true},user:{isActive:true,isBlocked:false}},select:{id:true}});
+      if(!stillEntitled) throw new ForbiddenException('Personalized horoscope subscription is no longer active');
+      // Cache persisted content, never stale entitlement from an earlier subscription.
+      return {...reading.response, data:{...reading.response.data,durableReadingId:reading.id}, entitlement:{planName:subscription.subscriptionPlan.name,displayName:subscription.subscriptionPlan.displayName,
+        status:subscription.subscriptionStatus,startDate:subscription.startDate?.toISOString()??null,endDate:subscription.endDate?.toISOString()??null,
+        nextBillingAt:subscription.nextBillingAt?.toISOString()??null}};
+    }
 
-    const cacheKey = `daily-horoscope:v21:${user.id}:${targetDateKey}:${day}:${language.code}`;
+    const cacheKey = `daily-horoscope:v22:${user.id}:${targetDateKey}:${day}:${language.code}`;
 
     const parsedBirthTime = this.parseBirthTime(timeOfBirth);
 
-    const cached = await this.redis.get<DailyHoroscopeResponse>(cacheKey);
+    const cached = internal ? null : await this.redis.get<DailyHoroscopeResponse>(cacheKey);
 
     if (cached) {
       this.logger.log(
@@ -280,7 +299,7 @@ export class NakshatraDailyInsightService {
       `daily_insight.cache_miss userId=${user.id} targetDate=${targetDateKey}`,
     );
 
-    const persisted = await this.prisma.dailyHoroscopeHistory.findUnique({
+    const persisted = internal ? null : await this.prisma.dailyHoroscopeHistory.findUnique({
       where: {
         userId_targetDate: {
           userId: user.id,
@@ -311,7 +330,7 @@ export class NakshatraDailyInsightService {
         'todayForYou' in (persistedResponse.data as Record<string, unknown>) &&
         persistedResponse.entitlement &&
         (persistedResponse.data as any).generation?.contentVersion ===
-          'daily-v20' &&
+          'daily-v21' &&
         persisted.requestedDay === day &&
         (persistedResponse.data as any).generation?.language?.code ===
           language.code
@@ -333,7 +352,7 @@ export class NakshatraDailyInsightService {
     // Production single-flight:
     // only one backend instance may perform paid Prokerala/OpenAI generation
     // for the same user/date/day/language at a time.
-    const generationLockKey = `lock:daily-horoscope:v21:${user.id}:${targetDateKey}:${day}:${language.code}`;
+    const generationLockKey = `lock:daily-horoscope:v22:${user.id}:${targetDateKey}:${day}:${language.code}`;
     const generationLockOwner = `${Date.now()}:${Math.random().toString(36).slice(2)}`;
 
     let generationLockAcquired = await this.redis.setNX(
@@ -352,7 +371,7 @@ export class NakshatraDailyInsightService {
       for (let attempt = 0; attempt < 40; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        const generated =
+        const generated = internal ? null :
           await this.redis.get<DailyHoroscopeResponse>(cacheKey);
 
         if (generated) {
@@ -385,7 +404,7 @@ export class NakshatraDailyInsightService {
       // Double-check after acquiring the distributed lock.
       // A previous worker may have completed between our initial miss
       // and lock acquisition.
-      const generatedAfterLock =
+      const generatedAfterLock = internal ? null :
         await this.redis.get<DailyHoroscopeResponse>(cacheKey);
 
       if (generatedAfterLock) {
@@ -396,7 +415,7 @@ export class NakshatraDailyInsightService {
         return generatedAfterLock;
       }
 
-      const persistedAfterLock =
+      const persistedAfterLock = internal ? null :
         await this.prisma.dailyHoroscopeHistory.findUnique({
           where: {
             userId_targetDate: {
@@ -429,7 +448,7 @@ export class NakshatraDailyInsightService {
             (persistedResponse.data as Record<string, unknown>) &&
           persistedResponse.entitlement &&
           (persistedResponse.data as any).generation?.contentVersion ===
-            'daily-v20' &&
+            'daily-v21' &&
           persistedAfterLock.requestedDay === day &&
           (persistedResponse.data as any).generation?.language?.code ===
             language.code
@@ -821,7 +840,7 @@ export class NakshatraDailyInsightService {
         },
         generation: {
           source: 'local-vedic-plus-openai-v5',
-          contentVersion: 'daily-v20',
+          contentVersion: internal ? HOROSCOPE_CONTENT_VERSION : 'daily-v21',
           requestedDay: day,
           model: ai.model,
           targetDate: providerUser.targetDate,
@@ -856,7 +875,10 @@ export class NakshatraDailyInsightService {
         },
       };
 
-      await this.prisma.dailyHoroscopeHistory.upsert({
+      if (!subscription.endDate || subscription.endDate.getTime() <= Date.now()) {
+        throw new ForbiddenException('Personalized horoscope subscription expired during generation');
+      }
+      if(!internal) await this.prisma.dailyHoroscopeHistory.upsert({
         where: {
           userId_targetDate: {
             userId: user.id,
@@ -887,7 +909,7 @@ export class NakshatraDailyInsightService {
         `daily_insight.history_upsert userId=${user.id} targetDate=${targetDateKey}`,
       );
 
-      await this.redis.set(cacheKey, result, 60 * 60 * 6);
+      if (!internal) await this.redis.set(cacheKey, result, 60 * 60 * 6);
 
       this.logger.log(
         `daily_insight.cache_store userId=${user.id} targetDate=${targetDateKey}`,

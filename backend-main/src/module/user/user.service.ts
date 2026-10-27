@@ -715,6 +715,18 @@ export class UserService {
     };
   }
 
+  // Admin authorization is lookup-only and does not enrich/link identity records.
+  async getAdminByFirebaseUid(firebaseUid: string) {
+    const identity = await this.prisma.userAuthIdentity.findUnique({
+      where: { provider_providerUserId: { provider: 'firebase', providerUserId: firebaseUid } },
+      include: { user: { include: authUserInclude } },
+    });
+    if (!identity || identity.identityType !== 'google' ||
+        !identity.email || !identity.user?.email ||
+        identity.email.trim().toLowerCase() !== identity.user.email.trim().toLowerCase()) return null;
+    return identity.user;
+  }
+
   async getUserByFirebaseUid(firebaseUid: string) {
     const uid = firebaseUid?.trim();
 
@@ -1126,11 +1138,21 @@ export class UserService {
       ? approved ? 'OPEN_ASTROLOGER_DASHBOARD' : 'WAIT_FOR_ADMIN_APPROVAL'
       : phoneIdentity ? 'COMPLETE_ASTROLOGER_ONBOARDING' : 'VERIFY_MOBILE_FOR_ASTROLOGER_ONBOARDING';
     const responsePortal = approved && portal !== 'customer' ? 'astrologer' : portal;
+    const activeConsultation = portal === 'customer' ? await this.prisma.callSession.findFirst({
+      where: { userId: user.id, endedAt: null, status: { in: ['PENDING', 'ACTIVE'] }, expiresAt: { gt: new Date() } },
+      select: { id: true },
+    }) : null;
     return { success: true, portal: responsePortal, role, nextStep, user: {
       id: user.id, supabaseId: user.supabaseId, email: user.email, phone: user.phone,
       name: user.name, role, portal: responsePortal, accountRole: user.role?.name,
       isAstrologer: approved, isPhoneVerified: !!phoneIdentity,
       isProfileComplete: user.isProfileComplete,
+      ...(portal === 'customer' ? { freeChat: {
+        eligible: user.freeChatGrantedAt != null && user.freeChatUsedAt == null && user.freeChatMinutes > 0,
+        used: user.freeChatUsedAt != null,
+        minutes: user.freeChatMinutes,
+        showPopup: !activeConsultation && user.freeChatGrantedAt != null && user.freeChatUsedAt == null && user.freeChatMinutes > 0,
+      } } : {}),
     } };
   }
 

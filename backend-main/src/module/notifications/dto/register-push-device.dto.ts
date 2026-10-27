@@ -1,9 +1,10 @@
 ﻿import { DevicePlatform } from '@prisma/client';
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class RegisterPushDeviceDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(4096)
   fcmToken!: string;
 
   @IsEnum(DevicePlatform)
@@ -11,5 +12,6 @@ export class RegisterPushDeviceDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(256)
   deviceId?: string;
 }

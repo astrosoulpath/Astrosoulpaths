@@ -1,13 +1,17 @@
 ﻿import { MarketplaceService } from '../marketplace/marketplace.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PaymentCreationCommands, paymentCreationEnabled, configuredPaymentMode, CreationClaim, isIsolatedFinancialTestDatabase } from './payment-creation-command';
 import { NotificationsPushService } from '../notifications/notifications.push.service';
 import {
   BadGatewayException,
   BadRequestException,
+  ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   LedgerReferenceType,
@@ -27,15 +31,21 @@ import { KundliOrderService } from '../kundli/kundli-order.service';
 import { CreateKundliReportOrderDto } from './dto/create-kundli-report-order.dto';
 import { CreatePaymentOrderDto } from './dto/create-payment-order.dto';
 import { CreateSubscriptionOrderDto } from './dto/create-subscription-order.dto';
+import { legacyReportPrice } from './legacy-report-policy';
+import { assertDailyPlan, assertDailyCheckoutAvailable, DAILY_PLAN, DAILY_DAYS, exactPeriodEnd } from '../subscription/daily-horoscope-policy';
+import { ACTIVATION_COPY, requireHoroscopeLocale } from '../subscription/horoscope-localization';
+import { assertKundliCheckoutAvailable, assertKundliPlan, KUNDLI_YEARLY_PLAN } from '../subscription/kundli-plan-policy';
 import { LocalizedPricingService } from './pricing/localized-pricing.service';
 import {
   RazorpayOrder,
   RazorpayPaymentEntity,
   RazorpayWebhookPayload,
+  verifyCheckoutSignature,
 } from './razorpay-verification.service';
+import { VerifyCheckoutDto } from './dto/verify-checkout.dto';
 
-interface WebhookProcessingResult {
-  status: 'success' | 'failed' | 'duplicate' | 'ignored';
+export interface WebhookProcessingResult {
+  status: 'success' | 'failed' | 'pending' | 'duplicate' | 'ignored';
 
   paymentOrderId?: string;
   reason?: ReconciliationReason;
@@ -46,7 +56,8 @@ type ReconciliationReason =
   | 'already_processed'
   | 'gateway_payment_failed'
   | 'amount_mismatch'
-  | 'currency_mismatch';
+  | 'currency_mismatch'
+  | 'gateway_payment_pending';
 
 interface RazorpayOrderPaymentsResponse {
   entity?: string;
@@ -107,6 +118,43 @@ export class PaymentsService {
     return this.createWalletRechargeOrder(supabaseUserId, dto);
   }
 
+  async getPendingSubscriptionOrder(subject: string, orderId: string): Promise<RazorpayOrder> {
+    if (!/^order_[A-Za-z0-9_]{1,80}$/.test(orderId)) throw new BadRequestException('Invalid payment order');
+    const user = await this.findUserBySupabaseId(subject);
+    const row = await this.prisma.paymentOrder.findUnique({ where: { razorpayOrderId: orderId } });
+    if (!row || row.userId !== user.id || row.type !== PaymentType.SUBSCRIPTION) throw new NotFoundException('Subscription payment not found');
+    const metadata = row.metadata as Record<string, unknown> | null;
+    const mode = configuredPaymentMode();
+    if (row.status !== PaymentStatus.PENDING || mode === 'UNKNOWN' || metadata?.providerMode !== mode)
+      throw new ConflictException('Payment requires reconciliation; checkout cannot be resumed');
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { userId: user.id, razorpayOrderId: orderId, subscriptionStatus: SubscriptionStatus.PENDING },
+      include: { subscriptionPlan: true },
+    });
+    const plan = subscription?.subscriptionPlan;
+    if (!subscription || !plan?.isActive || metadata?.subscriptionId !== subscription.id ||
+        ![KUNDLI_YEARLY_PLAN, DAILY_PLAN].includes(plan.name) ||
+        subscription.currency !== row.currency || !subscription.amount?.equals(row.amount))
+      throw new ConflictException('Pending subscription binding requires review');
+    assertKundliCheckoutAvailable(plan.name); assertDailyCheckoutAvailable(plan.name);
+    assertKundliPlan(plan); assertDailyPlan(plan);
+    if (plan.name === KUNDLI_YEARLY_PLAN) {
+      if (!row.amount.equals(plan.price) || row.currency !== 'INR') throw new ConflictException('Professional subscription quote mismatch');
+      const astrologer = await this.prisma.astrologer.findUnique({ where: { userId: user.id } });
+      if (!user.isAstrologer || !astrologer?.isApproved || !astrologer.isVerified)
+        throw new ForbiddenException('Approved verified astrologer required');
+    }
+    const provider = getRazorpayInstance();
+    const order = await provider.orders.fetch(orderId);
+    const payments = await this.fetchOrderPaymentsFromRazorpay(orderId);
+    const amount = this.convertMajorUnitsToSubunits(row.amount);
+    if (order.id !== orderId || !['created', 'attempted'].includes(order.status) || Number(order.amount) !== amount ||
+        order.currency !== row.currency || Number(order.amount_paid) !== 0 || Number(order.amount_due) !== amount ||
+        payments.some(payment => ['authorized', 'captured'].includes(payment.status || '')))
+      throw new ConflictException('Existing payment must be reconciled before retrying checkout');
+    return { id: order.id, amount, currency: row.currency } as RazorpayOrder;
+  }
+
   async createWalletRechargeOrder(
     supabaseUserId: string,
     dto: CreatePaymentOrderDto,
@@ -121,6 +169,10 @@ export class PaymentsService {
 
     const wallet = await this.getOrCreateWallet(user.id);
 
+    if (wallet.currency !== this.defaultCurrency) {
+      throw new BadRequestException('Wallet recharge requires an INR wallet');
+    }
+
     return this.createTypedPaymentOrder({
       userId: user.id,
       walletId: wallet.id,
@@ -131,15 +183,42 @@ export class PaymentsService {
     });
   }
 
+  async getPendingWalletOrder(subject: string, orderId: string): Promise<RazorpayOrder> {
+    if (!/^order_[A-Za-z0-9]+$/.test(orderId)) throw new BadRequestException('Invalid payment order');
+    const user = await this.findUserBySupabaseId(subject);
+    const row = await this.prisma.paymentOrder.findUnique({ where: { razorpayOrderId: orderId } });
+    if (!row || row.userId !== user.id || row.type !== PaymentType.WALLET_RECHARGE)
+      throw new NotFoundException('Wallet payment not found');
+    const mode = configuredPaymentMode();
+    if (row.status !== PaymentStatus.PENDING || mode === 'UNKNOWN' || (row.metadata as any)?.providerMode !== mode)
+      throw new ConflictException('Payment requires reconciliation before checkout');
+    const provider = getRazorpayInstance();
+    const order = await provider.orders.fetch(orderId);
+    const payments = await this.fetchOrderPaymentsFromRazorpay(orderId);
+    const amount = this.convertMajorUnitsToSubunits(row.amount);
+    if (order.id !== orderId || !['created', 'attempted'].includes(order.status) || Number(order.amount) !== amount ||
+        order.currency !== row.currency || Number(order.amount_paid) !== 0 || Number(order.amount_due) !== amount ||
+        payments.some(payment => ['authorized', 'captured'].includes(payment.status || '')))
+      throw new ConflictException('Existing payment must be reconciled before retrying checkout');
+    return { id: order.id, amount, currency: row.currency } as RazorpayOrder;
+  }
+
   async createKundliReportOrder(
     supabaseUserId: string,
     dto: CreateKundliReportOrderDto,
   ): Promise<RazorpayOrder> {
-    const amount = this.normalizeAmount(dto.amount);
+    const amount = legacyReportPrice();
 
     const user = await this.findUserBySupabaseId(supabaseUserId);
 
-    await this.kundliOrderService.assertKundliExists(dto.kundliId);
+    // Kundli calculations are globally deduplicated, so existence is not access.
+    const owned = await this.prisma.kundliSavedRecord.findFirst({
+      where: { kundliId: dto.kundliId, OR: [
+        { customerUserId: user.id },
+        { createdByAstrologer: { userId: user.id } },
+      ] }, select: { id: true },
+    });
+    if (!owned) throw new NotFoundException('Authorized Kundli report not found');
 
     return this.createTypedPaymentOrder({
       userId: user.id,
@@ -157,6 +236,7 @@ export class PaymentsService {
     supabaseUserId: string,
     dto: CreateSubscriptionOrderDto,
   ): Promise<RazorpayOrder> {
+    assertKundliCheckoutAvailable(dto.planName);
     const user = await this.findUserBySupabaseId(supabaseUserId);
 
     const plan = await this.prisma.subscriptionPlan.findUnique({
@@ -168,6 +248,10 @@ export class PaymentsService {
     if (!plan || !plan.isActive) {
       throw new NotFoundException('Subscription plan not found or inactive');
     }
+
+    assertDailyPlan(plan);
+    assertKundliPlan(plan);
+    assertDailyCheckoutAvailable(plan.name);
 
     if (dto.planName === 'ASTROLOGER_KUNDLI_YEARLY') {
       if (!user.isAstrologer) {
@@ -206,7 +290,9 @@ export class PaymentsService {
       },
     });
 
-    const localizedQuote = await this.localizedPricingService.quotePrice({
+    const localizedQuote = plan.name === KUNDLI_YEARLY_PLAN
+      ? { amount: plan.price.toString(), currency: plan.currency, countryCode: userProfile?.countryCode ?? null, fxSource: 'fixed-inr' }
+      : await this.localizedPricingService.quotePrice({
       baseAmount: plan.price,
       baseCurrency: plan.currency,
       countryCode: userProfile?.countryCode ?? null,
@@ -214,6 +300,8 @@ export class PaymentsService {
 
     const localizedAmount = new Prisma.Decimal(localizedQuote.amount);
     const localizedCurrency = localizedQuote.currency;
+    // Do not silently turn the approved USD total into an unapproved FX charge.
+    assertDailyPlan({ ...plan, price: localizedAmount, currency: localizedCurrency });
 
     this.logger.log(
       `subscription_pricing.quoted userId=${user.id} plan=${plan.name} baseAmount=${plan.price.toString()} baseCurrency=${plan.currency} countryCode=${localizedQuote.countryCode ?? 'unknown'} localizedAmount=${localizedQuote.amount} localizedCurrency=${localizedQuote.currency} fxSource=${localizedQuote.fxSource}`,
@@ -223,6 +311,7 @@ export class PaymentsService {
         where: {
           userId: user.id,
           subscriptionPlanId: plan.id,
+          endDate:{gt:new Date()},
           subscriptionStatus: {
             in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL],
           },
@@ -246,11 +335,27 @@ export class PaymentsService {
         },
       });
 
+    // Preserve the provider binding of an outstanding purchase. A new checkout
+    // must not overwrite it while a delayed capture may still arrive.
+    if (existingPendingSubscription?.razorpayOrderId) {
+      throw new ConflictException(
+        'An existing subscription payment requires reconciliation before starting another checkout.',
+      );
+    }
+
+    const creation = paymentCreationEnabled() ? await new PaymentCreationCommands(this.prisma).reserve({
+      userId:user.id, purpose:'SUBSCRIPTION', reference:plan.name,
+      amountMinor:this.convertMajorUnitsToSubunits(localizedAmount), currency:localizedCurrency,
+    }) : undefined;
+    if (creation?.reused && creation.providerOrderId) return {
+      id:creation.providerOrderId, amount:Number(creation.amountMinor), currency:creation.currency,
+    } as RazorpayOrder;
+
     const startDate = new Date();
 
     const endDate = new Date(startDate);
 
-    endDate.setDate(endDate.getDate() + plan.durationDays);
+    endDate.setTime(exactPeriodEnd(startDate, plan.durationDays).getTime());
 
     const subscription = existingPendingSubscription
       ? await this.prisma.subscription.update({
@@ -292,7 +397,9 @@ export class PaymentsService {
         subscriptionId: subscription.id,
         subscriptionPlanId: plan.id,
         planName: plan.name,
+        planSnapshot: { name: plan.name, durationDays: plan.durationDays, amount: amount.toString(), currency: localizedCurrency },
       },
+      creation,
     });
 
     await this.prisma.subscription.update({
@@ -452,6 +559,44 @@ export class PaymentsService {
     };
   }
 
+  async verifyCheckout(subject: string, proof: VerifyCheckoutDto): Promise<WebhookProcessingResult> {
+    const user = await this.findUserBySupabaseId(subject);
+    const order = await this.findPaymentOrderByRazorpayOrderId(proof.orderId);
+    if (!order || order.userId !== user.id) throw new NotFoundException('Payment order not found');
+    const mode = configuredPaymentMode();
+    if (mode === 'UNKNOWN' || (order.metadata as any)?.providerMode !== mode) {
+      throw new BadRequestException('Payment environment does not match the order');
+    }
+    if (!verifyCheckoutSignature(order.razorpayOrderId, proof.paymentId, proof.signature)) {
+      throw new BadRequestException('Invalid checkout signature');
+    }
+    // Replays never rewrite a completed order or backfill historical audit evidence.
+    if (this.isPaymentAlreadyProcessed(order)) return { status: 'duplicate', paymentOrderId: order.id };
+    const payment = await getRazorpayInstance().payments.fetch(proof.paymentId).catch(() => {
+      // SDK transport errors may contain request credentials; never log/rethrow them.
+      throw new BadGatewayException('Payment verification provider is unavailable');
+    });
+    if (payment.id !== proof.paymentId || payment.order_id !== order.razorpayOrderId) {
+      throw new BadRequestException('Payment does not match the order');
+    }
+    this.assertCapturedAmountMatchesOrder(order, payment as RazorpayPaymentEntity);
+    this.assertCapturedCurrencyMatchesOrder(order, payment as RazorpayPaymentEntity);
+    if (payment.status !== 'captured' || payment.captured !== true) {
+      return { status: 'pending', paymentOrderId: order.id };
+    }
+    // Persist only the verification method and sanitized provider facts for FUTURE fulfillment.
+    // Do not persist callback signatures, API secrets, contact details or payment instruments.
+    const entity: RazorpayPaymentEntity = {
+      id: payment.id, order_id: payment.order_id, amount: Number(payment.amount),
+      currency: payment.currency, status: payment.status, method: payment.method,
+    };
+    const event = {
+      event: 'payment.checkout_verified', payload: { payment: { entity } },
+      verification: { method: 'CHECKOUT_HMAC_AND_PROVIDER_CAPTURE', signatureVerified: true },
+    };
+    return this.handleCapturedPayment(event, order, entity);
+  }
+
   async reconcileOrder(
     supabaseUserId: string,
     razorpayOrderId: string,
@@ -473,9 +618,25 @@ export class PaymentsService {
       throw new NotFoundException('Payment order not found');
     }
 
-    this.logger.log(
-      `reconciliation.payment_found paymentOrderId=${paymentOrder.id} type=${paymentOrder.type} status=${paymentOrder.status} razorpayOrderId=${paymentOrder.razorpayOrderId}`,
-    );
+    return this.reconcileKnownOrder(paymentOrder);
+  }
+
+  async reconcileTestPaymentForAdmin(paymentOrderId: string) {
+    if (process.env.ADMIN_FINANCE_TEST_OPERATIONS_ENABLED !== 'true' || configuredPaymentMode() !== 'TEST')
+      throw new ServiceUnavailableException('Admin test payment operations are not activated');
+    if(!await isIsolatedFinancialTestDatabase(this.prisma))throw new ServiceUnavailableException('Designated isolated financial test database required');
+    const record = await this.prisma.paymentOrder.findUnique({where:{id:paymentOrderId}});
+    const metadata = record?.metadata as Record<string,unknown>|null;
+    if (!record || metadata?.providerMode !== 'TEST' ||
+        ![PaymentType.WALLET_RECHARGE,PaymentType.SUBSCRIPTION].includes(record.type as any))
+      throw new ConflictException('An explicitly TEST-tagged supported payment is required; historical mode is not inferred');
+    const paymentOrder = await this.findPaymentOrderByRazorpayOrderId(record.razorpayOrderId);
+    if (!paymentOrder) throw new NotFoundException('Payment order not found');
+    return this.reconcileKnownOrder(paymentOrder);
+  }
+
+  private async reconcileKnownOrder(paymentOrder: PaymentOrderWithRelations): Promise<WebhookProcessingResult> {
+    const razorpayOrderId = paymentOrder.razorpayOrderId;
 
     if (this.isPaymentAlreadyProcessed(paymentOrder)) {
       this.logger.warn(
@@ -496,6 +657,11 @@ export class PaymentsService {
     );
 
     if (!capturedPayment) {
+      // No attempt, or an authorized/created attempt, is not proof of failure.
+      // Keep the order recoverable for a later capture/webhook.
+      if (payments.length === 0 || payments.some(payment => payment.status !== 'failed')) {
+        return { status: 'pending', paymentOrderId: paymentOrder.id, reason: 'gateway_payment_pending' };
+      }
       return this.markFailedFromReconciliation(paymentOrder, payments);
     }
 
@@ -574,6 +740,10 @@ export class PaymentsService {
 
     const wallet = await this.getOrCreateWallet(user.id);
 
+    if (wallet.currency !== this.defaultCurrency) {
+      throw new BadRequestException('Wallet recharge requires an INR wallet');
+    }
+
     return this.createTypedPaymentOrder({
       userId: user.id,
       walletId: wallet.id,
@@ -597,9 +767,23 @@ export class PaymentsService {
     type: PaymentType;
     walletId?: string;
     metadata?: Prisma.InputJsonValue;
+    creation?: CreationClaim;
   }): Promise<RazorpayOrder> {
     const currency =
       input.currency?.trim().toUpperCase() || this.defaultCurrency;
+
+    if (currency !== 'INR' && process.env.RAZORPAY_INTERNATIONAL_PAYMENTS_ENABLED !== 'true') {
+      throw new ServiceUnavailableException('International checkout is disabled pending merchant approval');
+    }
+
+    const commands = new PaymentCreationCommands(this.prisma);
+    const creation = input.creation ?? (paymentCreationEnabled() ? await commands.reserve({
+      userId:input.userId, purpose:input.type, reference:input.walletId ?? input.type,
+      amountMinor:this.convertMajorUnitsToSubunits(input.amount), currency,
+    }) : undefined);
+    if (creation?.state === 'READY' && creation.providerOrderId) return {
+      id:creation.providerOrderId,amount:Number(creation.amountMinor),currency:creation.currency,
+    } as RazorpayOrder;
 
     let razorpayOrder: RazorpayOrder;
 
@@ -611,6 +795,7 @@ export class PaymentsService {
         notes: {
           paymentType: input.type,
           userId: input.userId,
+          ...(creation?{creationCommandId:creation.id}:{}),
           ...(input.walletId
             ? {
                 walletId: input.walletId,
@@ -620,6 +805,7 @@ export class PaymentsService {
         },
       })) as RazorpayOrder;
     } catch (error: unknown) {
+      if (creation) await commands.unknown(creation.id);
       let message = 'Unknown Razorpay error';
       let statusCode: number | undefined;
       let razorpayCode: string | undefined;
@@ -661,30 +847,42 @@ export class PaymentsService {
           `userId=${input.userId}`,
           `type=${input.type}`,
           `currency=${currency}`,
-          `statusCode=${statusCode ?? 'unknown'}`,
-          `razorpayCode=${razorpayCode ?? 'unknown'}`,
-          `reason=${message}`,
+          // Do not log provider-controlled descriptions/codes or raw errors.
+          `statusCode=${Number.isInteger(statusCode) && statusCode! >= 400 && statusCode! <= 599 ? statusCode : 'unknown'}`,
         ].join(' '),
       );
 
       throw new BadGatewayException('Unable to create payment order');
     }
 
+    if (typeof razorpayOrder.id !== 'string' || !razorpayOrder.id.trim() ||
+        razorpayOrder.amount !== this.convertMajorUnitsToSubunits(input.amount) || razorpayOrder.currency !== currency) {
+      if (creation) await commands.unknown(creation.id);
+      throw new BadGatewayException('Provider order does not match approved payment amount and currency');
+    }
+
     try {
-      await this.persistPaymentOrder({
+      const record = {
         userId: input.userId,
         walletId: input.walletId,
         razorpayOrderId: razorpayOrder.id,
         amount: input.amount,
         currency,
         type: input.type,
-        metadata: input.metadata,
+        metadata: { ...(typeof input.metadata==='object' && input.metadata && !Array.isArray(input.metadata) ? input.metadata : {}),
+          providerMode:configuredPaymentMode(), ...(creation?{creationCommandId:creation.id}:{}) },
+      };
+      if (creation) await this.prisma.$transaction(async tx => {
+        await this.persistPaymentOrder(record, tx);
+        await commands.bind(tx, creation.id, razorpayOrder.id);
       });
+      else await this.persistPaymentOrder(record);
     } catch (error) {
+      if (creation) await commands.unknown(creation.id);
       const message = error instanceof Error ? error.message : String(error);
 
       this.logger.error(
-        `payment_order.persist_failed userId=${input.userId} type=${input.type} razorpayOrderId=${razorpayOrder.id} reason=${message}`,
+        `payment_order.persist_failed type=${input.type}`,
       );
 
       throw new InternalServerErrorException('Unable to save payment order');
@@ -702,6 +900,15 @@ export class PaymentsService {
     paymentOrder: PaymentOrderWithRelations,
     payment: RazorpayPaymentEntity,
   ): Promise<WebhookProcessingResult> {
+    // Reconciliation and webhook callers share this boundary. Never trust an
+    // upstream lookup alone to bind captured funds to the expected local order.
+    if (payment.order_id !== paymentOrder.razorpayOrderId ||
+        !/^pay_[A-Za-z0-9]+$/.test(payment.id ?? '')) {
+      throw new BadRequestException('Captured payment does not match the order');
+    }
+    if (paymentOrder.status === PaymentStatus.REFUNDED || paymentOrder.status === PaymentStatus.EXPIRED) {
+      throw new BadRequestException('Terminal payment requires reconciliation review');
+    }
     if (this.isPaymentAlreadyProcessed(paymentOrder)) {
       this.logger.warn(
         `duplicate.ignored paymentOrderId=${paymentOrder.id} razorpayPaymentId=${payment.id} reason=already_success`,
@@ -963,6 +1170,8 @@ export class PaymentsService {
       walletCreditAmount,
       rechargeBreakdown.paidAmount,
       rechargeBreakdown.freeAmount,
+      paymentOrder.currency,
+      paymentOrder.userId,
     );
 
     await this.createLedgerEntry(
@@ -1070,11 +1279,22 @@ export class PaymentsService {
 
     const startDate = new Date();
 
-    const durationDays = subscription.subscriptionPlan?.durationDays ?? 30;
+    const rawMetadata = paymentOrder.metadata as Record<string, unknown> | null;
+    const snapshot = rawMetadata?.planSnapshot as Record<string, unknown> | undefined;
+    let durationDays = subscription.subscriptionPlan?.name === DAILY_PLAN ? DAILY_DAYS : subscription.subscriptionPlan?.durationDays ?? 30;
+    if (snapshot !== undefined) {
+      if (!snapshot || typeof snapshot !== 'object' || snapshot.name !== metadata.planName ||
+          !Number.isInteger(snapshot.durationDays) || Number(snapshot.durationDays) <= 0 || Number(snapshot.durationDays) > 3660 ||
+          snapshot.currency !== paymentOrder.currency || typeof snapshot.amount !== 'string' ||
+          !new Prisma.Decimal(snapshot.amount).equals(paymentOrder.amount)) {
+        throw new BadRequestException('Invalid subscription purchase snapshot');
+      }
+      durationDays = Number(snapshot.durationDays);
+    }
 
     const endDate = new Date(startDate);
 
-    endDate.setDate(endDate.getDate() + durationDays);
+    endDate.setTime(exactPeriodEnd(startDate, durationDays).getTime());
 
     const activatedSubscription = await transaction.subscription.update({
       where: {
@@ -1115,9 +1335,17 @@ export class PaymentsService {
     subscriptionId: string,
   ): Promise<void> {
     try {
-      const title = 'Personalized Daily Horoscope activated';
-      const body =
-        'Your subscription is active. Your personalized Vedic horoscope is now available.';
+      const subscription = await this.prisma.subscription.findUnique({
+        where: { id: subscriptionId },
+        select: { userId: true, subscriptionPlan: { select: { name: true } } },
+      });
+      // Horoscope copy and navigation are not valid for a professional Kundli purchase.
+      if (subscription?.userId !== userId || subscription.subscriptionPlan?.name !== DAILY_PLAN) {
+        return;
+      }
+      const profile = await this.prisma.userProfile.findUnique({ where: { userId }, select: { lang: true } });
+      const locale = requireHoroscopeLocale(profile?.lang?.trim().toLowerCase() ?? '');
+      const [title, body] = ACTIVATION_COPY[locale];
 
       const notification = await this.notificationsService.createForUser({
         userId,
@@ -1130,6 +1358,7 @@ export class PaymentsService {
           subscriptionId,
           status: 'ACTIVE',
           source: 'subscription-activation',
+          locale,
         },
       });
 
@@ -1143,13 +1372,12 @@ export class PaymentsService {
           notificationId: notification.id,
           status: 'ACTIVE',
           source: 'subscription-activation',
+          locale,
         },
       });
     } catch (error) {
       this.logger.warn(
-        `Subscription activation notification failed userId=${userId}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        'subscription.activation_notification_failed',
       );
     }
   }
@@ -1182,7 +1410,7 @@ export class PaymentsService {
       const message = error instanceof Error ? error.message : String(error);
 
       this.logger.error(
-        `subscription.failure_update_failed paymentOrderId=${paymentOrder.id} reason=${message}`,
+        'subscription.failure_update_failed',
       );
     }
   }
@@ -1245,7 +1473,7 @@ export class PaymentsService {
     const message = error instanceof Error ? error.message : String(error);
 
     this.logger.error(
-      `transaction.failed paymentOrderId=${paymentOrderId} razorpayPaymentId=${razorpayPaymentId} reason=${message}`,
+      'transaction.failed',
     );
 
     if (
@@ -1275,7 +1503,7 @@ export class PaymentsService {
       const message = error instanceof Error ? error.message : String(error);
 
       this.logger.error(
-        `reconciliation.fetch_failed razorpayOrderId=${razorpayOrderId} reason=${message}`,
+        'reconciliation.fetch_failed',
       );
 
       throw new BadGatewayException(
@@ -1310,6 +1538,11 @@ export class PaymentsService {
         userId: true,
       },
     });
+
+    if (identity?.userId) {
+      const legacyOwner = await this.prisma.user.findUnique({where: {supabaseId: normalizedSupabaseUserId}, select: {id: true}});
+      if (legacyOwner && legacyOwner.id !== identity.userId) throw new ForbiddenException('Conflicting payment identity');
+    }
 
     const user = identity?.userId
       ? await this.prisma.user.findUnique({
@@ -1349,8 +1582,9 @@ export class PaymentsService {
 
   private async persistPaymentOrder(
     data: CreatePaymentOrderRecordInput,
+    database: Pick<Prisma.TransactionClient, 'paymentOrder'> = this.prisma,
   ): Promise<PaymentOrder> {
-    return this.prisma.paymentOrder.create({
+    return database.paymentOrder.create({
       data: {
         userId: data.userId,
         walletId: data.walletId,
@@ -1391,9 +1625,7 @@ export class PaymentsService {
     const updateResult = await transaction.paymentOrder.updateMany({
       where: {
         id: paymentOrder.id,
-        status: {
-          not: PaymentStatus.SUCCESS,
-        },
+        status: { in: [PaymentStatus.PENDING, PaymentStatus.FAILED] },
       },
       data: {
         status: PaymentStatus.SUCCESS,
@@ -1423,9 +1655,7 @@ export class PaymentsService {
     const updateResult = await this.prisma.paymentOrder.updateMany({
       where: {
         id: paymentOrder.id,
-        status: {
-          not: PaymentStatus.SUCCESS,
-        },
+        status: PaymentStatus.PENDING,
       },
       data: {
         status: PaymentStatus.FAILED,
@@ -1662,6 +1892,8 @@ export class PaymentsService {
     rechargeAmount: Prisma.Decimal,
     paidAmount: Prisma.Decimal,
     freeAmount: Prisma.Decimal,
+    expectedCurrency: string,
+    expectedUserId: string,
   ): Promise<WalletCreditResult> {
     const wallet = await transaction.wallet.findUnique({
       where: {
@@ -1669,21 +1901,17 @@ export class PaymentsService {
       },
     });
 
-    if (!wallet) {
+    if (!wallet || wallet.userId !== expectedUserId) {
       throw new NotFoundException('Wallet not found');
     }
 
-    const balanceBefore = new Prisma.Decimal(wallet.balance);
-    const paidBalanceBefore = new Prisma.Decimal(wallet.paidBalance);
-    const freeBalanceBefore = new Prisma.Decimal(wallet.freeBalance);
+    if (!expectedCurrency || wallet.currency !== expectedCurrency) {
+      throw new BadRequestException('Payment and wallet currency must match');
+    }
 
     const amount = new Prisma.Decimal(rechargeAmount);
     const paidCredit = new Prisma.Decimal(paidAmount);
     const freeCredit = new Prisma.Decimal(freeAmount);
-
-    const balanceAfter = balanceBefore.plus(amount);
-    const paidBalanceAfter = paidBalanceBefore.plus(paidCredit);
-    const freeBalanceAfter = freeBalanceBefore.plus(freeCredit);
 
     if (!paidCredit.plus(freeCredit).equals(amount)) {
       throw new BadRequestException(
@@ -1694,13 +1922,20 @@ export class PaymentsService {
     const updatedWallet = await transaction.wallet.update({
       where: {
         id: wallet.id,
+        userId: expectedUserId,
+        currency: expectedCurrency,
       },
       data: {
-        balance: balanceAfter,
-        paidBalance: paidBalanceAfter,
-        freeBalance: freeBalanceAfter,
+        balance: { increment: amount },
+        paidBalance: { increment: paidCredit },
+        freeBalance: { increment: freeCredit },
       },
     });
+
+    // PostgreSQL serializes the UPDATE on the wallet row. Derive ledger bounds
+    // from that UPDATE's returned balance, not a stale pre-update SELECT.
+    const balanceAfter = new Prisma.Decimal(updatedWallet.balance);
+    const balanceBefore = balanceAfter.minus(amount);
 
     return {
       wallet: updatedWallet,
@@ -1764,7 +1999,11 @@ export class PaymentsService {
   }
 
   private convertMajorUnitsToSubunits(amount: Prisma.Decimal): number {
-    return amount.mul(100).toDecimalPlaces(0).toNumber();
+    const minor = amount.mul(100);
+    if (!minor.isFinite() || !minor.isInteger() || minor.lte(0) || minor.gt(Number.MAX_SAFE_INTEGER)) {
+      throw new BadRequestException('Invalid payment amount in minor units');
+    }
+    return minor.toNumber();
   }
 
   private buildReceipt(userId: string, paymentType: PaymentType): string {
@@ -1855,7 +2094,7 @@ export class PaymentsService {
     payment: RazorpayPaymentEntity,
   ) {
     if (!payment.currency) {
-      return;
+      throw new BadRequestException('Captured payment currency is required');
     }
 
     const expectedCurrency = paymentOrder.currency.toUpperCase();

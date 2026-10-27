@@ -1,3 +1,5 @@
+import {UseFilters} from '@nestjs/common';
+import {SupportErrorFilter} from '../support/support-error.filter';
 import {
   Controller,
   DefaultValuePipe,
@@ -5,6 +7,7 @@ import {
   Param,
   ParseIntPipe,
   Patch,
+  Post,
   Query,
   Body,
   UseGuards,
@@ -16,12 +19,17 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { UpdateFeedbackStatusDto } from './dto/update-feedback-status.dto';
 import { FeedbackService } from './feedback.service';
+import {CurrentUser} from '../../common/decorators/current-user.decorator';
 
+@UseFilters(SupportErrorFilter)
 @Controller('admin/feedback')
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 @Roles(Role.Admin)
 export class FeedbackAdminController {
   constructor(private readonly feedbackService: FeedbackService) {}
+  @Get('stats') stats(){return this.feedbackService.stats();}
+  @Get(':id/audit') audit(@Param('id') id:string,@Query('page') page?:string){return this.feedbackService.audit(id,page===undefined?1:Number(page));}
+  @Post(':id/escalate') escalate(@CurrentUser() user:{sub?:string},@Param('id') id:string){return this.feedbackService.escalate(user,id);}
 
   @Get()
   getAll(
@@ -33,12 +41,14 @@ export class FeedbackAdminController {
     status?: FeedbackStatus,
     @Query('category')
     category?: FeedbackCategory,
+    @Query('search') search?:string,
   ) {
     return this.feedbackService.getAdminList({
       page,
       limit,
       status,
       category,
+      search,
     });
   }
 
@@ -48,7 +58,7 @@ export class FeedbackAdminController {
   }
 
   @Patch(':id/status')
-  updateStatus(@Param('id') id: string, @Body() dto: UpdateFeedbackStatusDto) {
-    return this.feedbackService.updateStatus(id, dto);
+  updateStatus(@CurrentUser() user:{sub?:string},@Param('id') id: string, @Body() dto: UpdateFeedbackStatusDto) {
+    return this.feedbackService.updateStatus(id, dto,user);
   }
 }

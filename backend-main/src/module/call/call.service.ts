@@ -1,4 +1,7 @@
-﻿import {
+import { DEFAULT_PLATFORM_COMMISSION_PERCENT } from '../../common/finance/commission-policy';
+import { readFinancialPolicy } from '../../common/finance/consultation-financial-policy';
+import { ConsultationRepository } from '../consultation/consultation.repository';
+import {
   BadRequestException,
   ConflictException,
   Injectable,
@@ -23,7 +26,7 @@ const ACTIVE_CALL_STATUS = 'ACTIVE';
 const ENDED_CALL_STATUS = 'ENDED';
 const EXPIRED_CALL_STATUS = 'EXPIRED';
 
-const DEFAULT_PLATFORM_FEE_PERCENT = 30;
+const DEFAULT_PLATFORM_FEE_PERCENT = DEFAULT_PLATFORM_COMMISSION_PERCENT;
 
 const MAX_CALL_HISTORY_RESULTS = 100;
 
@@ -33,6 +36,23 @@ export class CallService {
     private readonly prisma: PrismaService,
     private readonly agoraService: AgoraService,
   ) {}
+
+  async authorizeSignalling(callId: string, callerId: string, recipientId: string, mode: 'AUDIO' | 'VIDEO', action: 'RING' | 'ACCEPT' | 'REJECT' | 'CANCEL' = 'RING') {
+    const call = await this.prisma.callSession.findUnique({ where: { id: callId },
+      include: { user: { select: { name: true, isActive: true, isBlocked: true } },
+        astrologer: { select: { isActive: true, isBlocked: true, isAstrologer: true,
+          astrologer: { select: { isApproved: true, isVerified: true } } } } } });
+    if (!call || call.userId !== callerId || call.astrologerId !== recipientId ||
+        !(action === 'ACCEPT' ? ['ACTIVE'] : action === 'REJECT' ? ['PENDING', 'REJECTED'] : action === 'CANCEL' ? ['CANCELLED'] : ['PENDING', 'ACTIVE']).includes(call.status) ||
+        (Boolean(call.endedAt) && !((action === 'REJECT' && call.status === 'REJECTED') || (action === 'CANCEL' && call.status === 'CANCELLED'))) ||
+        (call.expiresAt <= new Date() && !((action === 'REJECT' && call.status === 'REJECTED') || (action === 'CANCEL' && call.status === 'CANCELLED'))) ||
+        (call.mode || 'audio').toUpperCase() !== mode ||
+        !call.user.isActive || call.user.isBlocked || !call.astrologer.isActive || call.astrologer.isBlocked ||
+        !call.astrologer.isAstrologer || !call.astrologer.astrologer?.isApproved || !call.astrologer.astrologer.isVerified) {
+      throw new BadRequestException('Consultation signalling is not authorized');
+    }
+    return { callerName: call.user.name?.trim() || 'Astro Soul Path User' };
+  }
 
   /**
    * Resolve every authenticated identity to the canonical backend User.
@@ -380,6 +400,10 @@ export class CallService {
       !call.endedAt &&
       call.expiresAt <= new Date()
     ) {
+      const policy = await readFinancialPolicy(this.prisma, call.id);
+      if (policy) return new ConsultationRepository(this.prisma).completeConsultation(call.id, {
+        amountCharged: call.amountCharged, platformFeePercent: Number(policy.platformPercent), status: 'COMPLETED',
+      });
       return this.prisma.callSession.update({
         where: {
           id: call.id,
@@ -436,6 +460,7 @@ export class CallService {
     });
 
     if (existingUserCall) {
+      if (await readFinancialPolicy(this.prisma, existingUserCall.id)) throw new ConflictException('Existing consultation must complete before starting another call');
       if (existingUserCall.expiresAt > currentTime) {
         throw new ConflictException('You already have an active consultation');
       }
@@ -467,6 +492,7 @@ export class CallService {
     });
 
     if (astrologerActiveCall) {
+      if (await readFinancialPolicy(this.prisma, astrologerActiveCall.id)) throw new ConflictException('Existing consultation must complete before starting another call');
       if (astrologerActiveCall.expiresAt > currentTime) {
         throw new ConflictException(
           'Astrologer is currently busy in another consultation',
@@ -693,13 +719,16 @@ export class CallService {
           );
         }
 
-        if (call.status !== ACTIVE_CALL_STATUS || call.endedAt) {
+        if (call.status !== ACTIVE_CALL_STATUS || call.endedAt || call.expiresAt <= new Date()) {
           throw new ConflictException(
             'Only an active consultation can be extended',
           );
         }
 
         const extensionMinutes = dto.minutes;
+        if (call.isFreeChat) {
+          throw new ConflictException('Free chat cannot be extended into a paid consultation');
+        }
 
         const extensionAmount = new Prisma.Decimal(
           Number(call.ratePerMinute).toFixed(2),
@@ -744,18 +773,10 @@ export class CallService {
           },
         });
 
-        /*
-         * Extend from the existing expiry whenever it is still
-         * in the future. If the client reaches the endpoint a few
-         * milliseconds after expiry, extend from now instead of
-         * shortening purchased time.
-         */
+        // Never revive a call that expired while this transaction was in flight.
         const now = new Date();
-
-        const extensionBase =
-          call.expiresAt && call.expiresAt.getTime() > now.getTime()
-            ? call.expiresAt
-            : now;
+        if (call.expiresAt <= now) throw new ConflictException('Consultation has expired');
+        const extensionBase = call.expiresAt;
 
         const newExpiresAt = new Date(
           extensionBase.getTime() + extensionMinutes * 60 * 1000,
@@ -763,7 +784,7 @@ export class CallService {
 
         const updatedCall = await tx.callSession.update({
           where: {
-            id: call.id,
+            id: call.id, status: ACTIVE_CALL_STATUS, endedAt: null, expiresAt: { gt: now },
           },
           data: {
             extendedMinutes: {
@@ -839,258 +860,79 @@ export class CallService {
     };
   }
   async endCall(supabaseId: string, callId: string, dto: EndCallDto) {
-    const normalizedCallId = callId?.trim();
-
-    if (!normalizedCallId) {
-      throw new BadRequestException('Call ID is required');
-    }
-
+    const id = callId?.trim();
+    if (!id) throw new BadRequestException('Call ID is required');
     const user = await this.getAuthenticatedUser(supabaseId);
-
-    const call = await this.prisma.callSession.findFirst({
-      where: {
-        id: normalizedCallId,
-
-        OR: [
-          {
-            userId: user.id,
-          },
-          {
-            astrologerId: user.id,
-          },
-        ],
-      },
-
-      include: {
-        astrologer: {
-          select: {
-            id: true,
-            name: true,
-            avatarUrl: true,
-          },
-        },
-      },
-    });
-
-    if (!call) {
-      throw new NotFoundException('Consultation was not found');
-    }
-
-    /*
-     * CallSession.astrologerId stores
-     * the astrologer's User.id.
-     *
-     * AstrologerEarning.astrologerId requires
-     * the Astrologer profile id.
-     */
-    const astrologerProfile = await this.prisma.astrologer.findUnique({
-      where: {
-        userId: call.astrologerId,
-      },
-
-      select: {
-        id: true,
-      },
-    });
-
-    if (!astrologerProfile) {
-      throw new NotFoundException(
-        'Astrologer profile was not found for this consultation',
-      );
-    }
-
-    /*
-     * Expired calls do not create an earning here.
-     * Refund/reversal handling will remain a
-     * separate settlement flow.
-     */
-    if (call.status === EXPIRED_CALL_STATUS) {
-      return {
-        success: true,
-
-        message: 'Consultation is already expired',
-
-        data: {
-          call: this.serializeCallSession(call),
-        },
-      };
-    }
-
-    const platformFeePercent = await this.getPlatformFeePercent();
-
-    const grossAmount = new Prisma.Decimal(
-      Number(call.amountCharged).toFixed(2),
-    );
-
-    const platformFee = grossAmount
-      .mul(platformFeePercent)
-      .div(100)
-      .toDecimalPlaces(2);
-
-    const netAmount = grossAmount.minus(platformFee).toDecimalPlaces(2);
-
-    /*
-     * Idempotent handling:
-     * if the call was already ended, ensure the
-     * earning exists without creating a duplicate.
-     */
-    if (call.endedAt || call.status === ENDED_CALL_STATUS) {
-      const earning = await this.prisma.astrologerEarning.upsert({
-        where: {
-          callSessionId: call.id,
-        },
-
-        update: {},
-
-        create: {
-          astrologerId: astrologerProfile.id,
-
-          callSessionId: call.id,
-
-          grossAmount,
-          platformFee,
-          platformFeePercent: new Prisma.Decimal(platformFeePercent),
-          netAmount,
-
-          currency: 'INR',
-
-          status: AstrologerEarningStatus.AVAILABLE,
-
-          availableAt: call.endedAt ?? new Date(),
-        },
+    const policy = await readFinancialPolicy(this.prisma, id);
+    let routed: { call: any; earning: any } | null = null;
+    if (policy) {
+      const call = await this.prisma.callSession.findFirst({ where: { id, OR: [{ userId: user.id }, { astrologerId: user.id }] } });
+      if (!call) throw new NotFoundException('Consultation was not found');
+      const completed = await new ConsultationRepository(this.prisma).completeConsultation(id, {
+        amountCharged: call.amountCharged, platformFeePercent: Number(policy.platformPercent), status: 'COMPLETED',
       });
-
-      return {
-        success: true,
-
-        message: 'Consultation is already ended',
-
-        data: {
-          call: this.serializeCallSession(call),
-
-          earning: {
-            id: earning.id,
-
-            grossAmount: Number(earning.grossAmount.toString()),
-
-            platformFee: Number(earning.platformFee.toString()),
-
-            platformFeePercent,
-
-            netAmount: Number(earning.netAmount.toString()),
-
-            currency: earning.currency,
-
-            status: earning.status,
-
-            availableAt: earning.availableAt,
-          },
-        },
-      };
+      routed = { call: completed, earning: completed.earning };
     }
-
-    const endedAt = new Date();
-
-    const result = await this.prisma.$transaction(
-      async (transaction) => {
-        const updatedCall = await transaction.callSession.update({
-          where: {
-            id: call.id,
-          },
-
-          data: {
-            endedAt,
-
-            status: ENDED_CALL_STATUS,
-          },
-
-          include: {
-            astrologer: {
-              select: {
-                id: true,
-                name: true,
-                avatarUrl: true,
-              },
-            },
-          },
-        });
-
-        const earning = await transaction.astrologerEarning.upsert({
-          where: {
-            callSessionId: call.id,
-          },
-
-          update: {
-            astrologerId: astrologerProfile.id,
-
-            grossAmount,
-            platformFee,
-            netAmount,
-
-            currency: 'INR',
-
-            status: AstrologerEarningStatus.AVAILABLE,
-
-            availableAt: endedAt,
-
-            reversedAt: null,
-          },
-
-          create: {
-            astrologerId: astrologerProfile.id,
-
-            callSessionId: call.id,
-
-            grossAmount,
-            platformFee,
-            netAmount,
-
-            currency: 'INR',
-
-            status: AstrologerEarningStatus.AVAILABLE,
-
-            availableAt: endedAt,
-          },
-        });
-
-        return {
-          updatedCall,
-          earning,
-        };
-      },
-
-      {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      },
-    );
-
-    return {
-      success: true,
-
-      message: dto.reason?.trim() || 'Consultation ended successfully',
-
-      data: {
-        call: this.serializeCallSession(result.updatedCall),
-
-        earning: {
-          id: result.earning.id,
-
-          grossAmount: Number(result.earning.grossAmount.toString()),
-
-          platformFee: Number(result.earning.platformFee.toString()),
-
-          platformFeePercent,
-
-          netAmount: Number(result.earning.netAmount.toString()),
-
-          currency: result.earning.currency,
-
-          status: result.earning.status,
-
-          availableAt: result.earning.availableAt,
-        },
-      },
-    };
+    const result = routed ?? await this.prisma.$transaction(async (tx) => {
+      const call = await tx.callSession.findFirst({
+        where: { id, OR: [{ userId: user.id }, { astrologerId: user.id }] },
+        include: { astrologer: { select: { id: true, name: true, avatarUrl: true } } },
+      });
+      if (!call) throw new NotFoundException('Consultation was not found');
+      const existing = await tx.astrologerEarning.findUnique({ where: { callSessionId: id } });
+      // Repeated end is read-only. Never repair/create or release historical earnings here.
+      if (call.endedAt || ['ENDED', 'COMPLETED', 'EXPIRED', 'CANCELLED', 'REJECTED'].includes(call.status)) {
+        return { call, earning: existing };
+      }
+      if (call.status !== ACTIVE_CALL_STATUS || call.isFreeChat) {
+        throw new ConflictException('Only a charged active call can be settled');
+      }
+      const grossAmount = new Prisma.Decimal(call.amountCharged);
+      const entries = await tx.walletLedger.findMany({ where: {
+        userId: call.userId, referenceType: LedgerReferenceType.CALL_SESSION, referenceId: id,
+        type: { in: [LedgerType.CALL_DEDUCTION, LedgerType.REFUND] },
+      } });
+      // Historical deduction rows use both signs; the balance delta must prove each debit.
+      let debited = new Prisma.Decimal(0);
+      for (const entry of entries) {
+        const amount = new Prisma.Decimal(entry.amount).abs();
+        if (entry.type === LedgerType.REFUND || amount.lte(0) ||
+            !new Prisma.Decimal(entry.balanceBefore).minus(entry.balanceAfter).eq(amount)) {
+          throw new ConflictException('Call charge requires reconciliation');
+        }
+        debited = debited.plus(amount);
+      }
+      if (grossAmount.lte(0) || !debited.eq(grossAmount)) {
+        throw new ConflictException('Verified call charge is required for settlement');
+      }
+      if (existing) throw new ConflictException('Existing earning requires reconciliation');
+      const profile = await tx.astrologer.findUnique({ where: { userId: call.astrologerId }, select: { id: true } });
+      if (!profile) throw new NotFoundException('Astrologer profile was not found for this consultation');
+      const platformFeePercent = await this.getPlatformFeePercent();
+      const platformFee = grossAmount.mul(platformFeePercent).div(100).toDecimalPlaces(2);
+      const netAmount = grossAmount.minus(platformFee).toDecimalPlaces(2);
+      const endedAt = new Date();
+      const updated = await tx.callSession.update({
+        where: { id, status: ACTIVE_CALL_STATUS, endedAt: null },
+        data: { endedAt, status: ENDED_CALL_STATUS },
+        include: { astrologer: { select: { id: true, name: true, avatarUrl: true } } },
+      });
+      // Keep the legacy release policy unchanged pending an explicit accounting decision.
+      const earning = await tx.astrologerEarning.create({ data: {
+        astrologerId: profile.id, callSessionId: id, grossAmount, platformFee,
+        platformFeePercent: new Prisma.Decimal(platformFeePercent), netAmount,
+        currency: 'INR', status: AstrologerEarningStatus.AVAILABLE, availableAt: endedAt,
+      } });
+      return { call: updated, earning };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    const earning = result.earning;
+    return { success: true, message: dto.reason?.trim() || 'Consultation ended successfully', data: {
+      call: this.serializeCallSession(result.call),
+      earning: earning ? { id: earning.id, grossAmount: Number(earning.grossAmount),
+        platformFee: Number(earning.platformFee), platformFeePercent: Number(earning.platformFeePercent),
+        netAmount: Number(earning.netAmount), currency: earning.currency,
+        status: earning.status, availableAt: earning.availableAt } : null,
+    } };
   }
 
   async getCurrentCall(supabaseId: string) {
@@ -1137,6 +979,7 @@ export class CallService {
     }
 
     if (call.expiresAt <= new Date()) {
+      if (await readFinancialPolicy(this.prisma, call.id)) return this.endCall(supabaseId, call.id, {});
       const expiredCall = await this.prisma.callSession.update({
         where: {
           id: call.id,
@@ -1342,7 +1185,9 @@ export class CallService {
     }
     const uid = this.createAgoraUid(user.id);
 
-    const agora = this.agoraService.generateRtcToken(call.channelName, uid);
+    const remainingSeconds = Math.floor((call.expiresAt.getTime() - Date.now()) / 1000);
+    if (remainingSeconds < 1) throw new ConflictException('Consultation has expired');
+    const agora = this.agoraService.generateRtcToken(call.channelName, uid, 'PUBLISHER', Math.min(86400, remainingSeconds));
 
     return {
       success: true,

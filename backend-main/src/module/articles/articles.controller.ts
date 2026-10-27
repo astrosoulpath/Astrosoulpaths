@@ -11,8 +11,21 @@ export class ArticlesController {
     @Query('country') country?: string,
     @Query('category') category?: string,
     @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('q') query?: string,
   ) {
-    return this.articlesService.publicFeed(locale, country, category, limit);
+    return this.articlesService.publicFeed(
+      locale,
+      country,
+      category,
+      limit,
+      offset,
+      query,
+    );
+  }
+
+  @Get('catalogue/categories') categories(@Query('country') country?: string) {
+    return this.articlesService.publicCategories(country);
   }
 
   @Get('astrologer/:astrologerId')

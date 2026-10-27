@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import OpenAI from 'openai';
 import { serializeAiAstrologyContext } from '../../../../common/utils/ai-context.util';
+import { validateHoroscopeText, requireHoroscopeLocale } from '../../../subscription/horoscope-localization';
 
 type DailyHoroscopeAiInput = {
   name: string;
@@ -44,6 +45,7 @@ export class DailyHoroscopeAiService {
   async generate(
     input: DailyHoroscopeAiInput,
   ): Promise<DailyHoroscopeAiResult> {
+    requireHoroscopeLocale(input.languageCode);
     const apiKey = process.env.OPENAI_API_KEY?.trim() ?? '';
     const model = process.env.OPENAI_MODEL?.trim() || 'gpt-5.6';
 
@@ -99,6 +101,7 @@ export class DailyHoroscopeAiService {
               type: 'object',
               additionalProperties: false,
               required: [
+                'locale',
                 'notificationTitle',
                 'shortReading',
                 'dailyAdvice',
@@ -112,6 +115,7 @@ export class DailyHoroscopeAiService {
                 'lifeAreas',
               ],
               properties: {
+                locale: { type: 'string', enum: [input.languageCode] },
                 notificationTitle: { type: 'string', minLength: 1 },
                 shortReading: { type: 'string', minLength: 1 },
                 dailyAdvice: { type: 'string', minLength: 1 },
@@ -174,6 +178,8 @@ export class DailyHoroscopeAiService {
           'Never include technical Vedic or planetary terminology in notificationTitle, shortReading, dailyAdvice, generalGuidance, favorableActivities, cautionActivities, mood, focusArea, or lifeAreas.',
           ,
           'Avoid deterministic guarantees, fear-based predictions, medical claims, legal claims, and financial certainty.',
+          'Never claim to know another person\'s private thoughts or feelings, guarantee marriage or wealth, promise investment returns, or create deceptive urgency.',
+          'Do not include customer names, dates or times of birth, coordinates, contact details, or other private birth data in notificationTitle. Push delivery uses a separate neutral reminder.',
           'Return JSON only.',
           'The JSON must contain exactly these keys:',
           'notificationTitle, shortReading, dailyAdvice, mood, focusArea, luckyColor, luckyNumber, favorableActivities, cautionActivities, generalGuidance, lifeAreas.',
@@ -181,12 +187,12 @@ export class DailyHoroscopeAiService {
           'Keep JSON property names exactly as specified in English.',
           'notificationTitle must be a short natural daily-horoscope notification title in the requested language.',
           'Do not translate, alter, or fabricate technical source data.',
-          'If luckyColor is unsupported by supplied Vedic data, use the exact sentinel "Not specified".',
+          'If luckyColor is unsupported by supplied Vedic data, use an empty string.',
           'shortReading should be concise and personal.',
           'dailyAdvice should be one practical sentence.',
           'mood should be a short phrase.',
           'focusArea should be a short phrase.',
-          'luckyColor should be one simple color name if supported by supplied Vedic data; otherwise use "Not specified".',
+          'Do not invent lucky colors; use an empty string when unsupported.',
           'luckyNumber should be a number only if supported by supplied Vedic data; otherwise null.',
           'favorableActivities and cautionActivities must be arrays of short practical strings.',
           'generalGuidance should summarize the day in clear language.',
@@ -213,11 +219,9 @@ export class DailyHoroscopeAiService {
           'Generate the personalized daily horoscope JSON now.',
         ].join('\n'),
       });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-
+    } catch {
       this.logger.error(
-        `daily_horoscope.ai.request_failed timeoutMs=${timeout} maxRetries=${maxRetries} error=${message}`,
+        `daily_horoscope.ai.request_failed timeoutMs=${timeout} maxRetries=${maxRetries} category=PROVIDER_REQUEST_FAILED`,
       );
 
       throw new ServiceUnavailableException(
@@ -262,6 +266,7 @@ export class DailyHoroscopeAiService {
         ? value.trim()
         : fallback;
     };
+    if(parsed.locale!==input.languageCode) throw new ServiceUnavailableException('Daily horoscope locale declaration mismatch');
 
     const stringArray = (value: unknown): string[] => {
       if (!Array.isArray(value)) {
@@ -289,7 +294,7 @@ export class DailyHoroscopeAiService {
       focusArea: stringValue(parsed.focusArea),
       // AI is interpretation-only. Lucky values must come from
       // deterministic/provider-backed Vedic data, never model output.
-      luckyColor: 'Not specified',
+      luckyColor: '',
       luckyNumber: null,
       favorableActivities: stringArray(parsed.favorableActivities),
       cautionActivities: stringArray(parsed.cautionActivities),
@@ -320,6 +325,9 @@ export class DailyHoroscopeAiService {
       );
     }
 
+    validateHoroscopeText(input.languageCode, [result.notificationTitle, result.shortReading, result.dailyAdvice,
+      result.generalGuidance, ...Object.values(result.lifeAreas), ...result.favorableActivities, ...result.cautionActivities,
+      ...[result.mood,result.focusArea].filter(Boolean)]);
     this.logger.log(`daily_horoscope.ai.success model=${result.model}`);
 
     return result;

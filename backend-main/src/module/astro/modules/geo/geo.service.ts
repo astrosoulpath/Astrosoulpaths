@@ -7,6 +7,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import axios from 'axios';
+import { isIanaTimeZone } from '../../../../common/utils/iana-birth-time.util';
 
 type OpenMeteoGeoResult = {
   id?: number;
@@ -96,7 +97,7 @@ export class GeoService {
     }
 
     try {
-      this.logger.log(`Searching geo suggestions for city="${sanitizedCity}"`);
+      this.logger.log('Searching geo suggestions');
 
       const response = await axios.get<OpenMeteoGeoResponse>(
         `${this.geocodingBaseUrl}/search`,
@@ -145,7 +146,7 @@ export class GeoService {
 
       if (!suggestions.length) {
         this.logger.warn(
-          `Geo provider returned results but none were usable for city="${sanitizedCity}"`,
+          'Geo provider returned no usable results',
         );
 
         return {
@@ -156,7 +157,7 @@ export class GeoService {
       }
 
       this.logger.log(
-        `Geo search successful for city="${sanitizedCity}" results=${suggestions.length}`,
+        `Geo search successful results=${suggestions.length}`,
       );
 
       return {
@@ -173,9 +174,7 @@ export class GeoService {
         error instanceof Error ? error.message : 'Unknown geo provider error';
 
       this.logger.error(
-        `Geo search failed for city="${sanitizedCity}": status=${
-          status ?? 'unknown'
-        } message=${message}`,
+        `Geo search failed: status=${status ?? 'unknown'}`,
       );
 
       if (status === 429) {
@@ -206,7 +205,9 @@ export class GeoService {
     const longitude =
       typeof item.longitude === 'number' ? item.longitude : null;
 
-    if (!city || latitude === null || longitude === null) {
+    if (!city || latitude === null || longitude === null ||
+      !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+      Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
       return null;
     }
 
@@ -294,9 +295,9 @@ export class GeoService {
       const timezoneName =
         response.data?.timezone?.trim() || fallbackTimezone?.trim() || null;
 
-      if (seconds === null || !timezoneName) {
+      if (seconds === null || !Number.isFinite(seconds) || seconds < -43200 || seconds > 50400 || !timezoneName || !isIanaTimeZone(timezoneName)) {
         this.logger.warn(
-          `Incomplete timezone response for lat=${latitude}, lon=${longitude}`,
+          'Incomplete timezone response',
         );
 
         return null;
@@ -322,7 +323,7 @@ export class GeoService {
         error instanceof Error ? error.message : 'Unknown timezone error';
 
       this.logger.warn(
-        `Timezone lookup failed for lat=${latitude}, lon=${longitude}: ${message}`,
+        'Timezone lookup failed',
       );
 
       /*

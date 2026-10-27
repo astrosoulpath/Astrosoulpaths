@@ -20,11 +20,23 @@ import { UpdateMarketplaceAddressDto } from './dto/update-marketplace-address.dt
 import { PrepareMarketplaceOrderDto } from './dto/prepare-marketplace-order.dto';
 import { MarketplaceService } from './marketplace.service';
 import { VerifyMarketplacePaymentDto } from './dto/verify-marketplace-payment.dto';
+import { MarketplaceCaseService } from './marketplace-case.service';
+import { MarketplaceWriteGuard } from './marketplace-write.guard';
+import { MarketplacePaymentsService } from './marketplace-payments.service';
+import { CreateMarketplaceCaseDto } from './dto/marketplace-case.dto';
 
 @Controller('marketplace/customer')
-@UseGuards(SupabaseAuthGuard)
+@UseGuards(SupabaseAuthGuard, MarketplaceWriteGuard)
 export class MarketplaceCustomerController {
-  constructor(private readonly marketplaceService: MarketplaceService) {}
+  constructor(private readonly marketplaceService: MarketplaceService, private readonly cases: MarketplaceCaseService, private readonly payments: MarketplacePaymentsService) {}
+
+  @Get('cases')
+  getCases(@CurrentUser() user: JWTPayload) { return this.cases.list(user.sub as string); }
+
+  @Post('orders/:id/cases')
+  createCase(@CurrentUser() user: JWTPayload, @Param('id') id: string, @Body() dto: CreateMarketplaceCaseDto) {
+    return this.cases.create(user.sub as string, id, dto);
+  }
 
   @Get('cart')
   getCart(@CurrentUser() user: JWTPayload) {
@@ -122,6 +134,11 @@ export class MarketplaceCustomerController {
     );
   }
 
+  @Patch('orders/:id/cancel')
+  cancelOrder(@CurrentUser() user: JWTPayload, @Param('id') id: string) {
+    return this.marketplaceService.cancelCustomerUnpaidOrder(user.sub as string, id);
+  }
+
   @Get('orders')
   getOrders(@CurrentUser() user: JWTPayload) {
     return this.marketplaceService.getCustomerOrders(user.sub as string);
@@ -140,7 +157,7 @@ export class MarketplaceCustomerController {
     @CurrentUser() user: JWTPayload,
     @Param('orderId') orderId: string,
   ) {
-    return this.marketplaceService.createMarketplaceRazorpayOrder(
+    return this.payments.createOrder(
       user.sub as string,
       orderId,
     );
@@ -152,7 +169,7 @@ export class MarketplaceCustomerController {
     @Param('orderId') orderId: string,
     @Body() dto: VerifyMarketplacePaymentDto,
   ) {
-    return this.marketplaceService.verifyMarketplaceRazorpayPayment(
+    return this.payments.verifyPayment(
       user.sub as string,
       orderId,
       dto,

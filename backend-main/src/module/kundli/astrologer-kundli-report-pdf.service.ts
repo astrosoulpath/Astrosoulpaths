@@ -13,6 +13,40 @@ import PDFDocument from 'pdfkit';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 
+function technicalObject(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+function technicalObjects(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? (value as unknown[])
+        .map(technicalObject)
+        .filter((row): row is Record<string, unknown> => row !== null)
+    : [];
+}
+
+function orderedTechnicalHouses(value: unknown): Record<string, unknown>[] {
+  const rows = technicalObjects(value);
+  const byHouse = new Map<number, Record<string, unknown>>();
+  for (const row of rows) {
+    const raw = row.house ?? row.houseNumber;
+    const house =
+      typeof raw === 'number' || typeof raw === 'string' ? Number(raw) : NaN;
+    if (
+      !Number.isInteger(house) ||
+      house < 1 ||
+      house > 12 ||
+      byHouse.has(house)
+    )
+      return [];
+    byHouse.set(house, row);
+  }
+  return byHouse.size === 12
+    ? [...byHouse].sort(([a], [b]) => a - b).map(([, row]) => row)
+    : [];
+}
+
 type TechnicalKundliForPdf = {
   savedRecordId: string;
   kundliId: string;
@@ -25,7 +59,7 @@ type TechnicalKundliForPdf = {
   latitude: number;
   longitude: number;
   timezone: number;
-  report: Record<string, any>;
+  report: Record<string, unknown>;
 };
 type ManualReportForPdf = {
   id: string;
@@ -120,16 +154,33 @@ export class AstrologerKundliReportPdfService {
     return report;
   }
 
-  private async loadCustomerTechnicalKundli(
-    customerUserId: string,
+  private async loadConsultationTechnicalKundli(
+    manualReport: ManualReportForPdf,
   ): Promise<TechnicalKundliForPdf | null> {
-    const record = await this.prisma.kundliSavedRecord.findFirst({
+    // Historical manual reports have no saved-chart reference. Never attach a
+    // customer's newest chart: it may belong to another consultation/astrologer.
+    // The additive V1 schema is not assumed to be deployed. This metadata-only
+    // probe preserves legacy PDF access while generation remains unregistered.
+    if (!manualReport.finalizedAt) return null;
+    const tables = await this.prisma.$queryRaw<Array<{ available: boolean }>>`
+      SELECT to_regclass('public."KundliGenerationRequest"') IS NOT NULL AS available
+    `;
+    if (tables[0]?.available !== true) return null;
+
+    const records = await this.prisma.kundliSavedRecord.findMany({
       where: {
-        customerUserId,
+        customerUserId: manualReport.customerUserId,
+        createdByAstrologer: { userId: manualReport.astrologerId },
+        createdAt: { lte: manualReport.finalizedAt },
+        generationRequests: {
+          some: {
+            consultationId: manualReport.callSessionId,
+            actorUserId: manualReport.astrologerId,
+            status: 'PUBLISHED',
+          },
+        },
       },
-      orderBy: {
-        updatedAt: 'desc',
-      },
+      take: 2,
       select: {
         id: true,
         kundliId: true,
@@ -155,13 +206,19 @@ export class AstrologerKundliReportPdfService {
       },
     });
 
+    // Multiple matching calculations still do not identify which chart the
+    // author used. Omit the optional appendix rather than guess or mutate a
+    // historical report. Existing saved-chart routes remain available.
+    if (records.length !== 1) return null;
+    const record = records[0];
+
     if (!record?.kundli?.data?.vedic) {
       return null;
     }
 
     const report =
       record.kundli.data.vedic && typeof record.kundli.data.vedic === 'object'
-        ? (record.kundli.data.vedic as Record<string, any>)
+        ? (record.kundli.data.vedic as Record<string, unknown>)
         : null;
 
     if (!report) {
@@ -192,9 +249,7 @@ export class AstrologerKundliReportPdfService {
       params.authenticatedUserId,
     );
 
-    const technicalKundli = await this.loadCustomerTechnicalKundli(
-      report.customerUserId,
-    );
+    const technicalKundli = await this.loadConsultationTechnicalKundli(report);
 
     if (!existsSync(this.fontPath)) {
       this.logger.error(`manual_kundli_pdf.font_missing path=${this.fontPath}`);
@@ -366,10 +421,9 @@ export class AstrologerKundliReportPdfService {
     ]);
 
     const report = kundli.report;
+    const charts = technicalObject(report.charts);
 
-    const planets = Array.isArray(report?.planetaryPositions)
-      ? report.planetaryPositions
-      : [];
+    const planets = technicalObjects(report.planetaryPositions);
 
     this.writeProfessionalHeading(
       document,
@@ -385,15 +439,15 @@ export class AstrologerKundliReportPdfService {
 
     const d1 =
       report?.birthChart ??
-      report?.charts?.birthChart ??
-      report?.charts?.d1 ??
+      charts?.birthChart ??
+      charts?.d1 ??
       report?.d1 ??
       null;
 
     const d9 =
       report?.navamsaChart ??
-      report?.charts?.navamsaChart ??
-      report?.charts?.d9 ??
+      charts?.navamsaChart ??
+      charts?.d9 ??
       report?.d9 ??
       null;
 
@@ -428,49 +482,44 @@ export class AstrologerKundliReportPdfService {
 
   private writeAdvancedVedicSections(
     document: PDFKit.PDFDocument,
-    report: Record<string, any>,
+    report: Record<string, unknown>,
   ): void {
+    const extended = technicalObject(report.extended);
     const dasha =
       report?.vimshottariDasha ??
       report?.dasha ??
       report?.dashas ??
       report?.currentMahaDasha ??
-      report?.extended?.vimshottariDasha ??
+      extended?.vimshottariDasha ??
       null;
 
     const panchang =
-      report?.panchang ??
-      report?.panchanga ??
-      report?.extended?.panchang ??
-      null;
+      report?.panchang ?? report?.panchanga ?? extended?.panchang ?? null;
 
-    const yogas =
-      report?.yogas ?? report?.yoga ?? report?.extended?.yogas ?? null;
+    const yogas = report?.yogas ?? report?.yoga ?? extended?.yogas ?? null;
 
-    const doshas =
-      report?.doshas ?? report?.dosha ?? report?.extended?.doshas ?? null;
+    const doshas = report?.doshas ?? report?.dosha ?? extended?.doshas ?? null;
 
     const ashtakavarga =
       report?.ashtakavarga ??
       report?.ashtakaVarga ??
-      report?.extended?.ashtakavarga ??
+      extended?.ashtakavarga ??
       null;
 
     const transit =
       report?.transit ??
       report?.gochar ??
       report?.transits ??
-      report?.extended?.transit ??
+      extended?.transit ??
       null;
 
-    const charts =
-      report?.charts && typeof report.charts === 'object' ? report.charts : {};
+    const charts = technicalObject(report.charts);
 
     const divisional =
       charts?.divisionalCharts ??
       report?.divisionalCharts ??
       report?.vargas ??
-      report?.extended?.divisionalCharts ??
+      extended?.divisionalCharts ??
       null;
 
     document.addPage();
@@ -613,7 +662,7 @@ export class AstrologerKundliReportPdfService {
       const limited = value.slice(0, maxItems);
 
       for (let index = 0; index < limited.length; index += 1) {
-        const item = limited[index];
+        const item: unknown = limited[index];
 
         if (item !== null && typeof item === 'object') {
           this.ensureRoom(document, 45);
@@ -787,7 +836,7 @@ export class AstrologerKundliReportPdfService {
 
       return `${json.slice(0, 257)}...`;
     } catch {
-      return String(value);
+      return '';
     }
   }
 
@@ -854,7 +903,7 @@ export class AstrologerKundliReportPdfService {
 
   private writePlanetaryRows(
     document: PDFKit.PDFDocument,
-    planets: Array<Record<string, any>>,
+    planets: Array<Record<string, unknown>>,
   ): void {
     const left = document.page.margins.left;
 
@@ -921,20 +970,25 @@ export class AstrologerKundliReportPdfService {
   private drawProfessionalNorthIndianChart(
     document: PDFKit.PDFDocument,
     title: string,
-    chart: Record<string, any> | null,
+    chart: unknown,
   ): void {
-    if (!chart || typeof chart !== 'object') {
+    const source = technicalObject(chart);
+    if (!source) {
       this.writeChartAvailabilityCard(document, title, chart);
 
       return;
     }
 
-    const houses = Array.isArray(chart?.houses) ? chart.houses : [];
+    const houses = orderedTechnicalHouses(source.houses);
 
-    const planets = Array.isArray(chart?.planets) ? chart.planets : [];
+    const planets = technicalObjects(source.planets);
 
     if (houses.length === 0) {
       this.writeChartAvailabilityCard(document, title, chart);
+      this.writeTechnicalTextLine(
+        document,
+        'No unambiguous twelve-house diagram is supplied. Original saved values are preserved; house positions are not inferred.',
+      );
 
       return;
     }
@@ -988,18 +1042,17 @@ export class AstrologerKundliReportPdfService {
     for (let index = 0; index < Math.min(12, houses.length); index += 1) {
       const house = houses[index] ?? {};
 
-      const houseNumber =
-        typeof house?.house === 'number' ? house.house : index + 1;
+      const houseNumber = Number(house.house ?? house.houseNumber);
 
       const sign = this.anyText(house?.sign, house?.signName, house?.rashi);
 
       const housePlanets = planets
-        .filter((planet: Record<string, any>) => {
+        .filter((planet: Record<string, unknown>) => {
           const planetHouse = planet?.house ?? planet?.houseNumber;
 
           return Number(planetHouse) === Number(houseNumber);
         })
-        .map((planet: Record<string, any>) =>
+        .map((planet: Record<string, unknown>) =>
           this.anyText(planet?.shortName, planet?.name, planet?.planet),
         )
         .filter(Boolean)
@@ -1057,7 +1110,7 @@ export class AstrologerKundliReportPdfService {
       chart !== null &&
       chart !== undefined &&
       (typeof chart !== 'object' ||
-        Object.keys(chart as Record<string, any>).length > 0);
+        Object.keys(chart as Record<string, unknown>).length > 0);
 
     const y = document.y;
 
@@ -1100,8 +1153,13 @@ export class AstrologerKundliReportPdfService {
         continue;
       }
 
+      if (!['string', 'number', 'boolean'].includes(typeof value)) continue;
       const text =
-        typeof value === 'string' ? value.trim() : String(value).trim();
+        typeof value === 'string'
+          ? value.trim()
+          : typeof value === 'number' || typeof value === 'boolean'
+            ? String(value)
+            : '';
 
       if (text) {
         return text;
@@ -1171,7 +1229,7 @@ export class AstrologerKundliReportPdfService {
         width: pageWidth,
         height: pageHeight,
       });
-} else {
+    } else {
       document
         .save()
         .rect(0, 0, pageWidth, pageHeight)
@@ -1278,10 +1336,15 @@ export class AstrologerKundliReportPdfService {
         width: columnWidth - 12,
         align: 'center',
       })
-      .text(report.callSessionId, infoBarX + columnWidth * 2 + 6, infoBarY + 37, {
-        width: columnWidth - 12,
-        align: 'center',
-      });
+      .text(
+        report.callSessionId,
+        infoBarX + columnWidth * 2 + 6,
+        infoBarY + 37,
+        {
+          width: columnWidth - 12,
+          align: 'center',
+        },
+      );
     document
       .fillColor('#8E9BB3')
       .fontSize(7)
@@ -1492,16 +1555,11 @@ export class AstrologerKundliReportPdfService {
 
   private clean(value: string | null | undefined, fallback = ''): string {
     const cleaned = value
-      ?.replace(/\u0000/g, '')
+      ?.split(String.fromCharCode(0))
+      .join('')
       .replace(/\r\n/g, '\n')
       .trim();
 
     return cleaned || fallback;
   }
 }
-
-
-
-
-
-

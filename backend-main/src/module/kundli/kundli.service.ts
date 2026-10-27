@@ -10,6 +10,7 @@
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 
 import { AstroParams } from '../../common/types/astro-params.type';
+import { resolveIanaBirthTime } from '../../common/utils/iana-birth-time.util';
 import { generateKundliHash } from '../../common/utlis/hash.util';
 
 import { KundliAiService } from './kundli-ai.service';
@@ -446,6 +447,7 @@ export class KundliService {
             latitude: true,
             longitude: true,
             timezone: true,
+            timezoneName: true,
             city: true,
             state: true,
             country: true,
@@ -526,6 +528,10 @@ export class KundliService {
       userId: user.id,
     };
 
+    if (profile.timezoneName && overrides.timezone === undefined && overrides.lat === undefined && overrides.lon === undefined) {
+      try { params.timezone = resolveIanaBirthTime(params.dob, params.tob, profile.timezoneName).offsetHours; }
+      catch { throw new BadRequestException('Birth time or IANA timezone is invalid or ambiguous. Confirm the birth location and historical time.'); }
+    }
     const generated = await this.generateReport(params, normalizedLang);
 
     return {

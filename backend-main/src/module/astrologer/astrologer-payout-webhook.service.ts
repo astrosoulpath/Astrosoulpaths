@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import {
   AstrologerEarningStatus,
   AstrologerPayoutStatus,
@@ -16,6 +16,7 @@ type RazorpayPayoutWebhook = {
         status?: string;
         failure_reason?: string | null;
         status_details?: unknown;
+        notes?: { internalPayoutId?: string; purpose?: string };
       };
     };
   };
@@ -53,14 +54,25 @@ export class AstrologerPayoutWebhookService {
     });
 
     if (!payout) {
+      const internalId = providerPayout?.notes?.internalPayoutId;
+      if (typeof internalId === 'string' && internalId.length <= 128 &&
+          providerPayout?.notes?.purpose === 'ASTROLOGER_EARNINGS') {
+        const awaiting = await this.prisma.astrologerPayout.findUnique({
+          where: { id: internalId }, select: { providerReference: true, status: true },
+        });
+        if (awaiting && !awaiting.providerReference &&
+            ['REQUESTED', 'PROCESSING'].includes(awaiting.status)) {
+          // Controller verifies the signature. Never bind/settle from notes alone.
+          // Return a retryable response while the create response persists its ID.
+          throw new ServiceUnavailableException('Payout correlation pending; retry webhook');
+        }
+      }
       /*
        * A valid Razorpay webhook can belong to another
        * payout created outside this application.
        * Do not mutate anything.
        */
-      this.logger.warn(
-        `payout_webhook.unknown_provider_id providerReference=${providerReference}`,
-      );
+      this.logger.warn('payout_webhook.unknown_provider_id');
 
       return {
         success: true,
@@ -74,6 +86,9 @@ export class AstrologerPayoutWebhookService {
     const statusDetails = providerPayout?.status_details;
 
     if (eventName === 'payout.processed') {
+      if (providerPayout?.status !== 'processed') {
+        throw new ConflictException('Payout success confirmation is inconsistent');
+      }
       return this.completePayout(
         payout.id,
         providerReference,
@@ -185,6 +200,13 @@ export class AstrologerPayoutWebhookService {
           throw new Error('Payout has no reserved earnings');
         }
 
+        const total = payout.earnings.reduce((sum, item) => sum.plus(item.netAmount), new Prisma.Decimal(0));
+        if (!total.gt(0) || !total.eq(payout.amount) || payout.earnings.some(item =>
+          item.astrologerId !== payout.astrologerId || item.payoutId !== payout.id ||
+          item.currency !== payout.currency || item.status !== AstrologerEarningStatus.AVAILABLE ||
+          item.paidAt !== null || item.reversedAt !== null)) {
+          throw new Error('Reserved payout amounts or ownership are inconsistent');
+        }
         const paidAt = new Date();
 
         const result = await tx.astrologerEarning.updateMany({
@@ -194,6 +216,7 @@ export class AstrologerPayoutWebhookService {
             },
             payoutId: payout.id,
             status: AstrologerEarningStatus.AVAILABLE,
+          paidAt: null, reversedAt: null,
           },
           data: {
             status: AstrologerEarningStatus.PAID,

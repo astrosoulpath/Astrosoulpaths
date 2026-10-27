@@ -29,6 +29,7 @@ export class SmartEngagementPushProcessor {
 
   @Cron('*/15 * * * *')
   async process(): Promise<void> {
+    if (process.env.SMART_ENGAGEMENT_ENABLED !== 'true') return;
     const now = new Date();
 
     const users = await this.prisma.user.findMany({
@@ -70,8 +71,7 @@ export class SmartEngagementPushProcessor {
         await this.processUser(user, local);
       } catch (error) {
         this.logger.error(
-          `Smart engagement push failed for user ${user.id}`,
-          error instanceof Error ? error.stack : String(error),
+          'Smart engagement processing failed',
         );
       }
     }
@@ -136,13 +136,13 @@ export class SmartEngagementPushProcessor {
     const campaign = this.buildCampaign(type, freeChatEligible);
 
     try {
-      await this.campaignService.sendCampaignToUser(user.id, campaign);
+      const result = await this.campaignService.sendCampaignToUser(user.id, campaign);
+      if (result.skipped) return;
 
       await this.redis.set(sentKey, '1', 36 * 60 * 60);
     } catch (error) {
       this.logger.error(
-        `Unable to send smart engagement campaign to ${user.id}`,
-        error instanceof Error ? error.stack : String(error),
+        'Smart engagement delivery was not confirmed',
       );
     }
   }
@@ -165,7 +165,7 @@ export class SmartEngagementPushProcessor {
           type,
           title: '💞 A Love Insight Is Waiting',
           body:
-            `Your relationship guidance may have something worth exploring today.${freeSuffix}`,
+            `Explore general relationship reflection, not a personalized chart finding.${freeSuffix}`,
         };
 
       case 'career':
@@ -173,7 +173,7 @@ export class SmartEngagementPushProcessor {
           type,
           title: '💼 Career Guidance for Today',
           body:
-            `Explore what your astrology guidance suggests for your next move.${freeSuffix}`,
+            `Explore general career reflection, without a guaranteed outcome.${freeSuffix}`,
         };
 
       case 'marriage':
@@ -181,7 +181,7 @@ export class SmartEngagementPushProcessor {
           type,
           title: '💍 Relationship Guidance',
           body:
-            `Your relationship reading may offer a useful perspective today.${freeSuffix}`,
+            `Explore general partnership reflection. No personal planetary event is asserted.${freeSuffix}`,
         };
 
       case 'astrology_question':

@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
-import { rechargeWallet } from "@/services/walletService";
+import { walletPayment } from "@/features/wallet/wallet-payment";
 
 const presetAmounts = [100, 250, 500, 1000];
 
@@ -13,6 +13,14 @@ export default function WalletRechargePage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const busy = useRef(false);
+  const active = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const reset = () => {active.current?.abort(); setLoading(false); setMessage(""); setError("");};
+    window.addEventListener('asp-auth-changed', reset);
+    window.addEventListener('storage', reset);
+    return () => {active.current?.abort(); window.removeEventListener('asp-auth-changed', reset); window.removeEventListener('storage', reset);};
+  }, []);
 
   function getSelectedAmount() {
     const customValue = Number(customAmount);
@@ -35,55 +43,51 @@ export default function WalletRechargePage() {
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
+    await runPayment('checkout');
+  }
+
+  async function runPayment(action: 'checkout' | 'status') {
+    if (busy.current) return;
 
     setError("");
     setMessage("");
 
     const rechargeAmount = getSelectedAmount();
 
-    if (
+    if (action === 'checkout' && (
       !Number.isFinite(rechargeAmount) ||
-      rechargeAmount < 10
-    ) {
-      setError("Minimum recharge amount is ₹10.");
+      rechargeAmount < 50
+    )) {
+      setError("Minimum recharge amount is ₹50.");
       return;
     }
 
-    if (rechargeAmount > 50000) {
+    if (action === 'checkout' && rechargeAmount > 50000) {
       setError("Maximum recharge amount is ₹50,000.");
       return;
     }
 
     try {
+      busy.current = true;
+      const controller = new AbortController();
+      active.current = controller;
       setLoading(true);
-
-      const response = await rechargeWallet(
-        rechargeAmount,
-      );
-
-      const updatedBalance =
-        response?.data?.wallet?.availableBalance ??
-        response?.data?.wallet?.balance;
-
-      setMessage(
-        updatedBalance !== undefined
-          ? `₹${rechargeAmount.toFixed(
-              2,
-            )} added successfully. Wallet balance: ₹${Number(
-              updatedBalance,
-            ).toFixed(2)}`
-          : `₹${rechargeAmount.toFixed(
-              2,
-            )} added successfully to your wallet.`,
-      );
+      const state = await walletPayment(action, rechargeAmount, controller.signal);
+      if (controller.signal.aborted) return;
+      setMessage(state === 'SUCCESS' ? 'Payment verified by the server. Your wallet has been credited. View your updated wallet below.' :
+        state === 'PENDING' ? 'Payment is pending. Check status before paying again.' :
+        state === 'CANCELLED' ? 'Checkout closed. No payment success has been confirmed. Check status or resume the existing checkout.' :
+        'Payment failed. Check status before resuming the existing checkout.');
     } catch (error) {
+      if (active.current?.signal.aborted) return;
       setError(
         error instanceof Error
           ? error.message
           : "Unable to recharge wallet. Please try again.",
       );
     } finally {
-      setLoading(false);
+      busy.current = false;
+      if (!active.current?.signal.aborted) setLoading(false);
     }
   }
 
@@ -112,13 +116,13 @@ export default function WalletRechargePage() {
           </p>
 
           {error && (
-            <div className="mt-6 rounded-xl bg-red-50 p-4 text-red-700">
+            <div role="alert" className="mt-6 rounded-xl bg-red-50 p-4 text-red-700">
               {error}
             </div>
           )}
 
           {message && (
-            <div className="mt-6 rounded-xl bg-green-50 p-4 text-green-700">
+            <div role="status" className="mt-6 rounded-xl bg-amber-50 p-4 text-slate-800">
               <p className="font-semibold">{message}</p>
 
               <Link
@@ -169,9 +173,9 @@ export default function WalletRechargePage() {
                 <input
                   id="custom-amount"
                   type="number"
-                  min="10"
+                  min="50"
                   max="50000"
-                  step="1"
+                  step="0.01"
                   value={customAmount}
                   onChange={(event) => {
                     setCustomAmount(
@@ -210,10 +214,8 @@ export default function WalletRechargePage() {
                   )}`}
             </button>
 
-            <p className="mt-4 text-center text-xs text-gray-500">
-              This is a local testing flow. Razorpay payment
-              verification will replace it in the production phase.
-            </p>
+            <button type="button" disabled={loading} onClick={() => void runPayment('status')} className="mt-4 font-semibold underline disabled:opacity-50">Check pending payment status</button>
+            <p className="mt-4 text-center text-xs text-gray-500">Only server-verified payments credit your wallet. If interrupted, check status before retrying. Continuing with a pending order resumes that existing checkout.</p>
           </form>
         </section>
       </div>

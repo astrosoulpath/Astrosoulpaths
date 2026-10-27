@@ -1,6 +1,7 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength, IsBoolean } from 'class-validator';
 
 export class EscalateAssistantDto {
+  @IsOptional() @IsBoolean() includeConversation?: boolean;
   @IsOptional()
   @IsString()
   @MaxLength(160)

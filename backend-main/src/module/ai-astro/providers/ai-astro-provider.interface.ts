@@ -9,6 +9,7 @@ export interface AiAstroProviderInput {
     requiresKundli: boolean;
   };
   question: string;
+  responseLanguage?: string;
   personaId?: string;
   astrologyContext?: Record<string, unknown>;
   consultantContext?: Record<string, unknown>;

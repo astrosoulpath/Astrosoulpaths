@@ -161,7 +161,10 @@ export class FxRateService {
 
       if (
         typeof timestamp !== 'number' ||
+        !Number.isFinite(timestamp) || timestamp <= 0 ||
+        body.base !== 'USD' ||
         !rates ||
+        Array.isArray(rates) ||
         typeof rates !== 'object'
       ) {
         this.logger.error('fx.provider_invalid_payload');
@@ -189,9 +192,8 @@ export class FxRateService {
         throw error;
       }
 
-      const message = error instanceof Error ? error.message : String(error);
-
-      this.logger.error(`fx.provider_request_failed reason=${message}`);
+      // Provider errors can contain request URLs with the API credential.
+      this.logger.error('fx.provider_request_failed');
 
       throw new BadGatewayException('Unable to retrieve live exchange rates');
     } finally {

@@ -134,6 +134,9 @@ export class AstrologerPayoutProviderService {
   async createPayout(
     input: CreatePayoutInput,
   ): Promise<RazorpayPayoutResponse> {
+    if (process.env.FINANCIAL_PAYOUTS_ENABLED !== 'true') {
+      throw new BadRequestException('New payouts are disabled');
+    }
     if (!Number.isSafeInteger(input.amountPaise) || input.amountPaise < 100) {
       throw new BadRequestException('Payout amount must be at least INR 1.00');
     }
@@ -187,13 +190,8 @@ export class AstrologerPayoutProviderService {
 
   private throwProviderError(error: unknown, prefix: string): never {
     if (axios.isAxiosError(error)) {
-      const providerMessage =
-        typeof error.response?.data === 'object' &&
-        error.response?.data !== null
-          ? JSON.stringify(error.response.data)
-          : error.message;
-
-      throw new BadGatewayException(`${prefix}: ${providerMessage}`);
+      // Provider payloads/config can contain bank details or authentication material.
+      throw new BadGatewayException(prefix);
     }
 
     throw error;

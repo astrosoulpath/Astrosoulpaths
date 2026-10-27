@@ -1,3 +1,9 @@
+import { AdminModerationService } from './admin-moderation.service';
+import { PaymentsModule } from '../payments/payments.module';
+import { AdminPaymentOperationsController } from './admin-payment-operations.controller';
+import { AdminPaymentOperationsService } from './admin-payment-operations.service';
+import { AdminPaymentReconciliationWorker } from './admin-payment-reconciliation.worker';
+import { AdminModerationController } from './admin-moderation.controller';
 ﻿import { Module } from '@nestjs/common';
 
 import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
@@ -11,9 +17,9 @@ import { AdminReportService } from './admin-report.service';
 import { AdminRepository } from './admin.repository';
 
 @Module({
-  imports: [PrismaModule, UserModule, NotificationsModule],
-  controllers: [AdminController],
-  providers: [AdminReportService, AdminRepository, AdminService],
+  imports: [PrismaModule, UserModule, NotificationsModule, PaymentsModule],
+  controllers: [AdminController, AdminModerationController, AdminPaymentOperationsController],
+  providers: [AdminModerationService, AdminReportService, AdminRepository, AdminService, AdminPaymentOperationsService, AdminPaymentReconciliationWorker],
   exports: [AdminService],
 })
 export class AdminModule {}

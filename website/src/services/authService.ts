@@ -45,6 +45,8 @@ function getApiBaseUrl(): string {
     );
   }
 
+  const url=new URL(API_BASE_URL);
+  if(url.username||url.password||url.search||url.hash||(url.protocol!=="https:"&&!(url.protocol==="http:"&&["localhost","127.0.0.1","[::1]"].includes(url.hostname))))throw new Error("Authentication API configuration is unavailable.");
   return API_BASE_URL.replace(/\/+$/, "");
 }
 
@@ -118,6 +120,8 @@ async function postAuthRequest<T>(
         },
         body: JSON.stringify(body),
         cache: "no-store",
+        credentials: "omit",
+        signal: AbortSignal.timeout(20000),
       },
     );
 

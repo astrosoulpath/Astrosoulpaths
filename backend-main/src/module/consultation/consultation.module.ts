@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BirthSharingModule } from './birth-sharing.module';
 
 import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
 
@@ -13,7 +14,7 @@ import { ConsultationService } from './consultation.service';
 import { ConsultationExpiryProcessor } from './consultation-expiry.processor';
 
 @Module({
-  imports: [PrismaModule, UserModule, ChatModule, NotificationsModule],
+  imports: [PrismaModule, UserModule, ChatModule, NotificationsModule, BirthSharingModule],
 
   controllers: [ConsultationController],
 

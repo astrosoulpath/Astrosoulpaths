@@ -1,5 +1,6 @@
 ﻿import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { randomUUID } from 'node:crypto';
 import { SubscriptionStatus } from '@prisma/client';
 
 import { RedisService } from '../../../../infrastructure/redis/redis.service';
@@ -7,6 +8,9 @@ import { PrismaService } from '../../../../infrastructure/prisma/prisma.service'
 import { NotificationsPushService } from '../../../notifications/notifications.push.service';
 import { NotificationsService } from '../../../notifications/notifications.service';
 import { NakshatraDailyInsightService } from './dailyinsight.service';
+import { requireHoroscopeLocale, validateHoroscopeText } from '../../../subscription/horoscope-localization';
+import { durableHoroscopeEnabled, horoscopeOutboxEnabled, HoroscopeDurableStore, DurableReading } from '../../../subscription/horoscope-durable.store';
+import {horoscopeReminderCopy} from '../../../subscription/horoscope-reminder-copy';
 
 const DAILY_HOROSCOPE_PLAN_NAME = 'DAILY_HOROSCOPE_MONTHLY';
 
@@ -23,13 +27,21 @@ export class DailyHoroscopePushProcessor {
   ) {}
 
   @Cron('*/15 * * * *')
+  async scheduledDailyHoroscopePushes(): Promise<void> {
+    // Only the consent-aware durable pipeline may run automatically.
+    if (!horoscopeOutboxEnabled()) return;
+    await this.processDailyHoroscopePushes();
+  }
+
+  /** Internal compatibility helper, not a scheduled or HTTP entry point. */
   async processDailyHoroscopePushes(): Promise<void> {
+    if(durableHoroscopeEnabled() && !horoscopeOutboxEnabled()) return;
     const now = new Date();
 
     const subscriptions = await this.prisma.subscription.findMany({
       where: {
         subscriptionStatus: {
-          in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL],
+          in: [SubscriptionStatus.ACTIVE],
         },
         startDate: {
           lte: now,
@@ -60,6 +72,7 @@ export class DailyHoroscopePushProcessor {
               select: {
                 timezone: true,
                 timezoneName: true,
+                lang: true,
               },
             },
           },
@@ -87,11 +100,19 @@ export class DailyHoroscopePushProcessor {
       if (!isHoroscopeHour) {
         continue;
       }
+      const savedLanguage = user.userProfile.lang?.trim().toLowerCase();
+      if (!savedLanguage) continue;
+      let locale: string;
+      try { locale = requireHoroscopeLocale(savedLanguage); } catch { continue; }
+      if(horoscopeOutboxEnabled()) {
+        const preferences=await this.prisma.$queryRaw<Array<{enabled:boolean}>>`SELECT "enabled" FROM public."HoroscopeNotificationPreference" WHERE "userId"=${user.id}`;
+        if(preferences[0]?.enabled!==true) continue;
+      }
 
       const deliveryKind = 'horoscope';
 
       const sentKey =
-        `daily-horoscope:push:sent:${deliveryKind}:${user.id}:${local.date}`;
+        `daily-horoscope:push:sent:${deliveryKind}:${user.id}:${local.date}:${locale}`;
       const alreadySent = await this.redis.get(sentKey);
 
       if (alreadySent) {
@@ -99,8 +120,9 @@ export class DailyHoroscopePushProcessor {
       }
 
       const lockKey =
-        `daily-horoscope:push:lock:${deliveryKind}:${user.id}:${local.date}`;
-      const locked = await this.redis.setNX(lockKey, '1', 20 * 60);
+        `daily-horoscope:push:lock:${deliveryKind}:${user.id}:${local.date}:${locale}`;
+      const lockOwner = randomUUID();
+      const locked = await this.redis.setNX(lockKey, lockOwner, 20 * 60);
 
       if (!locked) {
         continue;
@@ -111,6 +133,7 @@ export class DailyHoroscopePushProcessor {
           await this.dailyInsightService.getNakshatraDailyInsight(
             user.supabaseId,
             'today',
+            locale,
           );
 
         const data = horoscope?.data as Record<string, unknown> | undefined;
@@ -147,12 +170,30 @@ export class DailyHoroscopePushProcessor {
             : '';
         const body =
           this.buildNotificationBody(shortReading, dailyAdvice);
+        const generation = data?.generation as { language?: { code?: string } } | undefined;
+        if (generation?.language?.code !== locale) throw new Error('Horoscope locale mismatch');
 
         if (!notificationTitle || !body) {
           this.logger.warn(
-            `daily_horoscope.push.localized_content_missing userId=${user.id}`,
+            'daily_horoscope.push.localized_content_missing',
           );
           continue;
+        }
+        validateHoroscopeText(locale, [notificationTitle, body]);
+        const entitled = await this.prisma.subscription.findFirst({ where: {
+          userId: user.id, subscriptionStatus: { in: [SubscriptionStatus.ACTIVE] },
+          startDate: { lte: new Date() }, endDate: { gt: new Date() },
+          subscriptionPlan: { name: DAILY_HOROSCOPE_PLAN_NAME, isActive: true },
+        }, select: { id: true,endDate:true } });
+        if (!entitled) continue;
+        if(horoscopeOutboxEnabled()) {
+          const readingId=data?.durableReadingId;
+          if(typeof readingId!=='string') throw new Error('Durable reading required');
+          const readings=await this.prisma.$queryRaw<DurableReading[]>`SELECT * FROM public."PersonalizedHoroscopeReading" WHERE "id"=${readingId} AND "userId"=${user.id} AND "locale"=${locale} AND "state"='READY'`;
+          if(!readings[0]) throw new Error('Durable reading unavailable');
+          const devices=await this.prisma.pushDevice.findMany({where:{userId:user.id,isActive:true},select:{id:true}});
+          await new HoroscopeDurableStore(this.prisma).enqueue({...readings[0],subscriptionId:entitled.id},devices.map(d=>d.id),new Date());
+          continue; // Never send from both the scheduler and durable worker.
         }
 
 
@@ -167,12 +208,13 @@ export class DailyHoroscopePushProcessor {
             day: 'today',
             targetDate: local.date,
             source: 'daily-horoscope-push',
+            locale,
           },
         });
 
         const pushResult = await this.pushService.sendToUser(user.id, {
-          title: notification.title,
-          body: notification.body,
+          ...horoscopeReminderCopy(locale),
+          expiresAt:entitled.endDate??undefined,
           data: {
             type: 'horoscope',
             screen: 'horoscope',
@@ -180,6 +222,8 @@ export class DailyHoroscopePushProcessor {
             targetDate: local.date,
             notificationId: notification.id,
             source: 'daily-horoscope-push',
+            locale,
+            ownerId:user.id,
           },
         });
 
@@ -187,19 +231,19 @@ export class DailyHoroscopePushProcessor {
           await this.redis.set(sentKey, '1', 48 * 60 * 60);
 
           this.logger.log(
-            `daily_horoscope.push.sent userId=${user.id} date=${local.date}`,
+            'daily_horoscope.push.sent',
           );
         } else {
           this.logger.warn(
-            `daily_horoscope.push.not_sent userId=${user.id} sent=${pushResult.sent} failed=${pushResult.failed}`,
+            `daily_horoscope.push.not_sent sent=${pushResult.sent} failed=${pushResult.failed}`,
           );
         }
       } catch (error) {
         this.logger.error(
-          `daily_horoscope.push.failed userId=${user.id}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
+          'daily_horoscope.push.failed generation_or_delivery_unavailable',
         );
+      } finally {
+        await this.redis.releaseLock(lockKey, lockOwner);
       }
     }
   }
@@ -214,11 +258,12 @@ export class DailyHoroscopePushProcessor {
       return null;
     }
 
-    if (source.length <= 150) {
+    const characters = Array.from(source);
+    if (characters.length <= 150) {
       return source;
     }
 
-    return `${source.substring(0, 147).trim()}...`;
+    return `${characters.slice(0, 147).join('').trim()}...`;
   }
 
   private resolveLocalTime(

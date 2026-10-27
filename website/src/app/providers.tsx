@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -12,6 +12,8 @@ import {
   type ReactNode,
 } from "react";
 
+import {sessionCandidate,verifyNavigationSession} from '@/features/auth/public-auth';
+import {disconnectChatSocket} from '@/lib/chatSocket';
 import IncomingCallModal from "@/components/call/IncomingCallModal";
 import { supabase } from "@/lib/supabase";
 import {
@@ -19,6 +21,7 @@ import {
   connectCallSocket,
   disconnectCallSocket,
   getCallSocket,
+  isCallSocketConnected,
   onCallAccepted,
   onCallCancelled,
   onCallError,
@@ -48,23 +51,14 @@ type AppProvidersProps = {
   children: ReactNode;
 };
 
-function getStoredAccessToken(): string | null {
-  if (
-    typeof window ===
-    "undefined"
-  ) {
-    return null;
-  }
-
-  return window.localStorage.getItem(
-    "asp_access_token",
-  );
-}
+function getStoredAccessToken():string|null{return typeof window==='undefined'?null:sessionCandidate(window.location.pathname)?.token??null;}
 
 export function AppProviders({
   children,
 }: AppProvidersProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const routeContext = pathname.startsWith("/admin") ? "admin" : pathname.startsWith("/astrologer/") ? "astrologer" : "customer";
 
   const [userId, setUserId] =
     useState<string | null>(null);
@@ -381,9 +375,7 @@ export function AppProviders({
               return;
             }
 
-            setSocketConnected(
-              true,
-            );
+            setSocketConnected(isCallSocketConnected());
 
             setCallError(null);
           };
@@ -420,7 +412,7 @@ export function AppProviders({
           };
 
         socket.on(
-          "connect",
+          "call:registered",
           handleConnect,
         );
 
@@ -437,7 +429,7 @@ export function AppProviders({
         socketCleanupRef.current =
           () => {
             socket.off(
-              "connect",
+              "call:registered",
               handleConnect,
             );
 
@@ -455,7 +447,7 @@ export function AppProviders({
         attachCallListeners();
 
         setSocketConnected(
-          socket.connected,
+          isCallSocketConnected(),
         );
       },
       [
@@ -488,133 +480,87 @@ export function AppProviders({
 
   useEffect(() => {
     mountedRef.current = true;
-
+    let generation = 0,
+      controller: AbortController | undefined,
+      boundOwner: string | null = null;
     async function initialize() {
+      const current = ++generation;
+      controller?.abort();
+      const abort = new AbortController();
+      controller = abort;
+      const candidate = sessionCandidate(window.location.pathname);
+      if (candidate?.snapshot !== boundOwner) {
+        disconnectCurrentUser();
+        disconnectChatSocket();
+        setUserId(null);
+      }
+      if (!candidate) {
+        boundOwner = null;
+        return;
+      }
       try {
-        const {
-          data: { session },
-          error,
-        } =
-          await supabase.auth.getSession();
-
-        if (
-          !mountedRef.current
-        ) {
-          return;
-        }
-
-        if (error) {
-          throw error;
-        }
-
-        const authenticatedUserId =
-          session?.user?.id ??
-          null;
-
-        setUserId(
-          authenticatedUserId,
+        const verified = await verifyNavigationSession(
+          window.location.pathname,
+          abort.signal,
         );
-
+        if (!mountedRef.current || current !== generation || abort.signal.aborted)
+          return;
         if (
-          !authenticatedUserId
+          !verified ||
+          (verified.portal === "astrologer" && verified.role !== "ASTROLOGER")
         ) {
+          boundOwner = null;
+          setUserId(null);
           disconnectCurrentUser();
+          disconnectChatSocket();
           return;
         }
-
-        connectForUser(
-          authenticatedUserId,
-        );
-      } catch (error) {
+        boundOwner = candidate.snapshot;
+        setUserId(verified.id);
         if (
-          !mountedRef.current
-        ) {
+          currentUserIdRef.current !== verified.id ||
+          !getCallSocket()?.connected
+        )
+          connectForUser(verified.id);
+      } catch {
+        if (!mountedRef.current || current !== generation || abort.signal.aborted)
           return;
-        }
-
+        boundOwner = null;
         setUserId(null);
         disconnectCurrentUser();
-
+        disconnectChatSocket();
         setCallError(
-          error instanceof Error
-            ? error.message
-            : "Unable to initialize the authenticated session.",
+          "Your communication session could not be verified. Sign in again or check your connection.",
         );
       }
     }
-
+    const changed = () => {
+      void initialize();
+    };
     void initialize();
-
-    const {
-      data: authListener,
-    } =
-      supabase.auth.onAuthStateChange(
-        (
-          event,
-          session,
-        ) => {
-          if (
-            !mountedRef.current
-          ) {
-            return;
-          }
-
-          const authenticatedUserId =
-            session?.user?.id ??
-            null;
-
-          setUserId(
-            authenticatedUserId,
-          );
-
-          if (
-            event ===
-              "SIGNED_OUT" ||
-            !authenticatedUserId
-          ) {
-            disconnectCurrentUser();
-            return;
-          }
-
-          if (
-            currentUserIdRef.current !==
-            authenticatedUserId
-          ) {
-            connectForUser(
-              authenticatedUserId,
-            );
-            return;
-          }
-
-          const currentSocket =
-            getCallSocket();
-
-          if (
-            !currentSocket?.connected
-          ) {
-            connectForUser(
-              authenticatedUserId,
-            );
-          }
-        },
-      );
-
+    window.addEventListener("asp-auth-changed", changed);
+    window.addEventListener("storage", changed);
+    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
+      void initialize();
+    });
     return () => {
-      mountedRef.current =
-        false;
-
+      mountedRef.current = false;
+      generation++;
+      controller?.abort();
       authListener.subscription.unsubscribe();
-
+      window.removeEventListener("asp-auth-changed", changed);
+      window.removeEventListener("storage", changed);
       clearSocketConnectionHandlers();
       clearSocketListeners();
-
       disconnectCallSocket();
+      disconnectChatSocket();
     };
   }, [
     clearSocketConnectionHandlers,
     clearSocketListeners,
     connectForUser,
     disconnectCurrentUser,
+    routeContext,
   ]);
 
   const handleAcceptIncomingCall =

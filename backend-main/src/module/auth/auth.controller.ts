@@ -1,4 +1,5 @@
-import { Body, Controller, Headers, Post } from '@nestjs/common';
+import { Body, Controller, Headers, HttpCode, Post, UseGuards } from '@nestjs/common';
+import { ContextRateGuard } from '../../common/auth/context-rate.guard';
 import { AuthService } from './auth.service';
 import { SmsRoutingService } from './sms-routing.service';
 import { SendOtpDto } from './dto/send-otp.dto';
@@ -14,6 +15,7 @@ import { EmailSignupDto } from './dto/email-signup.dto';
 import { LinkGooglePhoneDto } from './dto/link-google-phone.dto';
 import { LinkFirebaseEmailPhoneDto } from './dto/link-firebase-email-phone.dto';
 import { FirebaseGoogleLoginDto } from './dto/firebase-google-login.dto';
+import { FirebaseAdminGoogleLoginDto } from './dto/firebase-admin-google-login.dto';
 import { LinkFirebaseGoogleLegacyDto } from './dto/link-firebase-google-legacy.dto';
 import { LinkFirebaseGooglePhoneDto } from './dto/link-firebase-google-phone.dto';
 import { LinkFirebaseEmailGoogleDto } from './dto/link-firebase-email-google.dto';
@@ -135,7 +137,24 @@ export class AuthController {
       dto.portal ?? 'customer',
     );
   }
+  @Post('admin/firebase/google')
+  @UseGuards(ContextRateGuard)
+  async firebaseAdminGoogleLogin(@Body() dto: FirebaseAdminGoogleLoginDto) {
+    return this.authService.loginAdminWithFirebaseGoogle(dto.idToken);
+  }
+  @Post('admin/firebase/email')
+  @UseGuards(ContextRateGuard)
+  firebaseAdminEmailLogin(@Body() dto:FirebaseAdminGoogleLoginDto){return this.authService.loginAdminWithFirebaseEmail(dto.idToken);}
+  @Post('admin/context/verify')
+  @UseGuards(ContextRateGuard)
+  verifyAdminContext(@Body() dto:{accessToken:string}){return this.authService.verifyAdminContext(dto?.accessToken);}
+  @Post('context/refresh')
+  @HttpCode(200)
+  @UseGuards(ContextRateGuard)
+  refreshContext(@Body() dto:FirebaseGoogleLoginDto){return this.authService.loginFirebaseContext(dto.idToken,dto.portal??'customer',undefined,true);}
+
   @Post('firebase/google')
+  @UseGuards(ContextRateGuard)
   async firebaseGoogleLogin(@Body() dto: FirebaseGoogleLoginDto) {
     return this.authService.loginWithFirebaseGoogle(
       dto.idToken,
@@ -196,11 +215,13 @@ export class AuthController {
   }
 
   @Post('firebase/email')
+  @UseGuards(ContextRateGuard)
   async firebaseEmailLogin(
     @Body() firebaseEmailLoginDto: FirebaseEmailLoginDto,
   ) {
     return this.authService.verifyFirebaseEmailToken(
       firebaseEmailLoginDto.idToken,
+      firebaseEmailLoginDto.portal,
     );
   }
 }

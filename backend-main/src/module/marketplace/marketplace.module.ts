@@ -8,6 +8,9 @@ import { MarketplaceSellerController } from './marketplace-seller.controller';
 import { MarketplaceAdminController } from './marketplace-admin.controller';
 import { MarketplaceCustomerController } from './marketplace-customer.controller';
 import { MarketplaceService } from './marketplace.service';
+import { MarketplaceCaseService } from './marketplace-case.service';
+import { MarketplaceWriteGuard } from './marketplace-write.guard';
+import { MarketplacePaymentsService } from './marketplace-payments.service';
 
 @Module({
   imports: [PrismaModule, SupabaseModule],
@@ -19,7 +22,7 @@ import { MarketplaceService } from './marketplace.service';
     MarketplaceAdminController,
   ],
 
-  providers: [MarketplaceService],
+  providers: [MarketplaceService, MarketplaceCaseService, MarketplaceWriteGuard, MarketplacePaymentsService],
 
   exports: [MarketplaceService],
 })

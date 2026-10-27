@@ -1,3 +1,5 @@
+import { UseFilters } from '@nestjs/common';
+import { SupportErrorFilter } from './support-error.filter';
 import {
   Body,
   Controller,
@@ -19,11 +21,27 @@ import { AdminUpdateSupportPriorityDto } from './dto/admin-update-support-priori
 import { AdminUpdateSupportStatusDto } from './dto/admin-update-support-status.dto';
 import { SupportAdminService } from './support-admin.service';
 
+@UseFilters(SupportErrorFilter)
 @Controller('admin/support')
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 @Roles(Role.Admin)
 export class SupportAdminController {
   constructor(private readonly service: SupportAdminService) {}
+
+  @Get('assistant/conversations')
+  assistantConversations(
+    @CurrentUser() user: any,
+    @Query('page') page?: string,
+  ) {
+    return this.service.assistantConversations(
+      user,
+      page === undefined ? 1 : Number(page),
+    );
+  }
+  @Get('assistant/conversations/:id')
+  assistantConversation(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.service.assistantConversation(user, id);
+  }
 
   @Get('stats')
   getStats() {
@@ -84,32 +102,40 @@ export class SupportAdminController {
 
   @Patch('tickets/:ticketId/unassign')
   unassignTicket(
+    @CurrentUser() user: Record<string, any>,
     @Param('ticketId')
     ticketId: string,
   ) {
-    return this.service.unassignTicket(ticketId);
+    return this.service.unassignTicket(ticketId, user);
   }
 
   @Patch('tickets/:ticketId/priority')
   updatePriority(
+    @CurrentUser() user: Record<string, any>,
     @Param('ticketId')
     ticketId: string,
 
     @Body()
     dto: AdminUpdateSupportPriorityDto,
   ) {
-    return this.service.updatePriority(ticketId, dto.priority);
+    return this.service.updatePriority(ticketId, dto.priority, user);
   }
 
   @Patch('tickets/:ticketId/status')
   updateStatus(
+    @CurrentUser() user: Record<string, any>,
     @Param('ticketId')
     ticketId: string,
 
     @Body()
     dto: AdminUpdateSupportStatusDto,
   ) {
-    return this.service.updateStatus(ticketId, dto.status);
+    return this.service.updateStatus(
+      ticketId,
+      dto.status,
+      user,
+      dto.resolutionNote,
+    );
   }
 
   @Post('tickets/:ticketId/messages')

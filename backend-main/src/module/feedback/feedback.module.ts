@@ -1,3 +1,4 @@
+import { NotificationsIdentityGuard } from '../notifications/notifications-identity.guard';
 import { Module } from '@nestjs/common';
 
 import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
@@ -8,6 +9,6 @@ import { FeedbackService } from './feedback.service';
 @Module({
   imports: [PrismaModule],
   controllers: [FeedbackController, FeedbackAdminController],
-  providers: [FeedbackService],
+  providers: [NotificationsIdentityGuard,FeedbackService],
 })
 export class FeedbackModule {}

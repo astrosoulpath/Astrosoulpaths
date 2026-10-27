@@ -13,7 +13,7 @@ export class WalletService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async findUserBySupabaseId(supabaseId: string) {
-    if (!supabaseId) {
+    if (!supabaseId?.trim()) {
       throw new BadRequestException('Authenticated user ID is required');
     }
 
@@ -75,28 +75,6 @@ export class WalletService {
       throw new BadRequestException('User account is not active');
     }
 
-    if (!user.phone) {
-      throw new BadRequestException(
-        'Verify your phone number before accessing your wallet',
-      );
-    }
-
-    const verifiedPhoneIdentity =
-      await this.prisma.userAuthIdentity.findFirst({
-        where: {
-          userId: user.id,
-          phone: user.phone,
-          identityType: 'phone',
-          provider: { in: ['firebase', 'supabase_phone_verified'] },
-        },
-        select: { id: true },
-      });
-
-    if (!verifiedPhoneIdentity) {
-      throw new BadRequestException(
-        'Phone verification is required for wallet access',
-      );
-    }
     return user;
   }
 
@@ -177,7 +155,10 @@ export class WalletService {
     };
   }
 
-  async getWalletHistory(supabaseId: string) {
+  async getWalletHistory(supabaseId: string, page = 1, limit = 100) {
+    if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(limit) || limit < 1 || limit > 100 || !Number.isSafeInteger((page - 1) * limit)) {
+      throw new BadRequestException('Invalid wallet history pagination');
+    }
     const user = await this.findUserBySupabaseId(supabaseId);
 
     const wallet = await this.getOrCreateWallet(user.id);
@@ -187,10 +168,9 @@ export class WalletService {
         walletId: wallet.id,
         userId: user.id,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: 100,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
     const creditTypes: LedgerType[] = [
@@ -228,9 +208,9 @@ export class WalletService {
   }
 
   async rechargeWallet(supabaseId: string, dto: RechargeWalletDto) {
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' || process.env.ALLOW_LOCAL_WALLET_RECHARGE !== 'true') {
       throw new BadRequestException(
-        'Direct wallet recharge is disabled in production',
+        'Direct wallet recharge is disabled; use verified payment checkout',
       );
     }
 

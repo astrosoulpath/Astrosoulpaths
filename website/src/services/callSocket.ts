@@ -1,4 +1,5 @@
 "use client";
+import {publicAuthBase,sessionCandidate} from "@/features/auth/public-auth";
 
 import {
   io,
@@ -22,6 +23,8 @@ export type CallErrorCode =
   | "UNAUTHORIZED_ACTION";
 
 export type CallConnectedPayload = {
+  authenticated?: boolean;
+  userId?: string;
   success: true;
   socketId: string;
   connectedAt?: string;
@@ -234,6 +237,9 @@ export type CallSocket = Socket<
 
 let socket: CallSocket | null = null;
 let registeredUserId = "";
+let boundToken = "";
+let serverAuthenticated = false;
+let serverRegistered = false;
 
 function getBaseUrl(): string {
   const baseUrl =
@@ -252,12 +258,13 @@ function getBaseUrl(): string {
     );
   }
 
-  return baseUrl;
+  return publicAuthBase(baseUrl);
 }
 
 function registerCurrentUser(): void {
   if (
     !socket?.connected ||
+    !serverAuthenticated ||
     !registeredUserId
   ) {
     return;
@@ -280,8 +287,10 @@ export function connectCallSocket(
     );
   }
 
-  registeredUserId =
-    normalizedUserId;
+  const token=typeof window==='undefined'?null:sessionCandidate(window.location.pathname)?.token;
+  if(!token)throw new Error('LOGIN_REQUIRED');
+  if(socket&&(registeredUserId!==normalizedUserId||boundToken!==token))disconnectCallSocket();
+  registeredUserId=normalizedUserId;boundToken=token;
 
   if (socket) {
     if (socket.connected) {
@@ -303,6 +312,7 @@ export function connectCallSocket(
 
       withCredentials: true,
       autoConnect: false,
+      auth: {token},
 
       reconnection: true,
       reconnectionAttempts:
@@ -322,7 +332,7 @@ export function connectCallSocket(
   socket.on(
     "connect",
     () => {
-      registerCurrentUser();
+      serverAuthenticated=false;serverRegistered=false;
 
       console.log(
         "[CALL] Connected:",
@@ -334,26 +344,20 @@ export function connectCallSocket(
   socket.on(
     "call:connected",
     (payload) => {
-      console.log(
-        "[CALL] Gateway connected:",
-        payload,
-      );
+      if(payload.success!==true||payload.authenticated!==true||payload.userId!==registeredUserId){disconnectCallSocket();return;}
+      serverAuthenticated=true;registerCurrentUser();
     },
   );
 
   socket.on(
     "call:registered",
-    (payload) => {
-      console.log(
-        "[CALL] User registered:",
-        payload.userId,
-      );
-    },
+    (payload) => {if(!serverAuthenticated||payload.userId!==registeredUserId){disconnectCallSocket();return;}serverRegistered=true;},
   );
 
   socket.on(
     "disconnect",
     (reason) => {
+      serverAuthenticated=false;serverRegistered=false;
       console.log(
         "[CALL] Disconnected:",
         reason,
@@ -394,12 +398,13 @@ export function getCallSocket():
 export function isCallSocketConnected():
   boolean {
   return Boolean(
-    socket?.connected,
+    socket?.connected && serverRegistered,
   );
 }
 
 export function disconnectCallSocket():
   void {
+  boundToken="";serverAuthenticated=false;serverRegistered=false;
   if (!socket) {
     registeredUserId = "";
     return;

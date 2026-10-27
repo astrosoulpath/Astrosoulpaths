@@ -3,6 +3,12 @@
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { NotificationsPushService } from './notifications.push.service';
 import { NotificationsService } from './notifications.service';
+import { ServiceUnavailableException } from '@nestjs/common';
+
+function assertEditorialDeliveryReady(): void {
+  // Horoscope opt-in is not marketing/category consent. A flag cannot replace it.
+  throw new ServiceUnavailableException('Editorial category consent and durable campaign approval are not implemented');
+}
 
 type CampaignType =
   | 'love'
@@ -30,6 +36,10 @@ export class NotificationsCampaignService {
   ) {}
 
   async sendCampaignToUser(userId: string, campaign: CampaignMessage) {
+    if (process.env.NOTIFICATION_EDITORIAL_CAMPAIGNS_ENABLED !== 'true') {
+      return {success:true,skipped:true,reason:'CAMPAIGNS_DISABLED'};
+    }
+    assertEditorialDeliveryReady();
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -88,21 +98,21 @@ export class NotificationsCampaignService {
         return {
           type,
           title: 'Love Insight',
-          body: 'Your love life may be entering an important phase. Check your guidance.',
+          body: 'Explore general relationship reflection. This is editorial guidance, not a personal chart finding.',
         };
 
       case 'marriage':
         return {
           type,
           title: 'Marriage Guidance',
-          body: 'Your marriage-related planetary influences have new guidance for you.',
+          body: 'Explore general partnership reflection. No personal planetary event is asserted.',
         };
 
       case 'career':
         return {
           type,
           title: 'Career Insight',
-          body: 'A new career opportunity or decision may need your attention.',
+          body: 'Explore general career reflection, without a prediction or guarantee.',
         };
 
       case 'horoscope':

@@ -4,6 +4,7 @@ import {
 } from './dto/astrologer-bank-account.dto';
 import {
   Body,
+  BadRequestException,
   Controller,
   Get,
   Param,
@@ -39,8 +40,12 @@ export class AstrologerController {
     @Query('expertise') expertise?: string,
     @Query('category') category?: string,
     @Query('online') online?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('sort') sort?: string,
   ) {
     let onlineFilter: boolean | undefined;
+    if (online !== undefined && !['true','false'].includes(online)) throw new BadRequestException('Invalid online filter');
 
     if (online === 'true') {
       onlineFilter = true;
@@ -54,6 +59,9 @@ export class AstrologerController {
       expertise,
       category,
       online: onlineFilter,
+      ...(page !== undefined ? {page: /^\d+$/.test(page) ? Number(page) : NaN} : {}),
+      ...(limit !== undefined ? {limit: /^\d+$/.test(limit) ? Number(limit) : NaN} : {}),
+      ...(sort !== undefined ? {sort} : {}),
     });
   }
 

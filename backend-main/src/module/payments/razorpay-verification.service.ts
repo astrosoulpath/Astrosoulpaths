@@ -6,6 +6,16 @@ import {
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 
+// Always use the server-owned order ID and the API secret, never the webhook secret.
+export function verifyCheckoutSignature(orderId: string, paymentId: string, signature: string): boolean {
+  if (!/^order_[A-Za-z0-9]+$/.test(orderId) || !/^pay_[A-Za-z0-9]+$/.test(paymentId) ||
+      !/^[a-f0-9]{64}$/i.test(signature)) return false;
+  const secret = process.env.RAZORPAY_KEY_SECRET?.trim();
+  if (!secret) throw new InternalServerErrorException('Payment verification configuration is missing');
+  const expected = crypto.createHmac('sha256', secret).update(`${orderId}|${paymentId}`).digest();
+  return crypto.timingSafeEqual(expected, Buffer.from(signature, 'hex'));
+}
+
 export interface RazorpayOrder {
   id: string;
   entity: string;
@@ -57,14 +67,12 @@ export class RazorpayVerificationService {
       return Buffer.from(body);
     }
 
-    if (body && typeof body === 'object') {
-      return Buffer.from(JSON.stringify(body));
-    }
-
-    throw new BadRequestException('Webhook payload is empty');
+    // A parsed object cannot reproduce the exact bytes signed by Razorpay.
+    throw new BadRequestException('Original webhook payload is required');
   }
 
   verifyWebhookSignature(rawBody: Buffer, signature: string): boolean {
+    if (!/^[a-f0-9]{64}$/i.test(signature)) return false;
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
@@ -79,8 +87,8 @@ export class RazorpayVerificationService {
       .update(rawBody)
       .digest('hex');
 
-    const expectedBuffer = Buffer.from(generatedSignature);
-    const receivedBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(generatedSignature, 'hex');
+    const receivedBuffer = Buffer.from(signature, 'hex');
 
     if (expectedBuffer.length !== receivedBuffer.length) {
       return false;
@@ -93,16 +101,15 @@ export class RazorpayVerificationService {
     rawBody: Buffer,
     parsedBody?: unknown,
   ): RazorpayWebhookPayload {
-    if (
-      parsedBody &&
-      !Buffer.isBuffer(parsedBody) &&
-      typeof parsedBody === 'object'
-    ) {
-      return parsedBody as RazorpayWebhookPayload;
-    }
-
     try {
-      return JSON.parse(rawBody.toString('utf-8')) as RazorpayWebhookPayload;
+      // Process only the signed bytes, never an independently supplied object.
+      const event: unknown = JSON.parse(rawBody.toString('utf-8'));
+      if (!event || typeof event !== 'object' || Array.isArray(event) ||
+          typeof (event as RazorpayWebhookPayload).event !== 'string' ||
+          !(event as RazorpayWebhookPayload).event.trim()) {
+        throw new Error();
+      }
+      return event as RazorpayWebhookPayload;
     } catch {
       throw new BadRequestException('Invalid webhook payload');
     }

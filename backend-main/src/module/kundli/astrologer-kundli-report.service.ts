@@ -44,7 +44,7 @@ export class AstrologerKundliReportService {
       },
     });
 
-    const user = await this.prisma.user.findFirst({
+    const users = await this.prisma.user.findMany({
       where: {
         OR: [
           ...(mappedIdentity?.userId ? [{ id: mappedIdentity.userId }] : []),
@@ -57,7 +57,20 @@ export class AstrologerKundliReportService {
         isActive: true,
         isBlocked: true,
       },
+      take: 2,
     });
+
+    // A linked identity and a legacy anchor must never select different owners.
+    // Do not let findFirst's unspecified row order choose which reports to expose.
+    if (
+      users.length > 1 ||
+      (mappedIdentity?.userId && users[0]?.id !== mappedIdentity.userId)
+    ) {
+      throw new UnauthorizedException(
+        'Canonical identity mapping is ambiguous',
+      );
+    }
+    const user = users[0];
 
     if (!user) {
       throw new NotFoundException({
@@ -129,18 +142,42 @@ export class AstrologerKundliReportService {
     });
 
     if (existing) {
+      if (
+        existing.astrologerId !== authenticatedUserId ||
+        existing.customerUserId !== consultation.userId
+      ) {
+        throw new ConflictException('Report ownership could not be verified.');
+      }
       return existing;
     }
 
-    return this.prisma.astrologerKundliReport.create({
-      data: {
-        callSessionId: consultation.id,
-        customerUserId: consultation.userId,
-        astrologerId: consultation.astrologerId,
-        status: AstrologerKundliReportStatus.DRAFT,
-      },
-      include: { attachments: true },
-    });
+    try {
+      return await this.prisma.astrologerKundliReport.create({
+        data: {
+          callSessionId: consultation.id,
+          customerUserId: consultation.userId,
+          astrologerId: consultation.astrologerId,
+          status: AstrologerKundliReportStatus.DRAFT,
+        },
+        include: { attachments: true },
+      });
+    } catch (error) {
+      // Two retries may both observe no draft. The database unique key decides
+      // the winner; never create another report or overwrite the winner.
+      if ((error as { code?: string })?.code !== 'P2002') throw error;
+      const winner = await this.prisma.astrologerKundliReport.findUnique({
+        where: { callSessionId: consultation.id },
+        include: { attachments: true },
+      });
+      if (
+        !winner ||
+        winner.astrologerId !== authenticatedUserId ||
+        winner.customerUserId !== consultation.userId
+      ) {
+        throw new ConflictException('Report ownership could not be verified.');
+      }
+      return winner;
+    }
   }
 
   async updateDraft(
@@ -181,11 +218,20 @@ export class AstrologerKundliReportService {
       });
     }
 
-    return this.prisma.astrologerKundliReport.update({
-      where: { id: report.id },
-      data: input,
-      include: { attachments: true },
-    });
+    try {
+      return await this.prisma.astrologerKundliReport.update({
+        where: {
+          id: report.id,
+          astrologerId: authenticatedUserId,
+          status: AstrologerKundliReportStatus.DRAFT,
+        },
+        data: input,
+        include: { attachments: true },
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code !== 'P2025') throw error;
+      throw new ConflictException('The report changed. Reload before editing.');
+    }
   }
 
   async finalize(reportId: string, authenticatedUserId: string) {
@@ -221,14 +267,34 @@ export class AstrologerKundliReportService {
       });
     }
 
-    return this.prisma.astrologerKundliReport.update({
-      where: { id: report.id },
-      data: {
-        status: AstrologerKundliReportStatus.FINAL,
-        finalizedAt: new Date(),
-      },
-      include: { attachments: true },
-    });
+    try {
+      return await this.prisma.astrologerKundliReport.update({
+        where: {
+          id: report.id,
+          astrologerId: authenticatedUserId,
+          status: AstrologerKundliReportStatus.DRAFT,
+        },
+        data: {
+          status: AstrologerKundliReportStatus.FINAL,
+          finalizedAt: new Date(),
+        },
+        include: { attachments: true },
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code !== 'P2025') throw error;
+      const finalized = await this.prisma.astrologerKundliReport.findUnique({
+        where: { id: report.id },
+        include: { attachments: true },
+      });
+      if (
+        finalized?.astrologerId === authenticatedUserId &&
+        finalized.status === AstrologerKundliReportStatus.FINAL
+      )
+        return finalized;
+      throw new ConflictException(
+        'The report changed. Reload before finalizing.',
+      );
+    }
   }
 
   async listForAstrologer(authenticatedUserId: string) {

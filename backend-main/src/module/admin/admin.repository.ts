@@ -1,8 +1,16 @@
+import { paymentWhere } from './admin-record-query';
+import { astrologerWhere } from './admin-astrologer-query';
+import { historyWhere } from '../consultation/history-query';
+import { DEFAULT_PLATFORM_COMMISSION_PERCENT } from '../../common/finance/commission-policy';
+import { commissionAuditEnabled } from '../../common/finance/consultation-financial-policy';
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { PaymentStatus, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { customerWhere } from './admin-customer-query';
+import { financialReadModel } from './admin-financial-read-model';
+import { configuredPaymentMode } from '../payments/payment-creation-command';
 
 export type AdminPaginationParams = {
   page?: number;
@@ -11,6 +19,8 @@ export type AdminPaginationParams = {
 
 export type AdminUserListParams = AdminPaginationParams & {
   search?: string;
+  customerOnly?: boolean;
+  status?: string;
 };
 
 export type AdminAstrologerListParams = AdminPaginationParams & {
@@ -19,15 +29,41 @@ export type AdminAstrologerListParams = AdminPaginationParams & {
   onlineOnly?: boolean;
 };
 
-export type AdminCallListParams = AdminPaginationParams;
+export type AdminCallListParams = AdminPaginationParams & { search?: string; status?: string; mode?: string };
 
 export type AdminPaymentListParams = AdminPaginationParams & {
+  search?: string;
   status?: PaymentStatus;
 };
 
 @Injectable()
 export class AdminRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getFinanceOverview() {
+    // Currency groups must never be summed together or labelled settled company cash.
+    return this.prisma.$transaction(async (tx) => {
+      const wallets = await tx.wallet.groupBy({ by: ['currency'],
+        _sum: { balance: true, lockedBalance: true, paidBalance: true, freeBalance: true } });
+      const earnings = await tx.astrologerEarning.groupBy({ by: ['currency', 'status'],
+        _sum: { grossAmount: true, platformFee: true, netAmount: true }, _count: { id: true } });
+      const payouts = await tx.astrologerPayout.groupBy({ by: ['currency', 'status'],
+        _sum: { amount: true }, _count: { id: true } });
+      const collections = await tx.paymentOrder.groupBy({ by: ['currency', 'status'],
+        _sum: { amount: true }, _count: { id: true } });
+      const audit = commissionAuditEnabled() ? {
+        status: 'RECORDED',
+        rows: await tx.$queryRaw<Array<{ id: string; previousPercent: Prisma.Decimal; newPercent: Prisma.Decimal; effectiveAt: Date }>>`
+          SELECT "id", "previousPercent", "newPercent", "effectiveAt" FROM public."CommissionPolicyAudit" ORDER BY "effectiveAt" DESC, "id" DESC LIMIT 50`,
+      } : { status: 'NOT_ACTIVATED', rows: [] };
+      const diagnostics=await financialReadModel(tx);
+      return { wallets, earnings, payouts, collections, audit, ...diagnostics,
+        runtime:{configuredPaymentMode:configuredPaymentMode(),recordMode:'PER_ORDER_METADATA; HISTORICAL UNKNOWN IS NOT ASSUMED TEST'},
+        settlement: { status: 'UNVERIFIED', reason: 'Provider bank settlement reconciliation is not recorded by this report.' },
+        accountingBasis: 'RECORDED_BALANCES_AND_EARNINGS',
+        warning: 'Gross earnings are recorded completed billings, not all accepted captures. Reversed earnings are shown separately; fees, taxes and chargebacks are not inferred.' };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+  }
 
   private getPagination(params: AdminPaginationParams = {}) {
     const page = Math.max(params.page ?? 1, 1);
@@ -93,7 +129,8 @@ export class AdminRepository {
 
       this.prisma.paymentOrder.count(),
 
-      this.prisma.paymentOrder.aggregate({
+      this.prisma.paymentOrder.groupBy({
+        by: ['currency'], orderBy: {currency:'asc'},
         where: {
           status: PaymentStatus.SUCCESS,
         },
@@ -108,7 +145,8 @@ export class AdminRepository {
         },
       }),
 
-      this.prisma.paymentOrder.aggregate({
+      this.prisma.paymentOrder.groupBy({
+        by: ['currency'], orderBy: {currency:'asc'},
         where: {
           status: PaymentStatus.REFUNDED,
         },
@@ -120,7 +158,8 @@ export class AdminRepository {
         },
       }),
 
-      this.prisma.wallet.aggregate({
+      this.prisma.wallet.groupBy({
+        by: ['currency'], orderBy: {currency:'asc'},
         _count: {
           id: true,
         },
@@ -152,17 +191,21 @@ export class AdminRepository {
 
       payments: {
         totalOrders: totalPaymentOrders,
-        successfulOrders: successfulPaymentSummary._count.id,
-        successfulAmount: successfulPaymentSummary._sum.amount ?? 0,
-        averageSuccessfulAmount: successfulPaymentSummary._avg.amount ?? 0,
-        refundedOrders: refundedPaymentSummary._count.id,
-        refundedAmount: refundedPaymentSummary._sum.amount ?? 0,
+        successfulOrders: successfulPaymentSummary.reduce((n, row) => n + (row._count!.id ?? 0), 0),
+        successfulAmount: successfulPaymentSummary.length === 1 ? successfulPaymentSummary[0]._sum!.amount : null,
+        successfulAmountByCurrency: successfulPaymentSummary.map(row => ({currency:row.currency,amount:row._sum!.amount})),
+        averageSuccessfulAmount: successfulPaymentSummary.length === 1 ? successfulPaymentSummary[0]._avg!.amount : null,
+        refundedOrders: refundedPaymentSummary.reduce((n, row) => n + (row._count!.id ?? 0), 0),
+        refundedAmount: refundedPaymentSummary.length === 1 ? refundedPaymentSummary[0]._sum!.amount : null,
+        refundedAmountByCurrency: refundedPaymentSummary.map(row => ({currency:row.currency,amount:row._sum!.amount})),
       },
 
       wallets: {
-        totalWallets: walletSummary._count.id,
-        totalBalance: walletSummary._sum.balance ?? 0,
-        totalLockedBalance: walletSummary._sum.lockedBalance ?? 0,
+        totalWallets: walletSummary.reduce((n, row) => n + (row._count!.id ?? 0), 0),
+        totalBalance: walletSummary.length === 1 ? walletSummary[0]._sum!.balance : null,
+        totalBalanceByCurrency: walletSummary.map(row => ({currency:row.currency,amount:row._sum!.balance})),
+        totalLockedBalance: walletSummary.length === 1 ? walletSummary[0]._sum!.lockedBalance : null,
+        totalLockedBalanceByCurrency: walletSummary.map(row => ({currency:row.currency,amount:row._sum!.lockedBalance})),
       },
 
       reviews: {
@@ -181,7 +224,7 @@ export class AdminRepository {
     const { page, limit, skip } = this.getPagination(params);
     const search = params.search?.trim();
 
-    const where: Prisma.UserWhereInput = search
+    const where: Prisma.UserWhereInput = params.customerOnly ? customerWhere(search, params.status) : search
       ? {
           OR: [
             {
@@ -204,10 +247,10 @@ export class AdminRepository {
         where,
         skip,
         take: limit,
-        orderBy: {
-          createdAt: 'desc',
-        },
-        include: {
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+        select: {
+          id: true, email: true, phone: true, name: true,
+          isActive: true, isBlocked: true, createdAt: true, updatedAt: true,
           role: {
             select: {
               id: true,
@@ -233,7 +276,7 @@ export class AdminRepository {
               currency: true,
             },
           },
-          userProfile: true,
+          userProfile: { select: { fullName: true, avatarUrl: true } },
         },
       }),
 
@@ -301,58 +344,14 @@ export class AdminRepository {
 
   async findAstrologers(params: AdminAstrologerListParams = {}) {
     const { page, limit, skip } = this.getPagination(params);
-    const search = params.search?.trim();
-
-    const where: Prisma.AstrologerWhereInput = {
-      ...(params.approval === 'PENDING'
-        ? {
-            isApproved: false,
-          }
-        : {}),
-
-      ...(params.approval === 'APPROVED'
-        ? {
-            isApproved: true,
-          }
-        : {}),
-
-      ...(params.onlineOnly
-        ? {
-            isOnline: true,
-          }
-        : {}),
-
-      ...(search
-        ? {
-            user: {
-              is: {
-                OR: [
-                  {
-                    phone: {
-                      contains: search,
-                    },
-                  },
-                  {
-                    supabaseId: {
-                      contains: search,
-                      mode: 'insensitive',
-                    },
-                  },
-                ],
-              },
-            },
-          }
-        : {}),
-    };
+    const where = astrologerWhere(params);
 
     const [items, total] = await Promise.all([
       this.prisma.astrologer.findMany({
         where,
         skip,
         take: limit,
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: {
           user: {
             include: {
@@ -608,13 +607,13 @@ export class AdminRepository {
   async findCallSessions(params: AdminCallListParams = {}) {
     const { page, limit, skip } = this.getPagination(params);
 
+    const where = historyWhere(params, 'admin');
     const [items, total] = await Promise.all([
       this.prisma.callSession.findMany({
+        where,
         skip,
         take: limit,
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: {
           user: {
             include: {
@@ -635,7 +634,7 @@ export class AdminRepository {
         },
       }),
 
-      this.prisma.callSession.count(),
+      this.prisma.callSession.count({ where }),
     ]);
 
     return {
@@ -690,20 +689,14 @@ export class AdminRepository {
   async findPaymentOrders(params: AdminPaymentListParams = {}) {
     const { page, limit, skip } = this.getPagination(params);
 
-    const where: Prisma.PaymentOrderWhereInput = params.status
-      ? {
-          status: params.status,
-        }
-      : {};
+    const where = paymentWhere(params.search, params.status);
 
     const [items, total] = await Promise.all([
       this.prisma.paymentOrder.findMany({
         where,
         skip,
         take: limit,
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: {
           user: {
             include: {
@@ -804,7 +797,8 @@ export class AdminRepository {
           }
         : undefined;
 
-    const result = await this.prisma.paymentOrder.aggregate({
+    const result = await this.prisma.paymentOrder.groupBy({
+      by: ['currency'], orderBy: {currency:'asc'},
       where: {
         status: PaymentStatus.SUCCESS,
         ...(createdAt ? { createdAt } : {}),
@@ -821,9 +815,14 @@ export class AdminRepository {
     });
 
     return {
-      successfulPayments: result._count.id,
-      totalRevenue: result._sum.amount ?? 0,
-      averagePaymentAmount: result._avg.amount ?? 0,
+      successfulPayments: result.reduce((n,row) => n + (row._count!.id ?? 0), 0),
+      collectionsByCurrency: result.map(row => ({currency:row.currency,amount:row._sum!.amount,average:row._avg!.amount,count:row._count!.id})),
+      // Collections are not earned consultation commission or settled bank cash.
+      successfulPaymentCollections: result.length === 1 ? result[0]._sum!.amount : null,
+      accountingBasis: 'SUCCESSFUL_PAYMENT_COLLECTIONS' as const,
+      // Retain the historical API key for compatibility; new consumers use the explicit key.
+      totalRevenue: result.length === 1 ? result[0]._sum!.amount : null,
+      averagePaymentAmount: result.length === 1 ? result[0]._avg!.amount : null,
     };
   }
 
@@ -907,16 +906,8 @@ export class AdminRepository {
   }
 
   async getPlatformSettings() {
-    return this.prisma.platformSettings.upsert({
-      where: {
-        id: 'default',
-      },
-      update: {},
-      create: {
-        id: 'default',
-        platformCommissionPercent: new Prisma.Decimal(30),
-      },
-    });
+    const settings = await this.prisma.platformSettings.findUnique({ where: { id: 'default' } });
+    return settings ?? { id: 'default', platformCommissionPercent: new Prisma.Decimal(DEFAULT_PLATFORM_COMMISSION_PERCENT), updatedAt: null };
   }
 
   async updatePlatformSettings(platformCommissionPercent: number) {

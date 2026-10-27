@@ -15,6 +15,7 @@ describe('PaymentsService', () => {
   let prismaMock: {
     $transaction: jest.Mock;
     user: { findUnique: jest.Mock; update: jest.Mock };
+    userProfile: { findUnique: jest.Mock };
     userAuthIdentity: { findUnique: jest.Mock };
     wallet: {
       upsert: jest.Mock;
@@ -125,6 +126,7 @@ describe('PaymentsService', () => {
       .mockResolvedValue({ items: [] } as never);
 
     prismaMock = {
+      userProfile: { findUnique: jest.fn().mockResolvedValue({ lang: 'en' }) },
       $transaction: jest.fn(),
       user: {
         findUnique: jest.fn(),
@@ -228,6 +230,30 @@ describe('PaymentsService', () => {
     fetchPaymentsSpy.mockRestore();
   });
 
+  it.each(['0', '-1', '1.001', '90071992547410', 'NaN'])('rejects unsafe minor-unit conversion %s', value => {
+    expect(() => (service as any).convertMajorUnitsToSubunits(new Prisma.Decimal(value))).toThrow();
+  });
+
+  it('rejects non-INR checkout without explicit merchant approval', async () => {
+    const previous = process.env.RAZORPAY_INTERNATIONAL_PAYMENTS_ENABLED;
+    delete process.env.RAZORPAY_INTERNATIONAL_PAYMENTS_ENABLED;
+    try {
+      await expect((service as any).createTypedPaymentOrder({userId: 'synthetic', amount: new Prisma.Decimal(1), currency: 'USD', type: PaymentType.SUBSCRIPTION})).rejects.toThrow('International checkout is disabled');
+      expect(prismaMock.paymentOrder.create).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) delete process.env.RAZORPAY_INTERNATIONAL_PAYMENTS_ENABLED;
+      else process.env.RAZORPAY_INTERNATIONAL_PAYMENTS_ENABLED = previous;
+    }
+  });
+
+  it.each([{id:'order_synthetic',amount:1,currency:'INR'},{id:'order_synthetic',amount:10000,currency:'USD'},{id:'',amount:10000,currency:'INR'}])('rejects a mismatched provider order before local persistence: %j', async response => {
+    const create=jest.spyOn(getRazorpayInstance().orders,'create').mockResolvedValue(response as never);
+    try {
+      await expect((service as any).createTypedPaymentOrder({userId:'synthetic',amount:new Prisma.Decimal(100),currency:'INR',type:PaymentType.WALLET_RECHARGE})).rejects.toThrow('Provider order does not match');
+      expect(prismaMock.paymentOrder.create).not.toHaveBeenCalled();
+    } finally {create.mockRestore();}
+  });
+
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
@@ -265,7 +291,9 @@ describe('PaymentsService', () => {
     expect(prismaMock.walletLedger.create).toHaveBeenCalledTimes(1);
 
     const walletUpdateInput = prismaMock.wallet.update.mock.calls[0][0];
-    expect(walletUpdateInput.data.balance.toString()).toBe('350');
+    expect(walletUpdateInput.data.balance.increment.toString()).toBe('100');
+    expect(walletUpdateInput.where.userId).toBe(paymentOrder.userId);
+    expect(walletUpdateInput.where.currency).toBe('INR');
 
     const ledgerCreateInput = prismaMock.walletLedger.create.mock.calls[0][0];
     expect(ledgerCreateInput.data.balanceBefore.toString()).toBe('250');
@@ -291,6 +319,78 @@ describe('PaymentsService', () => {
     });
     expect(prismaMock.wallet.findUnique).not.toHaveBeenCalled();
     expect(prismaMock.wallet.update).not.toHaveBeenCalled();
+    expect(prismaMock.walletLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('derives ledger bounds from atomic UPDATE rather than stale wallet SELECT', async () => {
+    const order = buildPaymentOrder();
+    prismaMock.wallet.findUnique.mockResolvedValue(order.wallet);
+    prismaMock.wallet.update.mockResolvedValue({...order.wallet, balance: new Prisma.Decimal(450)});
+    const result = await (service as any).creditWallet(prismaMock, order.walletId, new Prisma.Decimal(100), new Prisma.Decimal(100), new Prisma.Decimal(0), 'INR', order.userId);
+    expect(result.balanceBefore.toString()).toBe('350');
+    expect(result.balanceAfter.toString()).toBe('450');
+  });
+
+  it('rejects a wallet belonging to another owner', async () => {
+    const order = buildPaymentOrder();
+    prismaMock.wallet.findUnique.mockResolvedValue({...order.wallet, userId: 'foreign'});
+    await expect((service as any).creditWallet(prismaMock, order.walletId, new Prisma.Decimal(100), new Prisma.Decimal(100), new Prisma.Decimal(0), 'INR', order.userId)).rejects.toThrow('Wallet not found');
+    expect(prismaMock.wallet.update).not.toHaveBeenCalled();
+  });
+
+  it.each([PaymentStatus.REFUNDED, PaymentStatus.EXPIRED])('never reactivates a terminal %s order', async status => {
+    prismaMock.paymentOrder.findUnique.mockResolvedValue({...buildPaymentOrder(), status});
+    await expect(service.processVerifiedWebhook(buildCapturedEvent())).rejects.toThrow('Terminal payment');
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects conflicting canonical and legacy payment identity', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({id: 'foreign'});
+    await expect(service.reconcileOrder('synthetic', 'order_123')).rejects.toThrow('Conflicting payment identity');
+    expect(fetchPaymentsSpy).not.toHaveBeenCalled();
+  });
+
+  it('uses server report price and an owned saved record, not client amount', async () => {
+    const previous = {...process.env};
+    process.env.KUNDLI_LEGACY_REPORT_CHECKOUT_APPROVED = 'true';
+    process.env.KUNDLI_LEGACY_REPORT_PRICE_INR = '123.45';
+    prismaMock.user.findUnique.mockResolvedValue({id: 'user_123', isActive: true, isBlocked: false});
+    const owned = jest.fn().mockResolvedValue({id: 'owned'});
+    (prismaMock as any).kundliSavedRecord = {findFirst: owned};
+    const create = jest.spyOn(service as any, 'createTypedPaymentOrder').mockResolvedValue({id: 'order_synthetic'});
+    try {
+      await service.createKundliReportOrder('synthetic', {amount: 1, kundliId: 'kundli_synthetic'});
+      expect((create.mock.calls[0][0] as {amount:Prisma.Decimal}).amount.toFixed(2)).toBe('123.45');
+      expect(owned.mock.calls[0][0].where.OR).toContainEqual({customerUserId: 'user_123'});
+      owned.mockResolvedValue(null);
+      await expect(service.createKundliReportOrder('synthetic', {amount: 1, kundliId: 'foreign'})).rejects.toThrow('Authorized Kundli report not found');
+      expect(create).toHaveBeenCalledTimes(1);
+    } finally {process.env = previous;create.mockRestore();}
+  });
+
+  it('activates for the purchased duration despite later plan edits', async () => {
+    const order = {...buildPaymentOrder(), amount: new Prisma.Decimal(3500), type: PaymentType.SUBSCRIPTION, metadata: {
+      subscriptionId: 'sub', planName: 'ASTROLOGER_KUNDLI_YEARLY',
+      planSnapshot: {name: 'ASTROLOGER_KUNDLI_YEARLY', durationDays: 365, amount: '3500', currency: 'INR'},
+    }};
+    prismaMock.paymentOrder.updateMany.mockResolvedValue({count: 1});
+    prismaMock.paymentOrder.findUniqueOrThrow.mockResolvedValue(order);
+    prismaMock.subscription.findUnique.mockResolvedValue({id: 'sub', userId: order.userId, subscriptionPlanId: 'plan', subscriptionPlan: {name: 'ASTROLOGER_KUNDLI_YEARLY', durationDays: 7}});
+    prismaMock.subscription.update.mockResolvedValue({id: 'sub'});
+    prismaMock.user.update.mockResolvedValue({});
+    await (service as any).processSubscriptionTransaction(prismaMock, order, buildCapturedEvent().payload.payment.entity, buildCapturedEvent());
+    const dates = prismaMock.subscription.update.mock.calls[0][0].data;
+    expect(dates.endDate.getTime() - dates.startDate.getTime()).toBe(365 * 86400000);
+    expect(prismaMock.wallet.update).not.toHaveBeenCalled();
+    expect(prismaMock.walletLedger.create).not.toHaveBeenCalled();
+  });
+
+  it.each([{amount: 1}, {currency: 'USD'}, {currency: ''}])('rejects captured amount/currency mismatch before a transaction: %j', async patch => {
+    prismaMock.paymentOrder.findUnique.mockResolvedValue(buildPaymentOrder());
+    const event = buildCapturedEvent();
+    Object.assign(event.payload.payment.entity, patch);
+    await expect(service.processVerifiedWebhook(event)).rejects.toThrow();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
     expect(prismaMock.walletLedger.create).not.toHaveBeenCalled();
   });
 
@@ -412,7 +512,20 @@ describe('PaymentsService', () => {
     expect(prismaMock.walletLedger.create).toHaveBeenCalledTimes(1);
   });
 
-  it('marks a pending order failed when Razorpay has no captured payment', async () => {
+  it.each([[], [{status: 'authorized'}], [{status: 'created'}], [{status: 'failed'}, {status: 'authorized'}]].map(items => ({items})))('keeps unsettled gateway attempts pending without financial writes: %j', async ({items}) => {
+    const order = buildPaymentOrder();
+    prismaMock.user.findUnique.mockResolvedValue({id: 'user_123', isActive: true, isBlocked: false});
+    prismaMock.paymentOrder.findUnique.mockResolvedValue(order);
+    fetchPaymentsSpy.mockResolvedValue({items});
+    expect(await service.reconcileOrder('supabase_user_123', 'order_123')).toEqual({
+      status: 'pending', paymentOrderId: order.id, reason: 'gateway_payment_pending',
+    });
+    expect(prismaMock.paymentOrder.updateMany).not.toHaveBeenCalled();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(prismaMock.walletLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('marks a pending order failed when Razorpay confirms all attempts failed', async () => {
     const paymentOrder = buildPaymentOrder();
 
     prismaMock.user.findUnique.mockResolvedValue({

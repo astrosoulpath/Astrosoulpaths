@@ -3,6 +3,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { contextIdentityReader, verifyAnyContextSession } from '../../common/auth/context-session';
 import {
   createRemoteJWKSet,
   decodeProtectedHeader,
@@ -63,6 +64,12 @@ export class SupabaseJwtService {
     if (!normalizedToken) {
       throw new UnauthorizedException('Missing access token');
     }
+    if(normalizedToken.startsWith('aspctx.')){
+      const proof=await verifyAnyContextSession(normalizedToken,contextIdentityReader(this.prismaService));
+      return {sub:proof.user.supabaseId,exp:proof.expiresAt,auth_provider:'asp-context',firebase_uid:proof.uid,
+        asp_user_id:proof.user.id,asp_context:proof.context,asp_account_role:proof.effectiveRole,
+        asp_canonical_role:proof.user.role?.name};
+    }
 
     /*
      * Backward compatibility is intentional:
@@ -77,17 +84,14 @@ export class SupabaseJwtService {
      * authorization/business logic.
      */
     try {
-      return await this.verifySupabaseAccessToken(normalizedToken);
+      const result=await this.verifySupabaseAccessToken(normalizedToken);
+      delete result.asp_context;delete result.asp_canonical_role;
+      return result;
     } catch (supabaseError) {
       try {
         return await this.verifyFirebaseAccessToken(normalizedToken);
       } catch (firebaseError) {
-        const supabaseMessage = this.errorMessage(supabaseError);
-        const firebaseMessage = this.errorMessage(firebaseError);
-
-        this.logger.warn(
-          `auth.verify_failed supabase=${supabaseMessage} firebase=${firebaseMessage}`,
-        );
+        this.logger.warn('Authentication verification failed');
 
         throw new UnauthorizedException('Invalid access token');
       }
@@ -128,6 +132,9 @@ export class SupabaseJwtService {
     const app = this.getFirebaseAdminApp();
 
     const decoded = await getAuth(app).verifyIdToken(token, true);
+    if (decoded.aud !== process.env.FIREBASE_PROJECT_ID?.trim()) {
+      throw new UnauthorizedException('Firebase project mismatch');
+    }
 
     const firebaseUid = decoded.uid?.trim();
 
@@ -162,6 +169,7 @@ export class SupabaseJwtService {
         'Firebase identity is not linked to an Astro Soul Path account',
       );
     }
+    if(user.role?.name?.toUpperCase()==='ADMIN')throw new UnauthorizedException('Scoped session required');
 
     const now = Math.floor(Date.now() / 1000);
 
@@ -190,21 +198,19 @@ export class SupabaseJwtService {
       throw new UnauthorizedException('Firebase token expiration is missing');
     }
 
-    this.logger.debug(
-      `jwt.verify_success mode=firebase uid=${firebaseUid} canonicalSub=${payload.sub}`,
-    );
+    this.logger.debug('Firebase authentication verified');
 
     return payload;
   }
 
   private getFirebaseAdminApp(): App {
-    const existingApp = getApps()[0];
+    const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
+    const existingApp = getApps().find(app => app.options.projectId === projectId);
 
     if (existingApp) {
       return existingApp;
     }
 
-    const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
 
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(
@@ -225,7 +231,7 @@ export class SupabaseJwtService {
         privateKey,
       }),
       projectId,
-    });
+    }, `asp-communication-${projectId}`);
   }
   private async verifyUsingJwks(token: string): Promise<JWTPayload> {
     try {
@@ -236,13 +242,11 @@ export class SupabaseJwtService {
 
       this.assertRequiredClaims(payload);
 
-      this.logger.debug(`jwt.verify_success mode=jwks sub=${payload.sub}`);
+      this.logger.debug('Supabase JWKS authentication verified');
 
       return payload;
     } catch (error) {
-      const message = this.errorMessage(error);
-
-      this.logger.warn(`jwt.verify_jwks_failed reason=${message}`);
+      this.logger.warn('Supabase JWKS authentication failed');
 
       throw new UnauthorizedException('Invalid access token');
     }
@@ -266,13 +270,11 @@ export class SupabaseJwtService {
 
       this.assertRequiredClaims(payload);
 
-      this.logger.debug(`jwt.verify_success mode=legacy sub=${payload.sub}`);
+      this.logger.debug('Supabase legacy authentication verified');
 
       return payload;
     } catch (error) {
-      const message = this.errorMessage(error);
-
-      this.logger.warn(`jwt.verify_legacy_failed reason=${message}`);
+      this.logger.warn('Supabase legacy authentication failed');
 
       throw new UnauthorizedException('Invalid access token');
     }

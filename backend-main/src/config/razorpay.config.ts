@@ -1,12 +1,10 @@
 import Razorpay from 'razorpay';
 
 let razorpayInstance: Razorpay | null = null;
+let configuredKeyId: string | undefined;
+let configuredKeySecret: string | undefined;
 
 export function getRazorpayInstance(): Razorpay {
-  if (razorpayInstance) {
-    return razorpayInstance;
-  }
-
   const keyId = process.env.RAZORPAY_KEY_ID?.trim();
   const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
 
@@ -16,10 +14,21 @@ export function getRazorpayInstance(): Razorpay {
     );
   }
 
+  if (!/^rzp_(test|live)_[A-Za-z0-9]+$/.test(keyId)) {
+    throw new Error('Razorpay key mode is invalid.');
+  }
+  if (keyId.startsWith('rzp_live_') && process.env.RAZORPAY_LIVE_PAYMENTS_ENABLED !== 'true') {
+    throw new Error('Razorpay live operations are disabled pending explicit approval.');
+  }
+
+  if (razorpayInstance && configuredKeyId === keyId && configuredKeySecret === keySecret) return razorpayInstance;
+
   razorpayInstance = new Razorpay({
     key_id: keyId,
     key_secret: keySecret,
   });
+  configuredKeyId = keyId;
+  configuredKeySecret = keySecret;
 
   return razorpayInstance;
 }

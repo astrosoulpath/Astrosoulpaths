@@ -1,3 +1,4 @@
+import { requireAdminRequest } from '../auth/admin-identity-policy';
 import {
   CanActivate,
   ExecutionContext,
@@ -56,6 +57,11 @@ export class RolesGuard implements CanActivate {
     const request =
       context.switchToHttp().getRequest();
 
+
+    if (requiredRoles.every(role => role.toUpperCase() === 'ADMIN')) {
+      requireAdminRequest(request);
+      return true;
+    }
 
     const user = request.user;
 
@@ -150,6 +156,13 @@ export class RolesGuard implements CanActivate {
 
 
     const permanentRole = dbUser.role?.name?.toUpperCase();
+    if(user.asp_context){
+      if(user.asp_context==='admin'){requireAdminRequest(request);if(requiredRoles.some(role=>role.toUpperCase()==='ADMIN'))return true;throw new ForbiddenException('Customer or Astrologer context required');}
+      const roles=user.asp_context==='customer'?['USER','CUSTOMER']:
+        user.asp_context==='astrologer'&&dbUser.isAstrologer&&dbUser.astrologer?.isApproved&&dbUser.astrologer?.isVerified?['ASTROLOGER']:[];
+      if(!requiredRoles.some(role=>roles.includes(role.toUpperCase())))throw new ForbiddenException('Session context does not grant this permission');
+      return true;
+    }
     let userRoles = [dbUser.roleId, dbUser.role?.id, permanentRole]
       .filter(Boolean).map((role) => String(role).toUpperCase());
     // Customer access survives historical single-role promotions. Astrologer
@@ -161,6 +174,11 @@ export class RolesGuard implements CanActivate {
     if (approved) userRoles.push('ASTROLOGER');
     else {
       userRoles = userRoles.filter((role) => role !== 'ASTROLOGER');
+    }
+
+    if (userRoles.includes('ADMIN')) {
+      try { requireAdminRequest(request); }
+      catch { userRoles = userRoles.filter(role => role !== 'ADMIN'); }
     }
 
     const allowedRoles =

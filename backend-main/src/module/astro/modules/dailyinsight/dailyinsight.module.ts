@@ -6,6 +6,7 @@ import { NakshatraDailyInsightService } from './dailyinsight.service';
 import { DailyinsightController } from './dailyinsight.controller';
 import { DailyHoroscopeAiService } from './daily-horoscope-ai.service';
 import { DailyHoroscopePushProcessor } from './daily-horoscope-push.processor';
+import { HoroscopeOutboxWorker } from '../../../subscription/horoscope-outbox.worker';
 import { KundliModule } from '../../../kundli/kundli.module';
 @Module({
   imports: [NotificationsModule, RedisModule, AstroCoreModule, forwardRef(() => KundliModule)],
@@ -13,6 +14,7 @@ import { KundliModule } from '../../../kundli/kundli.module';
     NakshatraDailyInsightService,
     DailyHoroscopeAiService,
     DailyHoroscopePushProcessor,
+    HoroscopeOutboxWorker,
   ],
   controllers: [DailyinsightController],
 })

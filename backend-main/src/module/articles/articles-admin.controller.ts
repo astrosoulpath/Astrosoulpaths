@@ -28,11 +28,13 @@ export class ArticlesAdminController {
   }
 
   @Post()
-  create(
-    @Body() body: any,
-    @CurrentUserDecorator() user: JWTPayload,
-  ) {
-    return this.articlesService.create(body, user.sub as string);
+  create(@Body() body: any, @CurrentUserDecorator() user: JWTPayload) {
+    return this.articlesService.adminMutation(
+      'CREATE',
+      user.sub as string,
+      undefined,
+      body,
+    );
   }
 
   @Patch(':id/approve')
@@ -41,10 +43,11 @@ export class ArticlesAdminController {
     @Body() body: any,
     @CurrentUserDecorator() user: JWTPayload,
   ) {
-    return this.articlesService.approve(
-      id,
+    return this.articlesService.adminMutation(
+      'APPROVE',
       user.sub as string,
-      body?.publishedAt,
+      id,
+      body || {},
     );
   }
 
@@ -54,10 +57,11 @@ export class ArticlesAdminController {
     @Body() body: any,
     @CurrentUserDecorator() user: JWTPayload,
   ) {
-    return this.articlesService.reject(
-      id,
+    return this.articlesService.adminMutation(
+      'REJECT',
       user.sub as string,
-      body?.reviewNote,
+      id,
+      body || {},
     );
   }
 
@@ -67,11 +71,11 @@ export class ArticlesAdminController {
     @Body() body: any,
     @CurrentUserDecorator() user: JWTPayload,
   ) {
-    return this.articlesService.setPublished(
-      id,
-      true,
-      body?.publishedAt,
+    return this.articlesService.adminMutation(
+      'PUBLISH',
       user.sub as string,
+      id,
+      body || {},
     );
   }
 
@@ -79,22 +83,36 @@ export class ArticlesAdminController {
   unpublish(
     @Param('id') id: string,
     @CurrentUserDecorator() user: JWTPayload,
+    @Body() body: unknown,
   ) {
-    return this.articlesService.setPublished(
-      id,
-      false,
-      undefined,
+    return this.articlesService.adminMutation(
+      'UNPUBLISH',
       user.sub as string,
+      id,
+      body || {},
     );
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: any) {
-    return this.articlesService.update(id, body);
+  update(
+    @Param('id') id: string,
+    @Body() body: any,
+    @CurrentUserDecorator() user: JWTPayload,
+  ) {
+    return this.articlesService.adminMutation(
+      'UPDATE',
+      user.sub as string,
+      id,
+      body,
+    );
+  }
+
+  @Get(':id/audit') audit(@Param('id') id: string) {
+    return this.articlesService.adminAudit(id);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.articlesService.remove(id);
+  remove(@Param('id') id: string, @CurrentUserDecorator() user: JWTPayload) {
+    return this.articlesService.adminMutation('DELETE', user.sub as string, id);
   }
 }

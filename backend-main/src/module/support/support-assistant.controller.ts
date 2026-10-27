@@ -1,3 +1,5 @@
+import { UseFilters } from '@nestjs/common';
+import { SupportErrorFilter } from './support-error.filter';
 import {
   Body,
   Controller,
@@ -8,15 +10,25 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
+import { NotificationsIdentityGuard } from '../notifications/notifications-identity.guard';
 import { EscalateAssistantDto } from './dto/escalate-assistant.dto';
 import { SendAssistantMessageDto } from './dto/send-assistant-message.dto';
 import { SupportAssistantService } from './support-assistant.service';
+import { SupportCatalogueService } from './support-catalogue.service';
 
+@UseFilters(SupportErrorFilter)
 @Controller('support/assistant')
-@UseGuards(SupabaseAuthGuard)
+@UseGuards(NotificationsIdentityGuard)
 export class SupportAssistantController {
-  constructor(private readonly service: SupportAssistantService) {}
+  constructor(
+    private readonly service: SupportAssistantService,
+    private readonly catalogue: SupportCatalogueService,
+  ) {}
+
+  @Get('config')
+  config(@CurrentUser() user: Record<string, any>) {
+    return this.catalogue.customer(user);
+  }
 
   @Get('health')
   getProviderHealth() {

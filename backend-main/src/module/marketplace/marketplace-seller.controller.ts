@@ -19,13 +19,15 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 
 import { MarketplaceService } from './marketplace.service';
+import { MarketplaceWriteGuard } from './marketplace-write.guard';
+import { UpdateMarketplaceInventoryDto } from './dto/update-marketplace-inventory.dto';
 import { CreateMarketplaceProductDto } from './dto/create-marketplace-product.dto';
 import { UpdateMarketplaceProductDto } from './dto/update-marketplace-product.dto';
 import { UpsertMarketplaceSellerProfileDto } from './dto/upsert-marketplace-seller-profile.dto';
 import { ShipMarketplaceOrderDto } from './dto/ship-marketplace-order.dto';
 
 @Controller('marketplace/seller')
-@UseGuards(SupabaseAuthGuard)
+@UseGuards(SupabaseAuthGuard, MarketplaceWriteGuard)
 export class MarketplaceSellerController {
   constructor(private readonly marketplaceService: MarketplaceService) {}
 
@@ -77,6 +79,21 @@ export class MarketplaceSellerController {
   @Patch('products/:id/archive')
   archiveProduct(@CurrentUser() user: JWTPayload, @Param('id') id: string) {
     return this.marketplaceService.archiveSellerProduct(user.sub as string, id);
+  }
+
+  @Patch('products/:id/pause')
+  pauseProduct(@CurrentUser() user: JWTPayload, @Param('id') id: string) {
+    return this.marketplaceService.setSellerProductPaused(user.sub as string, id, true);
+  }
+
+  @Patch('products/:id/inventory')
+  updateInventory(@CurrentUser() user: JWTPayload, @Param('id') id: string, @Body() dto: UpdateMarketplaceInventoryDto) {
+    return this.marketplaceService.updateSellerInventory(user.sub as string, id, dto.expectedStock, dto.stock);
+  }
+
+  @Patch('products/:id/resume')
+  resumeProduct(@CurrentUser() user: JWTPayload, @Param('id') id: string) {
+    return this.marketplaceService.setSellerProductPaused(user.sub as string, id, false);
   }
 
   @Post('products/:id/images')
