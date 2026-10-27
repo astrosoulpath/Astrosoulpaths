@@ -1,0 +1,55 @@
+name: Payment Node22 readiness
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'backend-main/**'
+      - 'website/**'
+      - '.github/workflows/payment-node22-readiness.yml'
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-main
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: corepack enable
+      - run: corepack pnpm@11.25.0 install --frozen-lockfile
+      - run: corepack pnpm@11.25.0 exec prisma generate
+      - run: corepack pnpm@11.25.0 run build
+      - run: >-
+          corepack pnpm@11.25.0 exec jest --runInBand --runTestsByPath
+          src/module/payments/product-refund.spec.ts
+          src/module/admin/admin-product-refund.spec.ts
+          src/module/payments/razorpay-refund-dispatcher.spec.ts
+          src/module/payments/checkout-proof.spec.ts
+          src/module/payments/captured-order-binding.spec.ts
+          src/module/payments/marketplace-webhook-environment.spec.ts
+          src/config/razorpay.config.spec.ts
+  website:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci
+      - run: node --test tests/wallet-checkout.test.cjs tests/subscription-checkout-proof.test.cjs tests/subscription-verification-status.test.cjs tests/horoscope-checkout.test.cjs tests/horoscope-website.test.cjs tests/payment-stage2.test.cjs
+      - run: npm run build -- --webpack
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'

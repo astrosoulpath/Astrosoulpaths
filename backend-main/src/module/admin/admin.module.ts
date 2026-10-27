@@ -1,4 +1,5 @@
 import { AdminModerationService } from './admin-moderation.service';
+import { AdminProductRefundController } from './admin-product-refund.controller';
 import { PaymentsModule } from '../payments/payments.module';
 import { AdminPaymentOperationsController } from './admin-payment-operations.controller';
 import { AdminPaymentOperationsService } from './admin-payment-operations.service';
@@ -18,7 +19,7 @@ import { AdminRepository } from './admin.repository';
 
 @Module({
   imports: [PrismaModule, UserModule, NotificationsModule, PaymentsModule],
-  controllers: [AdminController, AdminModerationController, AdminPaymentOperationsController],
+  controllers: [AdminController, AdminModerationController, AdminPaymentOperationsController, AdminProductRefundController],
   providers: [AdminModerationService, AdminReportService, AdminRepository, AdminService, AdminPaymentOperationsService, AdminPaymentReconciliationWorker],
   exports: [AdminService],
 })
