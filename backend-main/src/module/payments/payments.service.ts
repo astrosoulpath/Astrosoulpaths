@@ -449,6 +449,16 @@ export class PaymentsService {
         );
 
       if (marketplaceOrder) {
+        // A signed webhook is not proof that this order belongs to the currently
+        // configured TEST/LIVE merchant. Bind it through that provider account
+        // (including the default-off LIVE gate) before marketplace mutation.
+        if (!/^pay_[A-Za-z0-9]+$/.test(payment.id ?? '')) throw new BadRequestException('Invalid marketplace payment reference');
+        let evidence: RazorpayPaymentEntity & { captured?: boolean };
+        try { evidence = await getRazorpayInstance().payments.fetch(payment.id) as RazorpayPaymentEntity & { captured?: boolean }; }
+        catch { throw new BadGatewayException('Marketplace payment evidence unavailable; retry webhook safely'); }
+        if (evidence.id !== payment.id || evidence.order_id !== payment.order_id || evidence.status !== 'captured' ||
+            evidence.captured !== true || evidence.amount !== payment.amount || evidence.currency !== payment.currency)
+          throw new BadRequestException('Marketplace webhook payment does not match configured provider capture');
         this.logger.log(
           `webhook.marketplace_detected marketplaceOrderId=${marketplaceOrder.id} orderNumber=${marketplaceOrder.orderNumber} razorpayOrderId=${payment.order_id} razorpayPaymentId=${payment.id}`,
         );
