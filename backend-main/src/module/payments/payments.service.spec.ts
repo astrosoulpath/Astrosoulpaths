@@ -259,6 +259,32 @@ describe('PaymentsService', () => {
     expect(service).toBeDefined();
   });
 
+  it.each([
+    ['production', 'rzp_test_synthetic', false],
+    ['production', 'rzp_test_synthetic', true],
+    ['test', 'rzp_live_synthetic', false],
+    ['test', 'rzp_live_synthetic', true],
+  ])('blocks unsafe creation before provider/storage calls: %s preclaimed=%s', async (nodeEnv, keyId, preclaimed) => {
+    const previous = { ...process.env };
+    const create = jest.spyOn(getRazorpayInstance().orders, 'create');
+    try {
+      process.env.NODE_ENV = String(nodeEnv);
+      process.env.RAZORPAY_KEY_ID = String(keyId);
+      delete process.env.PAYMENT_CREATION_SCHEMA_READY;
+      delete process.env.PAYMENT_CREATION_COMMANDS_ENABLED;
+      await expect((service as any).createTypedPaymentOrder({
+        userId: 'synthetic', amount: new Prisma.Decimal(100), currency: 'INR', type: PaymentType.WALLET_RECHARGE,
+        ...(preclaimed ? { creation: { id: 'synthetic', state: 'READY', providerOrderId: 'order_ready', amountMinor: 10000n, currency: 'INR' } } : {}),
+      })).rejects.toThrow('Durable payment creation is required');
+      expect(create).not.toHaveBeenCalled();
+      expect(prismaMock.paymentOrder.create).not.toHaveBeenCalled();
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    } finally {
+      create.mockRestore();
+      process.env = previous;
+    }
+  });
+
   it('credits wallet and creates ledger for a captured payment', async () => {
     const paymentOrder = buildPaymentOrder();
     const event = buildCapturedEvent();

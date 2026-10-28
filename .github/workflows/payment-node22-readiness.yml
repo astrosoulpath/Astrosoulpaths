@@ -34,6 +34,8 @@ jobs:
           src/module/payments/captured-order-binding.spec.ts
           src/module/payments/marketplace-webhook-environment.spec.ts
           src/config/razorpay.config.spec.ts
+          src/module/payments/payment-creation-command.spec.ts
+          src/module/payments/payments.service.spec.ts
   website:
     runs-on: ubuntu-latest
     defaults:

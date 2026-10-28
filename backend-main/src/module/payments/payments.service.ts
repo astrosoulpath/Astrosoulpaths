@@ -788,8 +788,10 @@ export class PaymentsService {
       throw new ServiceUnavailableException('International checkout is disabled pending merchant approval');
     }
 
+    // Validate gates even when a caller supplies an already-reserved command.
+    const creationEnabled = paymentCreationEnabled();
     const commands = new PaymentCreationCommands(this.prisma);
-    const creation = input.creation ?? (paymentCreationEnabled() ? await commands.reserve({
+    const creation = input.creation ?? (creationEnabled ? await commands.reserve({
       userId:input.userId, purpose:input.type, reference:input.walletId ?? input.type,
       amountMinor:this.convertMajorUnitsToSubunits(input.amount), currency,
     }) : undefined);

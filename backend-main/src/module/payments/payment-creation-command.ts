@@ -6,8 +6,18 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 export function paymentCreationEnabled() {
   if(process.env.PAYMENT_CREATION_COMMANDS_ENABLED==='true'&&process.env.PAYMENT_CREATION_SCHEMA_READY!=='true')
     throw new ServiceUnavailableException('Payment creation schema must be verified before enabling durable commands');
-  return process.env.PAYMENT_CREATION_SCHEMA_READY === 'true' &&
+  const enabled = process.env.PAYMENT_CREATION_SCHEMA_READY === 'true' &&
     process.env.PAYMENT_CREATION_COMMANDS_ENABLED === 'true';
+  // Local TEST compatibility is not a production or LIVE checkout path.
+  // This guard applies at order creation, not provider reconciliation/refunds.
+  if (!enabled && (process.env.NODE_ENV === 'production' || configuredPaymentMode() === 'LIVE')) {
+    throw new ServiceUnavailableException('Durable payment creation is required for production and LIVE checkout');
+  }
+  if (configuredPaymentMode() === 'LIVE' &&
+      (process.env.RAZORPAY_LIVE_PAYMENTS_ENABLED !== 'true' || !process.env.RAZORPAY_WEBHOOK_SECRET?.trim())) {
+    throw new ServiceUnavailableException('LIVE payment creation requires approved LIVE configuration and webhook verification configuration');
+  }
+  return enabled;
 }
 export function configuredPaymentMode(): 'TEST'|'LIVE'|'UNKNOWN' {
   const key = process.env.RAZORPAY_KEY_ID?.trim() ?? '';
