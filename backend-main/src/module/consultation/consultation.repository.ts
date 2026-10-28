@@ -117,7 +117,12 @@ export class ConsultationRepository {
         if (params.requireFreeChat && !isFreeChat) {
           throw new ConflictException('Free chat is no longer available');
         }
-        if (!isFreeChat && financialLifecycleEnabled()) approvedReleaseAt(now);
+        if (!isFreeChat) {
+          if (!financialLifecycleEnabled()) {
+            throw new ConflictException('New paid consultations require the verified financial lifecycle and fixed 70/30 policy');
+          }
+          approvedReleaseAt(now);
+        }
 
         const reservedAmount = this.toMoneyDecimal(
           isFreeChat ? 0 : params.amountCharged,

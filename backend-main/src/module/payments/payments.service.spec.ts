@@ -395,10 +395,15 @@ describe('PaymentsService', () => {
     } finally {process.env = previous;create.mockRestore();}
   });
 
-  it('activates for the purchased duration despite later plan edits', async () => {
-    const order = {...buildPaymentOrder(), amount: new Prisma.Decimal(3500), type: PaymentType.SUBSCRIPTION, metadata: {
-      subscriptionId: 'sub', planName: 'ASTROLOGER_KUNDLI_YEARLY',
-      planSnapshot: {name: 'ASTROLOGER_KUNDLI_YEARLY', durationDays: 365, amount: '3500', currency: 'INR'},
+  it.each([
+    ['ASTROLOGER_KUNDLI_YEARLY', '3500', 'INR', 365],
+    ['DAILY_HOROSCOPE_MONTHLY', '1', 'USD', 30],
+  ])('fulfills %s without wallet or astrologer allocation and preserves purchased duration', async (name, amount, currency, days) => {
+    const earning = {create: jest.fn(), upsert: jest.fn()};
+    (prismaMock as any).astrologerEarning = earning;
+    const order = {...buildPaymentOrder(), amount: new Prisma.Decimal(amount), currency, type: PaymentType.SUBSCRIPTION, metadata: {
+      subscriptionId: 'sub', planName: name,
+      planSnapshot: {name, durationDays: days, amount, currency},
     }};
     prismaMock.paymentOrder.updateMany.mockResolvedValue({count: 1});
     prismaMock.paymentOrder.findUniqueOrThrow.mockResolvedValue(order);
@@ -407,9 +412,11 @@ describe('PaymentsService', () => {
     prismaMock.user.update.mockResolvedValue({});
     await (service as any).processSubscriptionTransaction(prismaMock, order, buildCapturedEvent().payload.payment.entity, buildCapturedEvent());
     const dates = prismaMock.subscription.update.mock.calls[0][0].data;
-    expect(dates.endDate.getTime() - dates.startDate.getTime()).toBe(365 * 86400000);
+    expect(dates.endDate.getTime() - dates.startDate.getTime()).toBe(Number(days) * 86400000);
     expect(prismaMock.wallet.update).not.toHaveBeenCalled();
     expect(prismaMock.walletLedger.create).not.toHaveBeenCalled();
+    expect(earning.create).not.toHaveBeenCalled();
+    expect(earning.upsert).not.toHaveBeenCalled();
   });
 
   it.each([{amount: 1}, {currency: 'USD'}, {currency: ''}])('rejects captured amount/currency mismatch before a transaction: %j', async patch => {

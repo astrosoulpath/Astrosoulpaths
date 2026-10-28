@@ -59,13 +59,13 @@ describe('financial rollout and locked policy (mock only)', () => {
     process.env.FINANCIAL_APPROVED_HOLD_SECONDS = '60';
     expect(approvedReleaseAt(new Date(0)).getTime()).toBe(60000);
   });
-  it('creation locks policy before reading settings and persists a stable snapshot', async () => {
+  it('future creation locks a fixed 70/30 snapshot without consuming mutable Admin settings', async () => {
     const tx: any = {
       $queryRaw: jest.fn(),
       $executeRaw: jest.fn(),
       platformSettings: {
         findUnique: jest.fn().mockResolvedValue({
-          platformCommissionPercent: new Prisma.Decimal(30),
+          platformCommissionPercent: new Prisma.Decimal(17),
           updatedAt: new Date(0),
         }),
       },
@@ -73,9 +73,10 @@ describe('financial rollout and locked policy (mock only)', () => {
     await snapshotCommission(tx, 'call');
     const initial = tx.$executeRaw.mock.calls[0];
     expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
-      tx.platformSettings.findUnique.mock.invocationCallOrder[0],
+      tx.$executeRaw.mock.invocationCallOrder[0],
     );
     expect(initial[2].toString()).toBe('30');
+    expect(tx.platformSettings.findUnique).not.toHaveBeenCalled();
     tx.platformSettings.findUnique.mockResolvedValue({
       platformCommissionPercent: 10,
     });
@@ -87,6 +88,14 @@ describe('financial rollout and locked policy (mock only)', () => {
       Number((await readFinancialPolicy(tx, 'call'))!.platformPercent),
     ).toBe(30);
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+  it('blocks new paid sessions before wallet/session writes when immutable lifecycle is unavailable', async () => {
+    const tx: any = {wallet: {upsert: jest.fn()}, callSession: {create: jest.fn()}};
+    const db: any = {$transaction: jest.fn(async run => run(tx))};
+    await expect(new ConsultationRepository(db).createConsultation({mode:'audio',purchasedMinutes:2} as any))
+      .rejects.toThrow('fixed 70/30');
+    expect(tx.wallet.upsert).not.toHaveBeenCalled();
+    expect(tx.callSession.create).not.toHaveBeenCalled();
   });
   it('does not infer or backfill historical origin', async () => {
     enable();

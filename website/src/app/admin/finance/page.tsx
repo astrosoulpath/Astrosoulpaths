@@ -85,6 +85,7 @@ export default function FinancePage() {
         <Link href="/admin">Back to Dashboard</Link>
         <h1 className="text-3xl font-bold">Financial Overview</h1>
         <Link href="/admin/platform-settings">Global commission settings</Link>
+        <p>New paid human consultations use a locked 70% astrologer / 30% platform allocation. Existing consultation snapshots and historical earnings retain their recorded policy. Global settings do not override the new consultation policy.</p>
         {error ? (
           <p role="alert">{error}</p>
         ) : !data ? (

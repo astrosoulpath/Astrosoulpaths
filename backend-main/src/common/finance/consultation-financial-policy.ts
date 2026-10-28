@@ -2,7 +2,6 @@ import { ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import {
-  DEFAULT_PLATFORM_COMMISSION_PERCENT,
   validateCommissionPercent,
 } from './commission-policy';
 
@@ -37,15 +36,12 @@ export async function snapshotCommission(
   callSessionId: string,
 ) {
   await lockCommissionPolicy(tx);
-  const settings = await tx.platformSettings.findUnique({
-    where: { id: 'default' },
-  });
-  const percent = Number(
-    settings?.platformCommissionPercent ?? DEFAULT_PLATFORM_COMMISSION_PERCENT,
-  );
+  // Approved future human consultations are fixed at 70/30. Existing
+  // snapshots and Admin settings are preserved, never rewritten here.
+  const percent = 30;
   validateCommissionPercent(percent);
   const version = createHash('sha256')
-    .update(`${percent}:${settings?.updatedAt?.toISOString() ?? 'default'}`)
+    .update('HUMAN_CONSULTATION_70_30_V1')
     .digest('hex');
   await tx.$executeRaw`INSERT INTO public."ConsultationFinancialPolicy"
     ("callSessionId", "platformPercent", "policyVersion", "lockedAt", "lifecycle")

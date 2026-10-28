@@ -36,6 +36,9 @@ jobs:
           src/config/razorpay.config.spec.ts
           src/module/payments/payment-creation-command.spec.ts
           src/module/payments/payments.service.spec.ts
+          src/common/finance/consultation-financial-policy.spec.ts
+          src/common/finance/financial-integrity.spec.ts
+          src/module/subscription/subscription-catalogue-policy.spec.ts
   website:
     runs-on: ubuntu-latest
     defaults:

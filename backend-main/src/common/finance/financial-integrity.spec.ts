@@ -256,6 +256,17 @@ describe('consultation completion integrity (in-memory only)', () => {
       );
     },
   );
+  it.each([[100, '70.00', '30.00'], [37.5, '26.25', '11.25'], [0.01, '0.01', '0.00']])(
+    'allocates verified partial/full gross %s with exact minor-unit conservation', async (gross, seller, platform) => {
+      call.amountCharged = gross;
+      entries = [{type: 'CALL_DEDUCTION', amount: new Prisma.Decimal(gross), balanceBefore: new Prisma.Decimal(200), balanceAfter: new Prisma.Decimal(200).minus(gross)}];
+      await complete(Number(gross));
+      const data = tx.astrologerEarning.upsert.mock.calls[0][0].create;
+      expect(data.netAmount.toFixed(2)).toBe(seller);
+      expect(data.platformFee.toFixed(2)).toBe(platform);
+      expect(data.netAmount.plus(data.platformFee).eq(gross)).toBe(true);
+    },
+  );
   it.each(['PENDING', 'REJECTED', 'CANCELLED', 'EXPIRED'])(
     'cannot settle %s',
     async (status) => {

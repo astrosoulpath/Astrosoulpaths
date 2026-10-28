@@ -30,7 +30,7 @@ export class SubscriptionService {
 
     return {
       success: true,
-      data: plans.filter(plan => { try { assertDailyPlan(plan); return true; } catch { return false; } }),
+      data: plans.filter(plan => { try { assertDailyPlan(plan); assertKundliPlan(plan); return true; } catch { return false; } }),
     };
   }
 
