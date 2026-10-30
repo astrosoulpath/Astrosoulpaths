@@ -38,7 +38,7 @@ export function ModerationDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null),
+  const [loadedSnapshot, setSnapshot] = useState<Snapshot | null>(null),
     [action, setAction] = useState(initialAction),
     [reason, setReason] = useState(""),
     [error, setError] = useState(""),
@@ -46,6 +46,8 @@ export function ModerationDialog({
     [loading, setLoading] = useState(true),
     [confirmed, setConfirmed] = useState(false),
     [submitted, setSubmitted] = useState(false);
+  const [snapshotKey,setSnapshotKey]=useState(''),[retry,setRetry]=useState(0);
+  const snapshot=snapshotKey===kind+'/'+id?loadedSnapshot:null;
   const command = useRef<{
       requestId: string;
       expectedVersion: number;
@@ -63,14 +65,19 @@ export function ModerationDialog({
     return () => {
       alive.current = false;
       mutation.current?.abort();
+      mutation.current=null;
+      pending.current=false;
     };
-  }, []);
+  }, [kind,id]);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     heading.current?.focus();
     return () => previous?.focus();
   }, []);
   useEffect(() => {
+    let current=true;
+    setLoading(true);setBusy(false);setSnapshot(null);setError('');setConfirmed(false);
+    setReason('');setSubmitted(false);command.current=null;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
     void (async () => {
@@ -84,26 +91,27 @@ export function ModerationDialog({
             "Moderation review is unavailable. No change was submitted.",
           );
         const result = await response.json();
-        if (!controller.signal.aborted) setSnapshot(result);
+        if (current&&!controller.signal.aborted) {setSnapshotKey(kind+'/'+id);setSnapshot(result);}
       } catch (e) {
-        if (alive.current)
+        if (current&&alive.current)
           setError(
             controller.signal.aborted
-              ? "Review timed out. Close and reopen to retry."
+              ? "Review timed out. Retry the review; no change was submitted."
               : e instanceof Error
                 ? e.message
                 : "Unable to load moderation review.",
           );
       } finally {
         clearTimeout(timer);
-        if (alive.current) setLoading(false);
+        if (current&&alive.current) setLoading(false);
       }
     })();
     return () => {
+      current=false;
       clearTimeout(timer);
       controller.abort();
     };
-  }, [kind, id]);
+  }, [kind, id,retry]);
   async function confirm() {
     if (
       pending.current ||
@@ -146,9 +154,9 @@ export function ModerationDialog({
             ? body.message
             : "Change was not confirmed. Refresh before another command.",
         );
-      if (alive.current && !controller.signal.aborted) onDone();
+      if (alive.current && mutation.current===controller && !controller.signal.aborted) onDone();
     } catch (e) {
-      if (alive.current)
+      if (alive.current&&mutation.current===controller)
         setError(
           controller.signal.aborted
             ? "Result not confirmed. Retry the same command or close and refresh."
@@ -158,8 +166,8 @@ export function ModerationDialog({
         );
     } finally {
       clearTimeout(timer);
-      pending.current = false;
-      if (alive.current) setBusy(false);
+      if(mutation.current===controller){pending.current = false;
+      if (alive.current) setBusy(false);}
     }
   }
   return (
@@ -309,6 +317,7 @@ export function ModerationDialog({
             {error}
           </p>
         )}
+        {error&&!snapshot&&!loading&&!busy&&<button type="button" className="asp-admin-back-btn" onClick={()=>setRetry(value=>value+1)}>Retry review</button>}
         <button
           type="button"
           className="asp-admin-back-btn mt-4"

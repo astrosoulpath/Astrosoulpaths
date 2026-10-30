@@ -68,9 +68,10 @@ describe('public support publication (synthetic, no database/provider)', () => {
     const result = await new SupportPublicController(service).help();
     expect(result.faqs).toHaveLength(1);
     expect(JSON.stringify(result)).not.toMatch(
-      /Synthetic private reference|synthetic-admin|revision|knowledge/,
+      /Synthetic private reference|synthetic-admin|knowledge/,
     );
     expect(result.contact?.email).toBe('help@example.invalid');
+    expect(result.revision).toBe(7); // Published version only, never a draft actor/history.
   });
   it('unpublishing hides contact and all answers even when stored', async () => {
     process.env.SUPPORT_OPERATIONS_ENABLED =

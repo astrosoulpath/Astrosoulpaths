@@ -177,6 +177,9 @@ export class SupportAssistantService {
     conversationId: string,
     dto: SendAssistantMessageDto,
   ) {
+    if (process.env.SUPPORT_AI_CONSENT_REQUIRED === 'true' && dto.aiConsent !== true) {
+      throw new ForbiddenException('Explicit AI support consent is required.');
+    }
     const customer = await this.resolveCustomer(authUser);
     const key = createHash('sha256').update(customer.id).digest('hex');
     const owner = randomBytes(16).toString('hex');

@@ -185,6 +185,7 @@ export class AdminService {
   }
 
   async getAstrologerKyc(astrologerId: string) {
+    const issuedAt = Date.now();
     const response =
       await this.adminRepository.findAstrologerById(astrologerId);
 
@@ -290,6 +291,7 @@ export class AdminService {
         experienceProofs: experienceProofs.filter(Boolean),
 
         expiresInSeconds: 600,
+        expiresAt: new Date(issuedAt + 600_000).toISOString(),
       },
     };
   }

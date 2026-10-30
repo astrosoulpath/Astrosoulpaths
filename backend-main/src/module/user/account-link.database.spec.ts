@@ -15,26 +15,8 @@ describe('Account linking - isolated PostgreSQL integration', () => {
   let service: UserService;
 
   beforeAll(async () => {
-    const databaseUrl = process.env.DATABASE_URL ?? '';
-    const directUrl = process.env.DIRECT_URL ?? '';
-
-    const isSafeUrl = (value: string) => {
-      try {
-        const url = new URL(value);
-
-        return (
-          url.hostname === '127.0.0.1' &&
-          url.port === '55432' &&
-          url.pathname === '/asp_account_link_test'
-        );
-      } catch {
-        return false;
-      }
-    };
-
-    if (!isSafeUrl(databaseUrl) || (directUrl && !isSafeUrl(directUrl))) {
-      throw new Error('Unsafe database URL. Integration test blocked.');
-    }
+    const safety=require('../../../test/isolated-integration/account-link-safety.cjs');
+    safety.validateTarget(process.env);
 
     // ACCOUNT_LINK_ISOLATED_TRANSACTION_GUARD_V1
     const isolatedTransactionTest =
@@ -50,6 +32,7 @@ describe('Account linking - isolated PostgreSQL integration', () => {
 
     prisma = new PrismaClient();
     await prisma.$connect();
+    await safety.seed(prisma,process.env);
 
     const supabaseService = {
       getClient: () => ({
@@ -75,16 +58,8 @@ describe('Account linking - isolated PostgreSQL integration', () => {
   // ACCOUNT_LINK_TEST_FIXTURE_RESET_V1
   // Only isolated test database fixtures may be modified.
   const resetGoogleFixture = async () => {
-    const url = new URL(process.env.DATABASE_URL ?? '');
-
-    if (
-      url.hostname !== '127.0.0.1' ||
-      url.port !== '55432' ||
-      url.pathname !== '/asp_account_link_test' ||
-      url.username !== 'asp_test'
-    ) {
-      throw new Error('Fixture reset blocked: unsafe database');
-    }
+    const safety=require('../../../test/isolated-integration/account-link-safety.cjs');
+    await safety.verifyTarget(prisma,process.env);
 
     const identity = await prisma.userAuthIdentity.findUniqueOrThrow({
       where: {

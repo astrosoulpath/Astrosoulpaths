@@ -229,6 +229,7 @@ export class NotificationsService {
     return {
       success: true,
       data: {
+        ownerId: userId,
         items,
         unreadCount,
       },

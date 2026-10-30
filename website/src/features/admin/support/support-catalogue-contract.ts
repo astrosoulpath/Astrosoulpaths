@@ -13,6 +13,8 @@ export type CatalogueConfig = {
   categories: CatalogueCategory[];
 };
 export type CatalogueSnapshot = {
+  isDraft?: boolean;
+  publishedRevision?: number;
   revision: number;
   editable: boolean;
   config: CatalogueConfig;
@@ -91,6 +93,8 @@ export function readSupportCatalogue(value: unknown): CatalogueSnapshot {
   return {
     revision: data.revision,
     editable: data.editable,
+    isDraft: data.isDraft === true,
+    publishedRevision: Number.isSafeInteger(data.publishedRevision) && data.publishedRevision! >= 0 ? data.publishedRevision : data.revision,
     config: parsed.config,
     history: Array.isArray(data.history) ? data.history : [],
   };

@@ -30,6 +30,7 @@ import { UpdateQualificationSettingsDto } from './dto/update-qualification-setti
 import { AdminService } from './admin.service';
 import { AdminReportService } from './admin-report.service';
 import type { GenerateAdminReportInput } from './admin-report.service';
+import { requireAdminRequest } from '../../common/auth/admin-identity-policy';
 
 @Controller('admin')
 @UseGuards(SupabaseAuthGuard, RolesGuard)
@@ -531,9 +532,11 @@ export class AdminController {
 
   @Post('reports')
   async generateReport(
+    @Req() request: object,
     @Body() body: GenerateAdminReportInput,
     @Res() response: Response,
   ) {
+    requireAdminRequest(request);
     const result =
       await this.adminReportService.generateReport(body);
 

@@ -1,0 +1,2 @@
+backend-main/prisma/migrations/** text eol=lf
+review/payments/fresh-production-prisma/** -text

@@ -6,6 +6,9 @@ import { createHmac } from 'node:crypto';
 import { RazorpayVerificationService } from '../payments/razorpay-verification.service';
 
 describe('Kundli subscription synthetic audit', () => {
+  let previousKey: string | undefined;
+  beforeEach(() => { previousKey = process.env.RAZORPAY_KEY_ID; process.env.RAZORPAY_KEY_ID = 'rzp_test_synthetic'; });
+  afterEach(() => { if(previousKey === undefined) delete process.env.RAZORPAY_KEY_ID; else process.env.RAZORPAY_KEY_ID = previousKey; });
   it('verifies exact webhook bytes and rejects tampering using synthetic credentials', () => {
     const previous = process.env.RAZORPAY_WEBHOOK_SECRET;
     process.env.RAZORPAY_WEBHOOK_SECRET = 'synthetic-audit-secret';
@@ -62,8 +65,9 @@ describe('Kundli subscription synthetic audit', () => {
       amount: new Prisma.Decimal(3500),
       currency: 'INR',
       status: 'PENDING',
-      razorpayOrderId: 'synthetic-provider-order',
+      razorpayOrderId: 'order_synthetic3500',
       metadata: {
+        providerMode: 'TEST',
         subscriptionId: 'synthetic-subscription',
         subscriptionPlanId: 'synthetic-plan',
         planName: 'ASTROLOGER_KUNDLI_YEARLY',
@@ -98,7 +102,7 @@ describe('Kundli subscription synthetic audit', () => {
         }),
         update: jest.fn().mockResolvedValue({ id: 'synthetic-subscription' }),
       },
-      user: { update: jest.fn() },
+      user: { update: jest.fn(), findUnique: jest.fn().mockResolvedValue({id:'synthetic-user',isActive:true,isBlocked:false,role:{name:'ASTROLOGER'},astrologer:{isApproved:true,isVerified:true}}) },
       wallet: { update: jest.fn() },
       walletLedger: { create: jest.fn() },
       astrologerEarning: { create: jest.fn() },
@@ -123,11 +127,12 @@ describe('Kundli subscription synthetic audit', () => {
       payload: {
         payment: {
           entity: {
-            id: 'synthetic-payment',
+            id: 'pay_synthetic3500',
             order_id: order.razorpayOrderId,
             amount: 350000,
             currency: 'INR',
             status: 'captured',
+            livemode: false,
           },
         },
       },
@@ -147,7 +152,8 @@ describe('Kundli subscription synthetic audit', () => {
     expect(db.wallet.update).not.toHaveBeenCalled();
     expect(db.walletLedger.create).not.toHaveBeenCalled();
     expect(db.astrologerEarning.create).not.toHaveBeenCalled();
-    expect(notifications.createForUser).not.toHaveBeenCalled();
+    expect(notifications.createForUser).toHaveBeenCalledTimes(1);
+    expect(notifications.createForUser).toHaveBeenCalledWith(expect.objectContaining({userId:'synthetic-user',type:'subscription',data:expect.objectContaining({roleContext:'ASTROLOGER'})}));
     expect(push.sendToUser).not.toHaveBeenCalled();
     expect(order.amount.toNumber()).toBe(3500);
   });

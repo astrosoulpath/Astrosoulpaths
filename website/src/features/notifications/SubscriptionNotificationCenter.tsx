@@ -5,6 +5,7 @@ import { Bell, RefreshCw, Sparkles } from 'lucide-react';
 import { sessionCandidate } from '../auth/public-auth';
 import { subscriptionPath, subscriptionProgress, subscriptionRequest, type SubscriptionReminderState, type SubscriptionRole } from './subscription-api';
 import s from './subscription-notifications.module.css';
+import AccountNotificationInbox from './AccountNotificationInbox';
 
 function useReminders(role: SubscriptionRole) {
   const [data,setData] = useState<SubscriptionReminderState|null>(null), [error,setError]=useState(''), [busy,setBusy]=useState(false);
@@ -54,6 +55,7 @@ export default function SubscriptionNotificationCenter({role}:{role:Subscription
   const progress=data?subscriptionProgress(data,Date.parse(data.serverNow)+(clock?.source===data.serverNow?clock.elapsed:0)):null;
   return <main className={s.page}>
     <header className={s.heading}><div><p className={s.eyebrow}>ASTRO SOUL PATH · {role}</p><h1>Subscription notifications</h1><p>Your subscription, renewal reminders and phone preferences.</p></div><button type="button" disabled={busy||saving} onClick={()=>void load()} aria-label="Refresh reminders"><RefreshCw size={18}/></button></header>
+    <AccountNotificationInbox role={role}/>
     {busy&&<p role="status">Loading your subscription…</p>}
     {(error||actionError)&&<p role="alert" className={s.error}>{error||actionError}</p>}
     {data&&<>

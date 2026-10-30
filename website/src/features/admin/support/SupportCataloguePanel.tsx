@@ -48,7 +48,7 @@ export function SupportCataloguePanel() {
     if (target >= 0 && target < items.length)
       [items[index], items[target]] = [items[target], items[index]];
   }
-  async function save() {
+  async function save(action: 'DRAFT' | 'PUBLISH') {
     if (locked.current || !snapshot?.editable) return;
     locked.current = true;
     setBusy(true);
@@ -57,12 +57,12 @@ export function SupportCataloguePanel() {
       const value = await supportRequest("/admin/support/assistant/config", {
         method: "PUT",
         body: JSON.stringify(
-          supportCataloguePayload(snapshot.revision, snapshot.config),
+          {...supportCataloguePayload(snapshot.revision, snapshot.config), action},
         ),
       });
       if (fence.current === revision) {
         setSnapshot(readSupportCatalogue(value));
-        setMessage(`Saved configuration revision ${value.revision}`);
+        setMessage(`${action === 'DRAFT' ? 'Saved unpublished draft' : 'Published approved configuration'} revision ${value.revision}`);
       }
     } catch {
       if (fence.current === revision)
@@ -277,11 +277,13 @@ export function SupportCataloguePanel() {
             </label>
             <button
               type="button"
-              onClick={() => void save()}
+              onClick={() => void save('DRAFT')}
               className="asp-admin-gold-btn px-4 py-2"
             >
-              {busy ? "Saving…" : "Save support configuration"}
+              {busy ? "Saving…" : "Save draft"}
             </button>
+            <button type="button" disabled={busy} onClick={() => void save('PUBLISH')} className="asp-admin-gold-btn ml-3 px-4 py-2">Publish approved changes</button>
+            <p className="mt-3 text-sm" role="status">{snapshot.isDraft ? 'Unpublished draft' : 'Published configuration'} · Published revision {snapshot.publishedRevision ?? snapshot.revision}. Drafts are not served to the website or app.</p>
           </fieldset>
         </>
       )}

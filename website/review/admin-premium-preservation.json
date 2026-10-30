@@ -9,39 +9,49 @@
       "file": "src/features/admin/auth/admin-contract.ts",
       "sha256": "73b2038883d5610978de3477b18bd80a72ba2324c89aaa7a846dc82e48da515d",
       "previousSha256": "4389b815f04357174582345b34b4053e9612ea8e689e91ff41cf69bdc0a78c9b",
-      "changeReason": "Operator-approved encrypted Customer/Astrologer/Admin context integration and same-UID Firebase password Admin login; behavioral security tests in admin-auth.test.cjs."
+      "changeReason": "Operator-approved encrypted Customer/Astrologer/Admin context integration and same-UID Firebase password Admin login; behavioral security tests in admin-auth.test.cjs.",
+      "originalReviewSha256": "73b2038883d5610978de3477b18bd80a72ba2324c89aaa7a846dc82e48da515d"
     },
     {
       "file": "src/features/admin/auth/admin-session.ts",
       "sha256": "286515565b880182cd921a312cbe79c8fa312d9305da6f35fadb2725baa2952a",
       "previousSha256": "a56fa3386c135154e8969c9a8c03ba47177b1feb18818b812be78d5f106d9f6f",
-      "changeReason": "Operator-approved encrypted Customer/Astrologer/Admin context integration and same-UID Firebase password Admin login; behavioral security tests in admin-auth.test.cjs."
+      "changeReason": "Operator-approved encrypted Customer/Astrologer/Admin context integration and same-UID Firebase password Admin login; behavioral security tests in admin-auth.test.cjs.",
+      "originalReviewSha256": "286515565b880182cd921a312cbe79c8fa312d9305da6f35fadb2725baa2952a"
     },
     {
       "file": "src/features/admin/auth/AdminSessionBoundary.tsx",
-      "sha256": "e4e5940934fc9bd5bf6032d5b9763a70d98b7e9395ebde7bb55ceedc3726e298"
+      "sha256": "e4e5940934fc9bd5bf6032d5b9763a70d98b7e9395ebde7bb55ceedc3726e298",
+      "originalReviewSha256": "e4e5940934fc9bd5bf6032d5b9763a70d98b7e9395ebde7bb55ceedc3726e298"
     },
     {
       "file": "src/app/admin/page.tsx",
-      "sha256": "be59c84c7cc5d3cc1968c50ac790dee1b4d86d29c2eed10ff59c165136b83cf1"
+      "sha256": "91701f8cbf7be569f08cb3e21084895ed54ce8a5c574603dcdd506b06a2397e6",
+      "originalReviewSha256": "be59c84c7cc5d3cc1968c50ac790dee1b4d86d29c2eed10ff59c165136b83cf1"
     },
     {
       "file": "src/app/admin/login/page.tsx",
       "sha256": "8b16a0019998034ff30fd72127990ba3b0b5e90be2e344d64115e3ca6c2b1f0f",
       "previousSha256": "a1fe258b4a2e26e02ec74ed11a8f87591214ff05a80068f7764ec0c1b11b37f5",
-      "changeReason": "Operator-approved encrypted Customer/Astrologer/Admin context integration and same-UID Firebase password Admin login; behavioral security tests in admin-auth.test.cjs."
+      "changeReason": "Operator-approved encrypted Customer/Astrologer/Admin context integration and same-UID Firebase password Admin login; behavioral security tests in admin-auth.test.cjs.",
+      "originalReviewSha256": "8b16a0019998034ff30fd72127990ba3b0b5e90be2e344d64115e3ca6c2b1f0f"
     },
     {
       "file": "src/app/admin/login/admin-login.module.css",
-      "sha256": "04eef15d5033b2caf61c816e904dc921c6cc2d959116c718a85d029fa68fe0a5"
+      "sha256": "04eef15d5033b2caf61c816e904dc921c6cc2d959116c718a85d029fa68fe0a5",
+      "originalReviewSha256": "04eef15d5033b2caf61c816e904dc921c6cc2d959116c718a85d029fa68fe0a5"
     },
     {
       "file": "src/app/admin/verify-otp/page.tsx",
-      "sha256": "459c2350e92b140ee8404504ec4484d150e5da857a1b4a693f2ee1c8ba5a8706"
+      "sha256": "459c2350e92b140ee8404504ec4484d150e5da857a1b4a693f2ee1c8ba5a8706",
+      "originalReviewSha256": "459c2350e92b140ee8404504ec4484d150e5da857a1b4a693f2ee1c8ba5a8706"
     },
     {
       "file": "src/services/adminService.ts",
-      "sha256": "f748a061fe195404e408feae6bc778644372d3b0950723864cb94b3540f36571"
+      "sha256": "92b57db43610929a2eb5f14d111eb922da00ba270cd3f7d42361e964d8b8725a",
+      "originalReviewSha256": "f748a061fe195404e408feae6bc778644372d3b0950723864cb94b3540f36571"
     }
-  ]
+  ],
+  "checksumDomain": "REVIEWED_TEXT_NORMALIZED_LF",
+  "currentAssertionChecksumDomain": "REVIEWED_TEXT_NORMALIZED_LF"
 }

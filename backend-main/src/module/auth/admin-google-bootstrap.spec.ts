@@ -1,3 +1,4 @@
+jest.mock('firebase-admin/auth', () => ({ getAuth: jest.fn() }));
 import {
   prepareOrExecuteBootstrap,
   validateBootstrapOptions,

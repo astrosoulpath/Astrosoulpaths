@@ -1,3 +1,5 @@
+jest.mock('firebase-admin/auth',()=>({getAuth:jest.fn()}));
+jest.mock('jose',()=>({createRemoteJWKSet:jest.fn(),decodeProtectedHeader:jest.fn(),jwtVerify:jest.fn()}));
 ﻿jest.mock('../../common/guards/supabase-auth.guard', () => ({
   SupabaseAuthGuard: class SupabaseAuthGuard {
     canActivate() {

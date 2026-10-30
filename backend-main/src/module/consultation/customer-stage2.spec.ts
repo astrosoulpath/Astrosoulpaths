@@ -7,6 +7,9 @@ import { Prisma } from '@prisma/client';
 import { PaymentsService } from '../payments/payments.service';
 
 describe('customer Stage 2 boundaries (mocked persistence/providers)', () => {
+  const prior={schema:process.env.FINANCIAL_SCHEMA_READY,lifecycle:process.env.FINANCIAL_LIFECYCLE_V2_ENABLED,hold:process.env.FINANCIAL_APPROVED_HOLD_SECONDS};
+  beforeEach(()=>{process.env.FINANCIAL_SCHEMA_READY='true';process.env.FINANCIAL_LIFECYCLE_V2_ENABLED='true';process.env.FINANCIAL_APPROVED_HOLD_SECONDS='0';});
+  afterEach(()=>{for(const [key,value] of [['FINANCIAL_SCHEMA_READY',prior.schema],['FINANCIAL_LIFECYCLE_V2_ENABLED',prior.lifecycle],['FINANCIAL_APPROVED_HOLD_SECONDS',prior.hold]]){if(value===undefined)delete process.env[key!];else process.env[key!]=value;}});
   it.each(['USD','EUR',undefined])('never credits a mismatched payment/wallet currency %s',async currency=>{
     const tx:any={wallet:{findUnique:jest.fn().mockResolvedValue({id:'wallet',currency}),update:jest.fn()}};
     const service:any=Object.create(PaymentsService.prototype);

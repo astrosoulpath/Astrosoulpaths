@@ -9,6 +9,10 @@ import { LocalizedPricingService } from './pricing/localized-pricing.service';
 import { MarketplaceService } from '../marketplace/marketplace.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationsPushService } from '../notifications/notifications.push.service';
+jest.mock('razorpay', () => class SyntheticRazorpay {
+  orders = { create: jest.fn(), fetchPayments: jest.fn(), fetch: jest.fn() };
+  payments = { fetch: jest.fn(), refund: jest.fn() };
+});
 
 describe('PaymentsService', () => {
   let service: PaymentsService;
@@ -120,6 +124,7 @@ describe('PaymentsService', () => {
 
   beforeEach(async () => {
     process.env.RAZORPAY_KEY_ID = 'rzp_test_synthetic';
+    process.env.RAZORPAY_KEY_SECRET = 'synthetic-unit-secret-not-a-provider-credential';
     const razorpayInstance = getRazorpayInstance();
 
     fetchPaymentsSpy = jest
@@ -228,7 +233,7 @@ describe('PaymentsService', () => {
   });
 
   afterEach(() => {
-    fetchPaymentsSpy.mockRestore();
+    fetchPaymentsSpy?.mockRestore();
   });
 
   it.each(['0', '-1', '1.001', '90071992547410', 'NaN'])('rejects unsafe minor-unit conversion %s', value => {

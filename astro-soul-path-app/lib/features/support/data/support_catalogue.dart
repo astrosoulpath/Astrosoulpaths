@@ -18,12 +18,18 @@ class SupportCatalogue {
     required this.welcome,
     required this.categories,
     this.visible = true,
+    this.revision = 0,
   });
   final String welcome;
   final bool visible;
+  final int revision;
   final List<SupportCategory> categories;
   factory SupportCatalogue.fromJson(Map<String, dynamic> json) {
     final raw = json['categories'];
+    final revision = json['revision'] ?? 0;
+    if (revision is! int || revision < 0) {
+      throw const FormatException('Invalid support catalogue revision');
+    }
     if (json['welcome'] is! String ||
         json['visible'] is! bool ||
         raw is! List ||
@@ -66,6 +72,7 @@ class SupportCatalogue {
       }
     }
     return SupportCatalogue(
+      revision: revision,
       welcome: json['welcome'] as String,
       visible: json['visible'] == true,
       categories: json['visible'] == true ? categories : [],

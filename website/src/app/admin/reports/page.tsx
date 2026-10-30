@@ -1,4 +1,6 @@
-﻿"use client";
+"use client";
+import { REPORT_OPTIONS, type ReportType } from "@/features/admin/report-types";
+
 
 import { adminFetch } from "@/features/admin/auth/admin-session";
 
@@ -7,13 +9,7 @@ import { useState } from "react";
 
 
 
-type ReportType =
-  | "CUSTOMERS"
-  | "ASTROLOGERS"
-  | "CONSULTATIONS"
-  | "PAYMENTS"
-  | "WALLETS"
-  | "SUBSCRIPTIONS";
+
 
 
 
@@ -147,44 +143,7 @@ export default function AdminReportsPage() {
       setLoading(false);
     }
   }
-  const reportCards = [
-    {
-      title: "Customer Report",
-      description:
-        "Registered customers, account activity and wallet summary.",
-      type: "CUSTOMERS" as const,
-    },
-    {
-      title: "Astrologer Report",
-      description:
-        "Approval, verification, rating and earning details.",
-      type: "ASTROLOGERS" as const,
-    },
-    {
-      title: "Consultation Report",
-      description:
-        "Active, completed, cancelled and expired sessions.",
-      type: "CONSULTATIONS" as const,
-    },
-    {
-      title: "Payment Report",
-      description:
-        "Successful, pending, failed and refunded payments.",
-      type: "PAYMENTS" as const,
-    },
-    {
-      title: "Wallet Report",
-      description:
-        "Wallet balances, locked funds and ledger activity.",
-      type: "WALLETS" as const,
-    },
-    {
-      title: "Subscription Report",
-      description:
-        "Active plans, renewals, expiry and revenue.",
-      type: "SUBSCRIPTIONS" as const,
-    },
-  ];
+  const reportCards = REPORT_OPTIONS;
 
   return (
     <main className="asp-admin-page px-4 py-10 sm:px-6 lg:px-8">

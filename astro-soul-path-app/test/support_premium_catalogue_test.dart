@@ -5,7 +5,7 @@ import 'package:astro_soul_path/features/support/data/support_api.dart';
 import 'package:astro_soul_path/features/support/data/support_catalogue.dart';
 import 'package:astro_soul_path/features/support/presentation/screens/assistant_support_chat_screen.dart';
 import 'package:astro_soul_path/features/support/presentation/widgets/home_support_shortcut.dart';
-import 'support_assistant_experience_test.dart' show FakeAssistantApi;
+import 'support_assistant_experience_test.dart' show FakeAssistantApi, sendWithConsent;
 
 class _FailConfig extends FakeAssistantApi {
   @override
@@ -23,6 +23,7 @@ void main() {
     () {
       final value = SupportCatalogue.fromJson({
         'welcome': 'Namaste',
+        'revision': 7,
         'visible': true,
         'categories': [
           {
@@ -42,6 +43,7 @@ void main() {
           },
         ],
       });
+      expect(value.revision, 7);
       expect(value.categories.single.id, 'payment');
       expect(value.categories.single.questions.single.id, 'p2');
     },
@@ -83,7 +85,7 @@ void main() {
         find.byType(TextField),
         'Synthetic manual question',
       );
-      await tester.tap(find.byTooltip('Send question'));
+      await sendWithConsent(tester);
       await tester.pumpAndSettle();
       expect(api.queries, ['Synthetic manual question']);
     },
@@ -113,7 +115,7 @@ void main() {
         find.byType(TextField),
         'Synthetic status question',
       );
-      await tester.tap(find.byTooltip('Send question'));
+      await sendWithConsent(tester);
       await tester.pumpAndSettle();
       expect(api.metadata.single['paymentOrderId'], 'synthetic-owned-record');
       expect(api.queries.length, 1);

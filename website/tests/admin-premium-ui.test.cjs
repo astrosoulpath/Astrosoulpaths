@@ -4,6 +4,7 @@ const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypt
 const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
 const {harness,root}=require('./admin-ui-harness.cjs');
 const catalog=harness().load('src/features/admin/ui/admin-navigation.ts');
+const normalizedHash=file=>crypto.createHash('sha256').update(fs.readFileSync(file,'utf8').split(String.fromCharCode(13,10)).join(String.fromCharCode(10))).digest('hex');
 const snapshot=JSON.parse(fs.readFileSync(path.join(root,'review/admin-premium-preservation.json'),'utf8'));
 for(const item of snapshot.files)test(`security/legacy source preserved: ${item.file}`,()=>{
   if(item.file==='src/proxy.ts') {
@@ -15,7 +16,7 @@ for(const item of snapshot.files)test(`security/legacy source preserved: ${item.
     assert.match(source,/NextResponse\.redirect/);
     return;
   }
-  assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root,item.file))).digest('hex'),item.sha256);
+  assert.equal(normalizedHash(path.join(root,item.file)),item.sha256);
 });
 test('all sixteen module destinations are unique existing App Router pages',()=>{
   assert.equal(catalog.adminModules.length,16);assert.equal(new Set(catalog.adminModules.map(m=>m.href)).size,16);

@@ -1,0 +1,66 @@
+// Real services and PostgreSQL; synthetic service identities, not browser authentication.
+const fs=require('fs'),path=require('path'),assert=require('assert/strict');
+const root=path.resolve(__dirname,'../../..'),base=path.join(root,'backend-main');
+const load=p=>require(path.join(base,p));
+const {PrismaClient}=load('node_modules/@prisma/client');
+const db=new PrismaClient();const results=[];
+const check=(name,ok)=>{assert.ok(ok,name);results.push({name,passed:true});fs.writeFileSync(process.env.INTEGRATION_RESULT_PATH,JSON.stringify({identityProof:'SYNTHETIC_SERVICE_IDENTITIES_NOT_GOOGLE_OR_BROWSER',results,passed:false,inProgress:true},null,2));console.log('Workflow checkpoint: '+name);};
+async function main(){
+ const u=new URL(process.env.DATABASE_URL);assert.equal(u.hostname,'127.0.0.1');assert.match(u.pathname,/^\/staging_p2_[a-f0-9]+$/);
+ check('Brand-new isolated database has no users or wallets',await db.user.count()===0&&await db.wallet.count()===0);
+ const customerRole=await db.role.upsert({where:{name:'CUSTOMER'},create:{name:'CUSTOMER'},update:{}}),adminRole=await db.role.upsert({where:{name:'ADMIN'},create:{name:'ADMIN'},update:{}});
+ const owner=await db.user.create({data:{supabaseId:'synthetic-customer',roleId:customerRole.id}}),foreign=await db.user.create({data:{supabaseId:'synthetic-foreign',roleId:customerRole.id}}),admin=await db.user.create({data:{supabaseId:'synthetic-admin',roleId:adminRole.id}});
+ const auth={sub:owner.supabaseId},operator={sub:admin.supabaseId};
+ const {SupportService}=load('dist/module/support/support.service.js'),{SupportAdminService}=load('dist/module/support/support-admin.service.js'),{SupportCatalogueService}=load('dist/module/support/support-catalogue.service.js');
+ const fakeMail=new Proxy({}, {get:()=>async()=>undefined}),unusedAttachment=new Proxy({}, {get:()=>{throw Error('No attachment action authorized in this fixture');}});
+ const support=new SupportService(db,fakeMail,unusedAttachment),management=new SupportAdminService(db,fakeMail,unusedAttachment),catalogue=new SupportCatalogueService(db);
+ const created=await support.createTicket(auth,{subject:'SYNTHETIC Flutter support',description:'Nonbillable isolated integration fixture'});
+ check('Customer service persists ticket in authoritative PostgreSQL',created.ticket.customerId===owner.id);
+ await management.assignTicket(operator,created.ticket.id,admin.id);
+ await management.reply(operator,created.ticket.id,{content:'SYNTHETIC Admin reply',clientMessageId:'reply-one'});
+ await management.reply(operator,created.ticket.id,{content:'SYNTHETIC Admin reply',clientMessageId:'reply-one'});
+ const fetched=await support.getMyTicket(auth,created.ticket.id);
+ check('Same canonical customer reloads Admin reply',fetched.ticket.messages.some(m=>m.content==='SYNTHETIC Admin reply'));
+ check('Duplicate Admin reply creates one message',await db.supportMessage.count({where:{ticketId:created.ticket.id,clientMessageId:'reply-one'}})===1);
+ await assert.rejects(support.getMyTicket({sub:foreign.supabaseId},created.ticket.id));check('Other customer cannot read ticket',true);
+ await assert.rejects(management.reply(auth,created.ticket.id,{content:'Forbidden'}));check('Customer cannot reply as Admin',true);
+ const initial=await catalogue.admin(operator),config=structuredClone(initial.config);config.welcome='SYNTHETIC unpublished welcome';
+ await catalogue.save(operator,{expectedRevision:initial.revision,config,action:'DRAFT'});
+ check('Draft does not reach customer catalogue',(await catalogue.customer(auth)).welcome!==config.welcome);
+ await assert.rejects(catalogue.save(operator,{expectedRevision:initial.revision,config,action:'PUBLISH'}));check('Stale publication revision is rejected',true);
+ await catalogue.save(operator,{expectedRevision:initial.revision+1,config,action:'PUBLISH'});
+ const published=await catalogue.customer(auth);check('Published revision reaches authenticated clients',published.revision===initial.revision+2&&published.welcome===config.welcome);
+ check('Public help shares published version',(await catalogue.publicHelp()).revision===published.revision);
+ const {NotificationsService}=load('dist/module/notifications/notifications.service.js');const notifications=new NotificationsService(db,{sendToUser(){throw Error('Real sends forbidden');}});
+ const record=await db.appNotification.create({data:{userId:owner.id,title:'SYNTHETIC update',body:'Inbox only'}});
+ const inbox=await notifications.getNotifications(owner.supabaseId);check('Inbox identifies authoritative owner',inbox.data.ownerId===owner.id);
+ await assert.rejects(notifications.markAsRead(foreign.supabaseId,record.id));check('Foreign notification cannot be marked read',true);
+ await notifications.markAsRead(owner.supabaseId,record.id);check('Authorized notification read persists',(await db.appNotification.findUnique({where:{id:record.id}})).isRead);
+ const {AdminReportService}=load('dist/module/admin/admin-report.service.js');const reports=new AdminReportService(db),report=await reports.generateReport({reportType:'SUPPORT_TICKETS',format:'CSV'});
+ check('Report count reconciles to persisted support tickets',report.totalRecords===await db.supportTicket.count());
+ check('No financial orders or ledger effects',await db.paymentOrder.count()===0&&await db.walletLedger.count()===0);
+ await require('./http-workflows.cjs')({load,db,owner,foreign,admin,support,management,catalogue,notifications,check});
+ // Synthetic subscription evidence is inserted only into this new tmpfs database.
+ // It is NOT a Razorpay purchase or a real FCM registration.
+ Object.assign(process.env,{SUBSCRIPTION_EXPIRY_SCHEMA_READY:'true',SUBSCRIPTION_EXPIRY_SCHEDULER_ENABLED:'true',SUBSCRIPTION_EXPIRY_PUSH_ENABLED:'true',SUBSCRIPTION_EXPIRY_POLICY_APPROVED:'true',SUPPORT_NOTIFICATIONS_ENABLED:'true'});
+ const plan=await db.subscriptionPlan.upsert({where:{name:'DAILY_HOROSCOPE_MONTHLY'},update:{isActive:true},create:{name:'DAILY_HOROSCOPE_MONTHLY',displayName:'SYNTHETIC monthly',price:1,currency:'USD',durationDays:30}});
+ const expiry=new Date(Date.now()+7*86400000-60000),start=new Date(expiry.getTime()-30*86400000);
+ const subscription=await db.subscription.create({data:{userId:owner.id,subscriptionPlanId:plan.id,subscriptionStatus:'ACTIVE',amount:1,currency:'USD',startDate:start,endDate:expiry,razorpayOrderId:'order_synthetic_expiry',razorpayPaymentId:'pay_synthetic_expiry'}});
+ await db.paymentOrder.create({data:{userId:owner.id,type:'SUBSCRIPTION',amount:1,currency:'USD',status:'SUCCESS',razorpayOrderId:'order_synthetic_expiry',razorpayPaymentId:'pay_synthetic_expiry',metadata:{providerMode:'TEST',syntheticFixture:true,subscriptionId:subscription.id}}});
+ await db.pushDevice.create({data:{userId:owner.id,fcmToken:'synthetic-not-a-real-token',platform:'ANDROID',subscriptionRole:'CUSTOMER'}});
+ await db.subscriptionReminderPreference.create({data:{userId:owner.id,roleContext:'CUSTOMER',pushEnabled:true,timezone:'UTC',quietStart:0,quietEnd:0}});
+ const {SubscriptionExpiryWorker}=load('dist/module/notifications/subscription-expiry.worker.js');let accepted=0;
+ const expiryWorker=new SubscriptionExpiryWorker(db,{sendSubscriptionReminder:async()=>{accepted++;return 'ACCEPTED';}});
+ await expiryWorker.tick();await expiryWorker.tick();
+ const jobs=await db.subscriptionExpiryReminder.findMany({where:{userId:owner.id}});
+ check('Durable expiry inbox and fake-provider acceptance persist once',jobs.some(j=>j.state==='INBOX')&&jobs.filter(j=>j.state==='ACCEPTED').length===1&&accepted===1);
+ const {SupportDeliveryWorker}=load('dist/module/support/support-delivery.worker.js');let supportAccepted=0;
+ const worker=new SupportDeliveryWorker(db,{sendToUser:async(id,payload)=>{assert.equal(id,owner.id);assert.equal(payload.data.ownerId,owner.id);supportAccepted++;return {configured:true,sent:1,failed:0};}});
+ const queued=await db.$queryRaw`SELECT count(*)::int AS count FROM "SupportDelivery" WHERE "state"='QUEUED'`;
+ await worker.tick();await worker.tick();
+ check('Support events fake-provider delivery is owner-bound and deduplicated',queued[0].count>0&&supportAccepted===queued[0].count);
+ const notificationReport=await reports.generateReport({reportType:'NOTIFICATIONS',format:'CSV'});
+ check('Notification audit reports acceptance without claiming device delivery',notificationReport.totalRecords>=3&&!notificationReport.data.toString().includes('DELIVERED'));
+ check('Synthetic subscription fixture creates no wallet ledger posting',await db.walletLedger.count()===0);
+}
+main().catch(e=>{results.push({name:e.message,passed:false});process.exitCode=1;}).finally(async()=>{await db.$disconnect();fs.writeFileSync(process.env.INTEGRATION_RESULT_PATH,JSON.stringify({identityProof:'SYNTHETIC_SERVICE_IDENTITIES_NOT_GOOGLE_OR_BROWSER',results,passed:results.every(r=>r.passed)},null,2));console.log(JSON.stringify(results));});

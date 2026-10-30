@@ -1,21 +1,22 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { createHash } from 'crypto';
-
-describe('Payment Stage 2 rehearsal integrity',()=>{
-  const root=path.resolve(__dirname,'../../..');
-  const evidence=JSON.parse(fs.readFileSync(path.join(root,'review/payments/stage2-postgres-result-schema-aligned.json'),'utf8'));
-  const hash=(file:string)=>createHash('sha256').update(fs.readFileSync(path.join(root,file))).digest('hex');
-  it('rehearsed the exact current Prisma schema after additive Stage 4 changes',()=>{
-    const latest=JSON.parse(fs.readFileSync(path.join(root,'review/payments/stage4-postgres-result-final.json'),'utf8'));
-    expect(latest).toMatchObject({status:'PASS',existingApplicationConnections:0,providerCalls:0,containerRemoved:true});
-    expect(hash('prisma/schema.prisma')).toBe(latest.schemaSha256);
-    expect(hash('prisma/migrations/20261022130000_marketplace_checkout_snapshots/migration.sql')).toBe(latest.snapshotMigrationSha256);
-  });
-  it('rehearsed the exact prepared integrity SQL',()=>expect(hash('prisma/migrations/20261022110000_payment_reference_integrity/migration.sql')).toBe(evidence.migrationSha256));
-  it('rehearsed the exact prepared refund SQL',()=>expect(hash('prisma/migrations/20261022111500_marketplace_refund_workflow/migration.sql')).toBe(evidence.refundMigrationSha256));
-  it('used only isolated synthetic records and removed its container',()=>{
-    expect(evidence).toMatchObject({status:'PASS',existingApplicationConnections:0,providerCalls:0,containerRemoved:true});
-    expect(evidence.checks.length).toBeGreaterThanOrEqual(21);
-  });
+import {createHash} from 'crypto';
+// Source checks are not a claim that archived rehearsal output verifies every future schema.
+describe('portable fresh migration source integrity',()=>{
+ const root=path.resolve(__dirname,'../../../..');
+ const manifest=JSON.parse(fs.readFileSync(path.join(root,'review/payments/fresh-prisma-release-manifest.review.json'),'utf8'));
+ const hash=(file:string)=>createHash('sha256').update(fs.readFileSync(path.join(root,file))).digest('hex');
+ it('current authoritative schema and fresh kit remain aligned',()=>{
+  expect(hash('backend-main/prisma/schema.prisma')).toBe(manifest.schemaSha256);
+  expect(hash('review/payments/fresh-production-prisma/schema.prisma')).toBe(manifest.schemaSha256);
+ });
+ it.each(manifest.files as {migration:string;sha256:string}[])('pins prepared migration $migration',entry=>{
+  expect(hash('review/payments/fresh-production-prisma/migrations/'+entry.migration+'/migration.sql')).toBe(entry.sha256);
+ });
+ it('retains payment/refund SQL protections',()=>{
+  const sql=fs.readFileSync(path.join(root,'review/payments/fresh-production-prisma/migrations/20261027000200_fresh_sql_protections/migration.sql'),'utf8');
+  expect(sql).toContain('payment_orders');expect(sql).toContain('wallet_ledger');
+  const guards=fs.readFileSync(path.join(root,'review/payments/fresh-production-prisma/migrations/20261027000400_product_refund_reservation_guards/migration.sql'),'utf8');
+  expect(guards).toContain('wallet_ledger_single_principal_refund');
+ });
 });

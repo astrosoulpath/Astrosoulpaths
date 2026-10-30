@@ -1,0 +1,6 @@
+import {AdminService} from './admin.service';
+describe('private KYC evidence boundaries',()=>{
+ function fixture(isPublic=false){const sign=jest.fn(async()=>({data:{signedUrl:'https://synthetic.invalid/private'}}));const repo={findAstrologerById:async()=>({id:'profile',userId:'owner',documents:{identityProof:{url:'owner/identity/test.pdf',type:'identity'},certificates:[{url:'foreign/certificate/test.pdf'}]}})};const storage={getStorageClient:()=>({storage:{getBucket:async()=>({data:{public:isPublic}}),from:()=>({createSignedUrl:sign})}})};return {service:new AdminService(repo as never,storage as never,{} as never,{} as never,{} as never,{} as never),sign};}
+ it('signs owned evidence only and retains an absolute expiration',async()=>{const {service,sign}=fixture();const response=await service.getAstrologerKyc('profile');expect(sign).toHaveBeenCalledTimes(1);expect(response.data.certificates[0].signedUrl).toBeNull();expect(Date.parse(response.data.expiresAt)).toBeGreaterThan(Date.now());});
+ it('rejects a public storage bucket before signing',async()=>{const {service,sign}=fixture(true);await expect(service.getAstrologerKyc('profile')).rejects.toThrow('Private KYC storage');expect(sign).not.toHaveBeenCalled();});
+});

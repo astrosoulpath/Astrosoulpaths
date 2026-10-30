@@ -6,7 +6,7 @@
   UseFilters,
   UseGuards,
 } from '@nestjs/common';
-import { IsInt, IsObject, Min } from 'class-validator';
+import { IsInt, IsObject, Min, IsOptional, IsIn } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, Role } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -16,6 +16,7 @@ import { SupportCatalogueService } from './support-catalogue.service';
 class CatalogueDto {
   @IsInt() @Min(0) expectedRevision!: number;
   @IsObject() config!: Record<string, unknown>;
+  @IsOptional() @IsIn(['DRAFT', 'PUBLISH']) action?: 'DRAFT' | 'PUBLISH';
 }
 @Controller('admin/support/assistant/config')
 @UseFilters(SupportErrorFilter)

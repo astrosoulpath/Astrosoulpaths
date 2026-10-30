@@ -323,6 +323,7 @@ class SupportApi {
   }
 
   Future<AssistantSendResult> sendAssistantMessage({
+    bool aiConsent = false,
     required String conversationId,
     required String content,
     String? clientMessageId,
@@ -331,7 +332,10 @@ class SupportApi {
     String? paymentOrderId,
     String? consultationId,
   }) async {
-    final payload = <String, dynamic>{'content': content.trim()};
+    final payload = <String, dynamic>{
+      'content': content.trim(),
+      'aiConsent': aiConsent,
+    };
     if (paymentOrderId?.isNotEmpty == true) {
       payload['paymentOrderId'] = paymentOrderId;
     }

@@ -32,6 +32,8 @@ class _AssistantSupportChatScreenState
 
   bool _loading = true;
   bool _sending = false;
+  bool _aiConsent = false;
+  bool _askingConsent = false;
   bool _escalating = false;
   bool _confirming = false;
   String _error = '';
@@ -188,8 +190,34 @@ class _AssistantSupportChatScreenState
 
     final conversation = _conversation;
 
-    if (text.isEmpty || conversation == null || _sending) {
+    if (text.isEmpty || conversation == null || _sending || _askingConsent) {
       return;
+    }
+
+    if (!_aiConsent) {
+      _askingConsent = true;
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Send to AI Support?'),
+          content: const Text(
+            'Your question will be sent to the configured AI provider. Do not include passwords, OTPs or unnecessary private information.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('I agree'),
+            ),
+          ],
+        ),
+      );
+      _askingConsent = false;
+      if (!mounted || accepted != true) return;
+      _aiConsent = true;
     }
 
     if (_pendingText != text) {
@@ -203,6 +231,7 @@ class _AssistantSupportChatScreenState
 
     try {
       await widget.api.sendAssistantMessage(
+        aiConsent: _aiConsent,
         conversationId: conversation.id,
         content: text,
         clientMessageId: _pendingKey!,

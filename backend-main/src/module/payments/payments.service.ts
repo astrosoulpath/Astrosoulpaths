@@ -1364,8 +1364,19 @@ export class PaymentsService {
         where: { id: subscriptionId },
         select: { userId: true, subscriptionPlan: { select: { name: true } } },
       });
-      // Horoscope copy and navigation are not valid for a professional Kundli purchase.
-      if (subscription?.userId !== userId || subscription.subscriptionPlan?.name !== DAILY_PLAN) {
+      if (subscription?.userId !== userId) return;
+      if (subscription.subscriptionPlan?.name === 'ASTROLOGER_KUNDLI_YEARLY') {
+        const owner = await this.prisma.user.findUnique({where:{id:userId},include:{role:true,astrologer:true}});
+        if (!owner?.isActive || owner.isBlocked || owner.role?.name !== 'ASTROLOGER' || !owner.astrologer?.isApproved || !owner.astrologer.isVerified) return;
+        // Account history only. This does not opt the owner into push delivery,
+        // start a recurring mandate or grant any additional entitlement.
+        await this.notificationsService.createForUser({userId,title:'Professional Kundli subscription activated',
+          body:'Your verified Professional Kundli subscription is available in your Astrologer account.',type:'subscription',
+          data:{type:'subscription',subscriptionId,status:'ACTIVE',roleContext:'ASTROLOGER',source:'subscription-activation'}});
+        return;
+      }
+      // Horoscope copy and navigation are not valid for another product.
+      if (subscription.subscriptionPlan?.name !== DAILY_PLAN) {
         return;
       }
       const profile = await this.prisma.userProfile.findUnique({ where: { userId }, select: { lang: true } });

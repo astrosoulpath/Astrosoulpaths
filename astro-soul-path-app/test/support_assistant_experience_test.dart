@@ -59,6 +59,7 @@ class FakeAssistantApi extends SupportApi {
   ) async => conversation;
   @override
   Future<AssistantSendResult> sendAssistantMessage({
+    bool aiConsent = false,
     required String conversationId,
     required String content,
     String? clientMessageId,
@@ -67,6 +68,7 @@ class FakeAssistantApi extends SupportApi {
     String? paymentOrderId,
     String? consultationId,
   }) async {
+    expect(aiConsent, isTrue);
     keys.add(clientMessageId);
     metadata.add({
       'categoryId': categoryId,
@@ -96,7 +98,31 @@ class FakeAssistantApi extends SupportApi {
   }
 }
 
+Future<void> sendWithConsent(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Send question'));
+  await tester.pumpAndSettle();
+  if (find.text('I agree').evaluate().isNotEmpty) {
+    await tester.tap(find.text('I agree'));
+    await tester.pump();
+  }
+}
+
 void main() {
+  testWidgets('AI consent cancellation sends nothing and preserves the draft', (tester) async {
+    final api = FakeAssistantApi();
+    addTearDown(api.close);
+    await tester.pumpWidget(MaterialApp(home: AssistantSupportChatScreen(api: api)));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Synthetic consent question');
+    await tester.tap(find.byTooltip('Send question'));
+    await tester.pumpAndSettle();
+    expect(api.queries, isEmpty);
+    expect(find.text('Send to AI Support?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(api.queries, isEmpty);
+    expect(find.text('Synthetic consent question'), findsOneWidget);
+  });
   testWidgets(
     'Admin denial offers recovery without sending or bypassing retry',
     (tester) async {
@@ -160,7 +186,7 @@ void main() {
       'Kundli AI Help',
     );
     expect(api.queries, isEmpty);
-    await tester.tap(find.byTooltip('Send question'));
+    await sendWithConsent(tester);
     await tester.pumpAndSettle();
     expect(api.queries, ['Kundli AI Help']);
   });
@@ -173,12 +199,12 @@ void main() {
         MaterialApp(home: AssistantSupportChatScreen(api: api)),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Send question'));
+      await sendWithConsent(tester);
       await tester.pump();
       expect(api.queries, isEmpty);
       const query = 'नमस्ते, Kundli help chahiye';
       await tester.enterText(find.byType(TextField), query);
-      await tester.tap(find.byTooltip('Send question'));
+      await sendWithConsent(tester);
       await tester.pumpAndSettle();
       expect(api.queries, [query]);
     },
@@ -191,7 +217,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'First synthetic question');
-    await tester.tap(find.byTooltip('Send question'));
+    await sendWithConsent(tester);
     await tester.pump();
     expect(find.textContaining('thinking'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'Next unsent draft');
@@ -208,7 +234,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Synthetic question');
-    await tester.tap(find.byTooltip('Send question'));
+    await sendWithConsent(tester);
     await tester.pump();
     await tester.pumpWidget(const SizedBox());
     api.pending!.complete();
@@ -248,7 +274,7 @@ void main() {
       findsOneWidget,
     );
     await tester.enterText(find.byType(TextField), 'Synthetic question');
-    await tester.tap(find.byTooltip('Send question'));
+    await sendWithConsent(tester);
     await tester.pumpAndSettle();
     expect(api.queries, ['Synthetic question']);
     expect(find.text('Synthetic provider reply'), findsOneWidget);
@@ -263,14 +289,14 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Retry draft');
-    await tester.tap(find.byTooltip('Send question'));
+    await sendWithConsent(tester);
     await tester.pumpAndSettle();
     expect(find.text('Retry draft'), findsOneWidget);
     // Let the error snackbar dismiss before interacting with the composer.
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
     api.fail = false;
-    await tester.tap(find.byTooltip('Send question'));
+    await sendWithConsent(tester);
     await tester.pumpAndSettle();
     expect(api.keys.length, 2);
     expect(api.keys[0], api.keys[1]);

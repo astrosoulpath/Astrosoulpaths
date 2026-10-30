@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { INTEGRATION_REPORT_HEADERS, INTEGRATION_REPORT_TITLES, INTEGRATION_REPORT_DESCRIPTIONS, integrationReportRows, isIntegrationReport, IntegrationReportType } from './admin-integration-reports';
 
 export type AdminReportType =
   | 'CUSTOMERS'
@@ -12,7 +13,8 @@ export type AdminReportType =
   | 'CONSULTATIONS'
   | 'PAYMENTS'
   | 'WALLETS'
-  | 'SUBSCRIPTIONS';
+  | 'SUBSCRIPTIONS'
+  | IntegrationReportType;
 
 export interface GenerateAdminReportInput {
   reportType: AdminReportType;
@@ -87,6 +89,10 @@ export class AdminReportService {
         break;
 
       default:
+        if (isIntegrationReport(reportType)) {
+          rows = await integrationReportRows(this.prisma, reportType, dateWhere);
+          break;
+        }
         throw new BadRequestException(
           'Unsupported report type.',
         );
@@ -144,6 +150,7 @@ export class AdminReportService {
       'PAYMENTS',
       'WALLETS',
       'SUBSCRIPTIONS',
+      ...Object.keys(INTEGRATION_REPORT_HEADERS) as IntegrationReportType[],
     ];
 
     if (!allowed.includes(value as AdminReportType)) {
@@ -391,11 +398,12 @@ export class AdminReportService {
         '',
       purchasedMinutes:
         item.purchasedMinutes ?? '',
-      amount:
-        item.amount ??
-        item.totalAmount ??
-        item.earning?.amount ??
-        '',
+      amount: item.amountCharged ?? '',
+      recordedGross: item.earning?.grossAmount ?? '',
+      platformFee: item.earning?.platformFee ?? '',
+      astrologerShare: item.earning?.netAmount ?? '',
+      currency: item.earning?.currency ?? '',
+      isFreeChat: item.isFreeChat === true,
       messageCount:
         item._count?.messages ?? 0,
       startedAt:
@@ -452,6 +460,7 @@ export class AdminReportService {
         item.provider ??
         item.gateway ??
         'Razorpay',
+      providerMode: ['TEST','LIVE'].includes(item.metadata?.providerMode) ? item.metadata.providerMode : 'UNKNOWN',
       razorpayOrderId:
         item.razorpayOrderId ?? '',
       razorpayPaymentId:
@@ -1514,6 +1523,7 @@ export class AdminReportService {
       AdminReportType,
       string[]
     > = {
+      ...INTEGRATION_REPORT_HEADERS,
       CUSTOMERS: [
         'customerId',
         'name',
@@ -1564,6 +1574,11 @@ export class AdminReportService {
         'durationSeconds',
         'purchasedMinutes',
         'amount',
+        'recordedGross',
+        'platformFee',
+        'astrologerShare',
+        'currency',
+        'isFreeChat',
         'messageCount',
         'startedAt',
         'endedAt',
@@ -1581,6 +1596,7 @@ export class AdminReportService {
         'currency',
         'status',
         'provider',
+        'providerMode',
         'razorpayOrderId',
         'razorpayPaymentId',
         'refundedAmount',
@@ -1643,6 +1659,7 @@ export class AdminReportService {
       AdminReportType,
       string
     > = {
+      ...INTEGRATION_REPORT_TITLES,
       CUSTOMERS: 'Customer Report',
       ASTROLOGERS:
         'Astrologer Report',
@@ -1667,6 +1684,7 @@ export class AdminReportService {
       AdminReportType,
       string
     > = {
+      ...INTEGRATION_REPORT_DESCRIPTIONS,
       CUSTOMERS:
         'Registered customers, account activity and wallet summary.',
       ASTROLOGERS:
@@ -1993,7 +2011,10 @@ export class AdminReportService {
     const text =
       this.normalizeValue(value);
 
-    return `"${text.replace(/"/g, '""')}"`;
+    // Quoting alone does not prevent spreadsheet formula execution. Preserve
+    // numeric ledger values; neutralize only user-supplied string cells.
+    const safe = typeof value === 'string' && (/^\s*[=+\-@]/.test(text) || /^[\t\r]/.test(text)) ? "'" + text : text;
+    return `"${safe.replace(/"/g, '""')}"`;
   }
 
   private buildFilename(
@@ -2027,6 +2048,7 @@ export class AdminReportService {
       AdminReportType,
       string
     > = {
+      ...INTEGRATION_REPORT_TITLES,
       CUSTOMERS: 'Customer_Report',
       ASTROLOGERS: 'Astrologer_Report',
       CONSULTATIONS:

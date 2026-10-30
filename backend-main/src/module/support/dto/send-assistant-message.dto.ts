@@ -1,6 +1,7 @@
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class SendAssistantMessageDto {
+  @IsOptional() @IsBoolean() aiConsent?: boolean;
   @IsOptional() @IsString() @MaxLength(80) categoryId?: string;
   @IsOptional() @IsString() @MaxLength(80) questionId?: string;
   @IsOptional() @IsString() @MaxLength(80) paymentOrderId?: string;

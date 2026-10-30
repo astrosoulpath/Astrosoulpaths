@@ -148,9 +148,9 @@ export function validateSupportCatalogue(value: unknown): SupportCatalogue {
 export class SupportCatalogueService {
   constructor(private readonly db: PrismaService) {}
   async publicHelp() {
-    const {config} = await this.read();
+    const {config, revision} = await this.read();
     const help = validatePublicHelp(config.publicHelp);
-    return {success: true, categories: [...PUBLIC_SUPPORT_CATEGORIES], published: help.published,
+    return {success: true, revision, categories: [...PUBLIC_SUPPORT_CATEGORIES], published: help.published,
       contact: {email: help.published && help.email ? help.email : OFFICIAL_SUPPORT_EMAIL,
         hours: help.published ? help.hours : '', responseTime: help.published ? help.responseTime : ''},
       contactSource: help.published && help.email ? 'published-cms' : 'approved-official-default',
@@ -158,6 +158,7 @@ export class SupportCatalogueService {
   }
   private async read(
     db: Pick<Prisma.TransactionClient, '$queryRaw'> = this.db,
+    includeDraft = false,
   ) {
     if (!supportOperationsEnabled())
       return {
@@ -165,8 +166,8 @@ export class SupportCatalogueService {
         config: structuredClone(DEFAULT_SUPPORT_CATALOGUE),
       };
     const rows = await db.$queryRaw<
-      { details: unknown }[]
-    >`SELECT "details" FROM public."SupportOperationAudit" WHERE "objectType"='ASSISTANT_CONFIG' AND "objectId"='catalogue' AND "action"='CONFIG_UPDATED' ORDER BY ("details"->>'revision')::bigint DESC,"id" DESC LIMIT 1`;
+      { details: unknown; action: string }[]
+    >`SELECT "details","action" FROM public."SupportOperationAudit" WHERE "objectType"='ASSISTANT_CONFIG' AND "objectId"='catalogue' AND ("action"='CONFIG_UPDATED' OR (${includeDraft} AND "action"='CONFIG_DRAFT_SAVED')) ORDER BY ("details"->>'revision')::bigint DESC,"id" DESC LIMIT 1`;
     if (!rows.length)
       return {
         revision: 0,
@@ -187,7 +188,7 @@ export class SupportCatalogueService {
       revision < 1
     )
       throw new ConflictException('Support configuration requires review');
-    return { revision, config: validateSupportCatalogue(config) };
+    return { revision, config: validateSupportCatalogue(config), isDraft: rows[0].action === 'CONFIG_DRAFT_SAVED' };
   }
   async customer(auth: unknown) {
     await resolveSupportActor(this.db, auth, false);
@@ -211,17 +212,18 @@ export class SupportCatalogueService {
     const history = supportOperationsEnabled()
       ? await this.db.$queryRaw<
           { id: string; actorId: string; createdAt: Date; revision: string }[]
-        >`SELECT "id","actorId","createdAt",("details"->>'revision') AS "revision" FROM public."SupportOperationAudit" WHERE "objectType"='ASSISTANT_CONFIG' AND "objectId"='catalogue' AND "action"='CONFIG_UPDATED' ORDER BY ("details"->>'revision')::bigint DESC LIMIT 10`
+        >`SELECT "id","actorId","createdAt","action",("details"->>'revision') AS "revision" FROM public."SupportOperationAudit" WHERE "objectType"='ASSISTANT_CONFIG' AND "objectId"='catalogue' AND "action" IN ('CONFIG_UPDATED','CONFIG_DRAFT_SAVED') ORDER BY ("details"->>'revision')::bigint DESC LIMIT 10`
       : [];
     return {
-      ...(await this.read()),
+      ...(await this.read(this.db, true)),
+      publishedRevision: (await this.read()).revision,
       editable: supportOperationsEnabled(),
       history,
     };
   }
   async save(
     auth: unknown,
-    body: { expectedRevision: number; config: unknown },
+    body: { expectedRevision: number; config: unknown; action?: 'DRAFT' | 'PUBLISH' },
   ) {
     const actor: unknown = await resolveSupportActor(this.db, auth, true);
     if (
@@ -239,9 +241,11 @@ export class SupportCatalogueService {
     )
       throw new BadRequestException('Invalid revision');
     const config = validateSupportCatalogue(body.config);
+    const action = body.action ?? 'PUBLISH'; // Preserve the existing authorized PUT contract.
+    if (action !== 'DRAFT' && action !== 'PUBLISH') throw new BadRequestException('Invalid publication action');
     return this.db.$transaction(async (tx) => {
       await supportLock(tx, 'assistant-catalogue');
-      const current = await this.read(tx);
+      const current = await this.read(tx, true);
       if (current.revision !== body.expectedRevision)
         throw new ConflictException(
           'Configuration changed. Reload before saving.',
@@ -254,10 +258,11 @@ export class SupportCatalogueService {
         actorId,
         'ASSISTANT_CONFIG',
         'catalogue',
-        'CONFIG_UPDATED',
+        action === 'DRAFT' ? 'CONFIG_DRAFT_SAVED' : 'CONFIG_UPDATED',
         { revision, config },
       );
-      return { revision, config, editable: true };
+      return { revision, config, editable: true, isDraft: action === 'DRAFT',
+        publishedRevision: action === 'PUBLISH' ? revision : (await this.read(tx)).revision };
     });
   }
   async question(categoryId: string, questionId: string) {

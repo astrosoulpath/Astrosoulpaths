@@ -1,0 +1,22 @@
+{
+  "columns": [
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "categories",
+      "type": "text[]",
+      "not_null": false
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "languages",
+      "type": "text[]",
+      "not_null": false
+    },
+    {
+      "table_name": "ai_astro_personas",
+      "column_name": "expertise",
+      "type": "text[]",
+      "not_null": false
+    }
+  ]
+}

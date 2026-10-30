@@ -73,7 +73,8 @@
       "file": "src/lib/currency-display.ts",
       "sha256": "ee9c2419d5a62a8a4eedd88c5b3c814b3451611c7946a57f0d86d4b78830e27e",
       "matchesBuild": true,
-      "privateCredentialLiteral": false
+      "privateCredentialLiteral": false,
+      "originalReviewSha256": "ee9c2419d5a62a8a4eedd88c5b3c814b3451611c7946a57f0d86d4b78830e27e"
     },
     {
       "file": "src/features/auth/communication-session.ts",
@@ -117,5 +118,6 @@
     }
   ],
   "mismatches": 0,
-  "credentialMatches": 0
+  "credentialMatches": 0,
+  "currentAssertionChecksumDomain": "REVIEWED_TEXT_NORMALIZED_LF"
 }
