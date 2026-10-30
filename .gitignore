@@ -191,3 +191,22 @@ __pycache__/
 /review/payments/emulator-recovery.*.log
 /review/payments/android-final-start.*.log
 /backend-main/review/payments/mobile-test-start.*.log
+
+# Private local verification data and credentials are never release inputs.
+**/.runtime/
+**/.build/
+**/test-results/
+**/playwright-report/
+**/secrets/
+**/*adminsdk*.json
+**/service-account*.json
+**/service_account*.json
+**/*.jks
+**/*.keystore
+**/*.p12
+**/*.pfx
+**/*.dump
+**/*.sqlite
+**/*.sqlite3
+**/*.tsbuildinfo
+/.codex-git-status-audit.txt

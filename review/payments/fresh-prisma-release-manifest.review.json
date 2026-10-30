@@ -1,0 +1,28 @@
+{
+  "status": "FRESH_ONLY_REVIEW_KIT_NOT_APPLIED",
+  "schemaSha256": "9d0dadab3a51e761f0475cb71d1118f54c43faafd3ddb25f0993164f5653dcc3",
+  "databaseConnections": 0,
+  "historicalMigrationFilesChanged": 0,
+  "files": [
+    {
+      "migration": "20261027000100_fresh_model_baseline",
+      "source": "fresh-production-baseline.review.sql",
+      "sha256": "f1f87fda880cbc7824401b8e7f746265f2f5ac29cc342ee037071360e14009fb"
+    },
+    {
+      "migration": "20261027000200_fresh_sql_protections",
+      "source": "fresh-production-protections.review.sql",
+      "sha256": "64b1903f45bd78ed09011681d0aac069f5dede306d967ac354eac6e693bea5c8"
+    },
+    {
+      "migration": "20261027000300_minimal_inactive_catalogue",
+      "source": "fresh-production-minimal-catalogue.review.sql",
+      "sha256": "32b8c7778e0c6d27f7e7f0862a6d02efe172657ddb42ca8238d8d5105163f2ef"
+    },
+    {
+      "migration": "20261027000400_product_refund_reservation_guards",
+      "source": "fresh-product-refund-guards.review.sql",
+      "sha256": "bdb8481ba5a3fdc598653ea71496f1cc84bcaef88ffb85cee19915f327f2e88a"
+    }
+  ]
+}

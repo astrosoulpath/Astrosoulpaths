@@ -1,0 +1,466 @@
+{
+  "status": "REVIEW_ONLY_NO_DATABASE_CONTACT_OR_MIGRATION",
+  "base": "f50d65c23252bc8d00cfea69ad29db0cf9306b77",
+  "currentSchema": {
+    "path": "backend-main/prisma/schema.prisma",
+    "sha256": "594877fc70965691dc6f7bb07e2ffb61cdab820592527f7f497c2f69eab88893"
+  },
+  "freshKitSchema": {
+    "path": "review/payments/fresh-production-prisma/schema.prisma",
+    "sha256": "9d0dadab3a51e761f0475cb71d1118f54c43faafd3ddb25f0993164f5653dcc3"
+  },
+  "offlineSchemaDiffPassed": true,
+  "offlineSchemaDiffEmpty": false,
+  "migrations": [
+    {
+      "path": "backend-main/prisma/migrations/20260328214408_init_migration/migration.sql",
+      "workingFileSha256": "92d6e7d10615095b9842ffbfa35928ff9fc85d86ea6dd4404c579ec58d1d8358"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260407135114_phone/migration.sql",
+      "workingFileSha256": "5bd3e6b81e94e863d38a42103460cfa61a26b331241b4cddd50aa025a4b32107"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260408073952_kundli_implement/migration.sql",
+      "workingFileSha256": "4f048959f44fc0f3f736050d872ef1148fe0f42f80bcc36b0a82372ca604c774"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260413144728_implemented_dosha_and_dashas/migration.sql",
+      "workingFileSha256": "abca801531cbe84128e2844d9f74281b17782b4ec4aa19b2314071a56d57b786"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260413145700_updated_profile/migration.sql",
+      "workingFileSha256": "380c70b77fe43fcb193bbcb8dfe0813395ce94e2b3f4194bcf1c5b31e74086f0"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260414154226_updated_kundli_schema/migration.sql",
+      "workingFileSha256": "0ad21716c1c2e88cbaee2727640c5e04f5c741edcb40fbced780db6dee76a3c2"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260414212459_modify_kundli/migration.sql",
+      "workingFileSha256": "1912f6dbe7c021922e505a4c8c35acef024ba9824a7c98ea68c28930d872ef89"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260416062749_multi_lang/migration.sql",
+      "workingFileSha256": "0db567c851394c5e8becd08380d95346a876a0fa9d9738e442f77e83db31a7d5"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260416140344_add_vedic_field/migration.sql",
+      "workingFileSha256": "efaf5d00a6821fe92c2dcb3491bd66d2d2dbe3cf5cf9e005160894d628935e5e"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260416195919_kundlimatch/migration.sql",
+      "workingFileSha256": "cc130f702fda2a91e3415bff324035c4e2af9e3594e7ec57b46e6abcb6f72028"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260430222359_subcription/migration.sql",
+      "workingFileSha256": "428782a55519b6fdbbf800ca1283bd2d6821df7807f0e22f7988f977de5b06ba"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260507221850_update_profile/migration.sql",
+      "workingFileSha256": "183d85620ad4244241f3029b66023ff1a31e23421bf2303751f02808f2eca028"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260512021057_wallet_intergration/migration.sql",
+      "workingFileSha256": "9c9914c51bef61e9a52e72ae401e10ff4b3aab2cf1ec06bded82cb6c02fd0053"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260512103000_payment_types_and_kundli_orders/migration.sql",
+      "workingFileSha256": "c701ed6da0ed7b29244f7fafc25638e6e00cdacd8af76e0111284f950b2c74b6"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260513103000_add_call_end_reason/migration.sql",
+      "workingFileSha256": "e03cf7f918e9dfa8e01100ef4edd2032028b121a8f921bd145da24b25708984a"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260513120000_add_call_sessions/migration.sql",
+      "workingFileSha256": "6341f1b46cd7f3f93f36547211bb0ae17df3471cc785e4b22f3c7535638522ce"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260513123000_add_call_end_reason_to_call_session/migration.sql",
+      "workingFileSha256": "eed4ebca3aa095525de2ebf8dd03bb156b9ea2633981f71833c0c57d15aa8e4d"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260513160000_drop_call_sessions/migration.sql",
+      "workingFileSha256": "0c92c6b98260d808312a0da1b1681ee1148ea07ca251b574c66de418bf1131dc"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260514075442_call_session/migration.sql",
+      "workingFileSha256": "6bcc63b2319584f0fae954cb0f5c7d40e5a570b819e0e9ca489fe8e0fb7e43b9"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260515013848_userprofile/migration.sql",
+      "workingFileSha256": "54b77bc4b1b68bedaf58d2e946fe8bd4f47509d20851c130204f40ba7896fc0b"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260708071230_add_profile_extra_fields/migration.sql",
+      "workingFileSha256": "3ba233e0a2d0156e8d0df052fc7e4623af7d7bd40e01311cc5176b0dce4264c1"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260708074623_fix_match_model_fields/migration.sql",
+      "workingFileSha256": "7d529426dbb86adef738c79f2579463637759d273ced84e1443ecf18e340399a"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260708075919_add_match_result/migration.sql",
+      "workingFileSha256": "2052e05a891880e2be34ff0ad8e76cb219593e5c11bfe37256819f64d131c920"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260711190755_add_chat_messagee/migration.sql",
+      "workingFileSha256": "d1078a4d3171e0eac4aa8442624787ec2bf2f3d630a0f19a1bc5029c9727f666"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260716065040_add_astrologer_earnings_and_payouts/migration.sql",
+      "workingFileSha256": "38d38bb5189f7690d7a5ab1fe3d0a650ada22c4f2b97006fb6d18256c7cb443f"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260724094554_add_consultation_mode/migration.sql",
+      "workingFileSha256": "1f987c30ca0109b5af0ec9c4111e827a2c916c09a2414455c44842e2a09fcf20"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260728062000_add_chat_client_message_id/migration.sql",
+      "workingFileSha256": "7d1d0e8f73f547c9829be415f30671cbac48324b95f238ee38ec7c9318ecfe24"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260730081105_remove_invalid_user_role_default/migration.sql",
+      "workingFileSha256": "cabb9d823f6c833f3596fa84ac2e573e438826c91f573c79eca684d96b78a64d"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260731171719_add_customer_free_chat/migration.sql",
+      "workingFileSha256": "e92eeede343a04b0e510abbf6537e745ceff3eaad6305593e17af31a6f32723a"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260731205158_add_kundli_saved_records/migration.sql",
+      "workingFileSha256": "d1d60be636d14708906a08b61bae8f29318e32fc16f4287732d7c9eccb7b3d75"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260805073057_add_one_minute_free_chat_booking/migration.sql",
+      "workingFileSha256": "f558dfdbfc7141a9bdb81ab1631c71461c75696902c675d67b6e0e29eda530a5"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260808075842_add_astrologer_weekly_availability/migration.sql",
+      "workingFileSha256": "d4e3e6b01b026c051ddbd39d7b9d65ea88acc86411c15dfc72a8e5574c3506a1"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260810052122_add_platform_settings/migration.sql",
+      "workingFileSha256": "502d8aca5a1aa50cf3c7087935b0526c37f2c2fdc9a1a37f526ad337447dd187"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260810173249_add_chat_message_reply/migration.sql",
+      "workingFileSha256": "2f03534f6c475aac7c1a3695904938df9ce698b8bae12afbd47df7d152748a99"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260811081128_add_astrology_questions/migration.sql",
+      "workingFileSha256": "62e632a2c4e11fab5867c5a1e75fa11ac78419a82ef795fffc83f56b7a4824b5"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260811094806_add_consultation_astrology_question_context/migration.sql",
+      "workingFileSha256": "f1d1bb584698cd119d92407b37511f5350f918536315c95f11d3a206014b9335"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260811105204_add_push_devices/migration.sql",
+      "workingFileSha256": "f42ec310b64575de5055a987d1764d71a3791b5b280db70851949a76c6be2cff"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260812174629_add_payout_earning_reservation/migration.sql",
+      "workingFileSha256": "b7579e936d2510375466dd926985cb73bf16ff829552c8a3233db24fb32106bd"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260812202803_add_astrologer_qualification_system/migration.sql",
+      "workingFileSha256": "20c2fe061873e22d44fad7492f4b8410451ab41820b9bf83781c0e2a129c20c8"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260815213655_add_chat_attachment_path/migration.sql",
+      "workingFileSha256": "b9b3410fc5675ccfed5e1f95a3a04fb71b089ccbc0fdca9d29add3a7a2eedf26"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260816055119_add_chat_e2ee_foundation/migration.sql",
+      "workingFileSha256": "b5db84c9987c06b4a6c4b5690e1daa56316b0ca68c5906993cdaf655ecd07922"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260816064446_add_user_block_report_moderation/migration.sql",
+      "workingFileSha256": "42adf1bc79a8cc6f7ea26df165f3a9650426c002075eb4a524425d4fedebc103"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260816073224_add_review_call_session/migration.sql",
+      "workingFileSha256": "e5faeecf22a7fba1c871aaa8f6e90563de3dc35bab405281806b336810c36b3b"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260817200709_add_ai_receptionist_persistence/migration.sql",
+      "workingFileSha256": "5018c1ee5c316667ec561c20046ab3ee5fd4988123d09a1a87a28aecc43808f5"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260818072026_add_live_astrologer_sessions/migration.sql",
+      "workingFileSha256": "38a6256588171a7cb3ef4cd3ff4de9406313e56408123a30196217b55019d33c"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260818104609_add_ai_astro_pricing_and_usage/migration.sql",
+      "workingFileSha256": "6ed015af70d3ade1aa17e262e82237aa8a43d1ce09305912e3fe40f1b7c5a0f3"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260818105133_add_ai_astro_wallet_ledger_types/migration.sql",
+      "workingFileSha256": "9d974bb16b6f2168da4e557aaca24c1088c6f95177a921f0f0c6acb90047e93e"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260818120545_add_ai_astro_request_idempotency/migration.sql",
+      "workingFileSha256": "5f1a21a74c14c3ecc838a5ef24499178c345d1c93299c853fc8e2d8980649f6c"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260818191247_add_notification_inbox/migration.sql",
+      "workingFileSha256": "74a7fb3c2145c998c53c744c60e0189a775662f0eead2eeeb3ff63e12122d979"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260820180701_add_ai_astrologer_avatar/migration.sql",
+      "workingFileSha256": "1a0351175b7c2027251fc9dfc135d3943775497b01254a94e4c6bad4d430eab5"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260820191128_add_ai_astro_conversations/migration.sql",
+      "workingFileSha256": "331da4ef0b42622e27c1c6248ba9e11bdc3d1923f9c7247343024c90825257da"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260820195433_add_user_profile_language/migration.sql",
+      "workingFileSha256": "be8f892c3313126d6e319a3844511d88098796148763a9a69521d4d6bb5de45f"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260820205854_add_user_preferences/migration.sql",
+      "workingFileSha256": "0cf7d4c9086633889ade0566a640f3d17e5d9ac40c0bb60e481f9ace39e42eee"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260821071752_add_daily_horoscope_history/migration.sql",
+      "workingFileSha256": "770fd219c37e0c50e2187573f5fb10ba8526ba0688542a306b67dd89b1a82f5d"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260821110306_add_support_ticket_and_assistant_chat/migration.sql",
+      "workingFileSha256": "5ae56683e76e15c3f58a52c1fe7073f5888e492fb91aae18f96805093b88fcd7"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260821182820_add_app_config/migration.sql",
+      "workingFileSha256": "def30c38b9078e7cc14dd42dd78052dd502559964baa09d87f9b5c32749c34fe"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260822034317_add_about_us_config/migration.sql",
+      "workingFileSha256": "7e70a97810f939755799dc47c5a745b97e8a56430c317cd7ac116ca702ceca29"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260822035857_add_customer_feedback/migration.sql",
+      "workingFileSha256": "853121b455c44b239383763003e79e71906d348e129a7f0f1fc539f23195723a"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260822054955_global_subscription_money_precision/migration.sql",
+      "workingFileSha256": "adb145007c68320bf12bf71b712fe288f041a204b7d585770cdda0fa0481ce0f"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260823165109_add_astrologer_self_withdrawal_bank_account/migration.sql",
+      "workingFileSha256": "4523f7e07f878fc8271775cc77fddfc5e5b0da9a901eb57d85e8c8651ac4333d"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260823165646_add_astrologer_real_payout_state/migration.sql",
+      "workingFileSha256": "0c8450d06776c4f276b242eae6a8b855263a24fffff4c85d2eba1d0c4da9d253"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260823203736_add_video_call_admin_control/migration.sql",
+      "workingFileSha256": "2876fb5b0aa06aa53a8e0c06f50c329ef3252f99527676a225d8feb2825e309e"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260829191927_add_soul_bazaar_admin_foundation/migration.sql",
+      "workingFileSha256": "917dd451028411bfe4bb43d8201a2cb3d89d9bb038b0fa5b84838a9ab034e11b"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260830_add_marketplace_cart_address/migration.sql",
+      "workingFileSha256": "b60b6e131bf259e76f319edee06dba8f051efb604bc56cf0eb238f49cb0d6d4a"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260830_add_marketplace_finance_foundation/migration.sql",
+      "workingFileSha256": "98a3339fe93bca68bf97d0fb1dd8d454e256806a4223faf355c322d58c84d604"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260830142423_add_marketplace_orders_fulfillment/migration.sql",
+      "workingFileSha256": "15c420c53b02f044313a7dae8f0c5200fd39a021ac84d47781f3ff5ab3e61563"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260830150000_add_marketplace_finance_foundation/migration.sql",
+      "gitBlobSha256": "cf0d9204c4e3948c9a6d58f6542f03a64b26a0c7a0a0ae0457cf716ac3c4d3ad",
+      "retainedFrom": "f50d65c23252bc8d00cfea69ad29db0cf9306b77"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260831113241_add_marketplace_prepare_idempotency/migration.sql",
+      "workingFileSha256": "684f8cd95b5893655f4174d1f2d382c7241778cf607596067ec9fb227a0610e1"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260831115306_add_marketplace_payment_fields/migration.sql",
+      "workingFileSha256": "fe3b1b3ab79d3e68563b3078c2daf3f252cb9e6839958dfdc930e537718d38f1"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260831130531_add_marketplace_payment_compensation/migration.sql",
+      "workingFileSha256": "701832a1ba2e4f0d0e3c8f1afc81cc83b158655a8c1e8f0f6bcb6c930aa7de34"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260831150000_add_marketplace_payment_fx_snapshot/migration.sql",
+      "workingFileSha256": "7522f888cf83e0da02373f54cf000a5152a5c7c331da0e315bbad3a641a5ef4e"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260831225546_add_database_backed_app_languages/migration.sql",
+      "workingFileSha256": "30be923e99ee35a7076d5ac7c958650309759200fa675cb12506af38a4d6e2fd"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260831233906_add_app_translations/migration.sql",
+      "workingFileSha256": "98052925868da393f673a1d638a4d093fc6b8085d6d37dcf327a069d5d133147"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260901_ai_astro_timed_session/migration.sql",
+      "workingFileSha256": "a631f11b28a659c3bb3644696e8e41db2825c320a76f0b5db69c271a622310fd"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260901004201_add_ai_astro_per_minute_pricing/migration.sql",
+      "workingFileSha256": "5881f566b69986712a8d93275f54d85952c1ad7ccbeb7a556a921cc4322fcf6d"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260901055720_add_ai_consultant_types/migration.sql",
+      "workingFileSha256": "4174314baad259609bdcfbcf14a75a8b535e90c92d0724a3e5c8eb3da43499f3"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260901082428_add_ai_consultant_type_context/migration.sql",
+      "workingFileSha256": "a3fa9d59b6554623e095e5084be4a11095b97290aa0f0d533aebf236f0e9ffdd"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260901125417_add_recharge_packs/migration.sql",
+      "workingFileSha256": "7b37a2ab4aec7231bb86438c8d884451af9e66318b0572d61e9f6792c40bf3a4"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260901140422_add_exact_recharge_bonus_amount/migration.sql",
+      "workingFileSha256": "e40b99bd3d043559b1b8b56fef4632bb740c552390a943711dde35151a32d3d1"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260901192132_add_paid_free_wallet_balances/migration.sql",
+      "workingFileSha256": "be703bd41ab5e31be878532b55be1866cd3eee498a459e2bec3db24ef2e6b2ea"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260901235811_add_astrologer_consultation_categories/migration.sql",
+      "workingFileSha256": "f6fef87064955d7ecd06b501adb99439e16133a704b36eecdb3b0495e3cccba1"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260902230621_add_support_ticket_contact_email/migration.sql",
+      "workingFileSha256": "fa32ecabc7d202530809e60106d320eb4e6e3f8403968ee734bdb2e9f09a603d"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260902233137_add_support_attachments/migration.sql",
+      "workingFileSha256": "cf7032c4b7992d21b817ddf7f763f669279db34384a7bd2d7d2f0bada0348d85"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260903074500_add_user_auth_identities/migration.sql",
+      "workingFileSha256": "28fddf4e502ef8d0a570bb62678f76779236b041722548d974551c4dea251b95"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260904195654_allow_general_ai_without_astrologer/migration.sql",
+      "workingFileSha256": "c97f143b08b5c6e649de0a889a769caf625a0e54ebaa539fdcae2ec6944fb0cb"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260907220000_add_astrologer_payout_payment_fx_snapshot/migration.sql",
+      "workingFileSha256": "4865b7904d9dafe9022b874c19ce28d05a909d4b71f89ae0fbc3b6462b07c721"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260907223752_add_astrologer_earning_platform_fee_percent/migration.sql",
+      "workingFileSha256": "331203b7b9c87141a8f2dea57c7ff1556b09d2232c778b71d74da6bb56a04443"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260908230722_add_birth_time_known/migration.sql",
+      "workingFileSha256": "b7099f08ee6c51031c0b1875c92b44fe7a2fbf348ba20b798e45f2b67a49e213"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260910113438_add_astrologer_manual_kundli_reports/migration.sql",
+      "workingFileSha256": "74747ba3a2ff1b08d5005a8534ec3be06000e9fc30592af551f5f27120bc8592"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260910185228_add_ai_astro_selected_duration/migration.sql",
+      "workingFileSha256": "944fcacd9e71ad2c2f23d9bc795dade09ad14a9e103e31f9d0e8d67797b3e761"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260912090055_add_chat_voice_notes/migration.sql",
+      "workingFileSha256": "b75aefae6d46becfb1c806fdc5775723ec4de52485cdeef55ee1e460bcdceadc"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260914103742_add_chat_sticker_message_type/migration.sql",
+      "workingFileSha256": "04b320bff83e80c5d7c178c2b702ee2799358160ea44bea75dde0a0086d27f18"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260917155013_add_astrology_question_answer_cache/migration.sql",
+      "workingFileSha256": "ff1004229a307454cd4d32e0236c1e523780d0756bb912743ae2b25558302830"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260923000000_add_astrology_videos/migration.sql",
+      "workingFileSha256": "0546b81b2d08a12410d1f5f41b12b70a8ca85560b1d4cef80f603e09264e2e7f"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260924115453_add_global_articles/migration.sql",
+      "workingFileSha256": "c2b27006433dfe17fa1780efedcbd0c60db4a86fc717ee4d6d52e9d3b74b9b1f"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20260924123215_add_article_review_workflow/migration.sql",
+      "workingFileSha256": "86df5f78f098a359be2b1a637ebe0036110ef8e1aec452afe4da3729916c0da5"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261008000000_add_residence_country_code/migration.sql",
+      "workingFileSha256": "f488cad7b738fb4598354cfaf36a4788805120eb1292525931e2a78ed6fbafb5"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261008130000_add_ai_astro_personas_and_follows/migration.sql",
+      "workingFileSha256": "e2a6260ed1514ef2326544706b8cb57682aa42c453162faae698e7dfbb69e22a"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261008150000_add_ai_persona_session_columns/migration.sql",
+      "workingFileSha256": "26f4c8776e5d73dcd58441ed4dde8d984a1538cb8d464f634f72bf202fc6c5e7"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261018000100_marketplace_case_review/migration.sql",
+      "workingFileSha256": "3dd1fe338139082d72356c15fadbbc52ce9fe0f87bb9263472d2fa7f3e351cd0"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261018000200_marketplace_component_journal/migration.sql",
+      "workingFileSha256": "e90597f76b39f8cf6532840e749006ca62387b8d6f79a1c1838bf2d0199793ea"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261021190000_add_durable_horoscope_reminders/migration.sql",
+      "workingFileSha256": "f93c296ac05632cfa9948f840f9d29ea75e361077f1fd65f47de932c58fbd23e"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261022110000_payment_reference_integrity/migration.sql",
+      "workingFileSha256": "89daf3893901b7605a7c52b979f7111edafcd3f97c40dea3c4d56ab6f2e115bd"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261022111500_marketplace_refund_workflow/migration.sql",
+      "workingFileSha256": "92528cf0219ea3de1620e1f58757faff72c4bda149fce702bbce88584bda8468"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261022130000_marketplace_checkout_snapshots/migration.sql",
+      "workingFileSha256": "dddcafb8f7f0c1a4282f8d9522b2e398252222a219eb7db09a6f2cf2fe687552"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261022160000_add_smart_notification_storage/migration.sql",
+      "workingFileSha256": "df8b0c751885ac95cbb44a373c24f71f6211e2e1cd884cb6e3a0cd7340b87c99"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261024200000_add_consultation_kundli_consent_v1/migration.sql",
+      "workingFileSha256": "65fdb9a58cd833c935d896456b67ffafa9bdd0dd872322e02b33356e7e698dc9"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261025120000_fix_kundli_consent_utc_boundaries/migration.sql",
+      "workingFileSha256": "84149cf03cdba3504063587f5160d5138694d946dae65ed8336981d1019f5b9e"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261025180000_payment_operational_workflows/migration.sql",
+      "workingFileSha256": "58030b31ad795f88ea89406a7697d1251a1b61d802ccf02ea0c512b2dc2a9534"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261025200000_add_commission_audit_foundation/migration.sql",
+      "workingFileSha256": "328199143d2abf14f1ea5828bf22e8447c8da87a500d9d52f3e2aaf360afd0d2"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261029120000_add_astrologer_review_corrections/migration.sql",
+      "workingFileSha256": "e4ce869a55980e7fa975ae3ef626b0d98bcdc3401349223424f49e2a4fdd7786"
+    },
+    {
+      "path": "backend-main/prisma/migrations/20261030120000_subscription_expiry_reminders/migration.sql",
+      "workingFileSha256": "8e4439832b813d8910503193df17749347ba2c00a57f8bd888058b6ee9b7df2d"
+    }
+  ],
+  "warning": "Historical migration checksums and exact target must be reviewed separately; never deploy the full chain blindly. No rehearsal against PostgreSQL was performed by this inventory."
+}
