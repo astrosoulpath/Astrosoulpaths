@@ -26,7 +26,7 @@ Before later approval, record existing backend/website/Redis/database IDs, regio
 
 Existing migration history must be preserved. A pre-existing local deletion of a historical migration is not permission to delete its approved release copy. Fresh initialization/additive migrations require separate target-specific review and approval. New generated Prisma clients must not run against schemas missing required columns.
 
-**Current schema blocker:** the four-migration fresh-install kit predates subscription-expiry reminders and the latest moderation fields. An offline Prisma datamodel diff confirmed this without connecting to a database. See `SOURCE-MIGRATION-INVENTORY.json` for reviewed source hashes; do not deploy this backend onto the four-migration kit alone. Compose and rehearse the exact additional reviewed migrations on a separately authorized empty target, including SQL-only protections and runtime grants, before approving deployment. A successful client build is not proof of database compatibility.
+**Schema gap resolved locally:** the fresh-only kit now contains six migrations, including unchanged historical moderation-correction and subscription-expiry SQL. All six were applied through Prisma to a newly owned PostgreSQL18 tmpfs container, with no datamodel drift, successful no-op redeployment and dump/restore. Existing databases and historical migrations were not modified. See `SOURCE-MIGRATION-INVENTORY.json` and the Phase2 report. Hosted target identity, complete backend runtime grants, backup/PITR and separately approved migration execution remain deployment requirements. Never run the former four-migration kit alone for this source.
 
 ## Next.js website and Admin
 
@@ -37,6 +37,8 @@ Existing migration history must be preserved. A pre-existing local deletion of a
 - Set `NEXT_PUBLIC_API_BASE_URL` to the approved HTTPS TEST backend **before build**. Browser variables are embedded and require a rebuild when changed.
 - Use `website/.env.example`; never put private keys, service-role credentials or webhook secrets in `NEXT_PUBLIC_*`.
 - Retained legacy recovery may require the public `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`; an anon/publishable key is not a service-role key. Verify database RLS and API-key restrictions separately.
+- Supabase compatibility now initializes lazily. Firebase/public prerendering does not require those optional legacy variables; legacy operations still fail closed if they are absent. Never fill them with dummy credentials to make a build pass.
+- Source bounds prerender workers at two. The isolated Node22 webpack build passed in437 seconds with a2GiB build-process heap; this is build evidence, not a promise that a512MiB hosted build/runtime will fit. Verify the chosen service's actual build/runtime limits.
 - Keep demo/emulator authentication disabled on shared/deployed services. Keep `PUBLIC_WEBSITE_LAUNCH_APPROVED=false` until public content/launch scope is approved.
 
 ## Secure environment checklist (names only)
@@ -56,6 +58,8 @@ Store actual values only in approved Render secret/environment storage:
 - Do not add paid AI/provider credentials merely to make unavailable features appear active.
 
 Review `staging-gates.env.example`. Every execution/delivery gate remains disabled initially. Do not set schema readiness without verifying the exact schema and grants. No running environment is changed by these templates.
+
+Set the new explicit deny override `FCM_SENDS_DISABLED=true` in the proposed staging configuration. It blocks both reminder and legacy/direct FCM sends before device queries/provider calls and does not claim delivery success. `SMART_ENGAGEMENT_ENABLED=false` also disables the older engagement cron. The new opt-out defaults to existing behavior outside a specifically configured environment; no currently running backend was restarted or reconfigured. Do not omit this override while adding Firebase credentials for authentication.
 
 ## Server-side Admin and operator-only finance
 

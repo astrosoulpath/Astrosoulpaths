@@ -23,7 +23,7 @@ export class NotificationsPushService {
 
   /** Data-only: the OS must not display account-specific text before client authorization. */
   async sendSubscriptionReminder(userId: string, deviceId: string, role: SubscriptionRole, reminderId: string, subscriptionId: string, expiresAt: Date) {
-    if (!expiryPushEnabled()) return 'DELIVERY_GATED';
+    if (process.env.FCM_SENDS_DISABLED === 'true' || !expiryPushEnabled()) return 'DELIVERY_GATED';
     if (!this.firebaseApp) return 'RETRY_CONFIGURATION';
     if (expiresAt.getTime() <= Date.now()) return 'MILESTONE_EXPIRED';
     const devices = await this.prisma.$queryRaw<{id:string;fcmToken:string}[]>`SELECT d."id",d."fcmToken" FROM "PushDevice" d JOIN "User" u ON u."id"=d."userId" WHERE COALESCE(d."deviceId",d."id")=${deviceId} AND d."userId"=${userId} AND d."subscriptionRole"=${role} AND d."isActive"=true AND u."isActive"=true AND u."isBlocked"=false ORDER BY d."lastSeenAt" DESC LIMIT 1`;
@@ -100,6 +100,12 @@ export class NotificationsPushService {
     deviceId?: string,
     mobileOnly = false,
   ) {
+    // Explicit staging opt-out also covers legacy direct callers. It does not
+    // initialize a fake provider, query devices or claim a successful delivery.
+    if (process.env.FCM_SENDS_DISABLED === 'true') {
+      return { success: false, configured: this.firebaseApp !== null,
+        sent: 0, failed: 0, failureCodes: ['DELIVERY_GATED'] };
+    }
     const devices = await this.prisma.pushDevice.findMany({
       where: {
         userId,
