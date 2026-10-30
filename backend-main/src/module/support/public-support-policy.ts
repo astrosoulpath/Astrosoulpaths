@@ -1,6 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { hasSupportCredential } from './support-input-policy';
 
+/** Owner-approved public contact; does not publish CMS drafts or FAQs. */
+export const OFFICIAL_SUPPORT_EMAIL = 'support@astrosoulpath.com';
+
 export const PUBLIC_SUPPORT_CATEGORIES = [
   'GENERAL',
   'CONSULTATION',

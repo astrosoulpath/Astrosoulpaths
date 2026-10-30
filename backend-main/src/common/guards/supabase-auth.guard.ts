@@ -102,7 +102,7 @@ export class SupabaseAuthGuard implements CanActivate {
         if(/^\/(api\/)?astrologer(\/|$)/.test(path)&&payload.asp_context!=='astrologer'&&
           !/\/astrologer\/public(\/|$)/.test(path))throw new ForbiddenException('Astrologer context required');
         if(payload.asp_context==='astrologer'&&payload.asp_account_role==='ASTROLOGER_APPLICANT'&&
-          !/^\/(api\/)?(user\/session|user\/profile|astrologer\/(register|kyc\/upload|onboarding-status|profile))(\/|$)/.test(path)){
+          !/^\/(api\/)?(user\/session|user\/profile|astrologer\/(register|application|kyc\/upload|onboarding-status|profile))(\/|$)/.test(path)){
           throw new ForbiddenException('Approved astrologer context required');
         }
       }

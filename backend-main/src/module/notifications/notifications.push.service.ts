@@ -3,6 +3,7 @@ import { App, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { expiryPushEnabled, SubscriptionRole } from './subscription-expiry.policy';
 
 type PushPayload = {
   expiresAt?: Date;
@@ -18,6 +19,35 @@ export class NotificationsPushService {
 
   constructor(private readonly prisma: PrismaService) {
     this.firebaseApp = this.initializeFirebase();
+  }
+
+  /** Data-only: the OS must not display account-specific text before client authorization. */
+  async sendSubscriptionReminder(userId: string, deviceId: string, role: SubscriptionRole, reminderId: string, subscriptionId: string, expiresAt: Date) {
+    if (!expiryPushEnabled()) return 'DELIVERY_GATED';
+    if (!this.firebaseApp) return 'RETRY_CONFIGURATION';
+    if (expiresAt.getTime() <= Date.now()) return 'MILESTONE_EXPIRED';
+    const devices = await this.prisma.$queryRaw<{id:string;fcmToken:string}[]>`SELECT d."id",d."fcmToken" FROM "PushDevice" d JOIN "User" u ON u."id"=d."userId" WHERE COALESCE(d."deviceId",d."id")=${deviceId} AND d."userId"=${userId} AND d."subscriptionRole"=${role} AND d."isActive"=true AND u."isActive"=true AND u."isBlocked"=false ORDER BY d."lastSeenAt" DESC LIMIT 1`;
+    if (!devices[0]) return 'DEVICE_OWNERSHIP_CHANGED';
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        getMessaging(this.firebaseApp).send({ token:devices[0].fcmToken,
+          data:{type:'subscription_expiry',ownerId:userId,roleContext:role,reminderId,subscriptionId},
+          android:{priority:'high',ttl:Math.max(0,expiresAt.getTime()-Date.now()),collapseKey:reminderId},
+          apns:{headers:{'apns-push-type':'background','apns-priority':'5','apns-expiration':String(Math.floor(expiresAt.getTime()/1000))},payload:{aps:{contentAvailable:true}}},
+        }),
+        new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('ACCEPTANCE_UNKNOWN')),10_000);}),
+      ]);
+      return 'ACCEPTED'; // Provider acceptance is not proof of device display.
+    } catch(error) {
+      const code=(error as {code?:string}).code;
+      if (code==='messaging/quota-exceeded') return 'RETRY_QUOTA_REJECTED';
+      if(code==='messaging/registration-token-not-registered'||code==='messaging/invalid-registration-token') {
+        await this.prisma.pushDevice.updateMany({where:{id:devices[0].id,userId,fcmToken:devices[0].fcmToken},data:{isActive:false}});
+        return 'INVALID_TOKEN';
+      }
+      throw error; // Ambiguous provider responses are never automatically replayed.
+    } finally { if(timer)clearTimeout(timer); }
   }
 
   isConfigured(): boolean {

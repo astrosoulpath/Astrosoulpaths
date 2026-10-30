@@ -6,14 +6,17 @@ import {
   Injectable,
   NotFoundException,
   InternalServerErrorException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   AstrologerEarningStatus,
   AstrologerPayoutStatus,
   Prisma,
 } from '@prisma/client';
-import { randomUUID } from 'crypto';
-import { validateKycFile } from './kyc-document-policy';
+import { randomUUID, createHash } from 'crypto';
+import { validateKycFile, ownsKycDocument } from './kyc-document-policy';
+import {ApplicationCorrectionsDto} from './dto/application-corrections.dto';
+import {requireCorrectionsReady,validateCorrectionFields} from './application-corrections.policy';
 import type { Express } from 'express';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -35,6 +38,12 @@ type PublicAstrologerFilters = {
 
 @Injectable()
 export class AstrologerService {
+  private async privateKycStorage() {
+    const client=this.supabaseService.getStorageClient();
+    const result=await client.storage.getBucket('astrologer-kyc');
+    if(result.error || result.data?.public!==false) throw new ServiceUnavailableException('Private KYC storage is not verified. No document was published.');
+    return client.storage.from('astrologer-kyc');
+  }
   constructor(
     private readonly prisma: PrismaService,
     private readonly supabaseService: SupabaseService,
@@ -45,6 +54,7 @@ export class AstrologerService {
     supabaseId: string,
     file: Express.Multer.File | undefined,
     documentType: string,
+    websiteConsent?: {countryCode:string},
   ) {
     const normalizedSupabaseId = supabaseId?.trim();
 
@@ -124,21 +134,18 @@ export class AstrologerService {
 
     const extension = extensionMap[file.mimetype] ?? '';
 
-    const bucket = 'astrologer-kyc';
-
     const storagePath = `${user.id}/${normalizedDocumentType}/${randomUUID()}${extension}`;
 
-    const client = this.supabaseService.getStorageClient();
+    const storage = await this.privateKycStorage();
 
     try {
-      const { error: uploadError } = await client.storage
-        .from(bucket)
-        .upload(storagePath, file.buffer, {
+      const { error: uploadError } = await storage.upload(storagePath, file.buffer, {
           contentType: file.mimetype,
 
           cacheControl: '3600',
 
           upsert: false,
+          ...(websiteConsent ? {metadata:{consentVersion:'website-kyc-2026-10',countryCode:websiteConsent.countryCode,acceptedAt:new Date().toISOString()}} : {}),
         });
 
       if (uploadError) {
@@ -261,115 +268,100 @@ export class AstrologerService {
     return astrologer;
   }
 
-  async getOnboardingStatus(supabaseId: string) {
-    const normalizedSupabaseId = supabaseId?.trim();
-
-    if (!normalizedSupabaseId) {
-      throw new BadRequestException('Authenticated user ID is required');
-    }
-
-    const mappedIdentity =
-      await this.prisma.userAuthIdentity.findUnique({
-        where: {
-          provider_providerUserId: {
-            provider: 'supabase',
-            providerUserId: normalizedSupabaseId,
-          },
-        },
-        select: {
-          userId: true,
-        },
-      });
-
-    const user = await this.prisma.user.findUnique({
-      where: mappedIdentity
-        ? { id: mappedIdentity.userId }
-        : { supabaseId: normalizedSupabaseId },
-
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        avatarUrl: true,
-
-        astrologer: {
-          select: {
-            id: true,
-            isApproved: true,
-            isVerified: true,
-            isOnline: true,
-          },
-        },
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User account not found');
-    }
-
-    const astrologer = user.astrologer;
-
-    if (!astrologer) {
-      return {
-        success: true,
-
-        data: {
-          userExists: true,
-          hasProfile: false,
-
-          isApproved: false,
-          isVerified: false,
-          isOnline: false,
-
-          nextStep: 'REGISTER',
-
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            phone: user.phone,
-            avatarUrl: user.avatarUrl,
-          },
-
-          astrologer: null,
-        },
-      };
-    }
-
-    const isReadyForDashboard = astrologer.isApproved && astrologer.isVerified;
-
-    return {
-      success: true,
-
-      data: {
-        userExists: true,
-        hasProfile: true,
-
-        isApproved: astrologer.isApproved,
-
-        isVerified: astrologer.isVerified,
-
-        isOnline: astrologer.isOnline,
-
-        nextStep: isReadyForDashboard ? 'DASHBOARD' : 'PENDING_APPROVAL',
-
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          avatarUrl: user.avatarUrl,
-        },
-
-        astrologer: {
-          id: astrologer.id,
-        },
-      },
-    };
+  async resubmitCorrections(subject:string,dto:ApplicationCorrectionsDto){
+    requireCorrectionsReady();
+    const mapped=await this.prisma.userAuthIdentity.findUnique({where:{provider_providerUserId:{provider:'supabase',providerUserId:subject}},select:{userId:true}});
+    const owner=await this.prisma.user.findUnique({where:mapped?{id:mapped.userId}:{supabaseId:subject},select:{id:true}});
+    if(!owner)throw new ForbiddenException('Applicant account is not accessible');
+    const fingerprint=createHash('sha256').update(JSON.stringify(Object.keys(dto.updates).sort().map(key=>[key,dto.updates[key]]))).digest('hex');
+    return this.prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id"=${owner.id} FOR UPDATE`;
+      const user=await tx.user.findUnique({where:{id:owner.id}});
+      if(!user?.isActive||user.isBlocked)throw new ForbiddenException('An active applicant account is required');
+      const prior=await tx.$queryRaw<{actorId:string;userId:string;action:string;details:{fingerprint?:string};version:number}[]>`SELECT "actorId","userId","action","details","version" FROM "AdminModerationAudit" WHERE "requestId"=${dto.requestId}`;
+      if(prior[0]){
+        if(prior[0].actorId!==owner.id||prior[0].userId!==owner.id||prior[0].action!=='RESUBMIT'||prior[0].details?.fingerprint!==fingerprint||prior[0].version!==dto.expectedVersion+1)throw new BadRequestException('Request ID belongs to another correction submission');
+        return {success:true,replayed:true,state:'PENDING_REVIEW',version:prior[0].version};
+      }
+      const rows=await tx.$queryRaw<{state:string;version:number;requestedFields:string[]}[]>`SELECT "state","version","requestedFields" FROM "AdminModerationSubject" WHERE "kind"='ASTROLOGER' AND "userId"=${owner.id} FOR UPDATE`;
+      const state=rows[0];
+      if(!state||state.state!=='NEEDS_CHANGES'||state.version!==dto.expectedVersion)throw new BadRequestException('Application changed. Refresh before resubmitting.');
+      validateCorrectionFields(state.requestedFields,dto.updates);
+      const profile=await tx.astrologer.findUnique({where:{userId:owner.id}});
+      if(!profile||profile.isApproved)throw new ForbiddenException('Only the existing unapproved application may be corrected');
+      const update:Prisma.AstrologerUpdateInput={isApproved:false,isVerified:false,isOnline:false};
+      const documents={...(profile.documents && typeof profile.documents==='object'&&!Array.isArray(profile.documents)?profile.documents as Prisma.JsonObject:{})};
+      const originalCountry=(documents.consent as {countryCode?:string}|undefined)?.countryCode;
+      if(originalCountry&&originalCountry!==dto.countryCode)throw new BadRequestException('Country changes require separate review');
+      let storage:Awaited<ReturnType<AstrologerService['privateKycStorage']>>|undefined;
+      for(const [key,value] of Object.entries(dto.updates)){
+        if(key==='bio'){
+          if(typeof value!=='string'||!value.trim()||value.length>4000)throw new BadRequestException('Provide a valid biography');
+          update.bio=value.trim();
+        }else if(key==='languages'){
+          if(!Array.isArray(value)||value.length<1||value.length>20||value.some(v=>typeof v!=='string'||!v.trim()||v.length>80))throw new BadRequestException('Provide valid spoken languages');
+          update.languages=[...new Set((value as string[]).map(v=>v.trim()))];
+        }else{
+          const type=key==='identityProof'?'identity':key==='certificates'?'certificate':'experience';
+          const list=key==='identityProof'?[value]:value;
+          if(!Array.isArray(list)||list.length<1||list.length>10)throw new BadRequestException('Provide the requested documents');
+          for(const candidate of list){
+            const document=candidate as {type?:string;name?:string;url?:unknown};
+            if(!document||document.type!==type||typeof document.name!=='string'||!document.name.trim()||document.name.length>255||!ownsKycDocument(document.url,owner.id,type))throw new BadRequestException('Each document must be an owned private upload');
+            storage??=await this.privateKycStorage();const exists=await storage.exists(document.url);
+            if(exists.error||exists.data!==true)throw new BadRequestException('Upload the requested document before submitting');
+          }
+          documents[key]=(key==='identityProof'?list[0]:list) as Prisma.JsonValue;
+        }
+      }
+      documents.correctionConsent={accepted:true,version:'website-kyc-2026-10',countryCode:dto.countryCode,acceptedAt:new Date().toISOString()};
+      update.documents=documents as Prisma.InputJsonObject;
+      await tx.astrologer.update({where:{id:profile.id},data:update});
+      const changed=await tx.$executeRaw`UPDATE "AdminModerationSubject" SET "state"='UNREVIEWED',"version"=${state.version+1},"requestedFields"=ARRAY[]::text[],"updatedAt"=CURRENT_TIMESTAMP WHERE "kind"='ASTROLOGER' AND "userId"=${owner.id} AND "version"=${state.version}`;
+      if(changed!==1)throw new BadRequestException('Application changed during submission');
+      await tx.$executeRaw`INSERT INTO "AdminModerationAudit" ("requestId","actorId","userId","kind","action","reason","previousState","nextState","version","details") VALUES (${dto.requestId},${owner.id},${owner.id},'ASTROLOGER','RESUBMIT','Applicant submitted requested corrections','NEEDS_CHANGES','UNREVIEWED',${state.version+1},${JSON.stringify({fingerprint,fields:state.requestedFields})}::jsonb)`;
+      return {success:true,replayed:false,state:'PENDING_REVIEW',version:state.version+1};
+    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable,maxWait:5000,timeout:15000});
   }
 
-  async register(supabaseId: string, dto: RegisterAstrologerDto) {
+  async getOnboardingStatus(supabaseId: string) {
+    const subject=supabaseId?.trim();
+    if(!subject) throw new BadRequestException('Authenticated user ID is required');
+    const mapped=await this.prisma.userAuthIdentity.findUnique({where:{provider_providerUserId:{provider:'supabase',providerUserId:subject}},select:{userId:true}});
+    const user=await this.prisma.user.findUnique({where:mapped?{id:mapped.userId}:{supabaseId:subject},
+      select:{id:true,name:true,email:true,phone:true,avatarUrl:true,isActive:true,isBlocked:true,isAstrologer:true,
+        astrologer:{select:{id:true,isApproved:true,isVerified:true,isOnline:true,documents:true}}}});
+    if(!user) throw new NotFoundException('User account not found');
+    const phoneVerified=!!(user.phone && await this.prisma.userAuthIdentity.findFirst({where:{userId:user.id,phone:user.phone,identityType:'phone',provider:{in:['firebase','supabase_phone_verified']}},select:{id:true}}));
+    let reviewedState:string|undefined;
+    let applicationVersion=0,requestedFields:string[]=[],correctionReason:string|null=null;
+    const correctionsAvailable=process.env.ADMIN_ASTROLOGER_CORRECTIONS_READY==='true'&&process.env.ADMIN_MODERATION_SCHEMA_REVIEWED==='true'&&process.env.ADMIN_MODERATION_WRITES_ENABLED==='true';
+    const reviewStatusAvailable=process.env.ADMIN_MODERATION_SCHEMA_REVIEWED==='true';
+    if(user.astrologer && reviewStatusAvailable){
+      const rows=await this.prisma.$queryRaw<{state:string}[]>`SELECT "state" FROM "AdminModerationSubject" WHERE "kind"='ASTROLOGER' AND "userId"=${user.id}`;
+      reviewedState=rows[0]?.state;
+      if(correctionsAvailable){
+        const correction=await this.prisma.$queryRaw<{version:number;requestedFields:string[]}[]>`SELECT "version","requestedFields" FROM "AdminModerationSubject" WHERE "kind"='ASTROLOGER' AND "userId"=${user.id}`;
+        applicationVersion=correction[0]?.version??0;requestedFields=correction[0]?.requestedFields??[];
+        if(reviewedState==='NEEDS_CHANGES'){
+          const reasons=await this.prisma.$queryRaw<{reason:string}[]>`SELECT "reason" FROM "AdminModerationAudit" WHERE "kind"='ASTROLOGER' AND "userId"=${user.id} AND "action"='REQUEST_CHANGES' ORDER BY "version" DESC LIMIT 1`;
+          correctionReason=reasons[0]?.reason??null;
+        }
+      }
+    }
+    const ready=user.isActive && !user.isBlocked && user.isAstrologer && !!user.astrologer?.isApproved && !!user.astrologer?.isVerified && !['SUSPENDED','REJECTED','NEEDS_CHANGES'].includes(reviewedState??'');
+    const status=!user.isActive||user.isBlocked||reviewedState==='SUSPENDED'?'SUSPENDED':!user.astrologer?'PROFILE_COMPLETION':ready?'APPROVED':reviewedState==='REJECTED'?'REJECTED':reviewedState==='NEEDS_CHANGES'?'NEEDS_CHANGES':'PENDING_REVIEW';
+    return {success:true,data:{userExists:true,hasProfile:!!user.astrologer,isApproved:!!user.astrologer?.isApproved,
+      isVerified:!!user.astrologer?.isVerified,isOnline:!!user.astrologer?.isOnline,status,reviewStatusAvailable,correctionsAvailable,applicationVersion,requestedFields,correctionReason,
+      applicationCountryCode:(user.astrologer?.documents as {consent?:{countryCode?:string}}|null)?.consent?.countryCode??null,
+      nextStep:ready?'DASHBOARD':status==='PROFILE_COMPLETION'?'REGISTER':'PENDING_APPROVAL',
+      user:{id:user.id,name:user.name,email:user.email,phone:user.phone,avatarUrl:user.avatarUrl,phoneVerified},
+      astrologer:user.astrologer?{id:user.astrologer.id}:null}};
+  }
+  async register(supabaseId: string, dto: RegisterAstrologerDto, websiteConsent?: {countryCode:string}) {
+    if(websiteConsent && ((dto.documents?.certificates?.length??0)>10||(dto.documents?.experienceProofs?.length??0)>10||dto.fullName.length>100||(dto.bio?.length??0)>4000||dto.languages.length>20||dto.expertise.length>20||dto.languages.some(value=>value.length>80)||dto.expertise.some(value=>value.length>100))){
+      throw new BadRequestException('Application fields exceed supported limits (10 documents per optional category, 20 languages/specializations).');
+    }
     const normalizedSupabaseId = supabaseId?.trim();
 
     if (!normalizedSupabaseId) {
@@ -455,6 +447,11 @@ export class AstrologerService {
     for (const document of dto.documents.experienceProofs ?? []) {
       validateDocument(document, 'experience');
     }
+    const kycStorage=await this.privateKycStorage();
+    for(const document of [dto.documents.identityProof,...(dto.documents.certificates??[]),...(dto.documents.experienceProofs??[])]){
+      const found=await kycStorage.exists(document.url);
+      if(found.error || found.data!==true)throw new BadRequestException('Upload each owned KYC document before submitting the application.');
+    }
 
     const languages = [
       ...new Set(
@@ -539,6 +536,7 @@ export class AstrologerService {
                     }
                   : {}),
 
+                ...(websiteConsent ? {consent:{accepted:true,version:'website-kyc-2026-10',countryCode:websiteConsent.countryCode,acceptedAt:new Date().toISOString()}} : {}),
                 certificates:
                   dto.documents.certificates?.map((document) => ({
                     type: document.type,
@@ -932,7 +930,14 @@ export class AstrologerService {
     const profileCompletion = Math.round(
       (completed / profileChecks.length) * 100,
     );
-    const [totalEarnings, todayAudioCalls, todayVideoCalls, todayChats, pendingConsultations] =
+    // Explicit UTC reporting window: do not label lifetime counts as "today"
+    // or depend on the deployment host's local timezone.
+    const now = new Date();
+    const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const dayEnd = new Date(dayStart.getTime() + 86400000);
+    const today = { gte: dayStart, lt: dayEnd };
+    const [totalEarnings, todayAudioCalls, todayVideoCalls, todayChats, pendingConsultations,
+      todayEarnings, activeConsultations, completedConsultations] =
       await this.prisma.$transaction([
         this.prisma.astrologerEarning.groupBy({
           by: ['currency'],
@@ -956,6 +961,7 @@ export class AstrologerService {
           where: {
             astrologerId: astrologer.user.id,
             mode: 'audio',
+            createdAt: today,
           },
         }),
 
@@ -963,6 +969,7 @@ export class AstrologerService {
           where: {
             astrologerId: astrologer.user.id,
             mode: 'video',
+            createdAt: today,
           },
         }),
 
@@ -970,12 +977,17 @@ export class AstrologerService {
           where: {
             astrologerId: astrologer.user.id,
             mode: 'chat',
+            createdAt: today,
             messages: {
               some: {},
             },
           },
         }),
         this.prisma.callSession.count({where:{astrologerId:astrologer.user.id,status:'PENDING',endedAt:null,expiresAt:{gt:new Date()}}}),
+        this.prisma.astrologerEarning.groupBy({by:['currency'],orderBy:{currency:'asc'},
+          where:{astrologerId:astrologer.id,createdAt:today,status:{in:[AstrologerEarningStatus.PENDING,AstrologerEarningStatus.AVAILABLE,AstrologerEarningStatus.PAID]}},_sum:{netAmount:true}}),
+        this.prisma.callSession.count({where:{astrologerId:astrologer.user.id,status:'ACTIVE',endedAt:null,expiresAt:{gt:now}}}),
+        this.prisma.callSession.count({where:{astrologerId:astrologer.user.id,status:{in:['COMPLETED','ENDED']}}}),
       ]);
 
     return {
@@ -997,6 +1009,11 @@ export class AstrologerService {
         earnings: totalEarnings.length === 1 ? Number(totalEarnings[0]._sum!.netAmount ?? 0) : null,
         earningsByCurrency: totalEarnings.map((row) => ({currency: row.currency, amount: Number(row._sum!.netAmount ?? 0)})),
         earningsCurrency: totalEarnings.length === 1 ? totalEarnings[0].currency : null,
+        todayEarningsByCurrency: todayEarnings.map(row=>({currency:row.currency,amount:Number(row._sum!.netAmount??0)})),
+        reportingTimezone: 'UTC',
+        reportingDate: dayStart.toISOString().slice(0,10),
+        activeConsultations,
+        completedConsultations,
 
         todayCalls: todayAudioCalls,
 
@@ -1015,13 +1032,17 @@ export class AstrologerService {
 
         pendingConsultations,
 
+        // Retained for old clients. This legacy array is not a booking engine.
         todaySchedule: [],
+        scheduleSupported: false,
 
         languages: astrologer.languages,
 
         expertise: astrologer.expertise.map((item) => item.expertise.name),
 
         pricePerMin: Number(astrologer.pricePerMin ?? 0),
+        // Same original settlement/rate currency as the public discovery API.
+        pricingCurrency: 'INR',
 
         experience: astrologer.experience ?? 0,
       },

@@ -90,7 +90,7 @@ describe('KYC file content, ownership and private link boundaries', () => {
         error: null,
       });
     const bucket = jest.fn().mockReturnValue({ upload, createSignedUrl: sign });
-    const storage = { getStorageClient: () => ({ storage: { from: bucket } }) };
+    const storage = { getStorageClient: () => ({ storage: { getBucket:async()=>({data:{public:false},error:null}), from: bucket } }) };
     const db = {
       userAuthIdentity: {
         findUnique: jest.fn().mockResolvedValue({ userId: 'owner' }),

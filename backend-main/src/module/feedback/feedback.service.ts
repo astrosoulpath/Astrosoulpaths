@@ -24,18 +24,19 @@ import { UpdateFeedbackStatusDto } from './dto/update-feedback-status.dto';
 export class FeedbackService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async resolveCustomer(externalUserId: string) {
-    const user = await resolveSupportActor(this.prisma, {
-      sub: externalUserId,
-    });
-    if (!['USER', 'CUSTOMER'].includes(user.role.name.toUpperCase()))
+  private async resolveCustomer(identity: string | {sub?: unknown; [key: string]: unknown}) {
+    const auth: {sub?: unknown; [key: string]: unknown} = typeof identity === 'string' ? {sub: identity} : identity;
+    const user = await resolveSupportActor(this.prisma, auth);
+    const customerContext = auth.asp_context === 'customer' && auth.asp_user_id === user.id;
+    if ((auth.asp_context && auth.asp_context !== 'customer') ||
+      (!['USER', 'CUSTOMER'].includes(user.role.name.toUpperCase()) && !customerContext))
       throw new ForbiddenException(
         'Customer feedback requires a customer account',
       );
     return user;
   }
 
-  async create(externalUserId: string, dto: CreateFeedbackDto) {
+  async create(externalUserId: string | {sub?: unknown; [key: string]: unknown}, dto: CreateFeedbackDto) {
     const customer = await this.resolveCustomer(externalUserId);
 
     const message = supportText(dto.message, 2000, 3);
@@ -117,7 +118,7 @@ export class FeedbackService {
     };
   }
 
-  async getMine(externalUserId: string, page = 1) {
+  async getMine(externalUserId: string | {sub?: unknown; [key: string]: unknown}, page = 1) {
     const customer = await this.resolveCustomer(externalUserId);
 
     if (!Number.isSafeInteger(page) || page < 1 || page > 100000)

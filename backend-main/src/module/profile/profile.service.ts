@@ -19,6 +19,7 @@ import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 import { AiAstrologerAvatarService } from './ai-astrologer-avatar.service';
+import {profileImageMime} from './profile-avatar.policy';
 
 @Injectable()
 export class ProfileService {
@@ -511,12 +512,13 @@ export class ProfileService {
     };
   }
 
-  async uploadAvatar(supabaseId: string, file: Express.Multer.File) {
+  async uploadAvatar(supabaseId: string, file: Express.Multer.File, generateAiAvatar = true) {
     if (!file) {
       throw new BadRequestException('Profile image is required');
     }
 
     const rawMimeType = file.mimetype?.trim().toLowerCase() ?? '';
+    const detectedMime=profileImageMime(file);
     const originalName = file.originalname?.trim().toLowerCase() ?? '';
 
     const extensionFromName = originalName.includes('.')
@@ -556,7 +558,7 @@ export class ProfileService {
 
     const user = await this.prisma.user.findUnique({
       where: {
-        supabaseId,
+        id:await this.findUserIdBySupabaseId(supabaseId),
       },
       select: {
         id: true,
@@ -567,14 +569,7 @@ export class ProfileService {
       throw new BadRequestException('User not found');
     }
 
-    const effectiveMimeType =
-      normalizedMimeType && allowedMimeTypes.has(normalizedMimeType)
-        ? normalizedMimeType
-        : extensionFromName === 'png'
-          ? 'image/png'
-          : extensionFromName === 'webp'
-            ? 'image/webp'
-            : 'image/jpeg';
+    const effectiveMimeType = detectedMime;
 
     const extension =
       effectiveMimeType === 'image/png'
@@ -596,7 +591,7 @@ export class ProfileService {
       });
     if (uploadError) {
       throw new InternalServerErrorException(
-        `Unable to upload profile image: ${uploadError.message}`,
+        'Unable to upload profile image. Please retry later.',
       );
     }
 
@@ -630,7 +625,7 @@ export class ProfileService {
      * user's perspective: the avatar upload remains successful
      * even if OpenAI generation fails.
      */
-    try {
+    if(generateAiAvatar)try {
       await this.aiAstrologerAvatarService.generateForUser({
         userId: user.id,
         buffer: file.buffer,

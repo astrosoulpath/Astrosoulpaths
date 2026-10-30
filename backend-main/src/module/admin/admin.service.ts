@@ -12,6 +12,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   AstrologerEarningStatus,
@@ -211,6 +212,8 @@ export class AdminService {
     const client = this.supabaseService.getStorageClient();
 
     const bucket = 'astrologer-kyc';
+    const bucketReview=await client.storage.getBucket(bucket);
+    if(bucketReview.error||bucketReview.data?.public!==false)throw new ServiceUnavailableException('Private KYC storage is not verified. No document links were issued.');
 
     async function signDocument(
       document:

@@ -21,7 +21,7 @@ describe('Astrologer approval and application boundaries', () => {
       expertise: { upsert: jest.fn().mockResolvedValue({ id: 'expertise' }) },
       astrologerEarning: { aggregate: jest.fn() }, $transaction: jest.fn() };
     db.$transaction.mockImplementation((fn: any) => fn(db));
-    service = new AstrologerService(db, {} as any, {} as any);
+    service = new AstrologerService(db, {getStorageClient:()=>({storage:{getBucket:async()=>({data:{public:false}}),from:()=>({exists:async()=>({data:true})})}})} as any, {} as any);
   });
   it.each(['getDashboard', 'getEarningsSummary', 'getPayoutBankAccount', 'getAvailability'])('blocks pending application on %s before operations', async (name) => {
     await expect((service as any)[name]('subject')).rejects.toThrow('Admin approval');

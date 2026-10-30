@@ -37,6 +37,10 @@ type UserProfileCompletionShape = {
 
 @Injectable()
 export class UserService {
+  async assertEmailSignupAvailable(email: string) {
+    const existing = await this.prisma.user.findFirst({where:{email:{equals:email,mode:'insensitive'}},select:{id:true}});
+    if(existing) throw new ConflictException({success:false,code:'EMAIL_ALREADY_REGISTERED',message:'Sign in with the existing account provider. Accounts are not merged automatically.'});
+  }
   private readonly logger = new Logger(UserService.name);
 
   constructor(
@@ -697,7 +701,7 @@ export class UserService {
       phoneNumber: dto.phoneNumber,
       dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
       timeOfBirth: dto.birthTimeKnown === false ? null : dto.timeOfBirth,
-      birthTimeKnown: dto.birthTimeKnown ?? true,
+      birthTimeKnown: dto.birthTimeKnown,
       latitude: dto.latitude,
       longitude: dto.longitude,
       timezone: dto.timezone,
@@ -1806,14 +1810,8 @@ export class UserService {
     let profile = user.userProfile;
 
     if (profile && canonicalPhone && !profile.phoneNumber?.trim()) {
-      profile = await this.prisma.userProfile.update({
-        where: {
-          userId: user.id,
-        },
-        data: {
-          phoneNumber: canonicalPhone,
-        },
-      });
+      // A read response may include the canonical phone without mutating data.
+      profile = {...profile,phoneNumber:canonicalPhone};
     }
 
     const verifiedPhoneIdentity = canonicalPhone
@@ -1832,6 +1830,7 @@ export class UserService {
       success: true,
       data: profile,
       isPhoneVerified: verifiedPhoneIdentity !== null,
+      capabilities:{photoUploadWithoutAi:true},
       isProfileComplete: user.isProfileComplete,
       nextStep: this.getUserNextStep(user.isProfileComplete),
     };

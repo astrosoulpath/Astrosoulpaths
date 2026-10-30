@@ -1,5 +1,6 @@
 import {
   Body,
+  BadRequestException,
   Controller,
   Delete,
   Get,
@@ -124,8 +125,10 @@ export class ProfileController {
   uploadAvatar(
     @CurrentUser() user: JWTPayload,
     @UploadedFile() file: Express.Multer.File,
+    @Query('generateAiAvatar') generateAiAvatar?: string,
   ) {
-    return this.profileService.uploadAvatar(user.sub as string, file);
+    if(generateAiAvatar!==undefined&&!['true','false'].includes(generateAiAvatar))throw new BadRequestException('Invalid avatar generation option');
+    return this.profileService.uploadAvatar(user.sub as string, file, generateAiAvatar!=='false');
   }
 
   @Delete('avatar')

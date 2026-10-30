@@ -27,14 +27,15 @@ describe('public support publication (synthetic, no database/provider)', () => {
   afterEach(() => {
     process.env = { ...environment };
   });
-  it('defaults to unpublished and does not invent email, hours, SLA or answers', async () => {
+  it('exposes only the owner-approved default email without publishing other content', async () => {
     process.env.SUPPORT_OPERATIONS_ENABLED = 'false';
     const db: any = { $queryRaw: jest.fn() };
     const result = await new SupportCatalogueService(db).publicHelp();
     expect(result).toMatchObject({
       success: true,
       published: false,
-      contact: null,
+      contact: {email: 'support@astrosoulpath.com', hours: '', responseTime: ''},
+      contactSource: 'approved-official-default',
       faqs: [],
     });
     expect(db.$queryRaw).not.toHaveBeenCalled();
@@ -82,7 +83,7 @@ describe('public support publication (synthetic, no database/provider)', () => {
       $queryRaw: jest.fn(async () => [{ details: { revision: 1, config } }]),
     } as any);
     expect(await service.publicHelp()).toMatchObject({
-      contact: null,
+      contact: {email: 'support@astrosoulpath.com', hours: '', responseTime: ''},
       faqs: [],
       published: false,
     });

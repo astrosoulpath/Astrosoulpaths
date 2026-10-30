@@ -13,11 +13,18 @@ import { SmartNotificationsWorker } from './smart-notifications.worker';
 import { SmartAstrologyWorker } from './smart-astrology.worker';
 import { SmartCampaignController, SmartInsightController, SmartPolicyController } from './smart-notifications.controller';
 import { SmartPolicyService } from './smart-policy.service';
+import { SubscriptionExpiryService } from './subscription-expiry.service';
+import { SubscriptionExpiryController } from './subscription-expiry.controller';
+import { SubscriptionExpiryWorker } from './subscription-expiry.worker';
+import { SubscriptionExpiryRateGuard } from './subscription-expiry-rate.guard';
 
 @Module({
   imports: [PrismaModule, RedisModule],
-  controllers: [NotificationsController, SmartCampaignController, SmartInsightController, SmartPolicyController],
+  controllers: [SubscriptionExpiryController, NotificationsController, SmartCampaignController, SmartInsightController, SmartPolicyController],
   providers: [
+    SubscriptionExpiryService,
+    SubscriptionExpiryRateGuard,
+    SubscriptionExpiryWorker,
     NotificationsIdentityGuard,
     NotificationsService,
     NotificationsPushService,

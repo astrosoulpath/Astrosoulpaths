@@ -16,11 +16,11 @@ export class FeedbackController {
 
   @Post()
   create(@CurrentUser() user: JWTPayload, @Body() dto: CreateFeedbackDto) {
-    return this.feedbackService.create(user.sub as string, dto);
+    return this.feedbackService.create(user, dto);
   }
 
   @Get('my')
   getMine(@CurrentUser() user: JWTPayload,@Query('page') page?:string) {
-    return this.feedbackService.getMine(user.sub as string,page===undefined?1:Number(page));
+    return this.feedbackService.getMine(user,page===undefined?1:Number(page));
   }
 }

@@ -39,6 +39,7 @@ model ConsultationBirthSharingAudit {
 }
 
 model User {
+  subscriptionReminderPreferences SubscriptionReminderPreference[]
   moderationSubjects AdminModerationSubject[]
   moderationActions AdminModerationAudit[] @relation("ModerationActor")
   supportOperationAudits SupportOperationAudit[]
@@ -377,6 +378,7 @@ model KundliSavedRecord {
 }
 
 model Subscription {
+  expiryReminders SubscriptionExpiryReminder[]
   horoscopeControl       HoroscopeSubscriptionControl?
   horoscopeAudit         HoroscopeSubscriptionAudit[]
   horoscopeReadings      PersonalizedHoroscopeReading[]
@@ -405,6 +407,7 @@ model Subscription {
   @@index([userId])
   @@index([subscriptionStatus])
   @@index([subscriptionPlanId])
+  @@unique([id, userId], map: "Subscription_id_userId_key")
 }
 
 model SubscriptionPlan {
@@ -423,6 +426,51 @@ model SubscriptionPlan {
   updatedAt      DateTime       @updatedAt
   subscriptions  Subscription[]
   users          User[]
+}
+
+model SubscriptionReminderPreference {
+  userId String
+  roleContext String
+  pushEnabled Boolean @default(false)
+  timezone String @default("UTC")
+  quietStart Int @default(22)
+  quietEnd Int @default(8)
+  updatedAt DateTime @default(now()) @db.Timestamptz(6)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@id([userId, roleContext])
+}
+
+model SubscriptionExpiryReminder {
+  id String @id
+  subscriptionId String
+  userId String
+  roleContext String
+  expiresAt DateTime @db.Timestamptz(6)
+  milestone Int
+  channel String
+  deviceId String @default("")
+  state String @default("PENDING")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(6)
+  leaseUntil DateTime? @db.Timestamptz(6)
+  lastCode String?
+  readAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @db.Timestamptz(6)
+  subscription Subscription @relation(fields: [subscriptionId,userId], references: [id,userId], onDelete: Cascade, onUpdate: NoAction, map: "SubscriptionExpiryReminder_subscription_owner_fkey")
+  audits SubscriptionReminderAudit[]
+  @@unique([subscriptionId,expiresAt,roleContext,milestone,channel,deviceId], map: "SubscriptionExpiryReminder_dedupe_key")
+  @@index([userId,roleContext,createdAt], map: "SubscriptionExpiryReminder_owner_idx")
+  @@index([state,nextAttemptAt], map: "SubscriptionExpiryReminder_claim_idx")
+}
+
+model SubscriptionReminderAudit {
+  id BigInt @id @default(autoincrement())
+  reminderId String
+  state String
+  code String
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  reminder SubscriptionExpiryReminder @relation(fields:[reminderId], references:[id], onDelete:Cascade, onUpdate:NoAction)
 }
 
 model Wallet {
@@ -1085,6 +1133,7 @@ model AstrologerQualificationAttempt {
 }
 
 model PushDevice {
+  subscriptionRole String?
   id         String         @id @default(cuid())
   userId     String
   fcmToken   String         @unique
@@ -2971,6 +3020,7 @@ model AdminModerationSubject {
   userId String
   state String
   version Int @default(0)
+  requestedFields String[] @default([])
   updatedAt DateTime @default(now()) @db.Timestamp(3)
   user User @relation(fields: [userId], references: [id], onDelete: Restrict)
   history AdminModerationAudit[]
@@ -2983,6 +3033,7 @@ model AdminModerationAudit {
   kind String
   action String
   reason String
+  details Json?
   previousState String
   nextState String
   version Int

@@ -1242,8 +1242,9 @@ export class AuthService {
   }
   async signupWithEmail(dto: EmailSignupDto) {
     const normalizedEmail = dto.email.trim().toLowerCase();
-    const normalizedPhone = dto.phone.trim();
+    const normalizedPhone = dto.phone?.trim() ?? '';
     const normalizedFullName = dto.fullName.trim();
+    await this.userService.assertEmailSignupAvailable(normalizedEmail);
 
     let authResult: Awaited<ReturnType<SupabaseService['signUpWithEmail']>>;
 
@@ -1271,7 +1272,7 @@ export class AuthService {
 
       throw new BadRequestException({
         success: false,
-        message: message || 'Unable to create account',
+        message: 'Unable to create account. Use your existing sign-in provider or retry later.',
         code: 'EMAIL_SIGNUP_FAILED',
       });
     }
@@ -1288,7 +1289,7 @@ export class AuthService {
 
     const { user, isNewUser } = await this.userService.syncUser({
       supabaseId: authUser.id,
-      phone: authUser.phone ?? normalizedPhone,
+      ...(authUser.phone || normalizedPhone ? {phone: authUser.phone || normalizedPhone} : {}),
       email: authUser.email ?? normalizedEmail,
       fullName: normalizedFullName,
     });

@@ -13,7 +13,7 @@ import {
   supportOperationsEnabled,
 } from './support-operations';
 import { resolveSupportActor, supportLock } from './support-policy';
-import { PUBLIC_SUPPORT_CATEGORIES, validatePublicHelp, type PublicHelp } from './public-support-policy';
+import { OFFICIAL_SUPPORT_EMAIL, PUBLIC_SUPPORT_CATEGORIES, validatePublicHelp, type PublicHelp } from './public-support-policy';
 
 export type SupportCatalogue = {
   publicHelp?: PublicHelp;
@@ -151,7 +151,9 @@ export class SupportCatalogueService {
     const {config} = await this.read();
     const help = validatePublicHelp(config.publicHelp);
     return {success: true, categories: [...PUBLIC_SUPPORT_CATEGORIES], published: help.published,
-      contact: help.published ? {email: help.email, hours: help.hours, responseTime: help.responseTime} : null,
+      contact: {email: help.published && help.email ? help.email : OFFICIAL_SUPPORT_EMAIL,
+        hours: help.published ? help.hours : '', responseTime: help.published ? help.responseTime : ''},
+      contactSource: help.published && help.email ? 'published-cms' : 'approved-official-default',
       faqs: help.published ? help.faqs.filter(faq => faq.enabled).map(({id, question, answer, category}) => ({id, question, answer, category})) : []};
   }
   private async read(

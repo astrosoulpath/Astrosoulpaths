@@ -6,6 +6,7 @@ import { DAILY_PLAN, assertDailyPlan } from '../subscription/daily-horoscope-pol
 import { NotificationsPushService } from './notifications.push.service';
 import { validateHoroscopeText } from '../subscription/horoscope-localization';
 import { notificationLocalDate } from './notification-local-date';
+import { expirySchemaReady, SubscriptionRole } from './subscription-expiry.policy';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 
@@ -113,6 +114,7 @@ export class NotificationsService {
     fcmToken: string;
     platform: DevicePlatform;
     deviceId?: string;
+    subscriptionRole?: SubscriptionRole;
   }) {
     if (typeof params.fcmToken !== 'string' || !params.fcmToken.trim() || params.fcmToken.length > 4096 ||
         !Object.values(DevicePlatform).includes(params.platform) ||
@@ -124,7 +126,13 @@ export class NotificationsService {
     const fcmToken = params.fcmToken.trim();
     const deviceId = params.deviceId?.trim() || null;
 
-    const device = await this.prisma.pushDevice.upsert({
+    const register = async (tx: Prisma.TransactionClient) => {
+    if (expirySchemaReady()) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${fcmToken},0))`;
+    if (expirySchemaReady() && deviceId) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${userId+':'+deviceId},1))`;
+      await tx.pushDevice.updateMany({where:{userId,deviceId,fcmToken:{not:fcmToken},isActive:true},data:{isActive:false}});
+    }
+    const registered = await tx.pushDevice.upsert({
       where: {
         fcmToken,
       },
@@ -144,6 +152,10 @@ export class NotificationsService {
         lastSeenAt: new Date(),
       },
     });
+    if (expirySchemaReady()) await tx.$executeRaw`UPDATE "PushDevice" SET "subscriptionRole"=${params.subscriptionRole ?? null} WHERE "id"=${registered.id} AND "userId"=${userId}`;
+    return registered;
+    };
+    const device = expirySchemaReady() ? await this.prisma.$transaction(register) : await register(this.prisma);
 
     return {
       success: true,
@@ -156,11 +168,12 @@ export class NotificationsService {
     };
   }
 
-  async unregisterDevice(subject:string,fcmToken:string) {
+  async unregisterDevice(subject:string,fcmToken:string,role?:SubscriptionRole) {
     if(typeof fcmToken!=='string'||!fcmToken.trim()) throw new BadRequestException('Device token is required');
     const userId=await this.resolveInternalUserId(subject);
     // A late logout from A must never deactivate a token already reassigned to B.
-    await this.prisma.pushDevice.updateMany({where:{userId,fcmToken:fcmToken.trim()},data:{isActive:false}});
+    if (expirySchemaReady() && role) await this.prisma.$executeRaw`UPDATE "PushDevice" SET "isActive"=false WHERE "userId"=${userId} AND "fcmToken"=${fcmToken.trim()} AND ("subscriptionRole"=${role} OR "subscriptionRole" IS NULL)`;
+    else await this.prisma.pushDevice.updateMany({where:{userId,fcmToken:fcmToken.trim()},data:{isActive:false}});
     return {success:true};
   }
 

@@ -25,7 +25,7 @@ describe('Qualification scoring and canonical KYC registration', () => {
       $transaction: jest.fn(),
     };
     db.$transaction.mockImplementation((fn: any) => fn(db));
-    service = new AstrologerService(db, {} as any, {} as any);
+    service = new AstrologerService(db, {getStorageClient:()=>({storage:{getBucket:async()=>({data:{public:false}}),from:()=>({exists:async()=>({data:true})})}})} as any, {} as any);
   });
   it.each([[7, true, 70], [6, false, 60]])('%i correct answers: passed=%s', async (correct, passed, score) => {
     const answers = Array.from({ length: 10 }, (_, i) => ({ questionId: `q${i}`,

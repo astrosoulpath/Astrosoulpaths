@@ -9,6 +9,7 @@
   UnauthorizedException,
   UseGuards,
   ServiceUnavailableException,
+  Optional,
 } from '@nestjs/common';
 import type { Request } from 'express';
 
@@ -16,9 +17,11 @@ import { NotificationsIdentityGuard } from './notifications-identity.guard';
 import { RegisterPushDeviceDto } from './dto/register-push-device.dto';
 import { NotificationsPushService } from './notifications.push.service';
 import { NotificationsService } from './notifications.service';
+import { SubscriptionExpiryService, ExpiryIdentity } from './subscription-expiry.service';
+import { expirySchemaReady } from './subscription-expiry.policy';
 
 type AuthenticatedRequest = Request & {
-  user?: {
+  user?: ExpiryIdentity & {
     sub?: string;
     id?: string;
   };
@@ -30,6 +33,7 @@ export class NotificationsController {
   constructor(
     private readonly notificationsService: NotificationsService,
     private readonly notificationsPushService: NotificationsPushService,
+    @Optional() private readonly expiry?: SubscriptionExpiryService,
   ) {}
 
   private externalUserId(request: AuthenticatedRequest): string {
@@ -131,7 +135,7 @@ export class NotificationsController {
   }
 
   @Post('devices/register')
-  registerDevice(
+  async registerDevice(
     @Req() request: AuthenticatedRequest,
     @Body() body: RegisterPushDeviceDto,
   ) {
@@ -140,11 +144,13 @@ export class NotificationsController {
       fcmToken: body.fcmToken,
       platform: body.platform,
       deviceId: body.deviceId,
+      subscriptionRole: expirySchemaReady() && this.expiry ? (await this.expiry.owner(request.user ?? {})).role : undefined,
     });
   }
 
   @Post('devices/unregister')
-  unregisterDevice(@Req() request:AuthenticatedRequest,@Body() body:{fcmToken?:unknown}) {
-    return this.notificationsService.unregisterDevice(this.externalUserId(request),typeof body?.fcmToken==='string'?body.fcmToken:'');
+  async unregisterDevice(@Req() request:AuthenticatedRequest,@Body() body:{fcmToken?:unknown}) {
+    const role = expirySchemaReady() && this.expiry ? (await this.expiry.owner(request.user ?? {})).role : undefined;
+    return this.notificationsService.unregisterDevice(this.externalUserId(request),typeof body?.fcmToken==='string'?body.fcmToken:'',role);
   }
 }

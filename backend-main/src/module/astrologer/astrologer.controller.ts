@@ -25,6 +25,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { AstrologerService } from './astrologer.service';
 import { RegisterAstrologerDto } from './dto/register-astrologer.dto';
+import { WebsiteApplicationDto, WebsiteKycUploadDto } from './dto/website-application.dto';
+import {ApplicationCorrectionsDto} from './dto/application-corrections.dto';
 import { UpdateAstrologerProfileDto } from './dto/update-astrologer-profile.dto';
 import { UpdateAstrologerAvailabilityDto } from './dto/update-astrologer-availability.dto';
 import { SubmitQualificationDto } from './dto/submit-qualification.dto';
@@ -77,6 +79,25 @@ export class AstrologerController {
     @Body() dto: RegisterAstrologerDto,
   ) {
     return this.astrologerService.register(user.sub as string, dto);
+  }
+
+  @Post('application')
+  @UseGuards(SupabaseAuthGuard)
+  submitWebsiteApplication(@CurrentUser() user: JWTPayload, @Body() dto: WebsiteApplicationDto) {
+    return this.astrologerService.register(user.sub as string, dto, {countryCode:dto.countryCode});
+  }
+
+  @Patch('application/corrections')
+  @UseGuards(SupabaseAuthGuard)
+  resubmitCorrections(@CurrentUser() user:JWTPayload,@Body() dto:ApplicationCorrectionsDto){
+    return this.astrologerService.resubmitCorrections(user.sub as string,dto);
+  }
+
+  @Post('application/documents')
+  @UseGuards(SupabaseAuthGuard)
+  @UseInterceptors(FileInterceptor('file',{storage:memoryStorage(),limits:{fileSize:10*1024*1024,files:1}}))
+  uploadWebsiteKyc(@CurrentUser() user:JWTPayload,@UploadedFile() file:Express.Multer.File|undefined,@Body() dto:WebsiteKycUploadDto){
+    return this.astrologerService.uploadKycDocument(user.sub as string,file,dto.documentType,{countryCode:dto.countryCode});
   }
 
   @Post('kyc/upload')

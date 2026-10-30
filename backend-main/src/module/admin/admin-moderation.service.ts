@@ -21,6 +21,7 @@ import {
 type RequestProof = Parameters<typeof requireAdminRequest>[0];
 type Subject = { state: string; version: number };
 type Audit = {
+  details?: {requestedFields?:string[]};
   requestId: string;
   actorId: string;
   userId: string;
@@ -41,6 +42,7 @@ export class AdminModerationService {
       available:
         process.env.ADMIN_MODERATION_WRITES_ENABLED === 'true' &&
         process.env.ADMIN_MODERATION_SCHEMA_REVIEWED === 'true',
+      correctionsAvailable: process.env.ADMIN_MODERATION_WRITES_ENABLED === 'true' && process.env.ADMIN_MODERATION_SCHEMA_REVIEWED === 'true' && process.env.ADMIN_ASTROLOGER_CORRECTIONS_READY === 'true',
     };
   }
   private enabled() {
@@ -90,6 +92,7 @@ export class AdminModerationService {
           const rows = await tx.$queryRaw<
             Subject[]
           >`SELECT "state","version" FROM "AdminModerationSubject" WHERE "kind"=${kind} AND "userId"=${user.id}`;
+          const correction = kind==='ASTROLOGER' && this.capabilities().correctionsAvailable ? await tx.$queryRaw<{requestedFields:string[]}[]>`SELECT "requestedFields" FROM "AdminModerationSubject" WHERE "kind"=${kind} AND "userId"=${user.id}` : [];
           const history = await tx.$queryRaw<
             Audit[]
           >`SELECT "requestId","actorId","userId","kind","action","reason","previousState","nextState","version","createdAt" FROM "AdminModerationAudit" WHERE "kind"=${kind} AND "userId"=${user.id} ORDER BY "createdAt" DESC,"version" DESC LIMIT 50`;
@@ -107,6 +110,8 @@ export class AdminModerationService {
                   : 'UNREVIEWED'),
             version: rows[0]?.version ?? 0,
             active: user.isActive,
+            requestedFields: correction[0]?.requestedFields ?? [],
+            correctionsAvailable: this.capabilities().correctionsAvailable,
             history,
             allowedActions: (
               [
@@ -116,8 +121,10 @@ export class AdminModerationService {
                 'APPROVE',
                 'REJECT',
                 'SUSPEND',
+                'REQUEST_CHANGES',
               ] as const
             ).filter((action) => {
+              if(action==='REQUEST_CHANGES'&&!this.capabilities().correctionsAvailable)return false;
               try {
                 moderationTransition(
                   kind,
@@ -151,6 +158,7 @@ export class AdminModerationService {
     const actorId = requireAdminRequest(request).id;
     this.enabled();
     const input = moderationInput(body);
+    if(input.action==='REQUEST_CHANGES' && (kind!=='ASTROLOGER'||!this.capabilities().correctionsAvailable))throw new ServiceUnavailableException('Astrologer corrections await reviewed migration and activation');
     return this.safe(() =>
       this.prisma.$transaction(
         async (tx) => {
@@ -181,7 +189,7 @@ export class AdminModerationService {
             throw new ForbiddenException(
               'An active authorized Admin is required',
             );
-          const previous = await tx.$queryRaw<
+          const previous = input.action==='REQUEST_CHANGES' ? await tx.$queryRaw<Audit[]>`SELECT "requestId","actorId","userId","kind","action","reason","previousState","nextState","version","createdAt","details" FROM "AdminModerationAudit" WHERE "requestId"=${input.requestId}` : await tx.$queryRaw<
             Audit[]
           >`SELECT "requestId","actorId","userId","kind","action","reason","previousState","nextState","version","createdAt" FROM "AdminModerationAudit" WHERE "requestId"=${input.requestId}`;
           if (previous[0]) {
@@ -193,6 +201,7 @@ export class AdminModerationService {
               a.action !== input.action ||
               a.reason !== input.reason ||
               a.version !== input.expectedVersion + 1
+              || (input.action==='REQUEST_CHANGES' && JSON.stringify(a.details?.requestedFields)!==JSON.stringify(input.requestedFields))
             )
               throw new ConflictException(
                 'Request ID belongs to a different moderation command',
@@ -311,14 +320,17 @@ export class AdminModerationService {
                 data: { isAstrologer: true },
               });
           }
-          const changed = states[0]
+          const changed = input.action==='REQUEST_CHANGES' ? (states[0]
+            ? await tx.$executeRaw`UPDATE "AdminModerationSubject" SET "state"=${next},"version"=${version+1},"requestedFields"=${input.requestedFields}::text[],"updatedAt"=CURRENT_TIMESTAMP WHERE "kind"=${kind} AND "userId"=${userId} AND "version"=${version}`
+            : await tx.$executeRaw`INSERT INTO "AdminModerationSubject" ("kind","userId","state","version","requestedFields") VALUES (${kind},${userId},${next},1,${input.requestedFields}::text[])`) : states[0]
             ? await tx.$executeRaw`UPDATE "AdminModerationSubject" SET "state"=${next},"version"=${version + 1},"updatedAt"=CURRENT_TIMESTAMP WHERE "kind"=${kind} AND "userId"=${userId} AND "version"=${version}`
             : await tx.$executeRaw`INSERT INTO "AdminModerationSubject" ("kind","userId","state","version") VALUES (${kind},${userId},${next},1)`;
           if (changed !== 1)
             throw new ConflictException(
               'Moderation state changed concurrently',
             );
-          await tx.$executeRaw`INSERT INTO "AdminModerationAudit" ("requestId","actorId","userId","kind","action","reason","previousState","nextState","version") VALUES (${input.requestId},${actorId},${userId},${kind},${input.action},${input.reason},${state},${next},${version + 1})`;
+          if(input.action==='REQUEST_CHANGES')await tx.$executeRaw`INSERT INTO "AdminModerationAudit" ("requestId","actorId","userId","kind","action","reason","previousState","nextState","version","details") VALUES (${input.requestId},${actorId},${userId},${kind},${input.action},${input.reason},${state},${next},${version+1},${JSON.stringify({requestedFields:input.requestedFields})}::jsonb)`;
+          else await tx.$executeRaw`INSERT INTO "AdminModerationAudit" ("requestId","actorId","userId","kind","action","reason","previousState","nextState","version") VALUES (${input.requestId},${actorId},${userId},${kind},${input.action},${input.reason},${state},${next},${version + 1})`;
           return {
             success: true,
             replayed: false,

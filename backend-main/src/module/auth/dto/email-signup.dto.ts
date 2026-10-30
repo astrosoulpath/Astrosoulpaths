@@ -2,6 +2,7 @@ import {
   IsEmail,
   IsNotEmpty,
   IsString,
+  IsOptional,
   Length,
   Matches,
   MaxLength,
@@ -17,7 +18,7 @@ export class EmailSignupDto {
   @MaxLength(100, {
     message: 'Full name cannot exceed 100 characters',
   })
-  @Matches(/^[a-zA-ZÀ-ÿ\u0900-\u097F\s.'-]+$/, {
+  @Matches(/^[\p{L}\p{M}\s.'’\-]+$/u, {
     message: 'Full name contains invalid characters',
   })
   fullName: string;
@@ -33,12 +34,13 @@ export class EmailSignupDto {
   })
   email: string;
 
+  @IsOptional()
   @IsString()
   @Matches(/^\+[1-9]\d{9,14}$/, {
     message:
       'Phone number must be in international format, for example +919876543210',
   })
-  phone: string;
+  phone?: string;
 
   @IsString()
   @Length(8, 72, {
