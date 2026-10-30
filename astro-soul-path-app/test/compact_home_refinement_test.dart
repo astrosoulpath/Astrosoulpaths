@@ -16,6 +16,36 @@ const categories = {
   'business': 'Business',
 };
 void main() {
+  for (final brightness in Brightness.values) {
+    testWidgets('category text follows semantic color in $brightness', (
+      tester,
+    ) async {
+      final ink = brightness == Brightness.dark
+          ? const Color(0xFFF8F5FF)
+          : premiumInk;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: premiumGold,
+              brightness: brightness,
+            ).copyWith(onSurface: ink),
+          ),
+          home: Scaffold(
+            body: PremiumCategoryTile(
+              assetPath:
+                  'assets/stickers/home_astrology/career-circular-v1.png',
+              label: 'Career',
+              onTap: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(find.text('Career')).style?.color, ink);
+      expect(tester.takeException(), isNull);
+    });
+  }
   test('header is 22.3 percent shorter without shrinking accessibility', () {
     final normal = CurvedCosmicHomeHeader(
       walletLabel: 'Test',
@@ -148,7 +178,15 @@ void main() {
     final key = GlobalKey();
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(fontFamily: 'PreviewRoboto'),
+        // This golden predates semantic theme tokens. Pin its documented navy
+        // palette so a Material default color change is not a visual regression.
+        // The production widget still follows the active light/dark onSurface.
+        theme: ThemeData(
+          fontFamily: 'PreviewRoboto',
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: premiumGold,
+          ).copyWith(onSurface: premiumInk),
+        ),
         home: RepaintBoundary(
           key: key,
           child: ColoredBox(

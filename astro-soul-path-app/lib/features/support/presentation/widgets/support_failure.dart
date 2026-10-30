@@ -48,28 +48,31 @@ class SupportFailure {
           'Your support session could not be verified. Sign in again with the authorized customer account.',
         );
       }
-      if (error.statusCode == 403)
+      if (error.statusCode == 403) {
         return const SupportFailure(
           SupportFailureKind.authorization,
           'Access denied',
           'This account is not authorized to access this support request.',
         );
+      }
       if (error.statusCode == 503 ||
-          error.message.startsWith('AI support is temporarily unavailable'))
+          error.message.startsWith('AI support is temporarily unavailable')) {
         return const SupportFailure(
           SupportFailureKind.unavailable,
           'Support temporarily unavailable',
           'The service is unavailable right now. Retry shortly, or use the existing Help & Support menu.',
         );
+      }
     }
     if (error is TimeoutException ||
         error is SocketException ||
-        error is http.ClientException)
+        error is http.ClientException) {
       return const SupportFailure(
         SupportFailureKind.network,
         'Connection problem',
         'Support could not be reached. Check your connection and retry.',
       );
+    }
     return const SupportFailure(
       SupportFailureKind.service,
       'Support request not completed',
@@ -142,7 +145,7 @@ class _CustomerSupportRecoveryButtonState
         );
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -150,6 +153,7 @@ class _CustomerSupportRecoveryButtonState
             ),
           ),
         );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
