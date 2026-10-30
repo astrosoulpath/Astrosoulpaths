@@ -1,3 +1,5 @@
+import {publicAuthBase} from '@/features/auth/public-auth';
+import {communicationOwner} from '@/features/auth/communication-session';
 import { supportSession } from "@/features/support/customer-support-api";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ??
@@ -40,6 +42,7 @@ export type ConsultationSession = {
   expiresAt: string;
   endedAt: string | null;
   status: string;
+  mode?: 'chat'|'audio'|'video';
   createdAt: string;
 
   user?: ConsultationParticipant;
@@ -127,33 +130,10 @@ function getApiBaseUrl(): string {
     );
   }
 
-  return API_BASE_URL.replace(/\/+$/, "");
+  return publicAuthBase(API_BASE_URL);
 }
 
-function getAccessToken(): string {
-  if (typeof window === "undefined") {
-    throw new Error(
-      "Consultation can only be accessed from the browser.",
-    );
-  }
-
-  const token =
-    window.localStorage.getItem(
-      "asp_astrologer_access_token",
-    ) ??
-    window.localStorage.getItem(
-      "asp_access_token",
-    ) ??
-    window.localStorage.getItem(
-      "access_token",
-    );
-
-  if (!token) {
-    throw new Error("LOGIN_REQUIRED");
-  }
-
-  return token;
-}
+function getAccessToken(){return communicationOwner().token;}
 
 async function readJsonResponse(response: Response) {
   return response.json().catch(() => null);
@@ -193,6 +173,7 @@ async function consultationRequest<T>(
   customerOwner?: string,
 ): Promise<T> {
   if (customerOwner && consultationCustomerSession() !== customerOwner) throw new Error('SESSION_CHANGED');
+  const communication=customerOwner?null:communicationOwner();
   const token = customerOwner ? (JSON.parse(customerOwner) as string[])[0] : getAccessToken();
 
   const response = await fetch(
@@ -208,10 +189,13 @@ async function consultationRequest<T>(
       },
 
       cache: "no-store",
+      credentials:"omit",
+      signal:options.signal??AbortSignal.timeout(20000),
     },
   );
 
   const data = await readJsonResponse(response);
+  if(communication&&communicationOwner().snapshot!==communication.snapshot)throw Error('SESSION_CHANGED');
   if (customerOwner && consultationCustomerSession() !== customerOwner) throw new Error('SESSION_CHANGED');
 
   if (!response.ok) {
@@ -270,6 +254,7 @@ async function consultationRequest<T>(
     throw new Error(message);
   }
 
+  if(options.method&&options.method!=='GET'&&typeof window!=='undefined'){window.dispatchEvent(new Event('asp-consultation-changed'));window.dispatchEvent(new Event('asp-communication-changed'));}
   return data as T;
 }
 
@@ -341,11 +326,22 @@ export async function getCurrentConsultation(): Promise<
 }
 
 export async function getCurrentAstrologerConsultation(): Promise<
-  ConsultationApiResponse<ConsultationSession | null>
+  ConsultationApiResponse<ConsultationSession[]>
 > {
   return consultationRequest<
-    ConsultationApiResponse<ConsultationSession | null>
+    ConsultationApiResponse<ConsultationSession[]>
   >("/consultations/astrologer/current");
+}
+
+/** The professional current endpoint returns a queue, never a Customer lookup. */
+export async function getSelectedCurrentConsultation(id:string):Promise<ConsultationSession|null>{
+ const owner=communicationOwner();
+ const response=owner.portal==='astrologer'?await getCurrentAstrologerConsultation():await getCurrentConsultation();
+ if(communicationOwner().snapshot!==owner.snapshot)throw Error('SESSION_CHANGED');
+ const calls=Array.isArray(response.data)?response.data:response.data?[response.data]:[];
+ const call=calls.find(item=>item.id===id)??null;
+ if(call&&(owner.portal==='astrologer'?call.astrologerId:call.userId)!==owner.id)throw Error('CONSULTATION_ACCESS_DENIED');
+ return call;
 }
 
 

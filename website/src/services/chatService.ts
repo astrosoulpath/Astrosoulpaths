@@ -1,3 +1,5 @@
+import {publicAuthBase} from '@/features/auth/public-auth';
+import {communicationOwner} from '@/features/auth/communication-session';
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -163,39 +165,7 @@ function getApiBaseUrl(): string {
     );
   }
 
-  return baseUrl.replace(/\/+$/, "");
-}
-
-function getAccessToken(): string {
-  if (
-    typeof window ===
-    "undefined"
-  ) {
-    throw new Error(
-      "Chat actions are only available in the browser.",
-    );
-  }
-
-  const token =
-  (
-    window.localStorage.getItem(
-      "asp_astrologer_access_token",
-    ) ??
-    window.localStorage.getItem(
-      "asp_access_token",
-    ) ??
-    window.localStorage.getItem(
-      "access_token",
-    )
-  )?.trim();
-
-  if (!token) {
-    throw new Error(
-      "LOGIN_REQUIRED",
-    );
-  }
-
-  return token;
+  return publicAuthBase(baseUrl);
 }
 
 async function readJson(
@@ -254,8 +224,8 @@ async function authenticatedRequest<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token =
-    getAccessToken();
+  const owner=communicationOwner();
+  const token = owner.token;
 
   const headers =
     new Headers(
@@ -289,11 +259,14 @@ async function authenticatedRequest<T>(
         ...options,
         headers,
         cache: "no-store",
+        credentials:"omit",
+        signal:options.signal??AbortSignal.timeout(20000),
       },
     );
 
   const data =
     await readJson(response);
+  if(communicationOwner().snapshot!==owner.snapshot)throw Error('SESSION_CHANGED');
 
   if (!response.ok) {
     if (

@@ -1,0 +1,121 @@
+{
+  "scope": "Focused task source/build parity and private-literal scan; not a full repository security certification",
+  "buildExitCode": 0,
+  "customerCssUnchanged": true,
+  "files": [
+    {
+      "file": "src/app/astrologer/dashboard/page.tsx",
+      "sha256": "54ec8690eba493430d7a599c708cf6aa1d44a1bcbad409bee85b51a5c1fcd1d4",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/features/astrologer-dashboard/AstrologerDashboard.tsx",
+      "sha256": "d111ad92056fc83077ec3f0b69e42fabd6c06ed51252a61df72dbd35b11f1df1",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/features/astrologer-dashboard/ProfessionalSettings.tsx",
+      "sha256": "e243a3784e971df01fd8f3e413e8b855c979a306157146a56a42e31af6023b0d",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/features/astrologer-dashboard/dashboard-api.ts",
+      "sha256": "aa92ecc3a295bc6c398cdbc8ff74d6883f404c121d061b247a4a78d166f2763a",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/features/astrologer-dashboard/professional.module.css",
+      "sha256": "29edf992e49b93aa1463079e747c1f79cc26d86657ccc00d7863e600fd6f6be8",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/features/customer-dashboard/CustomerDashboard.tsx",
+      "sha256": "2f6221a2b847d0ba4f3c379b5f276155f836de7612a889c0962be9504ad6a650",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/features/customer-dashboard/dashboard-api.ts",
+      "sha256": "784c3a2100c4cfc56db6c962a7a93d0697a5a1efac9a7eec7185d557be4181d4",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/features/customer-dashboard/dashboard.module.css",
+      "sha256": "810eba5daa137f56b120cc9a97e77d0239c1b3410e1c5eb157a8f75aa9b4b147",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/features/customer-dashboard/dashboard-typography.module.css",
+      "sha256": "51735d9ae4419f9faf2ac4beef33e3fde007906ec5b8980371fddaf5f654dae2",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/features/auth/auth-premium.module.css",
+      "sha256": "f9e70316d1954901dfd61dc555dc07cad9134004f53197505e976921ec8e36b9",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/components/layouts/navigation.module.css",
+      "sha256": "fc5ac4313c9e7500c0552d97a4f4ba9341fc1650aa71a8d1d8ccbfa5a817f205",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/lib/currency-display.ts",
+      "sha256": "ee9c2419d5a62a8a4eedd88c5b3c814b3451611c7946a57f0d86d4b78830e27e",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/features/auth/communication-session.ts",
+      "sha256": "78a1cac61c773d102ff14b56b9c42a7e159551d9fe2fb7509ce126708c8c157f",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/services/consultationService.ts",
+      "sha256": "b906f9e325b5a8e7f253623c66887ddbd778499cb964ac0cf9e51540ebb95d5c",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/services/chatService.ts",
+      "sha256": "3350018770ba3b33706553fc84b8dff7bf216873163d52cea43c7e72a82a8da4",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/services/callService.ts",
+      "sha256": "1f00770346fd2eb8d1a8bd812941c036e7ec261384eb1990ab9dc4092525bac3",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    },
+    {
+      "file": "src/app/chat/[bookingId]/page.tsx",
+      "sha256": "1ce4f02dcbff6cc122ee06e30fc494a6a93cbac59a0ff3c66fa28ae40c3cb8f9",
+      "matchesBuild": true,
+      "privateCredentialLiteral": false
+    }
+  ],
+  "backendFiles": [
+    {
+      "file": "src/module/astrologer/astrologer.service.ts",
+      "sha256": "c05e5672cf3f6e324360568de1febb79b137817ae76d249f0b2bb9ca5585c881"
+    },
+    {
+      "file": "src/module/astrologer/astrologer.dashboard-parity.spec.ts",
+      "sha256": "e62fb2b5abaf3312b74a990ba77cb1f44502144746bbda2564984428cd734bfe"
+    }
+  ],
+  "mismatches": 0,
+  "credentialMatches": 0
+}

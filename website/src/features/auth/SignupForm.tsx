@@ -12,6 +12,7 @@ import {
   signupErrors,
 } from "./public-auth";
 import s from "./auth-premium.module.css";
+import { websitePhoneAuthEnabled } from "./website-auth-policy";
 export function SignupForm() {
   const router = useRouter();
   const [fullName, setFullName] = useState(""),
@@ -53,7 +54,7 @@ export function SignupForm() {
       const result = await publicAuthRequest("/auth/email/signup", {
         fullName: fullName.trim(),
         email: email.trim().toLowerCase(),
-        phone,
+        ...(websitePhoneAuthEnabled && phone ? {phone} : {}),
         password,
       });
       if (!alive.current || !current()) return;
@@ -150,7 +151,7 @@ export function SignupForm() {
                 </small>
               )}
             </div>
-            <div className={s.field}>
+            {websitePhoneAuthEnabled && <div className={s.field}>
               <label htmlFor="signup-phone">Phone number</label>
               <div className={s.phone}>
                 <PhoneInput
@@ -176,7 +177,7 @@ export function SignupForm() {
                   {errors.phone}
                 </small>
               )}
-            </div>
+            </div>}
             <div className={s.field}>
               <label htmlFor="signup-password">Password</label>
               <div className={s.password}>

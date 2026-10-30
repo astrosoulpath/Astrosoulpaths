@@ -1,13 +1,15 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
 import { adminFetch } from "../auth/admin-session";
+import {KycReview} from './KycReview';
 export type ModerationAction =
   | "BLOCK"
   | "UNBLOCK"
   | "VERIFY"
   | "APPROVE"
   | "REJECT"
-  | "SUSPEND";
+  | "SUSPEND"
+  | "REQUEST_CHANGES";
 type Snapshot = {
   available: boolean;
   state?: string;
@@ -53,6 +55,7 @@ export function ModerationDialog({
     pending = useRef(false),
     heading = useRef<HTMLHeadingElement>(null);
   const title = useId();
+  const [requestedFields,setRequestedFields]=useState<string[]>([]);
   const alive = useRef(true),
     mutation = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -109,6 +112,7 @@ export function ModerationDialog({
       snapshot.version === undefined ||
       !snapshot.allowedActions?.includes(action) ||
       reason.trim().length < 10
+      || (action==='REQUEST_CHANGES' && requestedFields.length===0)
     )
       return;
     pending.current = true;
@@ -123,6 +127,7 @@ export function ModerationDialog({
         expectedVersion: snapshot.version,
         action,
         reason: reason.trim(),
+        ...(action==='REQUEST_CHANGES'?{requestedFields}:{}),
       };
       setSubmitted(true);
       const response = await adminFetch(
@@ -232,8 +237,9 @@ export function ModerationDialog({
               verification/KYC evidence. Approval requires verification; it
               never verifies automatically.
             </p>
+            {action==='REQUEST_CHANGES'&&<fieldset disabled={busy||submitted} className="my-4"><legend>Information the applicant must correct</legend>{['bio','languages','identityProof','certificates','experienceProofs'].map(field=><label key={field} className="my-2 flex gap-2"><input type="checkbox" checked={requestedFields.includes(field)} onChange={event=>setRequestedFields(current=>event.target.checked?[...current,field]:current.filter(value=>value!==field))}/>{field}</label>)}</fieldset>}
             <label className="my-4 block">
-              Required reason
+              Required reason (correction instructions are visible to the applicant)
               <textarea
                 className="asp-admin-input mt-2 w-full"
                 aria-label="Moderation reason"
@@ -270,6 +276,7 @@ export function ModerationDialog({
                   !snapshot.allowedActions?.includes(action) ||
                   reason.trim().length < 10 ||
                   snapshot.active !== true
+                  || (action==='REQUEST_CHANGES' && requestedFields.length===0)
                 }
               >
                 {busy
@@ -296,6 +303,7 @@ export function ModerationDialog({
             </details>
           </>
         )}
+        {kind==='astrologers'&&<KycReview key={id} id={id}/>}
         {error && (
           <p role="alert" className="my-4">
             {error}

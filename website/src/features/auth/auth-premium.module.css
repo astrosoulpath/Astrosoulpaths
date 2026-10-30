@@ -489,3 +489,6 @@
 /* Country codes are rendered locally; no remote flag asset or external image request. */
 .phone :global(.PhoneInputCountryIcon){box-shadow:none;display:flex;align-items:center;justify-content:center;width:28px;height:24px;background:#f3ead9;border-radius:6px;color:#604723;line-height:1}
 .phone :global(.PhoneInputCountry){margin-right:10px}
+
+/* Dashboard parity: existing loaded fonts; typography only. */
+.page{font-family:var(--font-geist-sans),Arial,Helvetica,sans-serif;line-height:1.65}.formPanel h1,.artCopy h2{font-family:Georgia,'Times New Roman',serif;letter-spacing:-.015em}.field label{font-size:.875rem;line-height:1.6}.field input,.methods button,.primary{font-family:inherit}

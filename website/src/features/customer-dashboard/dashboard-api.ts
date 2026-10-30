@@ -1,4 +1,6 @@
 import { publicAuthBase, sessionCandidate } from '@/features/auth/public-auth';
+import {verifyCustomerSession} from '@/features/auth/customer-session';
+import {formatStoredMoney} from '@/lib/currency-display';
 export type Row = Record<string, unknown>;
 export const obj = (v: unknown): Row => v && typeof v === 'object' && !Array.isArray(v) ? v as Row : {};
 export type FreeOffer = {
@@ -21,9 +23,10 @@ export async function dashboardRequest(path: string, signal: AbortSignal, body?:
         throw Error('SESSION_CHANGED');
     if (!response.ok || result.success !== true)
         throw Error(response.status === 401 || response.status === 403 ? 'This Customer session is not authorized. Sign in or refresh your eligibility.' : 'Information is unavailable. Check your connection and retry.');
+    if(body&&typeof window!=='undefined'){window.dispatchEvent(new Event('asp-consultation-changed'));window.dispatchEvent(new Event('asp-communication-changed'));}
     return result;
 }
-export async function customerSession(signal: AbortSignal) { const s = await dashboardRequest('/user/session?portal=customer', signal); if (s.portal !== 'customer' || s.role !== 'CUSTOMER' || obj(s.user).portal !== 'customer' || typeof obj(s.user).id !== 'string')
+export async function customerSession(signal: AbortSignal) { const verified=await verifyCustomerSession(signal);if(!verified)throw Error('CUSTOMER_LOGIN_REQUIRED');const s = await dashboardRequest('/user/session?portal=customer', signal); if (s.portal !== 'customer' || s.role !== 'CUSTOMER' || obj(s.user).portal !== 'customer' || obj(s.user).id!==verified.id)
     throw Error('CUSTOMER_LOGIN_REQUIRED'); return s; }
 const pending = new Set<string>();
 export async function requestFreeChat(astrologerUserId: string, signal: AbortSignal, onSubmitting: () => void = () => {}) {
@@ -57,4 +60,4 @@ export const promotions = [
     { id: 'kundli', title: 'Personal Kundli', detail: 'Open your available Kundli reports and features.', href: '/kundli' },
 ] as const;
 export function visiblePromotions(eligible: boolean) { return promotions.filter(p => p.id !== 'free' || eligible); }
-export function money(value: unknown, currency: unknown) { return typeof value === 'number' && Number.isFinite(value) && typeof currency === 'string' && /^[A-Z]{3}$/.test(currency) ? new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value) : 'Unavailable'; }
+export const money = formatStoredMoney;

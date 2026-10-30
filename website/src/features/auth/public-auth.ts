@@ -179,19 +179,13 @@ export function commitPortalSession(result: SessionResult, portal: Portal, annou
   if (Number.isSafeInteger(expiry) && Number(expiry) > Date.now() / 1000)
     localStorage.setItem(prefix + "_expires_at", String(expiry));
   else localStorage.removeItem(prefix + "_expires_at");
-  if (result.session?.refreshToken)
-    localStorage.setItem(
-      prefix + "_refresh_token",
-      result.session.refreshToken,
-    );
-  else localStorage.removeItem(prefix + "_refresh_token");
+  // Renewal uses the original provider proof; unused long-lived ASP refresh copies are not persisted.
+  localStorage.removeItem(prefix+"_refresh_token");
   localStorage.setItem(prefix + "_user", JSON.stringify(user));
   localStorage.setItem("asp_user", JSON.stringify(user));
   if (portal === "customer") {
     localStorage.setItem("asp_access_token", token);
-    if (result.session?.refreshToken)
-      localStorage.setItem("asp_refresh_token", result.session.refreshToken);
-    else localStorage.removeItem("asp_refresh_token");
+    localStorage.removeItem("asp_refresh_token");
   } else {
     localStorage.removeItem("asp_access_token");
     localStorage.removeItem("asp_refresh_token");
@@ -217,6 +211,7 @@ export function commitPortalSession(result: SessionResult, portal: Portal, annou
   if (announce) window.dispatchEvent(new Event("asp-auth-changed"));
 }
 export type NavigationSession = {
+  firebaseUid?: string;
   id: string;
   portal: Portal;
   role: string;
@@ -312,6 +307,7 @@ export async function verifyNavigationSession(
     role: data.role,
     nextStep: typeof data.nextStep === "string" ? data.nextStep : "",
     name: typeof data.user.name === "string" ? data.user.name : "Your account",
+    ...(typeof data.user.firebaseUid==='string'?{firebaseUid:data.user.firebaseUid}:{}),
   };
 }
 const publicRenewals = new Map<string, Promise<void>>();
@@ -367,7 +363,8 @@ async function renewPublicSession(pathname: string, expectedSnapshot: string, ex
   return operation;
 }
 export function clearPublicPortal(portal: Portal) {
-  authVersion++;
+  let selected=true;try{const active=JSON.parse(localStorage.getItem("asp_user")||"{}").portal;selected=!active||active===portal;}catch{}
+  if(selected)authVersion++;
   const prefix = portal === "customer" ? "asp_customer" : "asp_astrologer";
   for (const suffix of ["_access_token", "_refresh_token", "_user", "_expires_at"])
     localStorage.removeItem(prefix + suffix);
@@ -381,12 +378,12 @@ export function clearPublicPortal(portal: Portal) {
   } catch {
     localStorage.removeItem("asp_user");
   }
-  for (const key of [...privateKeys, "asp_otp_context", "asp_signup_data", "asp_google_redirect"]) {
+  if(selected)for (const key of [...privateKeys, "asp_otp_context", "asp_signup_data", "asp_google_redirect"]) {
     localStorage.removeItem(key);
     sessionStorage.removeItem(key);
   }
-  document.cookie = "asp_user=; path=/; max-age=0; SameSite=Lax";
-  window.dispatchEvent(new Event("asp-auth-changed"));
+  if(selected){document.cookie = "asp_user=; path=/; max-age=0; SameSite=Lax";
+  window.dispatchEvent(new Event("asp-auth-changed"));}
 }
 export function signupErrors(values: {
   fullName: string;
@@ -398,7 +395,7 @@ export function signupErrors(values: {
   if (
     values.fullName.trim().length < 2 ||
     values.fullName.trim().length > 100 ||
-    !/^[a-zA-Z?-?\u0900-\u097F\s.'-]+$/.test(values.fullName)
+    !/^[\p{L}\p{M}\s.'’\-]+$/u.test(values.fullName)
   )
     errors.fullName = "Enter your name (2–100 characters).";
   if (
@@ -406,7 +403,7 @@ export function signupErrors(values: {
     values.email.length > 254
   )
     errors.email = "Enter a valid email address.";
-  if (!/^\+[1-9]\d{9,14}$/.test(values.phone))
+  if (values.phone && !/^\+[1-9]\d{9,14}$/.test(values.phone))
     errors.phone =
       "Use an international phone number, for example +919876543210.";
   if (

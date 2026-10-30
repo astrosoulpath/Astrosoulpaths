@@ -1,5 +1,5 @@
 export type Portal = 'customer' | 'seller';
-export type Product = { id: string; name: string; shortDescription?: string; description?: string; currency?: string; sellingPrice?: string | number; displaySellingPrice?: string; displayCurrency?: string; stock?: number; status?: string; images?: {url?: string; imageUrl?: string}[] };
+export type Product = { id: string; name: string; shortDescription?: string; description?: string; currency?: string; sellingPrice?: string | number; displaySellingPrice?: string; displayCurrency?: string; stock?: number; status?: string; images?: {url?: string; imageUrl?: string;isPrimary?:boolean;altText?:string}[] };
 export type ApiResult<T> = { success: boolean; data: T; pagination?: { hasMore?: boolean } };
 
 export function marketplaceBase(value = process.env.NEXT_PUBLIC_API_BASE_URL): string {
@@ -9,7 +9,9 @@ export function marketplaceBase(value = process.env.NEXT_PUBLIC_API_BASE_URL): s
   return value.replace(/\/+$/, '');
 }
 function tokenFor(portal: Portal) {
-  return localStorage.getItem(portal === 'seller' ? 'asp_astrologer_access_token' : 'asp_access_token');
+  let user;try{user=JSON.parse(localStorage.getItem('asp_user')||'{}');}catch{return null;}
+  if(user.portal!==(portal==='seller'?'astrologer':'customer'))return null;
+  return localStorage.getItem(portal === 'seller' ? 'asp_astrologer_access_token' : 'asp_customer_access_token') || (portal==='customer'?localStorage.getItem('asp_access_token'):null);
 }
 /** Account-switch fenced; no Admin-token fallback or automatic mutation retry. */
 export async function marketplaceRequest<T>(path: string, portal?: Portal, init: RequestInit = {}): Promise<ApiResult<T>> {
@@ -18,6 +20,7 @@ export async function marketplaceRequest<T>(path: string, portal?: Portal, init:
   const destination = new URL(base + path);
   if (destination.hash || !destination.pathname.startsWith(new URL(base).pathname.replace(/\/$/, '') + '/marketplace')) throw new Error('Invalid marketplace destination.');
   const token = portal ? tokenFor(portal) : null;
+  const owner=portal?localStorage.getItem('asp_user'):null;
   if (portal && !token) throw new Error(`Sign in with your ${portal === 'seller' ? 'Astrologer' : 'Customer'} account first.`);
   const headers = new Headers(init.headers);
   headers.delete('Authorization');
@@ -25,8 +28,8 @@ export async function marketplaceRequest<T>(path: string, portal?: Portal, init:
   if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json');
   const response = await fetch(destination.toString(), {...init, headers, cache: 'no-store', credentials: 'omit', signal: init.signal ?? AbortSignal.timeout(15000)});
   const result = await response.json().catch(() => null);
-  if (portal && tokenFor(portal) !== token) throw new Error('Account changed. Reload this screen.');
-  if (response.status === 401) throw new Error('Session expired. Sign in again.');
+  if (portal && (tokenFor(portal) !== token||localStorage.getItem('asp_user')!==owner)) throw new Error('Account changed. Reload this screen.');
+  if (response.status === 401) {if(portal==='customer'&&typeof window!=='undefined')window.dispatchEvent(new Event('asp-customer-session-expired'));throw new Error('Session expired. Sign in again.');}
   if (response.status === 403) throw new Error('This account is not authorized for this marketplace action.');
   if (!response.ok || result?.success !== true) throw new Error('Marketplace request failed. Refresh to verify its status before retrying a change.');
   return result;

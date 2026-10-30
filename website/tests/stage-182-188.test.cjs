@@ -10,7 +10,7 @@ test('Home launch approval is server-only, default-off in production and unknown
 });
 for(const value of ['', 'http://external.invalid','https://user:secret@example.invalid','https://example.invalid/?q=key']) test('rejects unsafe marketplace configuration '+value.replace(/secret|key/g,'redacted'),()=>{assert.throws(()=>load('src/features/marketplace/marketplace-api.ts').marketplaceBase(value));});
 test('transport uses only selected Customer token and rejects late account-switch body',async()=>{
-  const store=new Map([['asp_access_token','synthetic-customer'],['asp_admin_access_token','synthetic-admin']]);let calls=0;
+  const store=new Map([['asp_user',JSON.stringify({id:'synthetic-customer',portal:'customer',role:'CUSTOMER'})],['asp_access_token','synthetic-customer'],['asp_admin_access_token','synthetic-admin']]);let calls=0;
   const api=load('src/features/marketplace/marketplace-api.ts',{localStorage:{getItem:k=>store.get(k)},fetch:async(_url,init)=>{calls++;assert.equal(init.headers.get('Authorization'),'Bearer synthetic-customer');assert.equal(init.credentials,'omit');return {status:200,ok:true,json:async()=>{store.set('asp_access_token','other-synthetic');return {success:true,data:{private:'synthetic'}};}};}});
   await assert.rejects(api.marketplaceRequest('/marketplace/customer/orders','customer'),/Account changed/);assert.equal(calls,1);
 });
@@ -19,7 +19,7 @@ test('missing Seller session never falls back to Customer/Admin',async()=>{
   await assert.rejects(api.marketplaceRequest('/marketplace/seller/products','seller'),/Sign in/);assert.equal(calls,0);
 });
 for(const status of [401,403,500]) test('transport rejects HTTP '+status+' with no automatic write retry',async()=>{
-  let calls=0;const api=load('src/features/marketplace/marketplace-api.ts',{localStorage:{getItem:()=> 'synthetic'},fetch:async()=>{calls++;return new Response(JSON.stringify({success:false,message:'secret provider message'}),{status});}});
+  let calls=0;const api=load('src/features/marketplace/marketplace-api.ts',{localStorage:{getItem:key=>key==='asp_user'?JSON.stringify({id:'synthetic-customer',portal:'customer',role:'CUSTOMER'}):key==='asp_customer_access_token'?'synthetic-customer':null},fetch:async()=>{calls++;return new Response(JSON.stringify({success:false,message:'secret provider message'}),{status});}});
   await assert.rejects(api.marketplaceRequest('/marketplace/customer/cart/items','customer',{method:'POST',body:'{}'}),e=>!e.message.includes('secret'));assert.equal(calls,1);
 });
 test('public catalogue request strips caller Authorization',async()=>{

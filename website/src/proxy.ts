@@ -17,6 +17,9 @@ const PUBLIC_AUTH_ROUTES = [
   "/admin/verify-otp",
   "/astrologer/login",
   "/astrologer/register",
+  "/astrologer/signup",
+  "/astrologer/onboarding",
+  "/astrologer/pending",
 ];
 
 const CUSTOMER_ROUTES = [
@@ -79,83 +82,7 @@ export async function proxy(request: NextRequest) {
       startsWithRoute(path, route),
     )
   ) {
-    /*
-     * Registration needs extra handling when a user
-     * is already pending or approved.
-     */
-    if (startsWithRoute(path, "/astrologer/register")) {
-      const registerCookie =
-        request.cookies.get("asp_user")?.value;
-
-      if (!registerCookie) {
-        return NextResponse.next();
-      }
-
-      try {
-        const decodedCookie = decodeURIComponent(
-          registerCookie,
-        );
-
-        const user = JSON.parse(
-          decodedCookie,
-        ) as StoredUser;
-
-        const role = String(
-          user.role ??
-            user.userRole ??
-            user.type ??
-            "",
-        )
-          .trim()
-          .toUpperCase();
-
-        const accountRole = String(
-          user.accountRole ?? "",
-        )
-          .trim()
-          .toUpperCase();
-
-        const status = String(
-          user.astrologerStatus ?? "",
-        )
-          .trim()
-          .toUpperCase();
-
-        const hasAstrologerRole =
-          role === "ASTROLOGER" ||
-          role === "ASTROLOGER_USER" ||
-          accountRole === "ASTROLOGER";
-
-        const isPending =
-          Boolean(user.isAstrologer) &&
-          PENDING_STATUSES.includes(status);
-
-        const isApproved =
-          hasAstrologerRole &&
-          !PENDING_STATUSES.includes(status);
-
-        if (isPending) {
-          return redirect(
-            request,
-            "/astrologer/pending",
-          );
-        }
-
-        if (isApproved) {
-          return redirect(
-            request,
-            "/astrologer/dashboard",
-          );
-        }
-      } catch {
-        /*
-         * Invalid registration cookie should not block
-         * opening the page. The page auth check will
-         * handle the user session.
-         */
-      }
-    }
-
+    // Application pages obtain authority from their authenticated backend request, never this hint cookie.
     return NextResponse.next();
   }
 

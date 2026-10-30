@@ -1,0 +1,41 @@
+/* Typography only: approved dashboard colors, boxes, artwork and breakpoints stay in dashboard.module.css. */
+.type {
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-size: 1rem;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.type h1,
+.type h2 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+.type :is(button, input, select, textarea) {
+  font-family: inherit;
+}
+.type :is(h3, strong) {
+  font-weight: 650;
+}
+.type strong {
+  font-variant-numeric: tabular-nums;
+}
+.type small {
+  font-size: 0.75rem;
+  line-height: 1.7;
+}
+.type p {
+  line-height: 1.75;
+}
+.type :is(a, button) {
+  letter-spacing: 0.01em;
+}
+@media (max-width: 430px) {
+  .type {
+    font-size: 0.9375rem;
+  }
+  .type small {
+    font-size: 0.75rem;
+  }
+}

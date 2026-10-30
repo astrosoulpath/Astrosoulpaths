@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 
+import {callRouteAllowed,callSessionEligible} from '@/features/auth/call-session-policy';
 import {sessionCandidate,verifyNavigationSession} from '@/features/auth/public-auth';
 import {disconnectChatSocket} from '@/lib/chatSocket';
 import IncomingCallModal from "@/components/call/IncomingCallModal";
@@ -22,6 +23,7 @@ import {
   disconnectCallSocket,
   getCallSocket,
   isCallSocketConnected,
+  onCallConnectionState,
   onCallAccepted,
   onCallCancelled,
   onCallError,
@@ -58,7 +60,7 @@ export function AppProviders({
 }: AppProvidersProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const routeContext = pathname.startsWith("/admin") ? "admin" : pathname.startsWith("/astrologer/") ? "astrologer" : "customer";
+  const routeContext = !callRouteAllowed(pathname)?"public-auth":pathname.startsWith("/astrologer/")?"astrologer":"customer";
 
   const [userId, setUserId] =
     useState<string | null>(null);
@@ -95,6 +97,7 @@ export function AppProviders({
       null,
     );
 
+  const retryRef=useRef<()=>void>(()=>{});
   const listenerCleanupRef =
     useRef<(() => void)[]>([]);
 
@@ -197,6 +200,8 @@ export function AppProviders({
           );
         }
 
+        window.dispatchEvent(new Event('asp-consultation-changed'));
+        if(sessionCandidate(window.location.pathname)?.portal==='astrologer'&&payload.consultationType==='AUDIO'){router.push('/chat/'+encodeURIComponent(payload.callId)+'?mode=audio');return;}
         router.push(
           `/consultations?callId=${encodeURIComponent(
             payload.callId,
@@ -426,8 +431,10 @@ export function AppProviders({
           handleConnectError,
         );
 
+        const statusCleanup=typeof onCallConnectionState==='function'?onCallConnectionState(state=>{if(!mountedRef.current)return;setSocketConnected(state==='ready');if(state==='ready'||state==='idle')setCallError(null);else if(state==='unavailable')setCallError('The call server is unavailable after bounded retries. Your account remains signed in.');else if(state==='unauthorized')setCallError('Call access needs authorized session recovery. Reverify your account.');}):()=>{};
         socketCleanupRef.current =
           () => {
+            statusCleanup();
             socket.off(
               "call:registered",
               handleConnect,
@@ -482,13 +489,16 @@ export function AppProviders({
     mountedRef.current = true;
     let generation = 0,
       controller: AbortController | undefined,
-      boundOwner: string | null = null;
+      boundOwner: string | null = null, pendingOwner:string|undefined;
     async function initialize() {
+      if(controller&&!controller.signal.aborted&&pendingOwner===sessionCandidate(window.location.pathname)?.snapshot)return;
       const current = ++generation;
       controller?.abort();
       const abort = new AbortController();
       controller = abort;
+      if(!callRouteAllowed(window.location.pathname)){boundOwner=null;disconnectCurrentUser();setUserId(null);setCallError(null);return;}
       const candidate = sessionCandidate(window.location.pathname);
+      pendingOwner=candidate?.snapshot;
       if (candidate?.snapshot !== boundOwner) {
         disconnectCurrentUser();
         disconnectChatSocket();
@@ -515,7 +525,9 @@ export function AppProviders({
           disconnectChatSocket();
           return;
         }
-        boundOwner = candidate.snapshot;
+        if(!(await callSessionEligible(verified,window.location.pathname,abort.signal))){if(current===generation&&!abort.signal.aborted){boundOwner=null;setUserId(null);disconnectCurrentUser();setCallError(null);}return;}
+        if(!mountedRef.current||current!==generation||abort.signal.aborted)return;
+        boundOwner = sessionCandidate(window.location.pathname)?.snapshot??null;
         setUserId(verified.id);
         if (
           currentUserIdRef.current !== verified.id ||
@@ -532,11 +544,15 @@ export function AppProviders({
         setCallError(
           "Your communication session could not be verified. Sign in again or check your connection.",
         );
-      }
+      } finally {if(current===generation)pendingOwner=undefined;}
     }
     const changed = () => {
       void initialize();
     };
+    retryRef.current=()=>{disconnectCurrentUser();boundOwner=null;controller?.abort();pendingOwner=undefined;void initialize();};
+    const refresh=()=>{void initialize();};
+    const timer=setInterval(()=>{if(document.visibilityState==='visible')refresh();},30000);
+    window.addEventListener('focus',refresh);window.addEventListener('asp-communication-changed',refresh);
     void initialize();
     window.addEventListener("asp-auth-changed", changed);
     window.addEventListener("storage", changed);
@@ -547,6 +563,7 @@ export function AppProviders({
       mountedRef.current = false;
       generation++;
       controller?.abort();
+      clearInterval(timer);window.removeEventListener('focus',refresh);window.removeEventListener('asp-communication-changed',refresh);
       authListener.subscription.unsubscribe();
       window.removeEventListener("asp-auth-changed", changed);
       window.removeEventListener("storage", changed);
@@ -758,7 +775,7 @@ export function AppProviders({
 
                 <p className="mt-1 text-sm leading-5 text-gray-600">
                   {callError}
-                </p>
+                </p><button type="button" className="mt-2 underline" onClick={()=>retryRef.current()}>Verify & retry call connection</button>
               </div>
 
               <button

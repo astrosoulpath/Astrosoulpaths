@@ -62,6 +62,14 @@ test('guest public FAQ renders published backend answer and real config only', a
 test('unpublished contact and FAQ data are not displayed even if extra fields arrive', async () => {
   const a = app('src/features/support/ContactSupport.tsx', 'default', async () => response({success: true, published: false, contact: {email: 'private@example.invalid'}, faqs: [{question: 'Private draft', answer: 'Do not publish'}]}), new Map()); a.render(); await a.flush(); assert.doesNotMatch(content(a.render()), /private@example|Do not publish/); a.dispose();
 });
+test('owner-approved public email is accessible to guests without publishing draft FAQs or hours', async () => {
+  const a = app('src/features/support/ContactSupport.tsx', 'default', async () => response({success: true, published: false, contactSource: 'approved-official-default', contact: {email: 'support@astrosoulpath.com', hours: '', responseTime: ''}, faqs: []}), new Map());
+  a.render(); await a.flush(); const tree = a.render();
+  assert.equal(nodes(tree, n => n.type === 'a' && n.props.href === 'mailto:support@astrosoulpath.com').length, 1);
+  assert.match(content(tree), /support@astrosoulpath.com/);
+  assert.doesNotMatch(content(tree), /Verified support email has not been published|No verified support hours|No response-time promise/);
+  a.dispose();
+});
 test('FAQ search filters approved answers and has an explicit empty state', async () => {
   const a = app('src/features/support/ContactSupport.tsx', 'default', async () => response({success: true, published: true, faqs: [{id: 'one', question: 'Account access', answer: 'Synthetic answer'}]}), new Map()); a.render(); await a.flush(); let tree = a.render(); nodes(tree, node => node.type === 'input' && node.props.type === 'search')[0].props.onChange({target: {value: 'unmatched'}}); tree = a.render(); assert.match(content(tree), /No published answers match/); assert.doesNotMatch(content(tree), /Synthetic answer/); a.dispose();
 });

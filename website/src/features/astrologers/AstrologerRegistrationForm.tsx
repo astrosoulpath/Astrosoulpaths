@@ -1,221 +1,41 @@
-﻿"use client";
-
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { registerAstrologer } from "@/services/astrologerService";
-
-export function AstrologerRegistrationForm() {
-  const router = useRouter();
-  const [form, setForm] = useState({
-    fullName: "",
-    email: "",
-    phoneNumber: "",
-    gender: "",
-    languages: "",
-    expertise: "",
-    experienceYears: "",
-    consultationPrice: "",
-    bio: "",
-  });
-
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-
-  function updateField(name: string, value: string) {
-    setForm((prev) => ({ ...prev, [name]: value }));
-  }
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError("");
-    setMessage("");
-
-    if (
-      !form.fullName ||
-      !form.email ||
-      !form.phoneNumber ||
-      !form.gender ||
-      !form.languages ||
-      !form.expertise ||
-      !form.experienceYears ||
-      !form.consultationPrice
-    ) {
-      setError("Please fill all required fields.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      await registerAstrologer({
-  fullName: form.fullName,
-  email: form.email,
-  phoneNumber: form.phoneNumber,
-  gender: form.gender,
-  languages: form.languages.split(",").map((item) => item.trim()),
-  expertise: form.expertise.split(",").map((item) => item.trim()),
-  experienceYears: Number(form.experienceYears),
-  consultationPrice: Number(form.consultationPrice),
-  bio: form.bio,
-});
-
-const storedUser =
-  localStorage.getItem("asp_auth_user") ??
-  localStorage.getItem("asp_user") ??
-  localStorage.getItem("user");
-
-if (storedUser) {
-  try {
-    const parsedUser = JSON.parse(storedUser);
-
-    const updatedUser = {
-      ...parsedUser,
-      isAstrologer: true,
-      astrologerStatus: "PENDING",
-      accountRole: "CUSTOMER",
-    };
-
-    const updatedUserData = JSON.stringify(updatedUser);
-
-    localStorage.setItem("asp_user", updatedUserData);
-    localStorage.setItem("asp_auth_user", updatedUserData);
-
-    document.cookie = `asp_user=${encodeURIComponent(
-      updatedUserData,
-    )}; path=/; max-age=86400; SameSite=Lax`;
-  } catch {
-    // Registration is already successful.
-    // Navbar will refresh from backend after next login.
-  }
-}
-
-window.dispatchEvent(new Event("asp-auth-changed"));
-
-setMessage(
-  "Registration submitted successfully. Waiting for admin approval.",
-);
-
-setTimeout(() => {
-  router.replace("/astrologer/pending");
-  router.refresh();
-}, 1500);
-    } catch (err: any) {
-      setError(err?.message || "Astrologer registration failed.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <main className="min-h-screen bg-[#FAF7F0] py-16">
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="rounded-3xl bg-white p-8 shadow-lg">
-          <p className="font-semibold text-[#D4AF37]">
-            Astrologer Registration
-          </p>
-
-          <h1 className="mt-3 text-4xl font-bold text-[#0B1026]">
-            Complete Your Astrologer Profile
-          </h1>
-
-          <p className="mt-3 text-[#374151]">
-            Complete your profile details and submit them for verification.
-            After admin approval, your astrologer profile will go live.
-          </p>
-
-          {error && (
-            <p className="mt-5 rounded-xl bg-red-50 p-3 text-red-600">
-              {error}
-            </p>
-          )}
-
-          {message && (
-            <p className="mt-5 rounded-xl bg-green-50 p-3 text-green-700">
-              {message}
-            </p>
-          )}
-
-          <form onSubmit={handleSubmit} className="mt-8 grid gap-5 md:grid-cols-2">
-            <input
-              placeholder="Full Name *"
-              value={form.fullName}
-              onChange={(e) => updateField("fullName", e.target.value)}
-              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
-            />
-
-            <input
-              type="email"
-              placeholder="Email *"
-              value={form.email}
-              onChange={(e) => updateField("email", e.target.value)}
-              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
-            />
-
-            <input
-              placeholder="Phone Number (+91...) *"
-              value={form.phoneNumber}
-              onChange={(e) => updateField("phoneNumber", e.target.value)}
-              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
-            />
-
-            <select
-              value={form.gender}
-              onChange={(e) => updateField("gender", e.target.value)}
-              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
-            >
-              <option value="">Select Gender *</option>
-              <option value="MALE">Male</option>
-              <option value="FEMALE">Female</option>
-              <option value="OTHER">Other</option>
-            </select>
-
-            <input
-              placeholder="Languages e.g. Hindi, English *"
-              value={form.languages}
-              onChange={(e) => updateField("languages", e.target.value)}
-              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
-            />
-
-            <input
-              placeholder="Expertise e.g. Vedic, Tarot, Numerology *"
-              value={form.expertise}
-              onChange={(e) => updateField("expertise", e.target.value)}
-              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
-            />
-
-            <input
-              type="number"
-              placeholder="Years of Experience *"
-              value={form.experienceYears}
-              onChange={(e) => updateField("experienceYears", e.target.value)}
-              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
-            />
-
-            <input
-              type="number"
-              placeholder="Consultation Price per minute â‚¹ *"
-              value={form.consultationPrice}
-              onChange={(e) => updateField("consultationPrice", e.target.value)}
-              className="rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none"
-            />
-
-            <textarea
-              placeholder="Short Bio"
-              value={form.bio}
-              onChange={(e) => updateField("bio", e.target.value)}
-              className="min-h-32 rounded-xl border border-gray-300 bg-white p-4 text-black placeholder:text-gray-500 focus:border-[#D4AF37] focus:outline-none md:col-span-2"
-            />
-
-            <button
-              disabled={loading}
-              className="rounded-xl bg-[#D4AF37] py-4 font-semibold text-[#0B1026] disabled:opacity-60 md:col-span-2"
-            >
-              {loading ? "Submitting..." : "Submit for Admin Approval"}
-            </button>
-          </form>
-        </div>
-      </div>
-    </main>
-  );
+"use client";
+import Link from 'next/link';
+import {useCallback,useEffect,useRef,useState,type FormEvent} from 'react';
+import {useRouter} from 'next/navigation';
+import {applicationRequest,readApplication,uploadApplicationDocument,type ApplicationStatus} from './application-api';
+type DocumentRef={type:string;name:string;url:string};
+export function AstrologerRegistrationForm(){
+ const router=useRouter(),lock=useRef(false),version=useRef(0);
+ const [owner,setOwner]=useState<ApplicationStatus|null>(null),[step,setStep]=useState(1),[busy,setBusy]=useState(false),[error,setError]=useState(''),[uncertain,setUncertain]=useState(false);
+ const [form,setForm]=useState({fullName:'',countryCode:'',languages:'',expertise:'',experienceYears:'',consultationPrice:'',bio:'',gender:''});
+ const [consent,setConsent]=useState(false),[documents,setDocuments]=useState<{identityProof?:DocumentRef;certificates:DocumentRef[];experienceProofs:DocumentRef[]}>({certificates:[],experienceProofs:[]});
+ function field(name:keyof typeof form,value:string){setForm(old=>({...old,[name]:value}));if(name==='countryCode'){setConsent(false);setDocuments({certificates:[],experienceProofs:[]});}}
+ const reload=useCallback(async()=>{const request=++version.current;setError('');try{const status=await readApplication();if(request!==version.current)return;setOwner(status);setUncertain(false);if(status.hasProfile){router.replace('/astrologer/pending');return;}setForm(old=>({...old,fullName:old.fullName||status.user.name||''}));}catch(e){if(request===version.current){setOwner(null);setError(e instanceof Error?e.message:'Application unavailable.');}}},[router]);
+ useEffect(()=>{void reload();const invalidate=()=>{version.current++;};const changed=()=>{invalidate();setOwner(null);setDocuments({certificates:[],experienceProofs:[]});setError('Account changed. Reopen your application.');};window.addEventListener('asp-auth-changed',changed);window.addEventListener('storage',changed);return()=>{invalidate();window.removeEventListener('asp-auth-changed',changed);window.removeEventListener('storage',changed);};},[reload]);
+ function next(){setError('');if(step===1&&(!form.fullName.trim()||!/^[A-Z]{2}$/.test(form.countryCode))){setError('Enter your name and two-letter country code.');return;}if(step===2&&(!form.languages.trim()||!form.expertise.trim()||form.experienceYears===''||form.consultationPrice===''||!Number.isInteger(Number(form.experienceYears))||Number(form.experienceYears)<0||!Number.isFinite(Number(form.consultationPrice))||Number(form.consultationPrice)<0)){setError('Complete the professional fields with valid experience and rate.');return;}if(step===3&&(!consent||!documents.identityProof)){setError('Give consent and upload the required identity proof.');return;}setStep(n=>Math.min(4,n+1));}
+ async function upload(file:File|undefined,type:'identity'|'certificate'|'experience'){if(!file||lock.current)return;lock.current=true;setBusy(true);setError('');const request=version.current;try{const document=await uploadApplicationDocument(file,type,{accepted:consent,countryCode:form.countryCode});if(request!==version.current)return;setDocuments(old=>type==='identity'?{...old,identityProof:document}:type==='certificate'?{...old,certificates:[...old.certificates,document]}:{...old,experienceProofs:[...old.experienceProofs,document]});}catch(e){if(request===version.current)setError(e instanceof Error?e.message:'Upload not confirmed.');}finally{lock.current=false;setBusy(false);}}
+ async function submit(event:FormEvent){event.preventDefault();if(lock.current||!owner||uncertain)return;
+  if(!owner.user.phoneVerified){setError('The existing backend requires a verified contact phone. Complete contact verification through your existing account before applying.');return;}
+  if(!consent||!documents.identityProof){setError('Document-review consent and identity proof are required.');return;}
+  lock.current=true;setBusy(true);setError('');const request=version.current;
+  try{await applicationRequest('/astrologer/application',{method:'POST',body:JSON.stringify({...form,email:owner.user.email||undefined,phoneNumber:owner.user.phone,languages:form.languages.split(',').map(v=>v.trim()).filter(Boolean),expertise:form.expertise.split(',').map(v=>v.trim()).filter(Boolean),experienceYears:Number(form.experienceYears),consultationPrice:Number(form.consultationPrice),gender:form.gender||undefined,documents,consentAccepted:true})});if(request===version.current)router.replace('/astrologer/pending');}
+  catch(e){if(request===version.current){setUncertain(true);setError(e instanceof Error?e.message:'Submission was not confirmed. Read server status before trying again.');}}
+  finally{lock.current=false;setBusy(false);}
+ }
+ const input='mt-2 min-h-12 w-full rounded-xl border border-[#E8E2F0] bg-white p-3 text-[#17213B]';
+ return <main className="min-h-screen bg-[#FFF9F1] px-5 py-12 text-[#17213B]"><section className="mx-auto max-w-3xl rounded-3xl border border-[#E8E2F0] bg-white p-6 shadow-sm sm:p-9"><p className="font-semibold text-[#7548CF]">Join Astro Soul Path</p><h1 className="my-3 text-3xl font-bold">Your astrologer application</h1><p>Identity sign-in, professional profile, private document review and authorized Admin approval are separate steps. No automatic government verification is claimed.</p>
+ <ol aria-label="Application progress" className="my-6 flex flex-wrap gap-3 text-sm">{['Account','Personal details','Professional profile','KYC documents','Review'].map((title,index)=><li key={title} aria-current={index===step?'step':undefined} className="rounded-full border px-3 py-2">{index+1}. {title}</li>)}</ol>
+ {error&&<p role="alert" className="my-4 rounded-xl bg-red-50 p-4 text-red-800">{error}</p>}
+ {!owner?<div><p>Checking your authorized applicant account…</p><div className="mt-4 flex flex-wrap gap-4"><Link href="/astrologer/login" className="underline">Google or Email Astrologer Login</Link><Link href="/astrologer/signup" className="underline">Create an email identity</Link><button onClick={()=>void reload()} className="underline">Retry account check</button></div></div>:
+ <form onSubmit={submit}><fieldset disabled={busy||owner.status==='SUSPENDED'} className="space-y-5">
+ {owner.status==='SUSPENDED'&&<p role="alert">Professional access is unavailable. Contact support instead of creating another account.</p>}
+ {!owner.user.phoneVerified&&<p className="rounded-xl bg-amber-50 p-4">A verified contact phone is required by the existing KYC policy. Phone login remains hidden; complete the supported contact verification in your existing account or <Link href="/contact" className="underline">contact support</Link>. This requirement is not bypassed.</p>}
+ {step===1&&<><label className="block">Full name<input className={input} maxLength={100} value={form.fullName} onChange={e=>field('fullName',e.target.value)} required/></label><label className="block">Country code<input className={input} placeholder="Two-letter ISO country code" maxLength={2} autoComplete="country" value={form.countryCode} onChange={e=>field('countryCode',e.target.value.toUpperCase())} required/></label><label className="block">Verified account email<input className={input} type="email" value={owner.user.email||''} readOnly/></label><label className="block">Account contact phone<input className={input} value={owner.user.phone||''} readOnly/></label><p>Your identity and contact details are read from the authenticated account. Changes use the existing verification process.</p></>}
+ {step===2&&<><label className="block">Languages spoken, separated by commas<input className={input} maxLength={300} value={form.languages} onChange={e=>field('languages',e.target.value)}/></label><label className="block">Specializations, separated by commas<input className={input} maxLength={300} value={form.expertise} onChange={e=>field('expertise',e.target.value)}/></label><label className="block">Years of experience<input className={input} type="number" min={0} step={1} value={form.experienceYears} onChange={e=>field('experienceYears',e.target.value)}/></label><label className="block">Proposed consultation rate per minute<input className={input} type="number" min={0} step="0.01" value={form.consultationPrice} onChange={e=>field('consultationPrice',e.target.value)}/></label><label className="block">Professional biography<textarea className={input} maxLength={4000} rows={5} value={form.bio} onChange={e=>field('bio',e.target.value)}/></label><label className="block">Gender (optional)<select className={input} value={form.gender} onChange={e=>field('gender',e.target.value)}><option value="">Not provided</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option></select></label><p>Upload qualifications and experience evidence in the next step. Professional consultation capabilities remain subject to backend eligibility and approval.</p></>}
+ {step===3&&<><label className="flex items-start gap-3"><input type="checkbox" className="mt-1 size-5 shrink-0" checked={consent} onChange={e=>setConsent(e.target.checked)}/>I consent to private identity and professional-document review for this application. Do not upload another person’s documents. <Link href="/privacy-policy" className="underline">Privacy policy</Link></label>{(['identity','certificate','experience'] as const).map(type=><label key={type} className="block">{type==='identity'?'Identity proof (required)':type==='certificate'?'Professional qualification (optional)':'Experience proof (optional)'}<input className={input} type="file" accept="application/pdf,image/png,image/jpeg" disabled={!consent} onChange={e=>void upload(e.target.files?.[0],type)}/></label>)}<p role="status">Identity: {documents.identityProof?'uploaded privately':'not uploaded'} · Qualifications: {documents.certificates.length} · Experience proofs: {documents.experienceProofs.length}</p><p>PDF, PNG or JPG; maximum 10 MB each. Documents are private and reviewed by authorized staff, not automatically government-verified. Additional country-specific evidence may be requested.</p></>}
+ {step===4&&<><h2 className="text-xl font-semibold">Review before submission</h2><dl className="space-y-2"><dt>Name</dt><dd>{form.fullName}</dd><dt>Country</dt><dd>{form.countryCode}</dd><dt>Languages / specializations</dt><dd>{form.languages} · {form.expertise}</dd><dt>Experience</dt><dd>{form.experienceYears} years</dd></dl><p>This creates one pending application for this account. It does not approve your profile or enable consultations.</p></>}
+ <div className="flex flex-wrap gap-3 pt-4">{step>1&&<button type="button" className="rounded-xl border px-5 py-3" onClick={()=>setStep(n=>n-1)}>Back</button>}{step<4?<button type="button" className="rounded-xl bg-[#7548CF] px-5 py-3 text-white" onClick={next}>Continue</button>:<button className="rounded-xl bg-[#7548CF] px-5 py-3 text-white disabled:opacity-50" disabled={busy||uncertain||!owner.user.phoneVerified}>{busy?'Submitting…':'Submit application for review'}</button>}</div>
+ </fieldset>{uncertain&&<button type="button" className="mt-4 underline" onClick={()=>void reload()}>Check existing application before retrying</button>}</form>}
+ <div className="mt-8 flex flex-wrap gap-5 text-sm"><Link href="/astrologer/login" className="underline">Astrologer Login</Link><Link href="/astrologer/pending" className="underline">Track application</Link><Link href="/contact" className="underline">Contact support</Link></div>
+ </section></main>;
 }

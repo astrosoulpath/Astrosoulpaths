@@ -1,167 +1,37 @@
 "use client";
-import { safeCustomerRedirect } from '@/features/auth/public-auth';
+import Link from 'next/link';
+import {useCustomerSession} from '../auth/use-customer-session';
+import {CustomerAccess} from '../auth/CustomerAccess';
+import Image from 'next/image';
+import {useCallback,useEffect,useRef,useState} from 'react';
+import {useRouter} from 'next/navigation';
 
-
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { saveAstroProfile } from "@/services/profileService";
-
-export function CompleteProfileForm() {
-  const router = useRouter();
-
-  const [form, setForm] = useState({
-    name: "",
-    fullname: "",
-    gender: "",
-    maritalStatus: "",
-    occupation: "",
-    dob: "",
-    tob: "",
-    city: "",
-    state: "",
-    country: "India",
-    countryCode: "IN",
-    lat: "",
-    lon: "",
-    timezone: "5.5",
-    timezoneName: "Asia/Kolkata",
-    lang: "en",
-    avatarUrl: "",
-  });
-
-  const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  function updateField(name: string, value: string) {
-    setForm((prev) => ({ ...prev, [name]: value }));
-  }
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError("");
-
-    if (!form.name || !form.dob || !form.tob || !form.lat || !form.lon || !form.timezone) {
-      setError("Name, birth date, birth time, latitude, longitude and timezone are required.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const owner=localStorage.getItem("asp_user");
-      await saveAstroProfile({
-        name: form.name,
-        fullname: form.fullname || form.name,
-        gender: form.gender ? (form.gender as "MALE" | "FEMALE" | "OTHER") : undefined,
-        maritalStatus: form.maritalStatus || undefined,
-        occupation: form.occupation || undefined,
-        dob: form.dob,
-        tob: form.tob,
-        lat: Number(form.lat),
-        lon: Number(form.lon),
-        timezone: Number(form.timezone),
-        timezoneName: form.timezoneName || undefined,
-        city: form.city || undefined,
-        state: form.state || undefined,
-        country: form.country || undefined,
-        countryCode: form.countryCode || undefined,
-        lang: form.lang || "en",
-        avatarUrl: form.avatarUrl || undefined,
-      });
-
-      if(localStorage.getItem('asp_user')!==owner)throw new Error('Account changed. Please reopen your profile.');
-      let destination='/';
-      try{const pending=JSON.parse(sessionStorage.getItem('asp_after_profile_redirect')||'null');const user=JSON.parse(owner||'{}');if(pending?.userId===user.id)destination=safeCustomerRedirect(pending.path,'/');}catch{/* No cross-account return destination. */}
-      sessionStorage.removeItem('asp_after_profile_redirect');
-      router.push(destination);
-    } catch (err: any) {
-      setError(err?.message || "Profile save failed.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <main className="min-h-screen bg-[#FAF7F0] py-16">
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="rounded-3xl bg-white p-8 shadow-lg">
-          <p className="font-semibold text-[#D4AF37]">Step 2 of 5</p>
-
-          <h1 className="mt-3 text-4xl font-bold text-[#0B1026]">
-            Complete Your Birth Profile
-          </h1>
-
-          <p className="mt-3 text-[#374151]">
-            These details are required for Kundli, horoscope, matchmaking,
-            dosha, dasha and personalized astrology guidance.
-          </p>
-
-          {error && (
-            <p className="mt-5 rounded-xl bg-red-50 p-3 text-red-600">
-              {error}
-            </p>
-          )}
-
-          <form onSubmit={handleSubmit} className="mt-8 grid gap-5 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <label className="mb-2 block font-semibold text-[#0B1026]">
-                Profile Photo
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setProfilePhoto(e.target.files?.[0] || null)}
-                className="w-full rounded-xl border border-gray-300 p-4"
-              />
-              {profilePhoto && (
-                <p className="mt-2 text-sm text-[#374151]">
-                  Selected: {profilePhoto.name}
-                </p>
-              )}
-            </div>
-
-            <input placeholder="Display Name *" value={form.name} onChange={(e) => updateField("name", e.target.value)} className="rounded-xl border p-4" />
-            <input placeholder="Full Legal Name" value={form.fullname} onChange={(e) => updateField("fullname", e.target.value)} className="rounded-xl border p-4" />
-
-            <select value={form.gender} onChange={(e) => updateField("gender", e.target.value)} className="rounded-xl border p-4">
-              <option value="">Select Gender</option>
-              <option value="MALE">Male</option>
-              <option value="FEMALE">Female</option>
-              <option value="OTHER">Other</option>
-            </select>
-
-            <select value={form.maritalStatus} onChange={(e) => updateField("maritalStatus", e.target.value)} className="rounded-xl border p-4">
-              <option value="">Marital Status</option>
-              <option value="SINGLE">Single</option>
-              <option value="MARRIED">Married</option>
-              <option value="DIVORCED">Divorced</option>
-              <option value="WIDOWED">Widowed</option>
-            </select>
-
-            <input placeholder="Occupation" value={form.occupation} onChange={(e) => updateField("occupation", e.target.value)} className="rounded-xl border p-4" />
-            <input type="date" value={form.dob} onChange={(e) => updateField("dob", e.target.value)} className="rounded-xl border p-4" />
-            <input type="time" value={form.tob} onChange={(e) => updateField("tob", e.target.value)} className="rounded-xl border p-4" />
-
-            <input placeholder="Birth City" value={form.city} onChange={(e) => updateField("city", e.target.value)} className="rounded-xl border p-4" />
-            <input placeholder="Birth State" value={form.state} onChange={(e) => updateField("state", e.target.value)} className="rounded-xl border p-4" />
-            <input placeholder="Birth Country" value={form.country} onChange={(e) => updateField("country", e.target.value)} className="rounded-xl border p-4" />
-            <input placeholder="Country Code e.g. IN" value={form.countryCode} onChange={(e) => updateField("countryCode", e.target.value)} className="rounded-xl border p-4" />
-
-            <input placeholder="Latitude *" value={form.lat} onChange={(e) => updateField("lat", e.target.value)} className="rounded-xl border p-4" />
-            <input placeholder="Longitude *" value={form.lon} onChange={(e) => updateField("lon", e.target.value)} className="rounded-xl border p-4" />
-            <input placeholder="Timezone e.g. 5.5 *" value={form.timezone} onChange={(e) => updateField("timezone", e.target.value)} className="rounded-xl border p-4" />
-            <input placeholder="Timezone Name" value={form.timezoneName} onChange={(e) => updateField("timezoneName", e.target.value)} className="rounded-xl border p-4" />
-
-            <button
-              disabled={loading}
-              className="rounded-xl bg-[#D4AF37] py-4 font-semibold text-[#0B1026] disabled:opacity-60 md:col-span-2"
-            >
-              {loading ? "Saving Profile..." : "Save & Continue"}
-            </button>
-          </form>
-        </div>
-      </div>
-    </main>
-  );
+import {emptyProfile,profileErrors,profileForm,profileOwner,profilePayload,profileReturnDestination,profileRequest,safePhoto,uploadCustomerPhoto,type BirthProfileForm} from './customer-profile-api';
+import s from '../customer-workspace/workspace.module.css';
+const steps=['Identity','Birth details','Birth place','Photo','Review'];
+export function CompleteProfileForm(){
+ const router=useRouter(),generation=useRef(0),lock=useRef(false);
+ const [form,setForm]=useState<BirthProfileForm>({...emptyProfile}),[step,setStep]=useState(0),[existing,setExisting]=useState(false),[verified,setVerified]=useState(false),[loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[uncertain,setUncertain]=useState(false),[error,setError]=useState(''),[errors,setErrors]=useState<Record<string,string>>({}),[message,setMessage]=useState(''),[photo,setPhoto]=useState<File|null>(null),[preview,setPreview]=useState(''),[photoReady,setPhotoReady]=useState(false),[languages,setLanguages]=useState<{code:string;englishName:string}[]>([]),[languageError,setLanguageError]=useState(''),[complete,setComplete]=useState(false);
+ const auth=useCustomerSession(),customerId=auth.customer?.id;
+ const load=useCallback(async()=>{const request=++generation.current;setVerified(false);setLoading(true);setError('');setMessage('');try{const result=await profileRequest('/user/profile');if(request!==generation.current)return;if(result.data!==null&&(!result.data||typeof result.data.id!=='string'||typeof result.data.fullName!=='string'))throw Error('The profile response could not be verified.');setForm(profileForm(result.data));setExisting(!!result.data);setComplete(!!result.data&&result.isProfileComplete===true);setStep(result.data&&result.isProfileComplete===true?4:0);setVerified(true);setPhotoReady(result.capabilities?.photoUploadWithoutAi===true);setUncertain(false);setPhoto(null);setErrors({});try{const catalogue=await profileRequest<{success:boolean;data:{code:string;englishName:string}[]}>('/languages');if(request===generation.current){if(!Array.isArray(catalogue.data)||catalogue.data.some(item=>typeof item.code!=='string'||typeof item.englishName!=='string'))throw Error('Language list unavailable.');setLanguages(catalogue.data);setLanguageError(catalogue.data.length?'':'No active languages are configured.');}}catch{if(request===generation.current)setLanguageError('Language choices could not be loaded. Reload before choosing a new language.');}}catch(e){if(request===generation.current){setForm({...emptyProfile});setError(e instanceof Error?e.message:'Profile unavailable.');}}finally{if(request===generation.current)setLoading(false);}},[]);
+ useEffect(()=>{const cancel=()=>{generation.current++;};if(auth.status==='authenticated')void load();else{cancel();setVerified(false);setComplete(false);setForm({...emptyProfile});setPhoto(null);setLanguages([]);setLanguageError('');setMessage('');setError('');setLoading(false);}return cancel;},[auth.status,customerId,load]);
+ useEffect(()=>{if(!photo){setPreview('');return;}const url=URL.createObjectURL(photo);setPreview(url);return()=>URL.revokeObjectURL(url);},[photo]);
+ function update<K extends keyof BirthProfileForm>(key:K,value:BirthProfileForm[K]){setForm(current=>({...current,[key]:value}));setErrors(current=>({...current,[key]:''}));}
+ async function upload(){if(!photo||lock.current||!verified)return;lock.current=true;setBusy(true);setError('');const request=generation.current;try{const url=await uploadCustomerPhoto(photo);if(request!==generation.current)return;update('avatarUrl',url);setPhoto(null);setMessage('Photo saved to your account. Save the birth profile to retain its profile photo reference.');}catch(e){if(request===generation.current){setUncertain(true);setError(e instanceof Error?e.message:'Upload not confirmed. Reload before retrying.');}}finally{lock.current=false;setBusy(false);}}
+ async function save(){if(lock.current||!verified||uncertain)return;const invalid=profileErrors(form);setErrors(invalid);if(Object.keys(invalid).length){setError('Review the highlighted fields before saving.');setStep(invalid.fullName||invalid.gender?0:invalid.dateOfBirth||invalid.timeOfBirth?1:2);return;}if(photo){setError('Upload the selected photo or remove its selection before saving.');setStep(3);return;}lock.current=true;setBusy(true);setError('');const request=generation.current;try{const owner=profileOwner();await profileRequest('/user/profile',{method:existing?'PATCH':'POST',body:JSON.stringify(profilePayload(form))});if(request!==generation.current)return;const reloaded=await profileRequest('/user/profile');if(request!==generation.current)return;if(!reloaded.isProfileComplete)throw Error('The backend has not confirmed onboarding completion. Reload and review the saved profile.');setForm(profileForm(reloaded.data));setExisting(true);setMessage('Profile saved and reloaded successfully.');router.push(profileReturnDestination(owner.id));}catch(e){if(request===generation.current){setUncertain(true);setError(e instanceof Error?e.message:'Save not confirmed. Reload before another attempt.');}}finally{lock.current=false;setBusy(false);}}
+ function input(key:keyof BirthProfileForm,label:string,type='text',hint?:string){return <label className={s.field}>{label}<input aria-invalid={!!errors[key]} aria-describedby={errors[key]?'error-'+key:undefined} type={type} value={String(form[key])} onChange={event=>update(key,event.target.value as never)} placeholder={hint} maxLength={type==='text'?120:undefined} step={type==='number'?'any':type==='time'?1:undefined}/>{errors[key]&&<small id={'error-'+key} role="alert">{errors[key]}</small>}</label>;}
+ const image=preview||safePhoto(form.avatarUrl);
+ return <main className={s.page}><div className={s.shell}><header className={s.hero}><p className={s.eyebrow}>Your personal astrology profile</p><h1>{complete?'Your saved birth profile':'Complete your birth profile'}</h1><p>Keep your birth details accurate for personalized guidance. Enter the local birth date and time, with the timezone offset that applied at birth.</p></header>
+ <section className={s.card}><div className={s.actions}><CustomerAccess auth={auth} returnTo="/profile/complete" retry={auth.retry}/><button className={s.secondary} type="button" disabled={busy||loading} onClick={()=>auth.status==='authenticated'?void load():auth.retry()}>Reload saved profile</button></div>
+ {auth.status==='anonymous'&&!loading&&<p className={s.notice}>Sign in to load existing values and enable saving. The form below is an unsubmitted preview, not a new account.</p>}{error&&<p role="alert" className={s.error}>{error}</p>}{message&&<p role="status" className={s.notice}>{message}</p>}
+ {complete&&<div className={s.notice} role="status">Your existing profile is complete. Review it below or edit only the details you want to change.<div className={s.actions}><button type="button" className={s.secondary} onClick={()=>setStep(0)}>Edit saved details</button><Link href="/dashboard" className={s.link}>Open Customer Dashboard</Link></div></div>}
+ <nav aria-label="Profile completion progress" className={s.steps}>{steps.map((title,index)=><button key={title} type="button" disabled={busy} aria-current={step===index?'step':undefined} onClick={()=>setStep(index)}><strong>{index+1} of 5</strong>{title}</button>)}</nav>
+ {auth.status==='loading'||loading?<div className={s.skeleton} role="status" aria-label="Loading existing profile"/>:<form onSubmit={event=>{event.preventDefault();if(step===4)void save();else setStep(current=>current+1);}}><fieldset disabled={busy||uncertain} className={s.fields}>
+ {step===0&&<>{input('fullName','Full name','text','Your name')}<label className={s.field}>Gender<select value={form.gender} aria-invalid={!!errors.gender} onChange={event=>update('gender',event.target.value)}><option value="">Choose a value</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option></select>{errors.gender&&<small role="alert">{errors.gender}</small>}</label><label className={s.field}>Preferred language (optional)<select value={form.lang} onChange={event=>update('lang',event.target.value)}><option value="">Use the account default</option>{form.lang&&!languages.some(item=>item.code===form.lang)&&<option value={form.lang}>Current language ({form.lang})</option>}{languages.map(item=><option key={item.code} value={item.code}>{item.englishName}</option>)}</select>{languageError&&<small role="status">{languageError}</small>}</label><p className={s.muted}>Only the details needed for your birth profile are requested here.</p></>}
+ {step===1&&<>{input('dateOfBirth','Date of birth','date')}<label className={s.field}>Birth time known<select value={form.birthTimeKnown?'yes':'no'} onChange={event=>update('birthTimeKnown',event.target.value==='yes')}><option value="yes">Yes</option><option value="no">No — do not invent a time</option></select></label>{form.birthTimeKnown&&input('timeOfBirth','Time of birth (24 hour)','time')}<p className={s.muted}>Do not convert your birth date/time to UTC. Unknown time is supported by the existing backend.</p></>}
+ {step===2&&<>{input('city','Birth city','text','City or town')}{input('state','Birth state / region (optional)')}{input('country','Birth country (optional)')}{input('countryCode','Birth country code','text','IN, GB, US…')}{input('latitude','Latitude','number','-90 to 90')}{input('longitude','Longitude','number','-180 to 180')}{input('timezone','UTC offset at birth, in hours','number','Historical offset, including DST')}{input('timezoneName','IANA timezone (optional)','text','Asia/Kolkata')}<p className={s.muted}>Coordinates and the numeric historical offset are required. No timezone or location is guessed from your device or current residence.</p></>}
+ {step===3&&<div className={s.wide}>{image&&<Image unoptimized src={image} alt="Profile photo preview" width={110} height={110} className={s.photo}/>}<label className={s.field}>Profile photo (optional)<input type="file" accept="image/jpeg,image/png,image/webp" onChange={event=>{setPhoto(event.target.files?.[0]??null);setMessage('');}}/><small>JPEG, PNG or WebP, up to 5 MB. Upload saves the photo; it does not request AI artwork. Sign in to check upload availability.</small></label><div className={s.actions}><button type="button" className={s.secondary} disabled={!photo||!verified||!photoReady||busy||uncertain} onClick={()=>void upload()}>Upload selected photo</button>{photo&&<button type="button" className={s.secondary} onClick={()=>setPhoto(null)}>Cancel selection</button>}</div></div>}
+ {step===4&&<div className={s.wide}><h2>Review your details</h2><dl className={s.summary}><dt>Full name</dt><dd>{form.fullName||'Not entered'}</dd><dt>Local birth date and time</dt><dd>{form.dateOfBirth||'Not entered'} · {form.birthTimeKnown?form.timeOfBirth||'Not entered':'Time unknown'}</dd><dt>Birth location</dt><dd>{[form.city,form.state,form.countryCode].filter(Boolean).join(', ')||'Not entered'}</dd><dt>Coordinates / UTC offset</dt><dd>{form.latitude||'Not entered'}, {form.longitude||'Not entered'} / {form.timezone||'Not entered'}</dd></dl><p className={s.muted}>Save updates your existing profile when present. Your details will be checked before continuing.</p></div>}
+ </fieldset><div className={s.actions}>{step>0&&<button type="button" className={s.secondary} disabled={busy} onClick={()=>setStep(current=>current-1)}>Back</button>}<button className={s.button} disabled={busy||(step===4&&(!verified||uncertain))}>{busy?'Saving your profile…':step===4?'Save & Continue':'Continue'}</button></div></form>}
+ </section></div></main>;
 }

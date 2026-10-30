@@ -367,12 +367,8 @@ export function saveAuthSession(
     );
   }
 
-  if (response.session?.refreshToken) {
-    localStorage.setItem(
-      "asp_refresh_token",
-      response.session.refreshToken,
-    );
-  }
+  // No consumer renews through this duplicate long-lived browser credential.
+  localStorage.removeItem("asp_refresh_token");
 
   if (response.user) {
     localStorage.setItem(

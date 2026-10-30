@@ -20,7 +20,8 @@ export default function ContactSupport() {
     for (const event of ['storage', 'asp-auth-changed', 'focus', 'online', 'offline']) window.addEventListener(event, sync);
     return () => {clearInterval(timer); for (const event of ['storage', 'asp-auth-changed', 'focus', 'online', 'offline']) window.removeEventListener(event, sync);};
   }, []);
-  const contact = help.data?.published === true ? record(help.data.contact) : {};
+  // The public backend filters drafts and supplies the owner-approved contact.
+  const contact = help.data?.published === true || help.data?.contactSource === 'approved-official-default' ? record(help.data?.contact) : {};
   const categories = Array.isArray(help.data?.categories) ? help.data.categories.filter((value): value is string => typeof value === 'string' && Object.hasOwn(CATEGORIES, value)) : [];
   const faqs = (help.data?.published === true ? array(help.data.faqs) : []).filter(faq => `${string(faq.question)} ${string(faq.answer)}`.toLowerCase().includes(query.trim().toLowerCase()));
   return <main className={styles.page}><div className={styles.wrap}>
@@ -34,6 +35,6 @@ export default function ContactSupport() {
       {!help.busy && !faqs.length && <p className={styles.notice}>{query ? 'No published answers match your search.' : 'Public FAQ answers have not been published. Sign in for account-specific help.'}</p>}
     </section>
     <section id="support-workspace" className={styles.section}><h2>Your support workspace</h2>{account.owner ? <CustomerWorkspace key={account.revision} owner={account.owner} category={category} online={online}/> : <div className={styles.card}><h3 className="text-xl font-semibold">Private help starts with a Customer sign-in</h3><p>Your tickets and conversations are visible only to your authorized account. Public information remains available without signing in.</p><Link className={styles.button} href="/login">Sign in to Customer support</Link></div>}</section>
-    <section className={styles.section}><h2>Published contact information</h2><div className={styles.grid}><div className={styles.card}><h3>Email</h3>{string(contact.email) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(string(contact.email)) ? <a href={`mailto:${string(contact.email)}`}>{string(contact.email)}</a> : <p>Verified support email has not been published.</p>}</div><div className={styles.card}><h3>Support hours</h3><p>{string(contact.hours) || 'No verified support hours are published.'}</p></div><div className={styles.card}><h3>Response guidance</h3><p>{string(contact.responseTime) || 'No response-time promise is published. Track your request in ticket history.'}</p></div></div></section>
+    <section className={styles.section}><h2>Published contact information</h2><div className={styles.grid}><div className={styles.card}><h3>Email</h3>{string(contact.email) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(string(contact.email)) ? <a href={`mailto:${string(contact.email)}`}>{string(contact.email)}</a> : <p>Verified support email has not been published.</p>}</div>{string(contact.hours) && <div className={styles.card}><h3>Support hours</h3><p>{string(contact.hours)}</p></div>}{string(contact.responseTime) && <div className={styles.card}><h3>Response guidance</h3><p>{string(contact.responseTime)}</p></div>}</div></section>
   </div></main>;
 }

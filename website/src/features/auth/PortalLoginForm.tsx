@@ -1,5 +1,6 @@
 "use client";
 import { firebaseEmailPortalLogin } from "./firebase-email-login";
+import { websitePhoneAuthEnabled } from "./website-auth-policy";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -20,7 +21,7 @@ import s from "./auth-premium.module.css";
 export function PortalLoginForm({
   portal,
   redirectTo = "/dashboard",
-  initialMethod = "phone",
+  initialMethod = "email",
 }: {
   portal: Portal;
   redirectTo?: string;
@@ -28,7 +29,7 @@ export function PortalLoginForm({
 }) {
   const router = useRouter(),
     professional = portal === "astrologer";
-  const [method, setMethod] = useState<"phone" | "email">(initialMethod),
+  const [method, setMethod] = useState<"phone" | "email">(websitePhoneAuthEnabled ? initialMethod : "email"),
     [phone, setPhone] = useState<string | undefined>(""),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
@@ -85,6 +86,10 @@ export function PortalLoginForm({
     if (lock.current) return;
     setError("");
     if (!google) {
+      if (method === "phone" && !websitePhoneAuthEnabled) {
+        setError("Use Google or email to sign in on this website.");
+        return;
+      }
       if (method === "phone" && !/^\+[1-9]\d{9,14}$/.test(phone ?? "")) {
         setError(
           "Enter a valid international phone number including the country code.",
@@ -166,7 +171,7 @@ export function PortalLoginForm({
         </p>
       )}
       <div className={s.methods} role="group" aria-label="Sign-in method">
-        <button
+        {websitePhoneAuthEnabled && <button
           type="button"
           aria-pressed={method === "phone"}
           disabled={busy}
@@ -176,7 +181,7 @@ export function PortalLoginForm({
           }}
         >
           Phone OTP
-        </button>
+        </button>}
         {
           <button
             type="button"
@@ -192,12 +197,13 @@ export function PortalLoginForm({
         }
       </div>
       <form
+        method="post"
         className={s.form}
         onSubmit={(e) => void submit(e)}
         aria-busy={busy}
         noValidate
       >
-        {method === "phone" ? (
+        {websitePhoneAuthEnabled && method === "phone" ? (
           <div className={s.field}>
             <label htmlFor="login-phone">Phone number</label>
             <div className={s.phone}>
@@ -314,6 +320,7 @@ export function PortalLoginForm({
       {redirectSuggested && <button type="button" className={s.google} disabled={busy} onClick={() => void submit(undefined, "redirect")}>Continue with Google using redirect</button>}
       {redirectPending && <button type="button" className={s.google} disabled={busy} onClick={() => void submit(undefined, "complete")}>Finish Google sign-in</button>}
       <div className={s.alternate}>
+        <Link href="/forgot-password">Forgot password?</Link>
         <Link href={professional ? "/astrologer/register" : "/signup"}>
           {professional ? "Apply as Astrologer" : "Create an account"}
         </Link>

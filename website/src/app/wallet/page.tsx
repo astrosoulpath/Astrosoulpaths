@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
   useState,
+  useRef,
 } from "react";
 
 import {
@@ -120,7 +120,8 @@ function normalizeTransaction(
 }
 
 export default function WalletPage() {
-  const router = useRouter();
+  const generation=useRef(0),reading=useRef(false);
+  const [verifiedWallet,setVerifiedWallet]=useState(false);
 
   const [balance, setBalance] =
     useState(0);
@@ -148,20 +149,7 @@ export default function WalletPage() {
 
   const loadWallet = useCallback(
     async (refresh = false) => {
-      const token = localStorage.getItem(
-        "asp_access_token",
-      );
-
-      if (!token) {
-        router.replace(
-          `/login?redirect=${encodeURIComponent(
-            "/wallet",
-          )}`,
-        );
-
-        return;
-      }
-
+      if(reading.current)return;reading.current=true;const version=++generation.current;
       try {
         if (refresh) {
           setRefreshing(true);
@@ -179,8 +167,10 @@ export default function WalletPage() {
           getWalletHistory() as Promise<WalletHistoryResponse>,
         ]);
 
+        if(version!==generation.current)return;
         const wallet =
           walletResponse.data;
+        if(!wallet||![wallet.balance,wallet.availableBalance,wallet.lockedBalance].every(value=>value!==null&&value!==undefined&&Number.isFinite(Number(value)))||typeof wallet.currency!=='string'||!(/^[A-Z]{3}$/).test(wallet.currency))throw Error('Wallet response was incomplete. No balance has been assumed.');
 
         const walletBalance = Number(
           wallet?.balance ?? 0,
@@ -226,6 +216,8 @@ export default function WalletPage() {
           historyResponse.data
             ?.transactions ?? [];
 
+        if(!Array.isArray(history)||history.some(item=>item.amount===undefined||item.amount===null||!Number.isFinite(Number(item.amount))))throw Error('Wallet history could not be verified.');
+        setVerifiedWallet(true);
         setTransactions(
           history.map(
             (
@@ -244,48 +236,22 @@ export default function WalletPage() {
             ? err.message
             : "Unable to load wallet.";
 
-        const normalizedMessage =
-          message.toLowerCase();
-
-        if (
-          normalizedMessage.includes(
-            "unauthorized",
-          ) ||
-          normalizedMessage.includes(
-            "invalid token",
-          ) ||
-          normalizedMessage.includes(
-            "jwt",
-          )
-        ) {
-          localStorage.removeItem(
-            "asp_access_token",
-          );
-
-          localStorage.removeItem(
-            "asp_refresh_token",
-          );
-
-          router.replace(
-            `/login?redirect=${encodeURIComponent(
-              "/wallet",
-            )}`,
-          );
-
-          return;
-        }
-
+        if(version!==generation.current)return;
+        if(err&&typeof err==='object'&&'name'in err&&err.name==='WalletAccessError')setVerifiedWallet(false);
         setError(message);
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if(version===generation.current){reading.current=false;setLoading(false);setRefreshing(false);}
       }
     },
-    [router],
+    [],
   );
 
   useEffect(() => {
+    const lifecycle = generation;
     void loadWallet();
+    const changed=()=>{generation.current++;reading.current=false;setVerifiedWallet(false);setTransactions([]);void loadWallet();};
+    window.addEventListener('asp-auth-changed',changed);window.addEventListener('storage',changed);
+    return()=>{lifecycle.current++;window.removeEventListener('asp-auth-changed',changed);window.removeEventListener('storage',changed);};
   }, [loadWallet]);
 
   return (
@@ -342,7 +308,7 @@ export default function WalletPage() {
 
             <p className="mt-1 text-sm">
               {error}
-            </p>
+            </p>{verifiedWallet&&<p>Last verified balances remain visible. Refresh before relying on them.</p>}
 
             <button
               type="button"
@@ -370,7 +336,7 @@ export default function WalletPage() {
               <div className="mt-7 h-14 rounded-xl bg-gray-200" />
             </div>
           </div>
-        ) : (
+        ) : !verifiedWallet?(<p role="status" className="mt-8">Wallet data is unavailable until your Customer account and records are verified. No zero balance has been substituted.</p>): (
           <>
             <section className="mt-10 grid gap-6 lg:grid-cols-[1fr_360px]">
               <div className="rounded-3xl bg-[#0B1026] p-8 text-white shadow-xl">

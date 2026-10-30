@@ -13,7 +13,7 @@ export default function LoginChoicePage() {
         <Link className={s.choice} href="/login">
           <UserRound size={25} />
           <span>
-            <strong>Customer Login</strong>
+            <strong>Continue as Customer</strong>
             <small>Explore your consultations, readings and account.</small>
           </span>
           <ArrowUpRight size={17} />
@@ -31,7 +31,7 @@ export default function LoginChoicePage() {
         <Link className={s.choice} href="/astrologer/register">
           <Sparkles size={25} />
           <span>
-            <strong>Apply as Astrologer</strong>
+            <strong>Join as Astrologer</strong>
             <small>
               New to the professional journey? Start the existing application
               process.

@@ -1,3 +1,5 @@
+import {publicAuthBase} from '@/features/auth/public-auth';
+import {communicationOwner} from '@/features/auth/communication-session';
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -8,49 +10,34 @@ function getApiBaseUrl() {
     );
   }
 
-  return API_BASE_URL.replace(/\/+$/, "");
-}
-
-function getAccessToken() {
-  if (typeof window === "undefined") {
-    throw new Error("Browser only.");
-  }
-
-  const token =
-    localStorage.getItem(
-      "asp_access_token",
-    );
-
-  if (!token) {
-    throw new Error(
-      "LOGIN_REQUIRED",
-    );
-  }
-
-  return token;
+  return publicAuthBase(API_BASE_URL);
 }
 
 async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const owner=communicationOwner();
   const response = await fetch(
     `${getApiBaseUrl()}${path}`,
     {
       ...options,
       headers: {
-        Authorization: `Bearer ${getAccessToken()}`,
+        Authorization: `Bearer ${owner.token}`,
         "Content-Type":
           "application/json",
         Accept: "application/json",
         ...(options.headers ?? {}),
       },
       cache: "no-store",
+      credentials:"omit",
+      signal:options.signal??AbortSignal.timeout(20000),
     },
   );
 
   const data =
     await response.json();
+  if(communicationOwner().snapshot!==owner.snapshot)throw Error('SESSION_CHANGED');
 
   if (!response.ok) {
     throw new Error(

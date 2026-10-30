@@ -1,4 +1,5 @@
 "use client";
+import {communicationOwner,communicationLoginDestination} from '@/features/auth/communication-session';
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -33,7 +34,6 @@ import {
   sendTypingStatus,
   type ChatErrorPayload,
   type ChatPresencePayload,
-  type ChatReadPayload,
   type ChatTypingPayload,
 } from "@/lib/chatSocket";
 
@@ -64,8 +64,7 @@ import {
 
 import {
   completeConsultation,
-  getCurrentConsultation,
-  getCurrentAstrologerConsultation,
+  getSelectedCurrentConsultation,
   type ConsultationSession,
 } from "@/services/consultationService";
 
@@ -352,6 +351,16 @@ export default function ChatConsultationPage() {
     };
   }, []);
 
+  useEffect(()=>{
+    let initial:string|undefined;try{{const owner=communicationOwner();initial=owner.portal+':'+owner.id;}}catch{}
+    const changed=()=>{let next:string|undefined;try{{const owner=communicationOwner();next=owner.portal+':'+owner.id;}}catch{}if(next===initial)return;
+      mountedRef.current=false;setConsultation(null);setChatRoom(null);setMessages([]);disconnectChatSocket();
+      router.replace('/login/choose');
+    };
+    window.addEventListener('asp-auth-changed',changed);window.addEventListener('storage',changed);
+    return()=>{window.removeEventListener('asp-auth-changed',changed);window.removeEventListener('storage',changed);};
+  },[router]);
+
   const markIncomingMessagesAsRead = useCallback(
     async (incomingMessages: ChatMessage[]) => {
       if (!bookingId || !currentUserId) {
@@ -401,33 +410,12 @@ export default function ChatConsultationPage() {
       return;
     }
 
-    const token =
-      localStorage.getItem("asp_astrologer_access_token") ??
-      localStorage.getItem("asp_access_token") ??
-      localStorage.getItem("access_token");
-
-    if (!token) {
-      router.replace(
-        `/login?redirect=${encodeURIComponent(`/chat/${bookingId}`)}`,
-      );
-
-      return;
-    }
-
     try {
       setLoading(true);
-      setError("");
-
-      let consultationResponse = await getCurrentConsultation();
-
-      let currentConsultation = consultationResponse.data ?? null;
-
-      if (!currentConsultation || currentConsultation.id !== bookingId) {
-        consultationResponse = await getCurrentAstrologerConsultation();
-
-        currentConsultation = consultationResponse.data ?? null;
-      }
-
+      setError('');
+      const requestOwner=communicationOwner();
+      const currentConsultation=await getSelectedCurrentConsultation(bookingId);
+      if(!mountedRef.current||communicationOwner().snapshot!==requestOwner.snapshot)return;
       if (!currentConsultation) {
         setError("No active consultation was found.");
         return;
@@ -453,6 +441,7 @@ export default function ChatConsultationPage() {
 
       const historyResponse = await getChatHistory(bookingId);
 
+      if(!mountedRef.current||communicationOwner().id!==joinResponse.data.currentUser.id)throw Error('SESSION_CHANGED');
       setChatRoom(joinResponse.data);
 
       setMessages(normalizeMessageList(historyResponse.data.messages ?? []));
@@ -493,12 +482,9 @@ export default function ChatConsultationPage() {
           : "Unable to load chat consultation.";
 
       if (messageText === "LOGIN_REQUIRED") {
-        localStorage.removeItem("asp_access_token");
-
-        localStorage.removeItem("asp_refresh_token");
 
         router.replace(
-          `/login?redirect=${encodeURIComponent(`/chat/${bookingId}`)}`,
+          communicationLoginDestination('/chat/'+bookingId),
         );
 
         return;
@@ -540,9 +526,9 @@ export default function ChatConsultationPage() {
       isChecking = true;
 
       try {
-        const response = await getCurrentConsultation();
+        const latest = await getSelectedCurrentConsultation(bookingId);
 
-        const latest = response.data ?? null;
+        if(!mountedRef.current)return;
 
         if (!latest || latest.id !== bookingId) {
           return;
@@ -558,6 +544,8 @@ export default function ChatConsultationPage() {
           const joinResponse = await joinChat(bookingId);
 
           const historyResponse = await getChatHistory(bookingId);
+
+          if(!mountedRef.current||communicationOwner().id!==joinResponse.data.currentUser.id)return;
 
           setChatRoom(joinResponse.data);
 
@@ -986,10 +974,9 @@ export default function ChatConsultationPage() {
         err instanceof Error ? err.message : "Unable to send message.";
 
       if (messageText === "LOGIN_REQUIRED") {
-        localStorage.removeItem("asp_access_token");
 
         router.replace(
-          `/login?redirect=${encodeURIComponent(`/chat/${bookingId}`)}`,
+          communicationLoginDestination('/chat/'+bookingId),
         );
 
         return;
@@ -1034,10 +1021,9 @@ export default function ChatConsultationPage() {
         err instanceof Error ? err.message : "Unable to send attachment.";
 
       if (messageText === "LOGIN_REQUIRED") {
-        localStorage.removeItem("asp_access_token");
 
         router.replace(
-          `/login?redirect=${encodeURIComponent(`/chat/${bookingId}`)}`,
+          communicationLoginDestination('/chat/'+bookingId),
         );
 
         return;
@@ -1294,10 +1280,9 @@ export default function ChatConsultationPage() {
         err instanceof Error ? err.message : "Unable to end consultation.";
 
       if (messageText === "LOGIN_REQUIRED") {
-        localStorage.removeItem("asp_access_token");
 
         router.replace(
-          `/login?redirect=${encodeURIComponent(`/chat/${bookingId}`)}`,
+          communicationLoginDestination('/chat/'+bookingId),
         );
 
         return;
@@ -1378,7 +1363,7 @@ export default function ChatConsultationPage() {
             </button>
 
             <Link
-              href="/consultations"
+              href={chatRoom&&chatRoom.currentUser.id===chatRoom.astrologer.id?'/astrologer/dashboard#history':'/consultations'}
               className="inline-flex items-center justify-center rounded-xl border border-[#0B1026] px-5 py-3 font-semibold text-[#0B1026] transition hover:bg-[#0B1026] hover:text-white"
             >
               My Consultations
@@ -1454,7 +1439,7 @@ export default function ChatConsultationPage() {
               <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#D4AF37]">
-                    Live Chat Consultation
+                    {consultation?.mode==='audio'?'Audio consultation workspace':'Live Chat Consultation'}
                   </p>
 
                   <h2 className="mt-2 truncate text-2xl font-bold">

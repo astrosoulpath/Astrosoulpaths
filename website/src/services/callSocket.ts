@@ -1,5 +1,6 @@
 "use client";
-import {publicAuthBase,sessionCandidate} from "@/features/auth/public-auth";
+import {callRouteAllowed} from '@/features/auth/call-session-policy';
+import {publicAuthBase,sessionCandidate,verifyNavigationSession} from "@/features/auth/public-auth";
 
 import {
   io,
@@ -201,6 +202,7 @@ type ServerToClientEvents = {
     payload: CallUnavailablePayload,
   ) => void;
 
+  "auth:required": (payload:{code?:string})=>void;
   "call:error": (
     payload: CallErrorPayload,
   ) => void;
@@ -235,159 +237,42 @@ export type CallSocket = Socket<
   ClientToServerEvents
 >;
 
-let socket: CallSocket | null = null;
-let registeredUserId = "";
-let boundToken = "";
-let serverAuthenticated = false;
-let serverRegistered = false;
-
-function getBaseUrl(): string {
-  const baseUrl =
-    process.env
-      .NEXT_PUBLIC_API_BASE_URL
-      ?.trim()
-      .replace(/\/+$/, "") ||
-    process.env
-      .NEXT_PUBLIC_API_URL
-      ?.trim()
-      .replace(/\/+$/, "");
-
-  if (!baseUrl) {
-    throw new Error(
-      "NEXT_PUBLIC_API_BASE_URL is not configured.",
-    );
-  }
-
-  return publicAuthBase(baseUrl);
-}
-
-function registerCurrentUser(): void {
-  if (
-    !socket?.connected ||
-    !serverAuthenticated ||
-    !registeredUserId
-  ) {
-    return;
-  }
-
-  socket.emit("call:register", {
-    userId: registeredUserId,
-  });
-}
-
-export function connectCallSocket(
-  userId: string,
-): CallSocket {
-  const normalizedUserId =
-    userId?.trim();
-
-  if (!normalizedUserId) {
-    throw new Error(
-      "User ID is required to connect the call socket.",
-    );
-  }
-
-  const token=typeof window==='undefined'?null:sessionCandidate(window.location.pathname)?.token;
-  if(!token)throw new Error('LOGIN_REQUIRED');
-  if(socket&&(registeredUserId!==normalizedUserId||boundToken!==token))disconnectCallSocket();
-  registeredUserId=normalizedUserId;boundToken=token;
-
-  if (socket) {
-    if (socket.connected) {
-      registerCurrentUser();
-    } else {
-      socket.connect();
-    }
-
-    return socket;
-  }
-
-  socket = io(
-    `${getBaseUrl()}/call`,
-    {
-      transports: [
-        "websocket",
-        "polling",
-      ],
-
-      withCredentials: true,
-      autoConnect: false,
-      auth: {token},
-
-      reconnection: true,
-      reconnectionAttempts:
-        Infinity,
-
-      reconnectionDelay:
-        1_000,
-
-      reconnectionDelayMax:
-        5_000,
-
-      timeout:
-        10_000,
-    },
-  );
-
-  socket.on(
-    "connect",
-    () => {
-      serverAuthenticated=false;serverRegistered=false;
-
-      console.log(
-        "[CALL] Connected:",
-        socket?.id,
-      );
-    },
-  );
-
-  socket.on(
-    "call:connected",
-    (payload) => {
-      if(payload.success!==true||payload.authenticated!==true||payload.userId!==registeredUserId){disconnectCallSocket();return;}
-      serverAuthenticated=true;registerCurrentUser();
-    },
-  );
-
-  socket.on(
-    "call:registered",
-    (payload) => {if(!serverAuthenticated||payload.userId!==registeredUserId){disconnectCallSocket();return;}serverRegistered=true;},
-  );
-
-  socket.on(
-    "disconnect",
-    (reason) => {
-      serverAuthenticated=false;serverRegistered=false;
-      console.log(
-        "[CALL] Disconnected:",
-        reason,
-      );
-    },
-  );
-
-  socket.on(
-    "connect_error",
-    (error) => {
-      console.error(
-        "[CALL] Connection error:",
-        error.message,
-      );
-    },
-  );
-
-  socket.on(
-    "call:error",
-    (payload) => {
-      console.error(
-        `[CALL] ${payload.code}:`,
-        payload.message,
-      );
-    },
-  );
-
-  socket.connect();
-
-  return socket;
+let socket:CallSocket|null=null;
+let registeredUserId='',boundToken='',generation=0;
+let serverAuthenticated=false,serverRegistered=false,retryExhausted=false;
+export type CallConnectionState='idle'|'connecting'|'retrying'|'ready'|'unavailable'|'unauthorized';
+let connectionState:CallConnectionState='idle';
+const statusListeners=new Set<(state:CallConnectionState)=>void>();
+function publish(state:CallConnectionState){connectionState=state;for(const listener of statusListeners)listener(state);}
+export function onCallConnectionState(listener:(state:CallConnectionState)=>void){statusListeners.add(listener);listener(connectionState);return()=>{statusListeners.delete(listener);};}
+export function retryCallSocket(userId:string){disconnectCallSocket();return connectCallSocket(userId);}
+function getBaseUrl(){return publicAuthBase((process.env.NEXT_PUBLIC_API_BASE_URL??process.env.NEXT_PUBLIC_API_URL)?.trim());}
+function registerCurrentUser(){if(socket?.connected&&serverAuthenticated&&registeredUserId)socket.emit('call:register',{userId:registeredUserId});}
+export function connectCallSocket(userId:string):CallSocket{
+ const id=userId?.trim(),path=typeof window==='undefined'?'':window.location.pathname;
+ if(!id)throw Error('User ID is required to connect the call socket.');
+ const candidate=typeof window==='undefined'?null:sessionCandidate(path);
+ if(!candidate||!callRouteAllowed(path))throw Error('LOGIN_REQUIRED');
+ let descriptor;try{descriptor=JSON.parse(localStorage.getItem('asp_user')||'{}');}catch{throw Error('LOGIN_REQUIRED');}
+ if(descriptor.id!==id)throw Error('Socket identity does not match the selected account.');
+ if(socket&&(registeredUserId!==id||boundToken!==candidate.token))disconnectCallSocket();
+ registeredUserId=id;boundToken=candidate.token;
+ if(socket){if(socket.connected)registerCurrentUser();else if(!retryExhausted)socket.connect();return socket;}
+ const version=++generation;let refreshUsed=false;
+ const current=()=>version===generation&&socket===client;
+ const client:CallSocket=io(getBaseUrl()+'/call',{path:'/socket.io',transports:['polling','websocket'],tryAllTransports:true,withCredentials:false,forceNew:true,autoConnect:false,auth:{token:candidate.token},reconnection:true,reconnectionAttempts:5,reconnectionDelay:1000,reconnectionDelayMax:10000,randomizationFactor:.3,timeout:8000});
+ socket=client;publish('connecting');
+ async function refreshAuthentication(){if(!current()||refreshUsed)return;refreshUsed=true;retryExhausted=true;publish('unauthorized');client.disconnect();try{const verified=await verifyNavigationSession(window.location.pathname,AbortSignal.timeout(20000));if(!current()||!verified||verified.id!==registeredUserId||!callRouteAllowed(window.location.pathname))return;const fresh=sessionCandidate(window.location.pathname);if(!fresh||fresh.portal!==verified.portal)return;boundToken=fresh.token;client.auth={token:boundToken};retryExhausted=false;publish('connecting');client.connect();}catch{if(current())publish('unauthorized');}}
+ client.on('connect',()=>{if(!current())return;serverAuthenticated=false;serverRegistered=false;publish('connecting');});
+ client.on('call:connected',payload=>{if(!current())return;if(payload.success!==true||payload.authenticated!==true||payload.userId!==registeredUserId){disconnectCallSocket();return;}serverAuthenticated=true;registerCurrentUser();});
+ client.on('call:registered',payload=>{if(!current())return;if(!serverAuthenticated||payload.userId!==registeredUserId){disconnectCallSocket();return;}serverRegistered=true;retryExhausted=false;publish('ready');});
+ client.on('disconnect',()=>{if(!current())return;serverAuthenticated=false;serverRegistered=false;if(!retryExhausted)publish('retrying');});
+ client.on('connect_error',error=>{if(!current())return;serverAuthenticated=false;serverRegistered=false;publish('retrying');if(/authentication|unauthori[sz]ed|token expired|auth_required/i.test(error.message))void refreshAuthentication();});
+ client.on('call:error',payload=>{if(!current())return;if(String(payload.code)==='AUTHENTICATION_FAILED')void refreshAuthentication();});
+ client.on('auth:required',()=>{void refreshAuthentication();});
+ client.io?.on?.('reconnect_attempt',()=>{if(!current())return;const next=sessionCandidate(window.location.pathname);let selected;try{selected=JSON.parse(localStorage.getItem('asp_user')||'{}');}catch{}if(!next||selected?.id!==registeredUserId||!callRouteAllowed(window.location.pathname)){disconnectCallSocket();return;}boundToken=next.token;client.auth={token:boundToken};publish('retrying');});
+ client.io?.on?.('reconnect_failed',()=>{if(!current())return;retryExhausted=true;publish('unavailable');});
+ client.connect();return client;
 }
 
 export function getCallSocket():
@@ -404,7 +289,7 @@ export function isCallSocketConnected():
 
 export function disconnectCallSocket():
   void {
-  boundToken="";serverAuthenticated=false;serverRegistered=false;
+  generation++;retryExhausted=false;publish('idle');boundToken="";serverAuthenticated=false;serverRegistered=false;
   if (!socket) {
     registeredUserId = "";
     return;
@@ -420,7 +305,7 @@ export function disconnectCallSocket():
 export function initiateCall(
   payload: InitiateCallPayload,
 ): boolean {
-  if (!socket?.connected) {
+  if (!isCallSocketConnected()) {
     console.error(
       "[CALL] Cannot initiate: socket is not connected.",
     );
@@ -428,7 +313,7 @@ export function initiateCall(
     return false;
   }
 
-  socket.emit(
+  socket!.emit(
     "call:initiate",
     {
       ...payload,
@@ -449,7 +334,7 @@ export function initiateCall(
 export function acceptCall(
   payload: AcceptCallPayload,
 ): boolean {
-  if (!socket?.connected) {
+  if (!isCallSocketConnected()) {
     console.error(
       "[CALL] Cannot accept: socket is not connected.",
     );
@@ -457,7 +342,7 @@ export function acceptCall(
     return false;
   }
 
-  socket.emit(
+  socket!.emit(
     "call:accept",
     payload,
   );
@@ -468,7 +353,7 @@ export function acceptCall(
 export function rejectCall(
   payload: RejectCallPayload,
 ): boolean {
-  if (!socket?.connected) {
+  if (!isCallSocketConnected()) {
     console.error(
       "[CALL] Cannot reject: socket is not connected.",
     );
@@ -476,7 +361,7 @@ export function rejectCall(
     return false;
   }
 
-  socket.emit(
+  socket!.emit(
     "call:reject",
     {
       ...payload,
@@ -493,7 +378,7 @@ export function rejectCall(
 export function cancelCall(
   payload: CancelCallPayload,
 ): boolean {
-  if (!socket?.connected) {
+  if (!isCallSocketConnected()) {
     console.error(
       "[CALL] Cannot cancel: socket is not connected.",
     );
@@ -501,7 +386,7 @@ export function cancelCall(
     return false;
   }
 
-  socket.emit(
+  socket!.emit(
     "call:cancel",
     {
       ...payload,

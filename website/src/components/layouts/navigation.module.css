@@ -97,6 +97,7 @@
 .accountWrap {
   position: relative;
 }
+.accountWrap { display: flex; align-items: center; gap: 6px; }
 .popover {
   position: absolute;
   right: 0;
@@ -287,3 +288,6 @@
     animation: none !important;
   }
 }
+
+/* Dashboard parity: typography only; navigation layout/colors preserved. */
+.header{font-family:var(--font-geist-sans),Arial,Helvetica,sans-serif}.desktopNav>a,.desktopNav button,.login,.started{line-height:1.5;letter-spacing:.01em}

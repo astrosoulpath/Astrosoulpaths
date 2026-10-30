@@ -1,5 +1,7 @@
 ﻿"use client";
 import Link from "next/link";
+import { SubscriptionNotificationBell } from '@/features/notifications/SubscriptionNotificationCenter';
+import {verifyCustomerSession} from '@/features/auth/customer-session';
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Menu, X, ChevronDown, UserRound } from "lucide-react";
@@ -71,7 +73,7 @@ export default function Navbar() {
         setChecked(true);
         setNotice("Account verification timed out. Check your connection and retry sign-in.");
       }, 28000);
-      void verifyNavigationSession(pathname, controller.signal)
+      void (candidate.portal==='customer'?verifyCustomerSession(controller.signal):verifyNavigationSession(pathname, controller.signal))
         .then((value) => {
           if (active && !controller.signal.aborted) {
             setSession(value);
@@ -229,6 +231,7 @@ export default function Navbar() {
         </span>
       ) : session ? (
         <div className={s.accountWrap}>
+          <SubscriptionNotificationBell role={session.portal === 'customer' ? 'CUSTOMER' : 'ASTROLOGER'}/>
           <button
             className={s.account}
             aria-expanded={open === "account"}

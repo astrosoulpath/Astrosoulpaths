@@ -50,8 +50,12 @@ type ApiResponse<T> = {
 
 function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
+  try {if(JSON.parse(window.localStorage.getItem('asp_user')||'{}').portal!=='astrologer')return null;}catch{return null;}
   return window.localStorage.getItem("asp_astrologer_access_token");
 }
+const responseOwners=new WeakMap<Response,string>();
+function ownerSnapshot(){const token=getAccessToken();if(!token)throw Error('Astrologer session is missing. Please log in again.');return JSON.stringify([token,window.localStorage.getItem('asp_user')]);}
+async function professionalFetch(url:string,init:RequestInit){const owner=ownerSnapshot();const response=await fetch(url,{...init,credentials:'omit',signal:init.signal??AbortSignal.timeout(20000)});if(owner!==ownerSnapshot())throw Error('Account changed. Sign in again.');responseOwners.set(response,owner);return response;}
 
 function getAuthHeaders(): HeadersInit {
   const token = getAccessToken();
@@ -72,6 +76,7 @@ async function parseResponse<T>(
   fallbackMessage: string,
 ): Promise<T> {
   const data = await response.json().catch(() => null);
+  if(responseOwners.get(response)!==ownerSnapshot())throw Error('Account changed. Sign in again.');
 
   if (!response.ok) {
     const message = Array.isArray(data?.message)
@@ -87,7 +92,7 @@ async function parseResponse<T>(
 export async function getAstrologerDashboard(): Promise<
   ApiResponse<AstrologerDashboardData>
 > {
-  const response = await fetch(`${API_BASE_URL}/astrologer/dashboard`, {
+  const response = await professionalFetch(`${API_BASE_URL}/astrologer/dashboard`, {
     method: "GET",
     headers: getAuthHeaders(),
     cache: "no-store",
@@ -102,7 +107,7 @@ export async function getAstrologerDashboard(): Promise<
 export async function updateAstrologerStatus(
   isOnline: boolean,
 ): Promise<ApiResponse<{ isOnline: boolean }>> {
-  const response = await fetch(`${API_BASE_URL}/astrologer/status`, {
+  const response = await professionalFetch(`${API_BASE_URL}/astrologer/status`, {
     method: "PATCH",
     headers: getAuthHeaders(),
     body: JSON.stringify({ isOnline }),
@@ -115,7 +120,7 @@ export async function updateAstrologerStatus(
 }
 
 export async function getMyArticles(): Promise<AstrologerArticle[]> {
-  const response = await fetch(`${API_BASE_URL}/astrologer/articles`, {
+  const response = await professionalFetch(`${API_BASE_URL}/astrologer/articles`, {
     method: "GET",
     headers: getAuthHeaders(),
     cache: "no-store",
@@ -135,7 +140,7 @@ export async function submitAstrologerArticle(body: {
   defaultLocale: string;
   translations: ArticleTranslationPayload[];
 }): Promise<AstrologerArticle> {
-  const response = await fetch(`${API_BASE_URL}/astrologer/articles`, {
+  const response = await professionalFetch(`${API_BASE_URL}/astrologer/articles`, {
     method: "POST",
     headers: getAuthHeaders(),
     body: JSON.stringify(body),
