@@ -1,6 +1,6 @@
 {
-  "status": "FRESH_ONLY_REVIEW_KIT_NOT_APPLIED",
-  "schemaSha256": "9d0dadab3a51e761f0475cb71d1118f54c43faafd3ddb25f0993164f5653dcc3",
+  "status": "FRESH_ONLY_SIX_MIGRATION_KIT_EXISTING_DATABASES_PROHIBITED",
+  "schemaSha256": "594877fc70965691dc6f7bb07e2ffb61cdab820592527f7f497c2f69eab88893",
   "databaseConnections": 0,
   "historicalMigrationFilesChanged": 0,
   "files": [
@@ -23,6 +23,16 @@
       "migration": "20261027000400_product_refund_reservation_guards",
       "source": "fresh-product-refund-guards.review.sql",
       "sha256": "bdb8481ba5a3fdc598653ea71496f1cc84bcaef88ffb85cee19915f327f2e88a"
+    },
+    {
+      "migration": "20261029120000_add_astrologer_review_corrections",
+      "source": "backend-main/prisma/migrations/20261029120000_add_astrologer_review_corrections/migration.sql",
+      "sha256": "e4ce869a55980e7fa975ae3ef626b0d98bcdc3401349223424f49e2a4fdd7786"
+    },
+    {
+      "migration": "20261030120000_subscription_expiry_reminders",
+      "source": "backend-main/prisma/migrations/20261030120000_subscription_expiry_reminders/migration.sql",
+      "sha256": "8e4439832b813d8910503193df17749347ba2c00a57f8bd888058b6ee9b7df2d"
     }
   ]
 }

@@ -1,16 +1,16 @@
 {
   "status": "REVIEW_ONLY_NO_DATABASE_CONTACT_OR_MIGRATION",
-  "base": "f50d65c23252bc8d00cfea69ad29db0cf9306b77",
+  "base": "2b30213677f728da473e8f71973e506b85081ff0",
   "currentSchema": {
     "path": "backend-main/prisma/schema.prisma",
     "sha256": "594877fc70965691dc6f7bb07e2ffb61cdab820592527f7f497c2f69eab88893"
   },
   "freshKitSchema": {
     "path": "review/payments/fresh-production-prisma/schema.prisma",
-    "sha256": "9d0dadab3a51e761f0475cb71d1118f54c43faafd3ddb25f0993164f5653dcc3"
+    "sha256": "594877fc70965691dc6f7bb07e2ffb61cdab820592527f7f497c2f69eab88893"
   },
   "offlineSchemaDiffPassed": true,
-  "offlineSchemaDiffEmpty": false,
+  "offlineSchemaDiffEmpty": true,
   "migrations": [
     {
       "path": "backend-main/prisma/migrations/20260328214408_init_migration/migration.sql",
@@ -279,7 +279,7 @@
     {
       "path": "backend-main/prisma/migrations/20260830150000_add_marketplace_finance_foundation/migration.sql",
       "gitBlobSha256": "cf0d9204c4e3948c9a6d58f6542f03a64b26a0c7a0a0ae0457cf716ac3c4d3ad",
-      "retainedFrom": "f50d65c23252bc8d00cfea69ad29db0cf9306b77"
+      "retainedFrom": "2b30213677f728da473e8f71973e506b85081ff0"
     },
     {
       "path": "backend-main/prisma/migrations/20260831113241_add_marketplace_prepare_idempotency/migration.sql",
