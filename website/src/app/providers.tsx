@@ -16,7 +16,7 @@ import {callRouteAllowed,callSessionEligible} from '@/features/auth/call-session
 import {sessionCandidate,verifyNavigationSession} from '@/features/auth/public-auth';
 import {disconnectChatSocket} from '@/lib/chatSocket';
 import IncomingCallModal from "@/components/call/IncomingCallModal";
-import { supabase } from "@/lib/supabase";
+import { hasSupabaseBrowserConfig, supabase } from "@/lib/supabase";
 import {
   acceptCall,
   connectCallSocket,
@@ -556,15 +556,15 @@ export function AppProviders({
     void initialize();
     window.addEventListener("asp-auth-changed", changed);
     window.addEventListener("storage", changed);
-    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
-      void initialize();
-    });
+    const authListener = hasSupabaseBrowserConfig()
+      ? supabase.auth.onAuthStateChange(() => { void initialize(); }).data
+      : null;
     return () => {
       mountedRef.current = false;
       generation++;
       controller?.abort();
       clearInterval(timer);window.removeEventListener('focus',refresh);window.removeEventListener('asp-communication-changed',refresh);
-      authListener.subscription.unsubscribe();
+      authListener?.subscription.unsubscribe();
       window.removeEventListener("asp-auth-changed", changed);
       window.removeEventListener("storage", changed);
       clearSocketConnectionHandlers();

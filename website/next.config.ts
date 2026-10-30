@@ -34,6 +34,8 @@ const nextConfig: NextConfig = {
   },
 
   experimental: {
+    // Bound prerender fan-out on small staging/build hosts; default follows CPU count.
+    cpus: 2,
     optimizePackageImports: [
       "lucide-react",
     ],
