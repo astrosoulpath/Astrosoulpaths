@@ -74,12 +74,12 @@ class _AstrologyVideosHomeSectionState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 20),
             child: Text(
               "Astrology's lessons",
               style: TextStyle(
-                color: Color(0xFF17213A),
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 23,
                 fontWeight: FontWeight.w800,
               ),
@@ -153,8 +153,8 @@ class _AstrologyVideosHomeSectionState
                           video.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF17213A),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 15,
                             height: 1.18,
                             fontWeight: FontWeight.w700,

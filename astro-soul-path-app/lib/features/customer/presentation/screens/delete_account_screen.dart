@@ -50,10 +50,10 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: CosmicIvory.background,
+    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     appBar: AppBar(
       title: const Text('Delete Account'),
-      backgroundColor: CosmicIvory.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     ),
     body: SafeArea(
       child: ListView(
@@ -65,19 +65,25 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
             color: CosmicIvory.danger,
           ),
           const SizedBox(height: 20),
-          const CosmicSection(
+          CosmicSection(
             title: 'Before you continue',
             child: Text(
               'Account deletion is not enabled yet. This screen does not delete your account or record a deletion request.\n\nFinancial and audit records may require retention. Active consultations, orders, disputes, subscriptions and wallet obligations need an approved resolution process. No payment will be refunded or cancelled automatically.',
-              style: TextStyle(color: CosmicIvory.ink, height: 1.6),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                height: 1.6,
+              ),
             ),
           ),
           const SizedBox(height: 16),
-          const CosmicSection(
+          CosmicSection(
             title: 'Secure account ownership',
             child: Text(
               'A supported deletion workflow must verify your identity again, protect Admin access, revoke sessions and coordinate authentication-provider cleanup. Never share a Google password with support.',
-              style: TextStyle(color: CosmicIvory.ink, height: 1.6),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                height: 1.6,
+              ),
             ),
           ),
           const SizedBox(height: 20),
@@ -93,9 +99,11 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
               child: const Text('Retry availability check'),
             ),
           ] else
-            const Text(
+            Text(
               'Server status: deletion not enabled. Your account remains unchanged.',
-              style: TextStyle(color: CosmicIvory.muted),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           const SizedBox(height: 16),
           FilledButton.icon(

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'preference_translations.dart';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -197,7 +198,8 @@ abstract final class AppStrings {
       return remote;
     }
 
-    final translated = _translations[en]?[code];
+    final translated =
+        _translations[en]?[code] ?? preferenceTranslation(en, code);
 
     if (translated != null && translated.trim().isNotEmpty) {
       return translated;

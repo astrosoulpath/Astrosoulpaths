@@ -477,7 +477,9 @@ class _CustomerBirthOnboardingScreenState
             decoration: BoxDecoration(
               color: active
                   ? AppColors.gold
-                  : AppColors.muted.withValues(alpha: 0.22),
+                  : Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.22),
               borderRadius: BorderRadius.circular(10),
             ),
           ),
@@ -502,26 +504,35 @@ class _CustomerBirthOnboardingScreenState
         decoration: BoxDecoration(
           color: selected
               ? AppColors.gold.withValues(alpha: 0.15)
-              : AppColors.surface,
+              : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: selected
                 ? AppColors.gold
-                : AppColors.muted.withValues(alpha: 0.18),
+                : Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.18),
             width: selected ? 1.4 : 1,
           ),
         ),
         child: Row(
           children: [
             if (icon != null) ...[
-              Icon(icon, color: selected ? AppColors.gold : AppColors.muted),
+              Icon(
+                icon,
+                color: selected
+                    ? AppColors.gold
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(width: 13),
             ],
             Expanded(
               child: Text(
                 title,
                 style: TextStyle(
-                  color: selected ? AppColors.gold : AppColors.white,
+                  color: selected
+                      ? AppColors.gold
+                      : Theme.of(context).colorScheme.onSurface,
                   fontWeight: FontWeight.w800,
                   fontSize: 16,
                 ),
@@ -550,8 +561,8 @@ class _CustomerBirthOnboardingScreenState
               controller: _nameController,
               textCapitalization: TextCapitalization.words,
               textInputAction: TextInputAction.done,
-              style: const TextStyle(
-                color: AppColors.white,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
               ),
@@ -593,8 +604,8 @@ class _CustomerBirthOnboardingScreenState
                     const SizedBox(width: 14),
                     Text(
                       _prettyBirthDate,
-                      style: const TextStyle(
-                        color: AppColors.white,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),
@@ -676,8 +687,8 @@ class _CustomerBirthOnboardingScreenState
                         _birthTime == null
                             ? 'Select birth time'
                             : _birthTimeString,
-                        style: const TextStyle(
-                          color: AppColors.white,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 17,
                           fontWeight: FontWeight.w700,
                         ),
@@ -707,8 +718,8 @@ class _CustomerBirthOnboardingScreenState
             TextField(
               controller: _cityController,
               onChanged: _onCityChanged,
-              style: const TextStyle(
-                color: AppColors.white,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.w700,
               ),
               decoration: _fieldDecoration(
@@ -726,7 +737,10 @@ class _CustomerBirthOnboardingScreenState
                           ),
                         ),
                       )
-                    : const Icon(Icons.search_rounded, color: AppColors.muted),
+                    : Icon(
+                        Icons.search_rounded,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
               ),
             ),
             if (_suggestions.isNotEmpty) ...[
@@ -734,7 +748,7 @@ class _CustomerBirthOnboardingScreenState
               Container(
                 constraints: const BoxConstraints(maxHeight: 240),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
                     color: AppColors.gold.withValues(alpha: 0.18),
@@ -745,7 +759,9 @@ class _CustomerBirthOnboardingScreenState
                   itemCount: _suggestions.length,
                   separatorBuilder: (_, _) => Divider(
                     height: 1,
-                    color: AppColors.muted.withValues(alpha: 0.12),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.12),
                   ),
                   itemBuilder: (_, index) {
                     final place = _suggestions[index];
@@ -762,8 +778,8 @@ class _CustomerBirthOnboardingScreenState
                           place.state,
                           place.country,
                         ].where((item) => item.trim().isNotEmpty).join(', '),
-                        style: const TextStyle(
-                          color: AppColors.white,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -789,10 +805,10 @@ class _CustomerBirthOnboardingScreenState
               style: _subtitleStyle,
             ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Gender',
               style: TextStyle(
-                color: AppColors.white,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.w800,
                 fontSize: 14,
               ),
@@ -818,10 +834,10 @@ class _CustomerBirthOnboardingScreenState
               },
             ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Language',
               style: TextStyle(
-                color: AppColors.white,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.w800,
                 fontSize: 14,
               ),
@@ -850,7 +866,7 @@ class _CustomerBirthOnboardingScreenState
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
           child: Stack(
             children: [
@@ -895,11 +911,11 @@ class _CustomerBirthOnboardingScreenState
                             ),
                           ),
                         const SizedBox(width: 10),
-                        const Expanded(
+                        Expanded(
                           child: Text(
                             'Astro Soul Path',
                             style: TextStyle(
-                              color: AppColors.white,
+                              color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 17,
                               fontWeight: FontWeight.w900,
                             ),
@@ -907,8 +923,10 @@ class _CustomerBirthOnboardingScreenState
                         ),
                         Text(
                           '${_step + 1}/6',
-                          style: const TextStyle(
-                            color: AppColors.muted,
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -956,18 +974,22 @@ class _CustomerBirthOnboardingScreenState
                         onPressed: _saving ? null : _next,
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.gold,
-                          foregroundColor: AppColors.background,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).scaffoldBackgroundColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(18),
                           ),
                         ),
                         child: _saving
-                            ? const SizedBox(
+                            ? SizedBox(
                                 width: 22,
                                 height: 22,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2.4,
-                                  color: AppColors.background,
+                                  color: Theme.of(
+                                    context,
+                                  ).scaffoldBackgroundColor,
                                 ),
                               )
                             : Row(

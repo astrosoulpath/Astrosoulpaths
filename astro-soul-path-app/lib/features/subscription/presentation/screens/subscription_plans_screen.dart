@@ -430,10 +430,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         title: Text(
           _pageTitle,
@@ -466,8 +466,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
               Text(
                 _pageTitle,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.white,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 26,
                   fontWeight: FontWeight.w900,
                 ),
@@ -476,8 +476,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
               Text(
                 _pageSubtitle,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.muted,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 15,
                   height: 1.5,
                 ),
@@ -532,7 +532,7 @@ class _PlanCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
         boxShadow: const [
@@ -564,8 +564,8 @@ class _PlanCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   plan.displayTitle,
-                  style: const TextStyle(
-                    color: AppColors.white,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.w900,
                     fontSize: 18,
                   ),
@@ -585,16 +585,16 @@ class _PlanCard extends StatelessWidget {
           const SizedBox(height: 5),
           Text(
             '${plan.durationDays}-day access',
-            style: const TextStyle(
-              color: AppColors.muted,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 18),
           Text(
             description,
-            style: const TextStyle(
-              color: AppColors.white,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 14,
               height: 1.5,
             ),
@@ -607,7 +607,7 @@ class _PlanCard extends StatelessWidget {
               onPressed: onSubscribe,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.gold,
-                foregroundColor: AppColors.background,
+                foregroundColor: Theme.of(context).scaffoldBackgroundColor,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -635,7 +635,7 @@ class _ErrorCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -645,7 +645,7 @@ class _ErrorCard extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.white),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
           ),
           const SizedBox(height: 16),
           OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
@@ -663,17 +663,17 @@ class _EmptyCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: const Column(
+      child: Column(
         children: [
           Icon(Icons.info_outline_rounded, color: AppColors.gold),
           SizedBox(height: 12),
           Text(
             'No active subscription plan is available right now.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.white),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
           ),
         ],
       ),

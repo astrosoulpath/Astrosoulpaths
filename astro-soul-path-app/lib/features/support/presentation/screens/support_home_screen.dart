@@ -520,7 +520,7 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
     final dark = Theme.of(context).brightness == Brightness.dark;
 
     final pageBackground = dark
-        ? AppColors.background
+        ? Theme.of(context).scaffoldBackgroundColor
         : const Color(0xFFF6F7FB);
 
     return Scaffold(
@@ -739,14 +739,14 @@ class _SupportHero extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   "We're here 24\u00D77",
                   style: TextStyle(
-                    color: AppColors.white,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
                   ),
@@ -790,7 +790,7 @@ class _SupportActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surface = dark ? AppColors.surface : Colors.white;
+    final surface = dark ? Theme.of(context).colorScheme.surface : Colors.white;
 
     return Opacity(
       opacity: enabled ? 1 : 0.72,
@@ -905,7 +905,9 @@ class _TicketCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: dark ? AppColors.surface : Colors.white,
+      color: dark
+          ? Theme.of(context).colorScheme.surface
+          : Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
@@ -1003,7 +1005,9 @@ class _EmptyTicketsCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: dark ? AppColors.surface : Colors.white,
+        color: dark
+            ? Theme.of(context).colorScheme.surface
+            : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(

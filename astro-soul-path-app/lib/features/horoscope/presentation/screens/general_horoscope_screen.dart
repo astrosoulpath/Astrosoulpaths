@@ -819,15 +819,17 @@ class _GeneralHoroscopeScreenState extends State<GeneralHoroscopeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF8EE),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF24152F),
-        foregroundColor: Colors.white,
-        iconTheme: const IconThemeData(color: Colors.white),
-        leading: const BackButton(color: Colors.white),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        iconTheme: IconThemeData(
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
+        leading: BackButton(color: Theme.of(context).colorScheme.onSurface),
         title: const Text(
           'Horoscope',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          style: TextStyle(fontWeight: FontWeight.w700),
         ),
         actions: [
           Builder(
@@ -891,7 +893,7 @@ class _GeneralHoroscopeScreenState extends State<GeneralHoroscopeScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFE8DED4)),
       ),
@@ -1638,20 +1640,7 @@ class _GeneralHoroscopeScreenState extends State<GeneralHoroscopeScreen> {
       builder: (pickerContext, child) {
         final base = Theme.of(pickerContext);
 
-        return Theme(
-          data: base.copyWith(
-            colorScheme: base.colorScheme.copyWith(
-              primary: const Color(0xFF684475),
-              onPrimary: Colors.white,
-              surface: const Color(0xFFFFFBF5),
-              onSurface: const Color(0xFF35263D),
-            ),
-            dialogTheme: const DialogThemeData(
-              backgroundColor: Color(0xFFFFFBF5),
-            ),
-          ),
-          child: child!,
-        );
+        return Theme(data: base, child: child!);
       },
     );
 
@@ -1791,7 +1780,7 @@ class _GeneralHoroscopeScreenState extends State<GeneralHoroscopeScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFE8DED4)),
       ),
@@ -3237,7 +3226,7 @@ class _GeneralHoroscopeScreenState extends State<GeneralHoroscopeScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFD9C8DF)),
             ),
@@ -3527,7 +3516,9 @@ class _GeneralHoroscopeScreenState extends State<GeneralHoroscopeScreen> {
     return Container(
       padding: const EdgeInsets.all(17),
       decoration: BoxDecoration(
-        color: accent ? const Color(0xFFFFFCFA) : Colors.white,
+        color: accent
+            ? const Color(0xFFFFFCFA)
+            : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: accent ? const Color(0xFFE7D9E9) : const Color(0xFFE8DED4),

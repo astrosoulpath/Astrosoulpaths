@@ -13,10 +13,19 @@ abstract final class CosmicIvory {
   static const danger = Color(0xFFD94350);
   static const border = Color(0xFFE9DDF1);
 
-  static BoxDecoration card({Color color = Colors.white}) => BoxDecoration(
-    color: color,
+  static BoxDecoration card({
+    Color? color,
+    BuildContext? context,
+  }) => BoxDecoration(
+    color:
+        color ??
+        (context == null
+            ? Colors.white
+            : Theme.of(context).colorScheme.surface),
     borderRadius: BorderRadius.circular(24),
-    border: Border.all(color: border),
+    border: Border.all(
+      color: context == null ? border : Theme.of(context).colorScheme.outline,
+    ),
     boxShadow: const [
       BoxShadow(color: Color(0x08251638), blurRadius: 18, offset: Offset(0, 6)),
     ],
@@ -30,14 +39,14 @@ class CosmicSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(20),
-    decoration: CosmicIvory.card(),
+    decoration: CosmicIvory.card(context: context),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: const TextStyle(
-            color: CosmicIvory.purple,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 20,
             fontWeight: FontWeight.w800,
           ),

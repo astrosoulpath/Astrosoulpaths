@@ -138,7 +138,7 @@ class _CustomerWalletBadgeState extends State<CustomerWalletBadge> {
       margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.45)),
       ),
@@ -153,8 +153,8 @@ class _CustomerWalletBadgeState extends State<CustomerWalletBadge> {
           const SizedBox(width: 5),
           Text(
             '₹${_money(_balance!)}',
-            style: const TextStyle(
-              color: AppColors.white,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 12,
               fontWeight: FontWeight.w900,
             ),

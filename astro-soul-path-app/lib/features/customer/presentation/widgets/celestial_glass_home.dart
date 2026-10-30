@@ -9,12 +9,14 @@ abstract final class CelestialHomeStyle {
   static const gold = Color(0xFFE5CC97);
   static const ivory = Color(0xFFFFFBF3);
   static const ink = Color(0xFF30233F);
-  static BoxDecoration surface({double radius = 24}) => BoxDecoration(
+  static BoxDecoration surface({double radius = 24, BuildContext? context}) => BoxDecoration(
     borderRadius: BorderRadius.circular(radius),
-    gradient: const LinearGradient(
+    gradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xF5FFFCF7), Color(0xEDEEE6F5)],
+      colors: context != null && Theme.of(context).brightness == Brightness.dark
+        ? const [Color(0xFF151B35), Color(0xFF202747)]
+        : const [Color(0xF5FFFCF7), Color(0xEDEEE6F5)],
     ),
     border: Border.all(color: const Color(0xB3DCC598)),
     boxShadow: const [

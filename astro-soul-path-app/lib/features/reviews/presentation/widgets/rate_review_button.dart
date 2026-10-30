@@ -137,11 +137,11 @@ class _RateReviewButtonState extends State<RateReviewButton> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.surfaceLight,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 19),
@@ -149,7 +149,7 @@ class _RateReviewButtonState extends State<RateReviewButton> {
             Text(
               'Review submitted',
               style: TextStyle(
-                color: AppColors.white,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -233,11 +233,11 @@ class _ReviewSheetState extends State<_ReviewSheet> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Rate Your Consultation',
                     style: TextStyle(
-                      color: AppColors.white,
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 21,
                       fontWeight: FontWeight.w900,
                     ),
@@ -248,7 +248,10 @@ class _ReviewSheetState extends State<_ReviewSheet> {
                   onPressed: () {
                     Navigator.of(context).pop();
                   },
-                  icon: const Icon(Icons.close_rounded, color: AppColors.white),
+                  icon: Icon(
+                    Icons.close_rounded,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                 ),
               ],
             ),
@@ -258,7 +261,10 @@ class _ReviewSheetState extends State<_ReviewSheet> {
                   ? 'Share your consultation experience.'
                   : 'How was your consultation with '
                         '${widget.astrologerName}?',
-              style: const TextStyle(color: AppColors.muted, height: 1.4),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 22),
             Row(
@@ -297,20 +303,26 @@ class _ReviewSheetState extends State<_ReviewSheet> {
               controller: _commentController,
               maxLines: 5,
               maxLength: 1000,
-              style: const TextStyle(color: AppColors.white),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               decoration: InputDecoration(
                 labelText: 'Write a review (optional)',
-                labelStyle: const TextStyle(color: AppColors.muted),
+                labelStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
                 hintText: 'Tell us about your experience...',
-                hintStyle: const TextStyle(color: AppColors.muted),
+                hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
                 filled: true,
-                fillColor: AppColors.surface,
+                fillColor: Theme.of(context).colorScheme.surface,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: AppColors.border),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),

@@ -10,13 +10,38 @@ import 'notification_device_api.dart';
 import 'notification_session_fence.dart';
 import 'notification_display_fence.dart';
 import 'smart_notification_payload.dart';
+import 'subscription_notification_policy.dart';
 import '../../features/auth/data/auth_session_store.dart';
+import '../../features/notifications/data/notifications_api.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     await Firebase.initializeApp();
   } catch (_) {
+    return;
+  }
+
+  if (message.data['type'] == 'subscription_expiry') {
+    // Data-only push: authenticate the currently selected owner before any display.
+    final service = NotificationService.instance;
+    try {
+      await service._localNotifications.initialize(
+        settings: const InitializationSettings(
+          android: AndroidInitializationSettings('ic_stat_astro'),
+          iOS: DarwinInitializationSettings(
+            requestAlertPermission: false,
+            requestBadgePermission: false,
+            requestSoundPermission: false,
+          ),
+        ),
+      );
+      if (await service._acceptPayload(message.data)) {
+        await service._showForegroundNotification(message);
+      }
+    } catch (_) {
+      /* Offline/locked secure storage never permits a fallback display. */
+    }
     return;
   }
 
@@ -59,8 +84,18 @@ class NotificationService with WidgetsBindingObserver {
     return operation;
   }
 
-  Future<void> unbindCurrentDevice(AuthSessionStore sessions) async {
-    NotificationSessionFence.suspend();
+  Future<void> unbindCurrentDevice(AuthSessionStore sessions) =>
+      _unbindCurrentDevice(sessions, suspendSession: true);
+
+  Future<void> _unbindCurrentDevice(
+    AuthSessionStore sessions, {
+    required bool suspendSession,
+  }) async {
+    // Logout invalidates identity immediately. OS permission revocation must
+    // remove the phone token without locking the authenticated inbox.
+    if (suspendSession) {
+      NotificationSessionFence.suspend();
+    }
     if (_messaging == null && Firebase.apps.isNotEmpty) {
       _messaging = FirebaseMessaging.instance;
       _firebaseReady = true;
@@ -241,9 +276,43 @@ class NotificationService with WidgetsBindingObserver {
     if (!validSmartNotificationPayload(payload)) return false;
     final generation = NotificationSessionFence.generation;
     final owner = payload['ownerId']?.toString();
+    if (payload['type'] == 'subscription_expiry' &&
+        (owner == null ||
+            owner.isEmpty ||
+            !const [
+              'CUSTOMER',
+              'ASTROLOGER',
+            ].contains(payload['roleContext']) ||
+            payload['reminderId'] is! String ||
+            payload['subscriptionId'] is! String)) {
+      return false;
+    }
     if (owner == null) return true; // Legacy routing remains unchanged.
     if (NotificationSessionFence.suspended) return false;
     final session = await AuthSessionStore().read();
+    if (payload['type'] == 'subscription_expiry') {
+      if (session?.user['id']?.toString() != owner ||
+          payload['roleContext']?.toString().toLowerCase() !=
+              session?.portal.toLowerCase()) {
+        return false;
+      }
+      final api = NotificationsApi();
+      try {
+        final data = await api.subscriptionReminders();
+        if (!authorizedSubscriptionReminder(
+          payload,
+          data,
+          ownerId: owner,
+          portal: session!.portal,
+        )) {
+          return false;
+        }
+      } catch (_) {
+        return false;
+      } finally {
+        api.close();
+      }
+    }
     return generation == NotificationSessionFence.generation &&
         session?.user['id']?.toString() == owner;
   }
@@ -295,7 +364,11 @@ class NotificationService with WidgetsBindingObserver {
           generation != NotificationSessionFence.generation) {
         return false;
       }
-      NotificationSessionFence.activate();
+      // Granting OS permission is not an account/role switch. Do not invalidate
+      // an already-authenticated inbox request or its pending consent save.
+      if (NotificationSessionFence.suspended) {
+        NotificationSessionFence.activate();
+      }
       await syncCurrentDevice();
       return true;
     } catch (_) {
@@ -311,7 +384,9 @@ class NotificationService with WidgetsBindingObserver {
         message.data['title']?.toString() ??
         'Astro Soul Path';
 
-    final body = notification?.body ?? message.data['body']?.toString() ?? '';
+    final body = message.data['type'] == 'subscription_expiry'
+        ? 'Open Astro Soul Path to review your subscription reminder.'
+        : notification?.body ?? message.data['body']?.toString() ?? '';
 
     if (body.isEmpty) {
       return;
@@ -338,7 +413,9 @@ class NotificationService with WidgetsBindingObserver {
     );
 
     await _localNotifications.show(
-      id: message.messageId.hashCode,
+      id: message.data['type'] == 'subscription_expiry'
+          ? message.data['reminderId'].hashCode
+          : message.messageId.hashCode,
       title: title,
       body: body,
       notificationDetails: details,
@@ -385,7 +462,7 @@ class NotificationService with WidgetsBindingObserver {
 
       final authorization = await messaging.getNotificationSettings();
       if (authorization.authorizationStatus == AuthorizationStatus.denied) {
-        await unbindCurrentDevice(AuthSessionStore());
+        await _unbindCurrentDevice(AuthSessionStore(), suspendSession: false);
         return;
       }
 

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../auth/data/auth_session_store.dart';
-import 'marketplace_palette.dart';
 
 /// Private marketplace screens belong to the session that opened them.
 /// Clears rendered private content within 500 ms, and on foreground recovery.
@@ -47,7 +46,7 @@ abstract class MarketplacePrivateState<T extends StatefulWidget>
   Widget build(BuildContext context) {
     if (_locked || _revision != sessionRevision) {
       return Scaffold(
-        backgroundColor: MarketplacePalette.canvas,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(title: const Text('Soul Bazaar')),
         body: const Center(
           child: Padding(
@@ -61,15 +60,11 @@ abstract class MarketplacePrivateState<T extends StatefulWidget>
     }
     return Theme(
       data: Theme.of(context).copyWith(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: MarketplacePalette.ink,
-          brightness: Brightness.light,
-          surface: MarketplacePalette.surface,
-        ),
-        scaffoldBackgroundColor: MarketplacePalette.canvas,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: MarketplacePalette.canvas,
-          foregroundColor: MarketplacePalette.ink,
+        colorScheme: Theme.of(context).colorScheme,
+        scaffoldBackgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBarTheme: AppBarTheme(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          foregroundColor: Theme.of(context).colorScheme.onSurface,
         ),
       ),
       child: Builder(builder: buildMarketplace),

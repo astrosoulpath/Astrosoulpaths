@@ -19,6 +19,52 @@ class AppConfigApiException implements Exception {
 class AppConfigApi {
   const AppConfigApi();
 
+  /// About CMS is public and independent of optional store/link configuration.
+  Future<AppConfigModel> getAboutConfig({http.Client? client}) async {
+    final response = await (client?.get ?? http.get)(
+      Uri.parse('${ApiConfig.baseUrl}/app-config/about'),
+      headers: const {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache',
+      },
+    ).timeout(ApiConfig.requestTimeout);
+    if (response.statusCode != 200) {
+      throw const AppConfigApiException('About content is unavailable.');
+    }
+    final body = jsonDecode(response.body);
+    if (body is! Map<String, dynamic> || body['success'] != true) {
+      throw const AppConfigApiException('Invalid About response.');
+    }
+    final data = body['data'];
+    final content = data is Map ? data['content'] : null;
+    if (content is! Map ||
+        content['title'] is! String ||
+        content['introduction'] is! String ||
+        (content['title'] as String).trim().isEmpty ||
+        (content['introduction'] as String).trim().isEmpty) {
+      throw const AppConfigApiException('About content is missing.');
+    }
+    return AppConfigModel(
+      shareMessage: '',
+      androidStoreUrl: '',
+      iosStoreUrl: '',
+      websiteUrl: '',
+      aboutTitle: (content['title'] as String).trim(),
+      aboutDescription: (content['introduction'] as String).trim(),
+      aboutSource: body['source'] is String ? body['source'] as String : null,
+      aboutSections: {
+        for (final key in [
+          'mission',
+          'vision',
+          'services',
+          'why',
+          'commitment',
+        ])
+          key: content[key] is String ? (content[key] as String).trim() : '',
+      },
+    );
+  }
+
   Future<AppConfigModel> getPublicConfig() async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/app-config/public');
 

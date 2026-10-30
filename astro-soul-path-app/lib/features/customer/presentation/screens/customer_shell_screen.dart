@@ -84,10 +84,20 @@ class _CustomerShellScreenState extends State<CustomerShellScreen> {
         bottomNavigationBar: Container(
           // CUSTOMER_PREMIUM_DYNAMIC_NAV_PHASE2
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0xFFFFFCF7), Color(0xFFF4EDF9), Color(0xFFFFFBF3)],
+              colors: Theme.of(context).brightness == Brightness.dark
+                  ? const [
+                      Color(0xFF151B35),
+                      Color(0xFF202747),
+                      Color(0xFF151B35),
+                    ]
+                  : const [
+                      Color(0xFFFFFCF7),
+                      Color(0xFFF4EDF9),
+                      Color(0xFFFFFBF3),
+                    ],
             ),
             border: Border(
               top: BorderSide(
@@ -137,7 +147,7 @@ class _CustomerShellScreenState extends State<CustomerShellScreen> {
                 return IconThemeData(
                   color: selected
                       ? const Color(0xFF40245F)
-                      : const Color(0xFF786681),
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                   size: selected ? 27 : 24,
                   shadows: selected
                       ? [
@@ -164,8 +174,8 @@ class _CustomerShellScreenState extends State<CustomerShellScreen> {
 
                 return TextStyle(
                   color: selected
-                      ? const Color(0xFF40245F)
-                      : const Color(0xFF786681),
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: selected ? 11.2 : 10.2,
                   height: 1.05,
                   fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
@@ -184,14 +194,16 @@ class _CustomerShellScreenState extends State<CustomerShellScreen> {
             child: NavigationBar(
               selectedIndex: _selectedIndex,
               onDestinationSelected: _selectDestination,
-              backgroundColor: const Color(0xFFFFFBF3),
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerLowest,
               indicatorColor: AppColors.gold,
               labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
               destinations: [
                 NavigationDestination(
                   icon: Icon(
                     Icons.home_outlined,
-                    color: const Color(0xFF786681),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   selectedIcon: Icon(
                     Icons.home_rounded,
@@ -206,7 +218,7 @@ class _CustomerShellScreenState extends State<CustomerShellScreen> {
                 NavigationDestination(
                   icon: Icon(
                     Icons.auto_awesome_outlined,
-                    color: const Color(0xFF786681),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   selectedIcon: Icon(
                     Icons.auto_awesome_rounded,
@@ -221,7 +233,7 @@ class _CustomerShellScreenState extends State<CustomerShellScreen> {
                 NavigationDestination(
                   icon: Icon(
                     Icons.question_answer_outlined,
-                    color: const Color(0xFF786681),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   selectedIcon: Icon(
                     Icons.question_answer_rounded,
@@ -236,7 +248,7 @@ class _CustomerShellScreenState extends State<CustomerShellScreen> {
                 NavigationDestination(
                   icon: Icon(
                     Icons.history_outlined,
-                    color: const Color(0xFF786681),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   selectedIcon: Icon(
                     Icons.history_rounded,
@@ -251,7 +263,7 @@ class _CustomerShellScreenState extends State<CustomerShellScreen> {
                 NavigationDestination(
                   icon: Icon(
                     Icons.person_outline_rounded,
-                    color: const Color(0xFF786681),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   selectedIcon: Icon(
                     Icons.person_rounded,

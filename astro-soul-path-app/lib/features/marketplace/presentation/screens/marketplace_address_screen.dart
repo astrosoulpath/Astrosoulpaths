@@ -14,7 +14,6 @@ class MarketplaceAddressScreen extends StatefulWidget {
 
 class _MarketplaceAddressScreenState
     extends MarketplacePrivateState<MarketplaceAddressScreen> {
-  static const _background = MarketplacePalette.canvas;
   static const _surface = MarketplacePalette.surface;
   static const _gold = MarketplacePalette.gold;
   static const _muted = MarketplacePalette.muted;
@@ -104,10 +103,10 @@ class _MarketplaceAddressScreenState
   @override
   Widget buildMarketplace(BuildContext context) {
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: _background,
-        foregroundColor: MarketplacePalette.ink,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         title: const Text('Delivery Addresses'),
       ),
       floatingActionButton: FloatingActionButton.extended(

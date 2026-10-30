@@ -136,17 +136,19 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0713),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0B0713),
-        iconTheme: const IconThemeData(color: Colors.white),
-        titleTextStyle: const TextStyle(
-          color: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        iconTheme: IconThemeData(
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
+        titleTextStyle: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface,
           fontSize: 20,
           fontWeight: FontWeight.w800,
         ),
-        leading: const BackButton(color: Colors.white),
-        foregroundColor: Colors.white,
+        leading: BackButton(color: Theme.of(context).colorScheme.onSurface),
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         title: const Text(
           'Daily Horoscope',
           style: TextStyle(fontWeight: FontWeight.w800),
@@ -818,7 +820,7 @@ class _DailyHoroscopeScreenState extends State<DailyHoroscopeScreen> {
                   label: const Text('Vedic Basis'),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.gold,
-                    foregroundColor: AppColors.background,
+                    foregroundColor: Theme.of(context).scaffoldBackgroundColor,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),

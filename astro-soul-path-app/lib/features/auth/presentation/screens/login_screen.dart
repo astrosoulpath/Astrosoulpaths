@@ -245,7 +245,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 height: 116,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: AppColors.surface,
+                                  color: Theme.of(context).colorScheme.surface,
                                   border: Border.all(
                                     color: const Color(0xFFFFC857),
                                     width: 1.3,
@@ -668,15 +668,15 @@ class _LoginScreenState extends State<LoginScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              backgroundColor: AppColors.surface,
+              backgroundColor: Theme.of(context).colorScheme.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
                 side: const BorderSide(color: Color(0x557A8BB8)),
               ),
-              title: const Text(
+              title: Text(
                 'Continue with Email',
                 style: TextStyle(
-                  color: AppColors.white,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -689,7 +689,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: emailController,
                       keyboardType: TextInputType.emailAddress,
                       autofillHints: const [AutofillHints.email],
-                      style: const TextStyle(color: AppColors.white),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                       decoration: const InputDecoration(
                         labelText: 'Email address',
                         prefixIcon: Icon(Icons.email_outlined),
@@ -712,7 +714,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: passwordController,
                       obscureText: obscurePassword,
                       autofillHints: const [AutofillHints.password],
-                      style: const TextStyle(color: AppColors.white),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                       decoration: InputDecoration(
                         labelText: 'Password',
                         prefixIcon: const Icon(Icons.lock_outline_rounded),
@@ -1050,7 +1054,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            backgroundColor: AppColors.surface,
+            backgroundColor: Theme.of(context).colorScheme.surface,
             title: const Text('Link Google sign-in?'),
             content: const Text(
               'Google will be added to this verified email account. Both methods will continue to use the same Astro Soul Path account and its data.',
@@ -1077,7 +1081,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final consent = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surface,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         title: const Text('Link sign-in methods?'),
         content: const Text(
           'Verify the phone account you already use. Both sign-in methods will then open that same account. Wallet funds and customer data will not be moved.',
@@ -1103,7 +1107,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final phone = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surface,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         title: const Text('Verify your phone account'),
         content: TextField(
           controller: phoneController,
@@ -1171,7 +1175,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         return StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
-            backgroundColor: AppColors.surface,
+            backgroundColor: Theme.of(context).colorScheme.surface,
             title: const Text('Enter verification code'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1365,7 +1369,7 @@ class _LoginScreenState extends State<LoginScreen> {
         final shouldLinkPhone = await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            backgroundColor: AppColors.surface,
+            backgroundColor: Theme.of(context).colorScheme.surface,
             title: const Text('Already have an account?'),
             content: const Text(
               'Verify the phone number on your existing account to use it with Google. You can also continue with a separate Google account.',
@@ -1534,16 +1538,20 @@ class _AppleVisualLoginButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Tooltip(
+    return Tooltip(
       message: 'Continue with Apple',
       child: Material(
-        color: AppColors.white,
+        color: Theme.of(context).colorScheme.onSurface,
         shape: CircleBorder(),
         child: SizedBox(
           width: 50,
           height: 50,
           child: Center(
-            child: Icon(Icons.apple, color: AppColors.background, size: 25),
+            child: Icon(
+              Icons.apple,
+              color: Theme.of(context).scaffoldBackgroundColor,
+              size: 25,
+            ),
           ),
         ),
       ),

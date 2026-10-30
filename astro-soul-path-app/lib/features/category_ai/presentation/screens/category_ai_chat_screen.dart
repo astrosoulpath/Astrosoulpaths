@@ -333,8 +333,8 @@ class _CategoryAiChatScreenState extends State<CategoryAiChatScreen> {
                             _freeChatTopic,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.white,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 15,
                               fontWeight: FontWeight.w900,
                             ),
@@ -342,8 +342,10 @@ class _CategoryAiChatScreenState extends State<CategoryAiChatScreen> {
                           const SizedBox(height: 3),
                           Text(
                             '${widget.freeChatMinutes} min with a verified astrologer',
-                            style: const TextStyle(
-                              color: AppColors.muted,
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                             ),
@@ -366,7 +368,7 @@ class _CategoryAiChatScreenState extends State<CategoryAiChatScreen> {
             top: -8,
             right: -8,
             child: Material(
-              color: AppColors.background,
+              color: Theme.of(context).scaffoldBackgroundColor,
               shape: const CircleBorder(),
               child: IconButton(
                 tooltip: 'Hide offer',
@@ -375,10 +377,10 @@ class _CategoryAiChatScreenState extends State<CategoryAiChatScreen> {
                     _hideFreeChatSticker = true;
                   });
                 },
-                icon: const Icon(
+                icon: Icon(
                   Icons.close_rounded,
                   size: 18,
-                  color: AppColors.white,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),

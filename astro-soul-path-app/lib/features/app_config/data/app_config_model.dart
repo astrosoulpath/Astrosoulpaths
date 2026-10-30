@@ -6,6 +6,8 @@ class AppConfigModel {
     required this.websiteUrl,
     required this.aboutTitle,
     required this.aboutDescription,
+    this.aboutSections,
+    this.aboutSource,
   });
 
   final String shareMessage;
@@ -14,6 +16,8 @@ class AppConfigModel {
   final String websiteUrl;
   final String aboutTitle;
   final String aboutDescription;
+  final Map<String, String>? aboutSections;
+  final String? aboutSource;
 
   factory AppConfigModel.fromJson(Map<String, dynamic> json) {
     return AppConfigModel(

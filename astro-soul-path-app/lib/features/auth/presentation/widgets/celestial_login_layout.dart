@@ -55,7 +55,7 @@ class CelestialLoginLayout extends StatelessWidget {
       ],
     };
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -123,9 +123,9 @@ class CelestialLoginLayout extends StatelessWidget {
                           style: IconButton.styleFrom(
                             backgroundColor: Colors.white.withValues(alpha: .9),
                           ),
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.arrow_back_rounded,
-                            color: AppColors.purple,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                       ),
@@ -146,9 +146,11 @@ class CelestialLoginLayout extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.all(22),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: Theme.of(context).colorScheme.surface,
                               borderRadius: BorderRadius.circular(24),
-                              border: Border.all(color: AppColors.border),
+                              border: Border.all(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
                               boxShadow: const [
                                 BoxShadow(
                                   color: Color(0x0D42265D),
@@ -163,15 +165,22 @@ class CelestialLoginLayout extends StatelessWidget {
                                 Center(
                                   child: CircleAvatar(
                                     radius: 24,
-                                    backgroundColor: AppColors.purpleSoft,
-                                    child: Icon(switch (portal) {
-                                      AuthPortal.customer =>
-                                        Icons.groups_outlined,
-                                      AuthPortal.astrologer =>
-                                        Icons.auto_awesome_outlined,
-                                      AuthPortal.joinAstrologer =>
-                                        Icons.person_add_alt_1_outlined,
-                                    }, color: AppColors.purple),
+                                    backgroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceContainerHighest,
+                                    child: Icon(
+                                      switch (portal) {
+                                        AuthPortal.customer =>
+                                          Icons.groups_outlined,
+                                        AuthPortal.astrologer =>
+                                          Icons.auto_awesome_outlined,
+                                        AuthPortal.joinAstrologer =>
+                                          Icons.person_add_alt_1_outlined,
+                                      },
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 14),
@@ -189,8 +198,10 @@ class CelestialLoginLayout extends StatelessWidget {
                                 Text(
                                   heading,
                                   textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: AppColors.navy,
+                                  style: TextStyle(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
                                     fontSize: 24,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -199,8 +210,10 @@ class CelestialLoginLayout extends StatelessWidget {
                                 Text(
                                   subtitle,
                                   textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: AppColors.muted,
+                                  style: TextStyle(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                     fontSize: 14,
                                     height: 1.5,
                                   ),
@@ -261,9 +274,13 @@ class CelestialLoginLayout extends StatelessWidget {
                                 OutlinedButton(
                                   onPressed: busy ? null : onEmail,
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.purple,
-                                    side: const BorderSide(
-                                      color: AppColors.purple,
+                                    foregroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    side: BorderSide(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
                                     ),
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 14,
@@ -307,15 +324,19 @@ class CelestialLoginLayout extends StatelessWidget {
                                                 Icons.shield_outlined,
                                                 Icons.verified_outlined,
                                               ][i],
-                                              color: AppColors.purple,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.primary,
                                               size: 18,
                                             ),
                                             const SizedBox(height: 5),
                                             Text(
                                               trusts[i],
                                               textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                color: AppColors.muted,
+                                              style: TextStyle(
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.onSurfaceVariant,
                                                 fontSize: 10,
                                               ),
                                             ),
@@ -348,8 +369,8 @@ class _GoogleMark extends StatelessWidget {
     width: 25,
     height: 25,
     alignment: Alignment.center,
-    decoration: const BoxDecoration(
-      color: Colors.white,
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surface,
       shape: BoxShape.circle,
     ),
     child: const Text(

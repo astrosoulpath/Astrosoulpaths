@@ -209,7 +209,7 @@ class _AiReceptionistScreenState extends State<AiReceptionistScreen> {
     return Scaffold(
       backgroundColor: background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         foregroundColor: dark,
         elevation: 0,
         title: const Text(
@@ -614,7 +614,7 @@ class _AiReceptionistScreenState extends State<AiReceptionistScreen> {
 
   BoxDecoration _cardDecoration() {
     return BoxDecoration(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(20),
       border: Border.all(color: const Color(0xFFECE6DF)),
       boxShadow: const [

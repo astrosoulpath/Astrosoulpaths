@@ -123,7 +123,7 @@ class _CelestialFeatureTileState extends State<CelestialFeatureTile>
           scale: _pressed && !reduced ? .96 : 1,
           duration: reduced ? Duration.zero : const Duration(milliseconds: 130),
           child: Material(
-            color: const Color(0xFFFFFAF2),
+            color: Theme.of(context).colorScheme.surfaceContainerLowest,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(22),
               side: const BorderSide(color: Color(0xFFE4D2AA)),
@@ -172,10 +172,10 @@ class _CelestialFeatureTileState extends State<CelestialFeatureTile>
                       Text(
                         widget.label,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF14213D),
+                          color: Theme.of(context).colorScheme.onSurface,
                           height: 1.3,
                         ),
                       ),

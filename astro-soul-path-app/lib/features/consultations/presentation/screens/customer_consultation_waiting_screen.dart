@@ -565,8 +565,8 @@ class _CustomerConsultationWaitingScreenState
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           automaticallyImplyLeading: !pending,
-          backgroundColor: AppColors.background,
-          foregroundColor: AppColors.white,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          foregroundColor: Theme.of(context).colorScheme.onSurface,
           title: const Text(
             'Consultation Request',
             style: TextStyle(fontWeight: FontWeight.w900),
@@ -580,7 +580,7 @@ class _CustomerConsultationWaitingScreenState
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: const Color(0x44F4C45E)),
                 ),
@@ -611,8 +611,8 @@ class _CustomerConsultationWaitingScreenState
                     Text(
                       _headline,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.white,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 23,
                         fontWeight: FontWeight.w900,
                       ),
@@ -623,8 +623,8 @@ class _CustomerConsultationWaitingScreenState
                     Text(
                       _description,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         height: 1.45,
                       ),
                     ),
@@ -632,9 +632,11 @@ class _CustomerConsultationWaitingScreenState
                     if (pending) ...[
                       const SizedBox(height: 24),
 
-                      const Text(
+                      Text(
                         'Request expires in',
-                        style: TextStyle(color: AppColors.muted),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
 
                       const SizedBox(height: 5),
@@ -650,10 +652,13 @@ class _CustomerConsultationWaitingScreenState
 
                       const SizedBox(height: 8),
 
-                      const Text(
+                      Text(
                         'The paid consultation timer starts only after acceptance.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.muted, fontSize: 12),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
 

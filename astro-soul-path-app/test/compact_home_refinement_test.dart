@@ -54,19 +54,24 @@ void main() {
                   size: Size(width, 700),
                   textScaler: const TextScaler.linear(2),
                 ),
-                child: SizedBox(
-                  height: 190,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      for (final e in categories.entries)
-                        PremiumCategoryTile(
-                          assetPath:
-                              'assets/stickers/home_astrology/${e.key}-premium.webp',
-                          label: e.value,
-                          onTap: () => taps.add(e.value),
-                        ),
-                    ],
+                child: Builder(
+                  builder: (context) => SizedBox(
+                    height: PremiumCategoryTile.carouselHeight(
+                      context,
+                      categories.values.toList(),
+                    ),
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        for (final e in categories.entries)
+                          PremiumCategoryTile(
+                            assetPath:
+                                'assets/stickers/home_astrology/${e.key}-circular-v1.png',
+                            label: e.value,
+                            onTap: () => taps.add(e.value),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -101,7 +106,7 @@ void main() {
           expect(
             ((image.image as ResizeImage).imageProvider as AssetImage)
                 .assetName,
-            'assets/stickers/home_astrology/${e.key}-premium.webp',
+            'assets/stickers/home_astrology/${e.key}-circular-v1.png',
           );
           expect(image.fit, BoxFit.contain);
         }
@@ -178,7 +183,7 @@ void main() {
                       for (final e in categories.entries)
                         PremiumCategoryTile(
                           assetPath:
-                              'assets/stickers/home_astrology/${e.key}-premium.webp',
+                              'assets/stickers/home_astrology/${e.key}-circular-v1.png',
                           label: e.value,
                           onTap: () {},
                         ),
@@ -207,7 +212,7 @@ void main() {
       }
       final bytes = (await image.toByteData(format: ui.ImageByteFormat.png))!;
       final file = File(
-        '../review/ui/screenshots/compact-home-synthetic-preview.png',
+        '../review/ui/screenshots/premium-circular-home-synthetic-preview.png',
       );
       file.parent.createSync(recursive: true);
       file.writeAsBytesSync(bytes.buffer.asUint8List());
@@ -216,7 +221,7 @@ void main() {
       for (final asset in categories.keys) {
         final codec = await ui.instantiateImageCodec(
           File(
-            'assets/stickers/home_astrology/$asset-premium.webp',
+            'assets/stickers/home_astrology/$asset-circular-v1.png',
           ).readAsBytesSync(),
         );
         final frame = await codec.getNextFrame();
@@ -232,12 +237,12 @@ void main() {
         codec.dispose();
       }
       File(
-        '../review/ui/compact-home-artwork-corner-inspection.json',
+        '../review/ui/premium-circular-artwork-corner-inspection.json',
       ).writeAsStringSync(jsonEncode(corners));
     });
     await expectLater(
       find.byKey(key),
-      matchesGoldenFile('goldens/compact_home_components.png'),
+      matchesGoldenFile('goldens/circular_home_components.png'),
     );
   });
 }

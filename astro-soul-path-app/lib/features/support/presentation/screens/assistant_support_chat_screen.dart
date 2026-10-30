@@ -521,14 +521,16 @@ class _AssistantSupportChatScreenState
                   ),
 
                   if (_sending)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.fromLTRB(18, 6, 18, 0),
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Assistant is thinking…',
                           style: TextStyle(
-                            color: AppColors.muted,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),

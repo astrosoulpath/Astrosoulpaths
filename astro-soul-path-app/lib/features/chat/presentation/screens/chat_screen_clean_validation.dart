@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:io';
@@ -407,8 +407,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 displayName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.white,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                 ),
@@ -419,8 +419,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   room.astrologer.expertise.take(2).join(' \u2022 '),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.muted,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
                   ),
@@ -443,8 +443,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         const SizedBox(width: 2),
                         Text(
                           room.astrologer.rating!.toStringAsFixed(1),
-                          style: const TextStyle(
-                            color: AppColors.white,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
                           ),
@@ -452,8 +452,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         if (room.astrologer.totalReviews > 0)
                           Text(
                             ' ()',
-                            style: const TextStyle(
-                              color: AppColors.muted,
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                               fontSize: 9.5,
                             ),
                           ),
@@ -469,7 +471,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           shape: BoxShape.circle,
                           color: _otherParticipantOnline
                               ? Colors.green
-                              : AppColors.muted,
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(width: 4),
@@ -478,7 +480,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         style: TextStyle(
                           color: _otherParticipantOnline
                               ? Colors.green
-                              : AppColors.muted,
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                         ),
@@ -568,7 +570,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         Navigator.of(context).pop();
       },
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           toolbarHeight: 68,
           title: Row(
@@ -704,7 +706,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     ),
 
                   if (!_socketConnected)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.fromLTRB(16, 5, 16, 7),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -721,7 +723,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           Text(
                             'Connection lost. Reconnecting...',
                             style: TextStyle(
-                              color: AppColors.muted,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                               fontSize: 11,
                             ),
                           ),
@@ -772,8 +776,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           const SizedBox(height: 4),
                           Text(
                             'Only ${_formatRemainingTime(_remainingSeconds)} remaining',
-                            style: const TextStyle(
-                              color: AppColors.muted,
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                               fontSize: 12,
                             ),
                           ),
@@ -1618,7 +1624,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               const SizedBox(height: 4),
               Text(
                 _formatAttachmentSize(fileSize),
-                style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
@@ -1660,7 +1669,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
     final choice = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (sheetContext) {
         return SafeArea(
           child: Padding(
@@ -1673,13 +1682,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     Icons.image_outlined,
                     color: AppColors.gold,
                   ),
-                  title: const Text(
+                  title: Text(
                     'Photo',
-                    style: TextStyle(color: AppColors.white),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
-                  subtitle: const Text(
+                  subtitle: Text(
                     'JPG, PNG, WEBP or GIF \u2022 Max 10 MB',
-                    style: TextStyle(color: AppColors.muted),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   onTap: () => Navigator.of(sheetContext).pop('IMAGE'),
                 ),
@@ -1688,13 +1701,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     Icons.attach_file_rounded,
                     color: AppColors.gold,
                   ),
-                  title: const Text(
+                  title: Text(
                     'File',
-                    style: TextStyle(color: AppColors.white),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
-                  subtitle: const Text(
+                  subtitle: Text(
                     'PDF, ZIP, DOC, XLS, TXT or audio \u2022 Max 20 MB',
-                    style: TextStyle(color: AppColors.muted),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   onTap: () => Navigator.of(sheetContext).pop('FILE'),
                 ),
@@ -2262,14 +2279,14 @@ class _ChatDateSeparator extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: const Color(0x22FFFFFF)),
               ),
               child: Text(
                 label,
-                style: const TextStyle(
-                  color: AppColors.muted,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                 ),
@@ -2336,8 +2353,8 @@ class _MessageBubble extends StatelessWidget {
                   child: Text(
                     content.isEmpty ? 'Consultation updated' : content,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.muted,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -2357,7 +2374,9 @@ class _MessageBubble extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
         decoration: BoxDecoration(
-          color: isMine ? const Color(0xFFF4C45E) : AppColors.surface,
+          color: isMine
+              ? const Color(0xFFF4C45E)
+              : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(17),
             topRight: const Radius.circular(17),
@@ -2403,7 +2422,9 @@ class _MessageBubble extends StatelessWidget {
               Text(
                 '[Attachment unavailable]',
                 style: TextStyle(
-                  color: isMine ? AppColors.background : AppColors.white,
+                  color: isMine
+                      ? Theme.of(context).scaffoldBackgroundColor
+                      : Theme.of(context).colorScheme.onSurface,
                   fontSize: 14,
                   fontStyle: FontStyle.italic,
                 ),
@@ -2414,7 +2435,9 @@ class _MessageBubble extends StatelessWidget {
               Text(
                 content,
                 style: TextStyle(
-                  color: isMine ? AppColors.background : AppColors.white,
+                  color: isMine
+                      ? Theme.of(context).scaffoldBackgroundColor
+                      : Theme.of(context).colorScheme.onSurface,
                   fontSize: 15,
                 ),
               ),
@@ -2422,7 +2445,9 @@ class _MessageBubble extends StatelessWidget {
               Text(
                 '[Attachment]',
                 style: TextStyle(
-                  color: isMine ? AppColors.background : AppColors.white,
+                  color: isMine
+                      ? Theme.of(context).scaffoldBackgroundColor
+                      : Theme.of(context).colorScheme.onSurface,
                   fontSize: 15,
                 ),
               ),
@@ -2442,8 +2467,10 @@ class _MessageBubble extends StatelessWidget {
                       Icons.reply_rounded,
                       size: 14,
                       color: isMine
-                          ? AppColors.background.withValues(alpha: 0.65)
-                          : AppColors.muted,
+                          ? Theme.of(
+                              context,
+                            ).scaffoldBackgroundColor.withValues(alpha: 0.65)
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -2458,8 +2485,10 @@ class _MessageBubble extends StatelessWidget {
                         Icons.copy_rounded,
                         size: 13,
                         color: isMine
-                            ? AppColors.background.withValues(alpha: 0.65)
-                            : AppColors.muted,
+                            ? Theme.of(
+                                context,
+                              ).scaffoldBackgroundColor.withValues(alpha: 0.65)
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -2470,8 +2499,10 @@ class _MessageBubble extends StatelessWidget {
                     _formatMessageTime(createdAt),
                     style: TextStyle(
                       color: isMine
-                          ? AppColors.background.withValues(alpha: 0.65)
-                          : AppColors.muted,
+                          ? Theme.of(
+                              context,
+                            ).scaffoldBackgroundColor.withValues(alpha: 0.65)
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 10,
                     ),
                   ),
@@ -2483,14 +2514,18 @@ class _MessageBubble extends StatelessWidget {
                       height: 12,
                       child: CircularProgressIndicator(
                         strokeWidth: 1.6,
-                        color: AppColors.background.withValues(alpha: 0.7),
+                        color: Theme.of(
+                          context,
+                        ).scaffoldBackgroundColor.withValues(alpha: 0.7),
                       ),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       'Sending...',
                       style: TextStyle(
-                        color: AppColors.background.withValues(alpha: 0.7),
+                        color: Theme.of(
+                          context,
+                        ).scaffoldBackgroundColor.withValues(alpha: 0.7),
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                       ),
@@ -2538,7 +2573,9 @@ class _MessageBubble extends StatelessWidget {
                       size: 14,
                       color: message.isRead
                           ? const Color(0xFF1479FF)
-                          : AppColors.background.withValues(alpha: 0.7),
+                          : Theme.of(
+                              context,
+                            ).scaffoldBackgroundColor.withValues(alpha: 0.7),
                     ),
                     const SizedBox(width: 3),
                     Text(
@@ -2546,7 +2583,9 @@ class _MessageBubble extends StatelessWidget {
                       style: TextStyle(
                         color: message.isRead
                             ? const Color(0xFF1479FF)
-                            : AppColors.background.withValues(alpha: 0.7),
+                            : Theme.of(
+                                context,
+                              ).scaffoldBackgroundColor.withValues(alpha: 0.7),
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                       ),
@@ -2680,14 +2719,20 @@ class _ChatFileAttachment extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           color: isMine
-              ? AppColors.background.withValues(alpha: 0.08)
-              : AppColors.background.withValues(alpha: 0.25),
+              ? Theme.of(
+                  context,
+                ).scaffoldBackgroundColor.withValues(alpha: 0.08)
+              : Theme.of(
+                  context,
+                ).scaffoldBackgroundColor.withValues(alpha: 0.25),
         ),
         child: Row(
           children: [
             Icon(
               Icons.insert_drive_file_outlined,
-              color: isMine ? AppColors.background : AppColors.gold,
+              color: isMine
+                  ? Theme.of(context).scaffoldBackgroundColor
+                  : AppColors.gold,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -2699,7 +2744,9 @@ class _ChatFileAttachment extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: isMine ? AppColors.background : AppColors.white,
+                      color: isMine
+                          ? Theme.of(context).scaffoldBackgroundColor
+                          : Theme.of(context).colorScheme.onSurface,
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
                     ),
@@ -2712,8 +2759,10 @@ class _ChatFileAttachment extends StatelessWidget {
                     ].join(' \u2022 '),
                     style: TextStyle(
                       color: isMine
-                          ? AppColors.background.withValues(alpha: 0.65)
-                          : AppColors.muted,
+                          ? Theme.of(
+                              context,
+                            ).scaffoldBackgroundColor.withValues(alpha: 0.65)
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 10,
                     ),
                   ),
@@ -2724,7 +2773,9 @@ class _ChatFileAttachment extends StatelessWidget {
             Icon(
               Icons.open_in_new_rounded,
               size: 17,
-              color: isMine ? AppColors.background : AppColors.gold,
+              color: isMine
+                  ? Theme.of(context).scaffoldBackgroundColor
+                  : AppColors.gold,
             ),
           ],
         ),
@@ -2775,8 +2826,8 @@ class _ReplyPreviewCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
         color: isMine
-            ? AppColors.background.withValues(alpha: 0.12)
-            : AppColors.white.withValues(alpha: 0.06),
+            ? Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.12)
+            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.06),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2788,7 +2839,9 @@ class _ReplyPreviewCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: isMine ? AppColors.background : AppColors.gold,
+              color: isMine
+                  ? Theme.of(context).scaffoldBackgroundColor
+                  : AppColors.gold,
             ),
           ),
           const SizedBox(height: 2),
@@ -2799,8 +2852,10 @@ class _ReplyPreviewCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               color: isMine
-                  ? AppColors.background.withValues(alpha: 0.75)
-                  : AppColors.muted,
+                  ? Theme.of(
+                      context,
+                    ).scaffoldBackgroundColor.withValues(alpha: 0.75)
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -2861,7 +2916,10 @@ class _ReplyComposerPreview extends StatelessWidget {
                   preview,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -3010,7 +3068,9 @@ class _MessageComposerState extends State<_MessageComposer> {
                   showEmoji
                       ? Icons.keyboard_alt_outlined
                       : Icons.emoji_emotions_outlined,
-                  color: widget.enabled ? AppColors.gold : AppColors.muted,
+                  color: widget.enabled
+                      ? AppColors.gold
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
               Expanded(
@@ -3024,7 +3084,9 @@ class _MessageComposerState extends State<_MessageComposer> {
                   onSubmitted: (_) => _handleSend(),
                   minLines: 1,
                   maxLines: 5,
-                  style: const TextStyle(color: AppColors.white),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                   decoration: const InputDecoration(
                     hintText: 'Type message...',
                   ),
@@ -3125,8 +3187,12 @@ class _ChatSkeletonDate extends StatelessWidget {
         height: 24,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: AppColors.surface,
-          border: Border.all(color: AppColors.white.withValues(alpha: 0.05)),
+          color: Theme.of(context).colorScheme.surface,
+          border: Border.all(
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.05),
+          ),
         ),
       ),
     );
@@ -3154,8 +3220,12 @@ class _ChatSkeletonBubble extends StatelessWidget {
           height: height,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            color: AppColors.surface,
-            border: Border.all(color: AppColors.white.withValues(alpha: 0.04)),
+            color: Theme.of(context).colorScheme.surface,
+            border: Border.all(
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.04),
+            ),
           ),
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -3165,7 +3235,9 @@ class _ChatSkeletonBubble extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(6),
-                    color: AppColors.white.withValues(alpha: 0.05),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.05),
                   ),
                 ),
               ),
@@ -3177,7 +3249,9 @@ class _ChatSkeletonBubble extends StatelessWidget {
                   height: 6,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(6),
-                    color: AppColors.white.withValues(alpha: 0.035),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.035),
                   ),
                 ),
               ),
@@ -3197,9 +3271,13 @@ class _ChatSkeletonComposer extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         border: Border(
-          top: BorderSide(color: AppColors.white.withValues(alpha: 0.05)),
+          top: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.05),
+          ),
         ),
       ),
       child: SafeArea(
@@ -3211,7 +3289,9 @@ class _ChatSkeletonComposer extends StatelessWidget {
               height: 38,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.white.withValues(alpha: 0.045),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.045),
               ),
             ),
             const SizedBox(width: 10),
@@ -3220,7 +3300,9 @@ class _ChatSkeletonComposer extends StatelessWidget {
                 height: 44,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(22),
-                  color: AppColors.white.withValues(alpha: 0.045),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.045),
                 ),
               ),
             ),
@@ -3286,8 +3368,8 @@ class _ChatEmptyState extends StatelessWidget {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.white,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
                 ),
@@ -3296,8 +3378,8 @@ class _ChatEmptyState extends StatelessWidget {
               Text(
                 subtitle,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.muted,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 13,
                   height: 1.45,
                 ),
@@ -3313,7 +3395,7 @@ class _ChatEmptyState extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                     color: AppColors.gold.withValues(alpha: 0.07),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
@@ -3327,7 +3409,9 @@ class _ChatEmptyState extends StatelessWidget {
                           'Messages are visible only to consultation participants.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: AppColors.muted,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: 11,
                           ),
                         ),
@@ -3375,8 +3459,8 @@ class _ChatInlineError extends StatelessWidget {
                 message,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.white,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 12,
                   height: 1.3,
                 ),
@@ -3424,11 +3508,11 @@ class _ChatError extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
-              const Text(
+              Text(
                 'Unable to load chat',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: AppColors.white,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
@@ -3437,8 +3521,8 @@ class _ChatError extends StatelessWidget {
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.muted,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 13,
                   height: 1.45,
                 ),

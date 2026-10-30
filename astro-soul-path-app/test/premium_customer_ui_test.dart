@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:astro_soul_path/core/theme/app_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:astro_soul_path/core/branding/celestial_feature_tile.dart';
 import 'package:astro_soul_path/core/branding/premium_customer_surfaces.dart';
@@ -89,7 +90,7 @@ void main() {
         addTearDown(tester.view.resetDevicePixelRatio);
         await tester.pumpWidget(
           MaterialApp(
-            theme: ThemeData(brightness: brightness),
+            theme: brightness == Brightness.dark ? AppTheme.dark : AppTheme.light,
             home: MediaQuery(
               data: MediaQueryData(
                 size: Size(width, 1000),
@@ -127,7 +128,13 @@ void main() {
           'Predictions',
         ]) {
           final text = tester.widget<Text>(find.text(label));
-          expect(text.style!.color, premiumInk);
+          final theme = Theme.of(tester.element(find.text(label)));
+          expect(text.style!.color, theme.colorScheme.onSurface);
+          final foreground = text.style!.color!.computeLuminance();
+          final background = theme.scaffoldBackgroundColor.computeLuminance();
+          final high = foreground > background ? foreground : background;
+          final low = foreground < background ? foreground : background;
+          expect((high + .05) / (low + .05), greaterThanOrEqualTo(4.5));
           expect(text.maxLines, isNull);
           expect(tester.getRect(find.text(label)).bottom, lessThan(1000));
         }
@@ -226,7 +233,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Try again'));
+    expect(find.text('Unable to load About Us right now.'), findsNothing);
+    expect(find.text('Try again'), findsNothing);
+    await tester.drag(find.byType(ListView), const Offset(0, 350));
     await tester.pumpAndSettle();
     expect(find.text('Backend title'), findsOneWidget);
     expect(find.text(_config.aboutDescription), findsOneWidget);
@@ -242,7 +251,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('About Us content is not available yet.'), findsOneWidget);
+    expect(find.text('About Us content is not available yet.'), findsNothing);
+    expect(find.text('Astro Soul Path'), findsOneWidget);
   });
   testWidgets('review failure is distinct from zero reviews and can retry', (
     tester,

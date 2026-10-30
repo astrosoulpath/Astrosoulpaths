@@ -46,10 +46,10 @@ class _AstrologyVideoDetailScreenState
         : video.shortDescription?.trim() ?? '';
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0.5,
         centerTitle: true,
         title: Text(
@@ -75,8 +75,8 @@ class _AstrologyVideoDetailScreenState
               children: [
                 Text(
                   video.title,
-                  style: const TextStyle(
-                    color: Color(0xFF121826),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
                   ),
@@ -85,8 +85,8 @@ class _AstrologyVideoDetailScreenState
                   const SizedBox(height: 18),
                   Text(
                     description,
-                    style: const TextStyle(
-                      color: Color(0xFF303848),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 17,
                       height: 1.65,
                     ),

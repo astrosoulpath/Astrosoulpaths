@@ -834,22 +834,28 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
         prefixIcon: Icon(icon, color: AppColors.gold),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: AppColors.surface,
-        labelStyle: const TextStyle(
-          color: AppColors.muted,
+        fillColor: Theme.of(context).colorScheme.surface,
+        labelStyle: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
           fontWeight: FontWeight.w600,
         ),
-        hintStyle: const TextStyle(color: AppColors.muted),
+        hintStyle: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: AppColors.muted.withValues(alpha: 0.14),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurfaceVariant.withValues(alpha: 0.14),
           ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: AppColors.muted.withValues(alpha: 0.14),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurfaceVariant.withValues(alpha: 0.14),
           ),
         ),
         focusedBorder: OutlineInputBorder(
@@ -874,8 +880,8 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         titleSpacing: 0,
         title: const Text(
@@ -920,14 +926,14 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                     ),
                   ),
                   const SizedBox(width: 14),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Personalize your profile',
                           style: TextStyle(
-                            color: AppColors.white,
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 17,
                             fontWeight: FontWeight.w900,
                           ),
@@ -936,7 +942,9 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                         Text(
                           'Keep your birth details accurate for a better astrology experience.',
                           style: TextStyle(
-                            color: AppColors.muted,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: 12,
                             height: 1.4,
                           ),
@@ -1155,7 +1163,10 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                           ),
                         ),
                       )
-                    : const Icon(Icons.search_rounded, color: AppColors.muted),
+                    : Icon(
+                        Icons.search_rounded,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
               ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
@@ -1169,7 +1180,7 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
               const SizedBox(height: 10),
               Container(
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
                     color: AppColors.gold.withValues(alpha: 0.18),
@@ -1206,8 +1217,10 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                                   children: [
                                     Text(
                                       suggestion.fullName,
-                                      style: const TextStyle(
-                                        color: AppColors.white,
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurface,
                                         fontWeight: FontWeight.w800,
                                         fontSize: 13,
                                       ),
@@ -1217,8 +1230,10 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                                       '${suggestion.countryCode} \u2022 '
                                       '${suggestion.latitude}, '
                                       '${suggestion.longitude}',
-                                      style: const TextStyle(
-                                        color: AppColors.muted,
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
                                         fontSize: 11,
                                         height: 1.35,
                                       ),
@@ -1235,9 +1250,11 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                                   ],
                                 ),
                               ),
-                              const Icon(
+                              Icon(
                                 Icons.chevron_right_rounded,
-                                color: AppColors.muted,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ],
                           ),
@@ -1288,7 +1305,7 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
 
             Container(
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: AppColors.gold.withValues(alpha: 0.14),
@@ -1354,12 +1371,12 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
               child: FilledButton.icon(
                 onPressed: _isSaving ? null : _saveProfile,
                 icon: _isSaving
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColors.background,
+                          color: Theme.of(context).scaffoldBackgroundColor,
                         ),
                       )
                     : const Icon(Icons.save_rounded),
@@ -1370,7 +1387,7 @@ class _EditCustomerProfileScreenState extends State<EditCustomerProfileScreen> {
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(56),
                   backgroundColor: AppColors.gold,
-                  foregroundColor: AppColors.background,
+                  foregroundColor: Theme.of(context).scaffoldBackgroundColor,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15),
                   ),
@@ -1406,8 +1423,8 @@ class _EditSectionHeader extends StatelessWidget {
         const SizedBox(width: 10),
         Text(
           title,
-          style: const TextStyle(
-            color: AppColors.white,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 16,
             fontWeight: FontWeight.w900,
           ),
@@ -1454,8 +1471,8 @@ class _EditInfoRow extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1465,8 +1482,8 @@ class _EditInfoRow extends StatelessWidget {
                       value,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.white,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1482,7 +1499,9 @@ class _EditInfoRow extends StatelessWidget {
             padding: const EdgeInsets.only(left: 69),
             child: Divider(
               height: 1,
-              color: AppColors.muted.withValues(alpha: 0.12),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurfaceVariant.withValues(alpha: 0.12),
             ),
           ),
       ],

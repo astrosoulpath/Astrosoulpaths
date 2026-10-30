@@ -11,12 +11,6 @@ import '../../data/kundli_api.dart';
 import 'kundli_pdf_preview_screen.dart';
 import 'customer_astrologer_kundli_reports_screen.dart';
 
-const Color _kundliThemeBackground = Color(0xFF0B0B0D);
-const Color _kundliThemeSurface = Color(0xFF17171B);
-const Color _kundliThemeSurfaceLight = Color(0xFF202024);
-const Color _kundliThemePrimaryText = Color(0xFFF7F7F8);
-const Color _kundliThemeSecondaryText = Color(0xFFD1D5DB);
-
 class CustomerKundliScreen extends StatefulWidget {
   const CustomerKundliScreen({super.key});
 
@@ -631,7 +625,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       prefixIcon: Icon(icon, color: AppColors.gold),
       suffixIcon: suffixIcon,
       filled: true,
-      fillColor: _kundliThemeSurface,
+      fillColor: Theme.of(context).colorScheme.surface,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: const BorderSide(color: Color(0x33F4C45E)),
@@ -666,13 +660,16 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [_kundliThemeBackground, _kundliThemeSurfaceLight],
+                  gradient: LinearGradient(
+                    colors: [
+                      Theme.of(context).scaffoldBackgroundColor,
+                      Theme.of(context).colorScheme.surfaceContainerHighest,
+                    ],
                   ),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(color: const Color(0x55F4C45E)),
                 ),
-                child: const Row(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
@@ -688,7 +685,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                           Text(
                             'Kundli AI',
                             style: TextStyle(
-                              color: _kundliThemePrimaryText,
+                              color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 23,
                               fontWeight: FontWeight.w900,
                             ),
@@ -697,7 +694,9 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                           Text(
                             'Enter accurate birth details to generate your Vedic Kundli and AI-guided interpretation.',
                             style: TextStyle(
-                              color: _kundliThemeSecondaryText,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                               height: 1.45,
                               fontSize: 12.5,
                             ),
@@ -733,9 +732,9 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
               DropdownButtonFormField<String>(
                 initialValue: _gender,
-                dropdownColor: _kundliThemeSurface,
-                style: const TextStyle(
-                  color: _kundliThemePrimaryText,
+                dropdownColor: Theme.of(context).colorScheme.surface,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontWeight: FontWeight.w700,
                 ),
                 decoration: _kundliFieldDecoration(
@@ -837,9 +836,9 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                           Icons.verified_rounded,
                           color: AppColors.gold,
                         )
-                      : const Icon(
+                      : Icon(
                           Icons.search_rounded,
-                          color: _kundliThemeSecondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                 ),
                 validator: (value) {
@@ -855,7 +854,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 const SizedBox(height: 10),
                 Container(
                   decoration: BoxDecoration(
-                    color: _kundliThemeSurface,
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
                       color: AppColors.gold.withValues(alpha: 0.18),
@@ -881,8 +880,10 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                                   children: [
                                     Text(
                                       suggestion.fullName,
-                                      style: const TextStyle(
-                                        color: _kundliThemePrimaryText,
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurface,
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),
@@ -890,17 +891,21 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                                     Text(
                                       '${suggestion.countryCode}  |  '
                                       '${suggestion.timezoneName}',
-                                      style: const TextStyle(
-                                        color: _kundliThemeSecondaryText,
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
                                         fontSize: 11,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              const Icon(
+                              Icon(
                                 Icons.chevron_right_rounded,
-                                color: _kundliThemeSecondaryText,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ],
                           ),
@@ -916,7 +921,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: _kundliThemeSurface,
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: AppColors.gold.withValues(alpha: 0.15),
@@ -935,8 +940,10 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                           '$_timezoneName  |  '
                           '${_latitude.toStringAsFixed(4)}, '
                           '${_longitude.toStringAsFixed(4)}',
-                          style: const TextStyle(
-                            color: _kundliThemeSecondaryText,
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: 11.5,
                             height: 1.4,
                           ),
@@ -952,13 +959,13 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: _kundliThemeSurface,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: AppColors.gold.withValues(alpha: 0.15),
                   ),
                 ),
-                child: const Row(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(Icons.lock_outline_rounded, color: AppColors.gold),
@@ -967,7 +974,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                       child: Text(
                         'Verified birth details are saved to your profile before calculation so your Vedic Kundli, AI interpretation and PDF always use the same accurate data.',
                         style: TextStyle(
-                          color: _kundliThemeSecondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 11.5,
                           height: 1.45,
                         ),
@@ -985,18 +992,18 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                   onPressed: _isGenerating ? null : _saveAndShowKundli,
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.gold,
-                    foregroundColor: _kundliThemeBackground,
+                    foregroundColor: Theme.of(context).scaffoldBackgroundColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                   child: _isGenerating
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.4,
-                            color: _kundliThemeBackground,
+                            color: Theme.of(context).scaffoldBackgroundColor,
                           ),
                         )
                       : const Row(
@@ -1030,7 +1037,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: _kundliThemeBackground,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         foregroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.white),
         leading: const BackButton(color: Colors.white),
@@ -1155,13 +1162,15 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       child: Column(
         children: [
           Container(
-            color: _kundliThemeBackground,
-            child: const TabBar(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: TabBar(
               isScrollable: true,
               tabAlignment: TabAlignment.start,
               indicatorColor: AppColors.gold,
               labelColor: AppColors.gold,
-              unselectedLabelColor: _kundliThemeSecondaryText,
+              unselectedLabelColor: Theme.of(
+                context,
+              ).colorScheme.onSurfaceVariant,
               labelStyle: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
               tabs: [
                 Tab(text: 'BASICS'),
@@ -1292,7 +1301,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: const Color(0x445D79B5)),
       ),
@@ -1326,8 +1335,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: _kundliThemePrimaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
                       ),
@@ -1337,8 +1346,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
                     Text(
                       subtitle,
-                      style: const TextStyle(
-                        color: _kundliThemeSecondaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 12,
                         height: 1.4,
                       ),
@@ -1360,10 +1369,10 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 borderRadius: BorderRadius.circular(17),
                 border: Border.all(color: const Color(0x332D3748)),
               ),
-              child: const Text(
+              child: Text(
                 'Detailed interpretation is currently unavailable because the verified Kundli analysis did not return enough supported chart evidence.',
                 style: TextStyle(
-                  color: _kundliThemeSecondaryText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 13,
                   height: 1.55,
                 ),
@@ -1611,7 +1620,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: const Color(0x55D7B56D)),
       ),
@@ -1626,11 +1635,11 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 size: 26,
               ),
               const SizedBox(width: 10),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Gemstone Suggestions',
                   style: TextStyle(
-                    color: _kundliThemePrimaryText,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
                   ),
@@ -1650,8 +1659,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
           const SizedBox(height: 8),
           Text(
             'Planet: $planet',
-            style: const TextStyle(
-              color: _kundliThemePrimaryText,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 14,
               fontWeight: FontWeight.w700,
             ),
@@ -1659,8 +1668,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
           const SizedBox(height: 4),
           Text(
             'Ascendant: $ascendant',
-            style: const TextStyle(
-              color: _kundliThemePrimaryText,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 14,
               fontWeight: FontWeight.w700,
             ),
@@ -1669,8 +1678,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
             const SizedBox(height: 12),
             Text(
               basis,
-              style: const TextStyle(
-                color: _kundliThemeSecondaryText,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 13,
                 height: 1.5,
               ),
@@ -1680,8 +1689,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
             const SizedBox(height: 12),
             Text(
               disclaimer,
-              style: const TextStyle(
-                color: _kundliThemeSecondaryText,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 11,
                 height: 1.4,
               ),
@@ -1704,8 +1713,11 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [_kundliThemeBackground, _kundliThemeSurfaceLight],
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).scaffoldBackgroundColor,
+            Theme.of(context).colorScheme.surfaceContainerHighest,
+          ],
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0x55F4C45E)),
@@ -1721,8 +1733,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
           const SizedBox(height: 14),
           Text(
             profile.fullName ?? profile.name,
-            style: const TextStyle(
-              color: _kundliThemePrimaryText,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 22,
               fontWeight: FontWeight.w900,
             ),
@@ -1757,7 +1769,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -1772,8 +1784,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                   report.status == 'COMPLETE'
                       ? 'Kundli Ready'
                       : 'Kundli Partially Available',
-                  style: const TextStyle(
-                    color: _kundliThemePrimaryText,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 17,
                     fontWeight: FontWeight.w900,
                   ),
@@ -1785,21 +1797,26 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
           LinearProgressIndicator(
             value: percent / 100,
             color: AppColors.gold,
-            backgroundColor: _kundliThemeSurfaceLight,
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest,
           ),
           const SizedBox(height: 9),
           Text(
             '$percent% core Kundli data available',
-            style: const TextStyle(
-              color: _kundliThemeSecondaryText,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 12,
             ),
           ),
           if (!report.isComplete) ...[
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Some sections require an active production astrology API subscription.',
-              style: TextStyle(color: _kundliThemeSecondaryText, height: 1.4),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.4,
+              ),
             ),
           ],
         ],
@@ -1917,7 +1934,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _kundliThemeSurfaceLight,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.24)),
       ),
@@ -1930,14 +1947,14 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: _kundliThemeSurface,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.gold.withValues(alpha: 0.18)),
             ),
             child: Text(
               _compactChartLine(sign, planets),
-              style: const TextStyle(
-                color: _kundliThemePrimaryText,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 height: 1.25,
@@ -1986,7 +2003,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: _kundliThemeSurface,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: const Color(0x335D79B5)),
         ),
@@ -2000,8 +2017,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 Expanded(
                   child: Text(
                     chartName,
-                    style: const TextStyle(
-                      color: _kundliThemePrimaryText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 17,
                       fontWeight: FontWeight.w900,
                     ),
@@ -2012,10 +2029,10 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
             const SizedBox(height: 6),
 
-            const Text(
+            Text(
               'Calculated from your birth details using the Vedic astrology provider',
               style: TextStyle(
-                color: _kundliThemeSecondaryText,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 12,
                 height: 1.4,
               ),
@@ -2028,7 +2045,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
               constraints: const BoxConstraints(minHeight: 280, maxHeight: 430),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: _kundliThemePrimaryText,
+                color: Theme.of(context).colorScheme.onSurface,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Center(
@@ -2129,7 +2146,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0x335D79B5)),
       ),
@@ -2143,8 +2160,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: _kundliThemePrimaryText,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 17,
                     fontWeight: FontWeight.w900,
                   ),
@@ -2157,8 +2174,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
             const SizedBox(height: 6),
             Text(
               chartName,
-              style: const TextStyle(
-                color: _kundliThemeSecondaryText,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 12,
               ),
             ),
@@ -2183,7 +2200,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0x334F6FA8)),
       ),
@@ -2200,8 +2217,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
           const SizedBox(height: 5),
           Text(
             'Sign: $sign',
-            style: const TextStyle(
-              color: _kundliThemePrimaryText,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 12,
             ),
           ),
@@ -2210,8 +2227,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
             planets.isEmpty ? 'Planets: None' : 'Planets: $planets',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: _kundliThemeSecondaryText,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 11,
               height: 1.3,
             ),
@@ -2242,21 +2259,21 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0x335D79B5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.home_work_outlined, color: AppColors.gold),
               SizedBox(width: 10),
               Text(
                 'House Analysis',
                 style: TextStyle(
-                  color: _kundliThemePrimaryText,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                 ),
@@ -2315,7 +2332,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: _kundliThemeSurface,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: const Color(0x334F6FA8)),
               ),
@@ -2335,8 +2352,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                   if (startRasi != '-' || endRasi != '-')
                     Text(
                       'Signs: $startRasi -> $endRasi',
-                      style: const TextStyle(
-                        color: _kundliThemePrimaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 12,
                         height: 1.4,
                       ),
@@ -2346,8 +2363,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Nakshatra: $startNakshatra -> $endNakshatra',
-                      style: const TextStyle(
-                        color: _kundliThemePrimaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 12,
                         height: 1.4,
                       ),
@@ -2358,8 +2375,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Sub Lord: $subLord',
-                      style: const TextStyle(
-                        color: _kundliThemeSecondaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 12,
                       ),
                     ),
@@ -2371,8 +2388,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                     planetNames.isEmpty
                         ? 'Planets: None'
                         : 'Planets: ${planetNames.join(', ')}',
-                    style: const TextStyle(
-                      color: _kundliThemeSecondaryText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 12,
                       height: 1.4,
                     ),
@@ -2434,14 +2451,14 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0x335D79B5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.insights_rounded, color: AppColors.gold),
               SizedBox(width: 10),
@@ -2449,7 +2466,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 child: Text(
                   'Sade Sati Analysis',
                   style: TextStyle(
-                    color: _kundliThemePrimaryText,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 17,
                     fontWeight: FontWeight.w900,
                   ),
@@ -2464,7 +2481,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: _kundliThemeSurface,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0x334F6FA8)),
             ),
@@ -2484,8 +2501,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                   const SizedBox(height: 8),
                   Text(
                     'Phase: $phase',
-                    style: const TextStyle(
-                      color: _kundliThemePrimaryText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                     ),
@@ -2496,8 +2513,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                   const SizedBox(height: 8),
                   Text(
                     description,
-                    style: const TextStyle(
-                      color: _kundliThemeSecondaryText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 13,
                       height: 1.45,
                     ),
@@ -2509,10 +2526,10 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
           if (transits.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Transit Timeline',
               style: TextStyle(
-                color: _kundliThemePrimaryText,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
               ),
@@ -2537,7 +2554,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _kundliThemeSurface,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0x224F6FA8)),
                 ),
@@ -2560,8 +2577,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                       const SizedBox(height: 5),
                       Text(
                         '$start${start.isNotEmpty && end.isNotEmpty ? ' - ' : ''}$end',
-                        style: const TextStyle(
-                          color: _kundliThemeSecondaryText,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 11,
                         ),
                       ),
@@ -2571,8 +2588,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                       const SizedBox(height: 6),
                       Text(
                         transitDescription,
-                        style: const TextStyle(
-                          color: _kundliThemePrimaryText,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 12,
                           height: 1.4,
                         ),
@@ -2672,11 +2689,11 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: _kundliThemeSurface,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: const Color(0x335D79B5)),
         ),
-        child: const Column(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -2687,7 +2704,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                   child: Text(
                     'Important Yogas',
                     style: TextStyle(
-                      color: _kundliThemePrimaryText,
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 17,
                       fontWeight: FontWeight.w900,
                     ),
@@ -2699,7 +2716,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
             Text(
               'No active important Yoga was reported in your birth chart.',
               style: TextStyle(
-                color: _kundliThemeSecondaryText,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 13,
                 height: 1.45,
               ),
@@ -2713,14 +2730,14 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0x335D79B5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.auto_awesome_rounded, color: AppColors.gold),
               SizedBox(width: 10),
@@ -2728,7 +2745,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 child: Text(
                   'Important Yogas',
                   style: TextStyle(
-                    color: _kundliThemePrimaryText,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 17,
                     fontWeight: FontWeight.w900,
                   ),
@@ -2739,9 +2756,12 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
           const SizedBox(height: 6),
 
-          const Text(
+          Text(
             'Verified Yogas present in your birth chart',
-            style: TextStyle(color: _kundliThemeSecondaryText, fontSize: 12),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 12,
+            ),
           ),
 
           const SizedBox(height: 14),
@@ -2762,7 +2782,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: _kundliThemeSurface,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: const Color(0x334F6FA8)),
               ),
@@ -2782,8 +2802,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                     const SizedBox(height: 4),
                     Text(
                       category,
-                      style: const TextStyle(
-                        color: _kundliThemeSecondaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -2794,8 +2814,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                     const SizedBox(height: 8),
                     Text(
                       description,
-                      style: const TextStyle(
-                        color: _kundliThemePrimaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 13,
                         height: 1.45,
                       ),
@@ -2868,14 +2888,14 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0x335D79B5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.insights_rounded, color: AppColors.gold),
               SizedBox(width: 10),
@@ -2883,7 +2903,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 child: Text(
                   'Planetary Strengths (Shadbala)',
                   style: TextStyle(
-                    color: _kundliThemePrimaryText,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 17,
                     fontWeight: FontWeight.w900,
                   ),
@@ -2894,9 +2914,12 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
           const SizedBox(height: 6),
 
-          const Text(
+          Text(
             'Real provider-calculated planetary strength values',
-            style: TextStyle(color: _kundliThemeSecondaryText, fontSize: 12),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 12,
+            ),
           ),
 
           const SizedBox(height: 16),
@@ -2913,7 +2936,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: _kundliThemeSurface,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: const Color(0x334F6FA8)),
               ),
@@ -2932,8 +2955,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
                   Text(
                     'Total Bala: ${numberText(total)}',
-                    style: const TextStyle(
-                      color: _kundliThemePrimaryText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 12,
                     ),
                   ),
@@ -2942,8 +2965,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
                   Text(
                     'Strength Ratio: ${numberText(ratioValue)}',
-                    style: const TextStyle(
-                      color: _kundliThemePrimaryText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 12,
                     ),
                   ),
@@ -2952,8 +2975,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
                   Text(
                     'Sthana Bala: ${numberText(sthanaValue)}',
-                    style: const TextStyle(
-                      color: _kundliThemeSecondaryText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 11,
                     ),
                   ),
@@ -2962,8 +2985,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
                   Text(
                     'Dig Bala: ${numberText(digValue)}',
-                    style: const TextStyle(
-                      color: _kundliThemeSecondaryText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 11,
                     ),
                   ),
@@ -2972,8 +2995,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
                   Text(
                     'Chesta Bala: ${numberText(chestaValue)}',
-                    style: const TextStyle(
-                      color: _kundliThemeSecondaryText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 11,
                     ),
                   ),
@@ -3040,21 +3063,21 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0x335D79B5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.grid_view_rounded, color: AppColors.gold),
               SizedBox(width: 10),
               Text(
                 'Ashtakavarga',
                 style: TextStyle(
-                  color: _kundliThemePrimaryText,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                 ),
@@ -3062,9 +3085,12 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
             ],
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Sarvashtakavarga totals and planetary bindu distribution',
-            style: TextStyle(color: _kundliThemeSecondaryText, fontSize: 12),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 12,
+            ),
           ),
           const SizedBox(height: 16),
 
@@ -3086,7 +3112,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: _kundliThemeSurface,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0x334F6FA8)),
                 ),
@@ -3095,8 +3121,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                   children: [
                     Text(
                       label,
-                      style: const TextStyle(
-                        color: _kundliThemeSecondaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 10,
                       ),
                     ),
@@ -3130,7 +3156,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: _kundliThemeSurface,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: const Color(0x334F6FA8)),
                 ),
@@ -3163,12 +3189,14 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                             ),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(10),
-                              color: _kundliThemeSurfaceLight,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
                             ),
                             child: Text(
                               '$sign: ${row[index]}',
-                              style: const TextStyle(
-                                color: _kundliThemePrimaryText,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface,
                                 fontSize: 10,
                               ),
                             ),
@@ -3312,7 +3340,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: const Color(0x445D79B5)),
       ),
@@ -3340,8 +3368,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: _kundliThemePrimaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
                       ),
@@ -3351,8 +3379,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                       isRemedies
                           ? 'Personalized spiritual guidance from your Kundli report.'
                           : 'Personalized interpretation based on verified Kundli report data.',
-                      style: const TextStyle(
-                        color: _kundliThemeSecondaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 12,
                         height: 1.4,
                       ),
@@ -3541,14 +3569,14 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 child: const Icon(Icons.route_outlined, color: AppColors.gold),
               ),
               const SizedBox(width: 14),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Transit Overview',
                       style: TextStyle(
-                        color: _kundliThemePrimaryText,
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
                       ),
@@ -3642,8 +3670,10 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                             Expanded(
                               child: Text(
                                 name,
-                                style: const TextStyle(
-                                  color: _kundliThemePrimaryText,
+                                style: TextStyle(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                   fontSize: 15,
                                   fontWeight: FontWeight.w900,
                                 ),
@@ -4093,14 +4123,14 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0x335D79B5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.warning_amber_rounded, color: AppColors.gold),
               SizedBox(width: 10),
@@ -4108,7 +4138,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 child: Text(
                   'Dosha Analysis',
                   style: TextStyle(
-                    color: _kundliThemePrimaryText,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 17,
                     fontWeight: FontWeight.w900,
                   ),
@@ -4117,10 +4147,10 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
             ],
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'A simple summary based on your calculated birth chart.',
             style: TextStyle(
-              color: _kundliThemeSecondaryText,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 12,
               height: 1.4,
             ),
@@ -4136,7 +4166,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(13),
               decoration: BoxDecoration(
-                color: _kundliThemeSurface,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: const Color(0x334F6FA8)),
               ),
@@ -4157,8 +4187,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                       ),
                       Text(
                         present ? 'Present' : 'Not present',
-                        style: const TextStyle(
-                          color: _kundliThemePrimaryText,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
@@ -4168,8 +4198,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                   const SizedBox(height: 7),
                   Text(
                     _kundliSimpleDoshaMeaning(name, present),
-                    style: const TextStyle(
-                      color: _kundliThemeSecondaryText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 11,
                       height: 1.45,
                     ),
@@ -4343,7 +4373,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: _kundliThemeSurface,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0x335D79B5)),
         ),
@@ -4367,8 +4397,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 children: [
                   Text(
                     label,
-                    style: const TextStyle(
-                      color: _kundliThemeSecondaryText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
@@ -4385,8 +4415,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                   const SizedBox(height: 4),
                   Text(
                     periodText(period),
-                    style: const TextStyle(
-                      color: _kundliThemePrimaryText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 12,
                       height: 1.35,
                     ),
@@ -4395,8 +4425,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                     const SizedBox(height: 7),
                     Text(
                       _kundliSimpleDashaMeaning(lord),
-                      style: const TextStyle(
-                        color: _kundliThemeSecondaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 11,
                         height: 1.4,
                       ),
@@ -4414,14 +4444,14 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0x335D79B5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.timeline_rounded, color: AppColors.gold),
               SizedBox(width: 10),
@@ -4429,7 +4459,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 child: Text(
                   'Vimshottari Dasha',
                   style: TextStyle(
-                    color: _kundliThemePrimaryText,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 17,
                     fontWeight: FontWeight.w900,
                   ),
@@ -4440,10 +4470,10 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
           const SizedBox(height: 6),
 
-          const Text(
+          Text(
             'Current planetary periods and complete Mahadasha and Antardasha timeline.',
             style: TextStyle(
-              color: _kundliThemeSecondaryText,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 12,
               height: 1.4,
             ),
@@ -4467,10 +4497,10 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
 
           const SizedBox(height: 20),
 
-          const Text(
+          Text(
             'Mahadasha Timeline',
             style: TextStyle(
-              color: _kundliThemePrimaryText,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 15,
               fontWeight: FontWeight.w900,
             ),
@@ -4479,9 +4509,12 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
           const SizedBox(height: 10),
 
           if (timeline.isEmpty)
-            const Text(
+            Text(
               'Mahadasha timeline is unavailable.',
-              style: TextStyle(color: _kundliThemeSecondaryText, fontSize: 12),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
             )
           else
             ...timeline.map((maha) {
@@ -4502,7 +4535,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 decoration: BoxDecoration(
                   color: isCurrent
                       ? const Color(0x221E88E5)
-                      : _kundliThemeSurface,
+                      : Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: isCurrent ? AppColors.gold : const Color(0x334F6FA8),
@@ -4510,7 +4543,9 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 ),
                 child: ExpansionTile(
                   iconColor: AppColors.gold,
-                  collapsedIconColor: _kundliThemeSecondaryText,
+                  collapsedIconColor: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant,
                   tilePadding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 4,
@@ -4524,7 +4559,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                           style: TextStyle(
                             color: isCurrent
                                 ? AppColors.gold
-                                : _kundliThemePrimaryText,
+                                : Theme.of(context).colorScheme.onSurface,
                             fontWeight: FontWeight.w900,
                             fontSize: 14,
                           ),
@@ -4555,20 +4590,22 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       periodText(maha),
-                      style: const TextStyle(
-                        color: _kundliThemeSecondaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 11,
                       ),
                     ),
                   ),
                   children: [
                     if (children.isEmpty)
-                      const Align(
+                      Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Detailed sub-period timing is not available for this chart.',
                           style: TextStyle(
-                            color: _kundliThemeSecondaryText,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: 11,
                           ),
                         ),
@@ -4591,7 +4628,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                           decoration: BoxDecoration(
                             color: antarIsCurrent
                                 ? const Color(0x2239A0FF)
-                                : _kundliThemeBackground,
+                                : Theme.of(context).scaffoldBackgroundColor,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Row(
@@ -4603,7 +4640,9 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                                   shape: BoxShape.circle,
                                   color: antarIsCurrent
                                       ? AppColors.gold
-                                      : _kundliThemeSecondaryText,
+                                      : Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
                                 ),
                               ),
                               const SizedBox(width: 9),
@@ -4616,7 +4655,9 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                                       style: TextStyle(
                                         color: antarIsCurrent
                                             ? AppColors.gold
-                                            : _kundliThemePrimaryText,
+                                            : Theme.of(
+                                                context,
+                                              ).colorScheme.onSurface,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w800,
                                       ),
@@ -4624,8 +4665,10 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                                     const SizedBox(height: 3),
                                     Text(
                                       '${periodText(antar)}\n${_kundliSimpleAntardashaMeaning(antarLord)}',
-                                      style: const TextStyle(
-                                        color: _kundliThemeSecondaryText,
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
                                         fontSize: 10,
                                       ),
                                     ),
@@ -4780,21 +4823,21 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0x335D79B5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.wb_sunny_outlined, color: AppColors.gold),
               SizedBox(width: 10),
               Text(
                 'Panchang Details',
                 style: TextStyle(
-                  color: _kundliThemePrimaryText,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                 ),
@@ -4812,8 +4855,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                     width: 105,
                     child: Text(
                       entry.key,
-                      style: const TextStyle(
-                        color: _kundliThemeSecondaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -4821,8 +4864,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                   Expanded(
                     child: Text(
                       _formatPanchangDisplayValue(entry.key, entry.value),
-                      style: const TextStyle(
-                        color: _kundliThemePrimaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -4859,21 +4902,21 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0x335D79B5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.public_rounded, color: AppColors.gold),
               SizedBox(width: 10),
               Text(
                 'Planetary Positions',
                 style: TextStyle(
-                  color: _kundliThemePrimaryText,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                 ),
@@ -4893,8 +4936,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
                 fontWeight: FontWeight.w800,
                 fontSize: 13,
               ),
-              dataTextStyle: const TextStyle(
-                color: _kundliThemePrimaryText,
+              dataTextStyle: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
@@ -4967,7 +5010,7 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _kundliThemeSurface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0x335D79B5)),
       ),
@@ -4980,8 +5023,8 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
               const SizedBox(width: 10),
               Text(
                 title,
-                style: const TextStyle(
-                  color: _kundliThemePrimaryText,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                 ),
@@ -4994,16 +5037,16 @@ class _CustomerKundliScreenState extends State<CustomerKundliScreen> {
               providerError
                   ? 'This section is temporarily unavailable. Please try again later.'
                   : unavailableText,
-              style: const TextStyle(
-                color: _kundliThemeSecondaryText,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 height: 1.45,
               ),
             )
           else
             SelectableText(
               _prettyValue(value),
-              style: const TextStyle(
-                color: _kundliThemePrimaryText,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 13,
                 height: 1.5,
               ),
@@ -5083,8 +5126,8 @@ class _DetailRow extends StatelessWidget {
             width: 105,
             child: Text(
               label,
-              style: const TextStyle(
-                color: _kundliThemeSecondaryText,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 12,
               ),
             ),
@@ -5092,8 +5135,8 @@ class _DetailRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
-                color: _kundliThemePrimaryText,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
@@ -5128,8 +5171,8 @@ class _KundliErrorState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: _kundliThemePrimaryText,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 15,
               ),
             ),
@@ -5157,14 +5200,14 @@ class _YogaSummaryChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: _kundliThemeSurfaceLight,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: const Color(0x334F6FA8)),
       ),
       child: Text(
         '$label: $value',
-        style: const TextStyle(
-          color: _kundliThemePrimaryText,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface,
           fontSize: 11,
           fontWeight: FontWeight.w800,
         ),

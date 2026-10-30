@@ -19,10 +19,7 @@ class MarketplaceProductDetailScreen extends StatefulWidget {
 
 class _MarketplaceProductDetailScreenState
     extends State<MarketplaceProductDetailScreen> {
-  static const _background = MarketplacePalette.canvas;
-  static const _surface = MarketplacePalette.surface;
   static const _gold = MarketplacePalette.gold;
-  static const _muted = MarketplacePalette.muted;
 
   final MarketplacePublicApi _publicApi = MarketplacePublicApi();
   final MarketplaceCustomerApi _customerApi = MarketplaceCustomerApi();
@@ -129,10 +126,10 @@ class _MarketplaceProductDetailScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: _background,
-        foregroundColor: MarketplacePalette.ink,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         title: const Text('Product Details'),
         actions: [
           IconButton(
@@ -187,7 +184,9 @@ class _MarketplaceProductDetailScreenState
               Text(
                 _error,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: MarketplacePalette.ink),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
               const SizedBox(height: 18),
               OutlinedButton(onPressed: _load, child: const Text('Retry')),
@@ -200,10 +199,10 @@ class _MarketplaceProductDetailScreenState
     final product = _product;
 
     if (product == null) {
-      return const Center(
+      return Center(
         child: Text(
           'Product unavailable.',
-          style: TextStyle(color: MarketplacePalette.ink),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
         ),
       );
     }
@@ -267,7 +266,7 @@ class _MarketplaceProductDetailScreenState
           height: 300,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            color: _surface,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(24),
           ),
           child: imageUrls.isEmpty
@@ -306,23 +305,28 @@ class _MarketplaceProductDetailScreenState
         const SizedBox(height: 6),
         Text(
           name.isEmpty ? 'Marketplace product' : name,
-          style: const TextStyle(
-            color: MarketplacePalette.ink,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 24,
             fontWeight: FontWeight.w900,
           ),
         ),
         if (sellerName.isNotEmpty) ...[
           const SizedBox(height: 7),
-          Text('Sold by $sellerName', style: const TextStyle(color: _muted)),
+          Text(
+            'Sold by $sellerName',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
         ],
         const SizedBox(height: 16),
         Row(
           children: [
             Text(
               '${_symbol(currency)}$sellingPrice',
-              style: const TextStyle(
-                color: MarketplacePalette.ink,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 23,
                 fontWeight: FontWeight.w900,
               ),
@@ -331,8 +335,8 @@ class _MarketplaceProductDetailScreenState
               const SizedBox(width: 10),
               Text(
                 '${_symbol(currency)}$mrp',
-                style: const TextStyle(
-                  color: _muted,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   decoration: TextDecoration.lineThrough,
                 ),
               ),
@@ -343,7 +347,7 @@ class _MarketplaceProductDetailScreenState
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: _surface,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(18),
           ),
           child: Column(
@@ -360,7 +364,9 @@ class _MarketplaceProductDetailScreenState
                 const SizedBox(height: 8),
                 Text(
                   'Shipping: ${_symbol(currency)}$shipping',
-                  style: const TextStyle(color: _muted),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ],
@@ -368,10 +374,10 @@ class _MarketplaceProductDetailScreenState
         ),
         if (description.isNotEmpty) ...[
           const SizedBox(height: 22),
-          const Text(
+          Text(
             'Description',
             style: TextStyle(
-              color: MarketplacePalette.ink,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 18,
               fontWeight: FontWeight.w800,
             ),
@@ -379,8 +385,8 @@ class _MarketplaceProductDetailScreenState
           const SizedBox(height: 8),
           Text(
             description,
-            style: const TextStyle(
-              color: MarketplacePalette.muted,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               height: 1.5,
             ),
           ),
@@ -390,7 +396,7 @@ class _MarketplaceProductDetailScreenState
           children: [
             Container(
               decoration: BoxDecoration(
-                color: _surface,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
@@ -400,12 +406,12 @@ class _MarketplaceProductDetailScreenState
                         ? () => setState(() => _quantity--)
                         : null,
                     icon: const Icon(Icons.remove),
-                    color: MarketplacePalette.ink,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                   Text(
                     '$_quantity',
-                    style: const TextStyle(
-                      color: MarketplacePalette.ink,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -414,7 +420,7 @@ class _MarketplaceProductDetailScreenState
                         ? () => setState(() => _quantity++)
                         : null,
                     icon: const Icon(Icons.add),
-                    color: MarketplacePalette.ink,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ],
               ),

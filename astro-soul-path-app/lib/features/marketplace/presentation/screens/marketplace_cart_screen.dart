@@ -19,7 +19,6 @@ class MarketplaceCartScreen extends StatefulWidget {
 
 class _MarketplaceCartScreenState
     extends MarketplacePrivateState<MarketplaceCartScreen> {
-  static const _background = MarketplacePalette.canvas;
   static const _surface = MarketplacePalette.surface;
   static const _gold = MarketplacePalette.gold;
   static const _muted = MarketplacePalette.muted;
@@ -532,22 +531,22 @@ class _MarketplaceCartScreenState
   @override
   Widget buildMarketplace(BuildContext context) {
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         leading: IconButton(
           tooltip: 'Back',
           onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(
+          icon: Icon(
             Icons.arrow_back_rounded,
-            color: MarketplacePalette.ink,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
-        backgroundColor: _background,
-        foregroundColor: MarketplacePalette.ink,
-        title: const Text(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        title: Text(
           'Your Cart',
           style: TextStyle(
-            color: MarketplacePalette.ink,
+            color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.w700,
           ),
         ),

@@ -15,20 +15,20 @@ class CosmicAstrologerHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
-    decoration: const BoxDecoration(
-      color: CosmicIvory.lavender,
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
     ),
     child: CustomPaint(
       painter: const _CelestialCorners(),
       child: Column(
         children: [
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 Icons.auto_awesome_outlined,
-                color: CosmicIvory.amethyst,
+                color: Theme.of(context).colorScheme.primary,
                 size: 18,
               ),
               SizedBox(width: 8),
@@ -37,7 +37,7 @@ class CosmicAstrologerHero extends StatelessWidget {
                   'ASTRO SOUL PATH',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: CosmicIvory.purple,
+                    color: Theme.of(context).colorScheme.onSurface,
                     letterSpacing: 2,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -52,27 +52,29 @@ class CosmicAstrologerHero extends StatelessWidget {
           Text(
             astrologer.name,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: CosmicIvory.purple,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 27,
               fontWeight: FontWeight.w800,
             ),
           ),
           if (astrologer.isVerified) ...[
             const SizedBox(height: 6),
-            const Wrap(
+            Wrap(
               alignment: WrapAlignment.center,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Icon(
                   Icons.verified_outlined,
                   size: 18,
-                  color: CosmicIvory.amethyst,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
                 SizedBox(width: 6),
                 Text(
                   'Verified astrologer',
-                  style: TextStyle(color: CosmicIvory.purple),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                 ),
               ],
             ),
@@ -81,8 +83,8 @@ class CosmicAstrologerHero extends StatelessWidget {
           Text(
             astrologer.primaryExpertise,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: CosmicIvory.ink,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 15,
               height: 1.5,
             ),
@@ -95,7 +97,7 @@ class CosmicAstrologerHero extends StatelessWidget {
             style: TextStyle(
               color: astrologer.isOnline && !astrologer.isBusy
                   ? CosmicIvory.success
-                  : CosmicIvory.muted,
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -117,7 +119,7 @@ class CosmicAvatar extends StatelessWidget {
             ? 'A'
             : astrologer.name.characters.first.toUpperCase(),
         style: TextStyle(
-          color: CosmicIvory.amethyst,
+          color: Theme.of(context).colorScheme.primary,
           fontSize: size * .35,
           fontWeight: FontWeight.w800,
         ),
@@ -130,7 +132,7 @@ class CosmicAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: CosmicIvory.gold, width: 1.5),
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
       ),
       child: ClipOval(
         child: astrologer.avatarUrl?.isNotEmpty == true
@@ -167,7 +169,7 @@ class CosmicSimilarAstrologer extends StatelessWidget {
           child: Container(
             width: 210,
             padding: const EdgeInsets.all(16),
-            decoration: CosmicIvory.card(),
+            decoration: CosmicIvory.card(context: context),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,8 +183,8 @@ class CosmicSimilarAstrologer extends StatelessWidget {
                         astrologer.name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: CosmicIvory.purple,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -194,15 +196,18 @@ class CosmicSimilarAstrologer extends StatelessWidget {
                   astrologer.primaryExpertise,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: CosmicIvory.muted,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 12,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   astrologer.experienceLabel,
-                  style: const TextStyle(color: CosmicIvory.ink, fontSize: 12),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontSize: 12,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -217,24 +222,24 @@ class CosmicSimilarAstrologer extends StatelessWidget {
                       ),
                     Text(
                       astrologer.ratingLabel,
-                      style: const TextStyle(
-                        color: CosmicIvory.purple,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     if (astrologer.isVerified)
-                      const Icon(
+                      Icon(
                         Icons.verified_outlined,
                         size: 16,
-                        color: CosmicIvory.amethyst,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Text(
                   astrologer.priceLabel,
-                  style: const TextStyle(
-                    color: CosmicIvory.purple,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -247,7 +252,7 @@ class CosmicSimilarAstrologer extends StatelessWidget {
                   style: TextStyle(
                     color: astrologer.isOnline && !astrologer.isBusy
                         ? CosmicIvory.success
-                        : CosmicIvory.muted,
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 12,
                   ),
                 ),

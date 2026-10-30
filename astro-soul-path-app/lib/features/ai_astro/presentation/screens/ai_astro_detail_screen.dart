@@ -197,7 +197,7 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
               ),
               backgroundColor: _isFollowing
                   ? const Color(0xFFF5EFFA)
-                  : const Color(0xFFFFF9F1),
+                  : Theme.of(context).colorScheme.surfaceContainerLowest,
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(22),
@@ -249,10 +249,10 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
         : persona.expertise.join(', ');
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF9F1),
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: const Color(0xFFFFF9F1),
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
         foregroundColor: const Color(0xFF14213D),
         title: const Text(
           'AI Astrologer Details',
@@ -343,8 +343,8 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
                 Text(
                   persona.name,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF14213D),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 25,
                     fontWeight: FontWeight.w900,
                   ),
@@ -543,8 +543,8 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
                           const SizedBox(width: 6),
                           Text(
                             (_reviews?.averageRating ?? 0).toStringAsFixed(1),
-                            style: const TextStyle(
-                              color: Color(0xFF14213D),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 18,
                               fontWeight: FontWeight.w900,
                             ),
@@ -583,8 +583,8 @@ class _AiAstroDetailScreenState extends State<AiAstroDetailScreen> {
         top: false,
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-          decoration: const BoxDecoration(
-            color: Color(0xFFFFF9F1),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
             border: Border(top: BorderSide(color: Color(0x335E5E5E))),
           ),
           child: SizedBox(
@@ -673,8 +673,8 @@ class _InfoChip extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             text,
-            style: const TextStyle(
-              color: Color(0xFF14213D),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -706,8 +706,8 @@ class _SectionCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(
-              color: Color(0xFF14213D),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 17,
               fontWeight: FontWeight.w900,
             ),
@@ -754,8 +754,8 @@ class _DetailRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
-                color: Color(0xFF14213D),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
               ),
@@ -801,8 +801,8 @@ class _AiReviewTile extends StatelessWidget {
                   review.customerName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF14213D),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                   ),

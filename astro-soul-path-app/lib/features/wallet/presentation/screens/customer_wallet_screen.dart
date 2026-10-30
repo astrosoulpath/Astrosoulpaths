@@ -165,11 +165,13 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: AppColors.surfaceLight,
-          title: const Text(
+          backgroundColor: Theme.of(
+            context,
+          ).colorScheme.surfaceContainerHighest,
+          title: Text(
             'Add money',
             style: TextStyle(
-              color: AppColors.white,
+              color: Theme.of(context).colorScheme.onSurface,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -177,12 +179,14 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
             onChanged: (value) => amountText = value,
             autofocus: true,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            style: const TextStyle(color: AppColors.white),
-            decoration: const InputDecoration(
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+            decoration: InputDecoration(
               prefixText: '\u20B9 ',
               prefixStyle: TextStyle(color: AppColors.gold),
               hintText: 'Enter amount',
-              hintStyle: TextStyle(color: AppColors.muted),
+              hintStyle: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           actions: [
@@ -475,11 +479,11 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Loaded Transactions',
                       style: TextStyle(
-                        color: AppColors.white,
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
                       ),
@@ -487,8 +491,8 @@ class _CustomerWalletScreenState extends State<CustomerWalletScreen> {
                   ),
                   Text(
                     '${_transactions.length}',
-                    style: const TextStyle(
-                      color: AppColors.muted,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -552,7 +556,7 @@ class _WalletBalanceCard extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
         boxShadow: const [
           BoxShadow(
             color: Color(0x33000000),
@@ -564,14 +568,14 @@ class _WalletBalanceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.account_balance_wallet_rounded, color: AppColors.gold),
               SizedBox(width: 10),
               Text(
                 'Available Balance',
                 style: TextStyle(
-                  color: AppColors.muted,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -580,8 +584,8 @@ class _WalletBalanceCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             _amount(wallet.availableBalance, wallet.currency),
-            style: const TextStyle(
-              color: AppColors.white,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 38,
               fontWeight: FontWeight.w900,
             ),
@@ -615,7 +619,7 @@ class _WalletBalanceCard extends StatelessWidget {
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(54),
               backgroundColor: AppColors.gold,
-              foregroundColor: AppColors.background,
+              foregroundColor: Theme.of(context).scaffoldBackgroundColor,
             ),
             icon: const Icon(Icons.add_rounded),
             label: const Text(
@@ -624,9 +628,13 @@ class _WalletBalanceCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          const Text(
+          Text(
             'Balance is credited only after backend payment verification.',
-            style: TextStyle(color: AppColors.muted, fontSize: 11, height: 1.4),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 11,
+              height: 1.4,
+            ),
           ),
         ],
       ),
@@ -647,13 +655,16 @@ class _BalanceDetail extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(color: AppColors.muted, fontSize: 12),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 12,
+          ),
         ),
         const SizedBox(height: 5),
         Text(
           value,
-          style: const TextStyle(
-            color: AppColors.white,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -676,9 +687,9 @@ class _TransactionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
       ),
       child: Row(
         children: [
@@ -703,15 +714,18 @@ class _TransactionCard extends StatelessWidget {
                   transaction.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.white,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 5),
                 Text(
                   _date(transaction.createdAt),
-                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -756,8 +770,8 @@ class _WalletMessage extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.white,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 19,
                 fontWeight: FontWeight.w900,
               ),
@@ -766,7 +780,10 @@ class _WalletMessage extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.muted, height: 1.5),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.5,
+              ),
             ),
             if (buttonLabel != null && onPressed != null) ...[
               const SizedBox(height: 18),

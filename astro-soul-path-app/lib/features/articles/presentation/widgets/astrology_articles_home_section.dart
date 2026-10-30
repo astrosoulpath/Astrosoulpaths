@@ -75,12 +75,12 @@ class _AstrologyArticlesHomeSectionState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 20),
             child: Text(
               'Top Articles',
               style: TextStyle(
-                color: Color(0xFF17213A),
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 23,
                 fontWeight: FontWeight.w800,
               ),
@@ -111,7 +111,7 @@ class _AstrologyArticlesHomeSectionState
                     width: 190,
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(
                         color: const Color(0xFFF0C857),
@@ -145,8 +145,8 @@ class _AstrologyArticlesHomeSectionState
                           article.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF17213A),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 15,
                             height: 1.16,
                             fontWeight: FontWeight.w800,

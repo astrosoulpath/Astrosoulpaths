@@ -280,7 +280,7 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
               child: Container(
                 padding: const EdgeInsets.fromLTRB(24, 28, 24, 22),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(28),
                   border: Border.all(
                     color: AppColors.gold.withValues(alpha: 0.35),
@@ -324,11 +324,11 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    const Text(
+                    Text(
                       'Your payment has been verified and the amount has been added to your wallet.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: AppColors.muted,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 14,
                         height: 1.5,
                       ),
@@ -349,10 +349,12 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                       ),
                       child: Column(
                         children: [
-                          const Text(
+                          Text(
                             'Available Wallet Balance',
                             style: TextStyle(
-                              color: AppColors.muted,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
@@ -379,7 +381,9 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                         },
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.gold,
-                          foregroundColor: AppColors.background,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).scaffoldBackgroundColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -448,9 +452,9 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         foregroundColor: Colors.white,
         elevation: 0,
         title: const Text(
@@ -473,7 +477,7 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(54),
                     backgroundColor: AppColors.gold,
-                    foregroundColor: AppColors.background,
+                    foregroundColor: Theme.of(context).scaffoldBackgroundColor,
                   ),
                   child: Text(
                     _pendingRazorpayOrderId != null
@@ -492,9 +496,9 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.surfaceLight,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: Theme.of(context).colorScheme.outline),
         ),
         child: Column(
           children: [
@@ -533,7 +537,7 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
               ),
             ),
             if (_customAmountExpanded) ...[
-              const Divider(height: 1, color: AppColors.border),
+              Divider(height: 1, color: Theme.of(context).colorScheme.outline),
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Row(
@@ -551,7 +555,11 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                         decoration: InputDecoration(
                           hintText: 'Minimum Recharge \u20B950',
                           prefixText: '\u20B9 ',
-                          hintStyle: const TextStyle(color: AppColors.muted),
+                          hintStyle: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
                           prefixStyle: const TextStyle(
                             color: AppColors.gold,
                             fontWeight: FontWeight.w800,
@@ -560,8 +568,8 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                           fillColor: Colors.black,
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(
-                              color: AppColors.border,
+                            borderSide: BorderSide(
+                              color: Theme.of(context).colorScheme.outline,
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
@@ -639,7 +647,10 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
           Text(
             _error!,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.muted, fontSize: 14),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 14,
+            ),
           ),
           const SizedBox(height: 18),
           Center(
@@ -664,20 +675,23 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
             size: 52,
           ),
           const SizedBox(height: 18),
-          const Text(
+          Text(
             'No recharge packs are available right now.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: AppColors.navy,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 16,
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Please check again later.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.muted, fontSize: 13),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 13,
+            ),
           ),
           const SizedBox(height: 20),
           _buildCustomAmountSection(),
@@ -704,10 +718,12 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Available Balance',
                           style: TextStyle(
-                            color: AppColors.muted,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
@@ -724,8 +740,10 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                         const SizedBox(height: 7),
                         Text(
                           'Paid: ${_money(_wallet!.paidBalance)}  |  Free: ${_money(_wallet!.freeBalance)}',
-                          style: const TextStyle(
-                            color: AppColors.muted,
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -825,8 +843,10 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: hasBonus
-                                    ? AppColors.background
-                                    : AppColors.muted,
+                                    ? Theme.of(context).scaffoldBackgroundColor
+                                    : Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -841,7 +861,7 @@ class _RechargePackScreenState extends State<RechargePackScreen> {
                                   vertical: 3,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: Theme.of(context).colorScheme.surface,
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(

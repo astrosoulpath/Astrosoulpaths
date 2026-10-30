@@ -13,6 +13,8 @@ import '../../../kundli/presentation/screens/customer_kundli_screen.dart';
 import '../../data/app_notification.dart';
 import '../../data/notifications_api.dart';
 import '../widgets/horoscope_reminder_tile.dart';
+import 'subscription_notifications_screen.dart';
+import '../../../subscription/presentation/screens/subscription_plans_screen.dart';
 import 'notification_reading_screen.dart';
 
 class CustomerNotificationsScreen extends StatefulWidget {
@@ -277,11 +279,14 @@ class _CustomerNotificationsScreenState
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Notifications',
-          style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w900),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.w900,
+          ),
         ),
         actions: [
           if (hasUnread)
@@ -301,6 +306,18 @@ class _CustomerNotificationsScreenState
       body: Column(
         children: [
           const HoroscopeReminderTile(),
+          ListTile(
+            leading: const Icon(Icons.notifications_outlined),
+            title: const Text('Subscription reminders'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const SubscriptionNotificationsScreen(
+                  audience: SubscriptionAudience.customer,
+                ),
+              ),
+            ),
+          ),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -360,16 +377,18 @@ class _CustomerNotificationsScreenState
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           const SizedBox(height: 150),
-          const Icon(
+          Icon(
             Icons.notifications_none_rounded,
-            color: AppColors.muted,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             size: 52,
           ),
           const SizedBox(height: 14),
           Text(
             _error!,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.muted),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 16),
           Center(
@@ -385,11 +404,11 @@ class _CustomerNotificationsScreenState
     if (visible.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        children: const [
+        children: [
           SizedBox(height: 160),
           Icon(
             Icons.notifications_none_rounded,
-            color: AppColors.muted,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             size: 58,
           ),
           SizedBox(height: 14),
@@ -397,7 +416,7 @@ class _CustomerNotificationsScreenState
             'No notifications yet',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: AppColors.white,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 18,
               fontWeight: FontWeight.w800,
             ),
@@ -406,7 +425,10 @@ class _CustomerNotificationsScreenState
           Text(
             'Your important updates will appear here.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.muted, fontSize: 13),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 13,
+            ),
           ),
         ],
       );
@@ -426,7 +448,9 @@ class _CustomerNotificationsScreenState
           child: Container(
             padding: const EdgeInsets.all(15),
             decoration: BoxDecoration(
-              color: item.isRead ? AppColors.surface : AppColors.surfaceLight,
+              color: item.isRead
+                  ? Theme.of(context).colorScheme.surface
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
                 color: item.isRead
@@ -462,7 +486,7 @@ class _CustomerNotificationsScreenState
                             child: Text(
                               item.title,
                               style: TextStyle(
-                                color: AppColors.white,
+                                color: Theme.of(context).colorScheme.onSurface,
                                 fontSize: 14,
                                 fontWeight: item.isRead
                                     ? FontWeight.w700
@@ -473,8 +497,10 @@ class _CustomerNotificationsScreenState
                           const SizedBox(width: 8),
                           Text(
                             _timeLabel(item.createdAt),
-                            style: const TextStyle(
-                              color: AppColors.muted,
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                               fontSize: 10,
                             ),
                           ),
@@ -483,8 +509,8 @@ class _CustomerNotificationsScreenState
                       const SizedBox(height: 5),
                       Text(
                         item.body,
-                        style: const TextStyle(
-                          color: AppColors.muted,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 12,
                           height: 1.4,
                         ),

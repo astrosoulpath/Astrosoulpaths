@@ -23,6 +23,14 @@ class PreferencesApi {
 
   final http.Client _client;
   final AuthSessionStore _sessionStore;
+  final int _revision = AuthSessionStore.sessionRevision;
+  void _checkAccount() {
+    if (_revision != AuthSessionStore.sessionRevision) {
+      throw const PreferencesApiException(
+        'Your account changed. Reopen preferences.',
+      );
+    }
+  }
 
   Future<AppPreferences> getPreferences() async {
     final body = await _request(
@@ -79,7 +87,9 @@ class PreferencesApi {
     Map<String, dynamic>? payload,
     required String fallbackError,
   }) async {
+    _checkAccount();
     final session = await _sessionStore.read();
+    _checkAccount();
     final accessToken = session?.accessToken.trim() ?? '';
 
     if (accessToken.isEmpty) {
@@ -110,6 +120,7 @@ class PreferencesApi {
           .timeout(ApiConfig.requestTimeout);
 
       final response = await http.Response.fromStream(streamedResponse);
+      _checkAccount();
 
       final Map<String, dynamic> body;
       if (response.body.trim().isEmpty) {

@@ -24,16 +24,19 @@ class NotificationsApi {
   final http.Client _client;
   final AuthSessionStore _sessionStore;
   String? _owner;
+  String? _portal;
   int? _generation;
   bool _closed = false;
 
   Future<void> _checkOwner() async {
-    final id = (await _sessionStore.read())?.user['id'];
+    final currentSession = await _sessionStore.read();
+    final id = currentSession?.user['id'];
     if (_closed ||
         NotificationSessionFence.suspended ||
         id is! String ||
         id.isEmpty ||
         (_owner != null && _owner != id) ||
+        (_portal != null && _portal != currentSession?.portal) ||
         (_generation != null &&
             _generation != NotificationSessionFence.generation)) {
       throw const NotificationsApiException(
@@ -41,6 +44,7 @@ class NotificationsApi {
       );
     }
     _owner = id;
+    _portal = currentSession?.portal;
     _generation = NotificationSessionFence.generation;
   }
 
@@ -111,6 +115,84 @@ class NotificationsApi {
       // Internet/backend timeout must never masquerade as logout.
       throw const NotificationsApiException(
         'Unable to connect to notifications. Please try again.',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> subscriptionReminders() async {
+    final response = await _authenticatedNotificationRequest(
+      (token) => _client
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/notifications/subscriptions'),
+            headers: {'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 12)),
+    );
+    final body = _decode(response.body);
+    if (response.statusCode != 200 || body['data'] is! Map) {
+      throw const NotificationsApiException(
+        'Subscription reminders are unavailable. Please retry.',
+      );
+    }
+    final data = Map<String, dynamic>.from(body['data'] as Map);
+    if (data['ownerId'] != _owner ||
+        data['roleContext']?.toString().toLowerCase() !=
+            _portal?.toLowerCase() ||
+        data['reminders'] is! List ||
+        data['preference'] is! Map ||
+        data['product'] is! Map ||
+        data['unreadCount'] is! int) {
+      throw const NotificationsApiException(
+        'Subscription response could not be verified.',
+      );
+    }
+    return data;
+  }
+
+  Future<void> readSubscriptionReminder(String id) async {
+    final response = await _authenticatedNotificationRequest(
+      (token) => _client
+          .patch(
+            Uri.parse(
+              '${ApiConfig.baseUrl}/notifications/subscriptions/${Uri.encodeComponent(id)}/read',
+            ),
+            headers: {'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 12)),
+    );
+    if (response.statusCode != 200) {
+      throw const NotificationsApiException('Unable to mark reminder read.');
+    }
+  }
+
+  Future<void> subscriptionPreference({
+    required bool enabled,
+    required String timezone,
+    int quietStart = 22,
+    int quietEnd = 8,
+  }) async {
+    final response = await _authenticatedNotificationRequest(
+      (token) => _client
+          .patch(
+            Uri.parse(
+              '${ApiConfig.baseUrl}/notifications/subscriptions/preference',
+            ),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'pushEnabled': enabled,
+              'timezone': timezone,
+              'quietStart': quietStart,
+              'quietEnd': quietEnd,
+            }),
+          )
+          .timeout(const Duration(seconds: 12)),
+    );
+    if (response.statusCode != 200) {
+      throw const NotificationsApiException(
+        'Reminder preferences could not be saved.',
       );
     }
   }

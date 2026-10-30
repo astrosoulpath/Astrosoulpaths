@@ -5,7 +5,6 @@ import 'kundli_assistant_design.dart';
 
 const _ink = Color(0xFF273047);
 const _gold = Color(0xFF997124);
-const _ivory = Color(0xFFFFFAF2);
 
 class PremiumKundliAiPresentation extends StatelessWidget {
   const PremiumKundliAiPresentation({
@@ -40,18 +39,13 @@ class PremiumKundliAiPresentation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Theme(
-    data: Theme.of(context).copyWith(
-      colorScheme: ColorScheme.fromSeed(seedColor: _ink, surface: Colors.white),
-      textTheme: Theme.of(
-        context,
-      ).textTheme.apply(bodyColor: _ink, displayColor: _ink),
-    ),
+    data: Theme.of(context),
     child: Scaffold(
-      backgroundColor: _ivory,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         toolbarHeight: 64 * MediaQuery.textScalerOf(context).scale(1),
-        backgroundColor: _ivory,
-        foregroundColor: _ink,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         title: Text('Kundli AI · ${design.title}', softWrap: true),
       ),
       body: SafeArea(
@@ -72,13 +66,17 @@ class PremiumKundliAiPresentation extends StatelessWidget {
                   Semantics(
                     liveRegion: true,
                     child: _panel(
+                      context,
                       child: Text(
                         grounded == true
                             ? '✓ Kundli context confirmed by the latest AI response'
                             : grounded == false
                             ? 'Latest response did not confirm Kundli grounding'
                             : 'Kundli context not yet verified. Checked when you ask.',
-                        style: const TextStyle(color: _ink, height: 1.5),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          height: 1.5,
+                        ),
                       ),
                     ),
                   ),
@@ -92,7 +90,7 @@ class PremiumKundliAiPresentation extends StatelessWidget {
                       ),
                     ),
                   const SizedBox(height: 22),
-                  _title('${design.title} Insights'),
+                  _title(context, '${design.title} Insights'),
                   LayoutBuilder(
                     builder: (context, constraints) {
                       final single =
@@ -109,6 +107,7 @@ class PremiumKundliAiPresentation extends StatelessWidget {
                                 ? constraints.maxWidth
                                 : (constraints.maxWidth - 12) / 2,
                             child: _panel(
+                              context,
                               child: TextButton(
                                 onPressed: sending
                                     ? null
@@ -123,7 +122,11 @@ class PremiumKundliAiPresentation extends StatelessWidget {
                                     const SizedBox(height: 10),
                                     Text(
                                       topics[i],
-                                      style: const TextStyle(color: _ink),
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurface,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -135,14 +138,16 @@ class PremiumKundliAiPresentation extends StatelessWidget {
                     },
                   ),
                   const SizedBox(height: 22),
-                  _title('Popular Questions'),
+                  _title(context, 'Popular Questions'),
                   for (final question in _questions)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: OutlinedButton(
                         onPressed: sending ? null : () => _choose(question),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: _ink,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.onSurface,
                           alignment: Alignment.centerLeft,
                           minimumSize: const Size.fromHeight(48),
                           padding: const EdgeInsets.all(14),
@@ -153,12 +158,16 @@ class PremiumKundliAiPresentation extends StatelessWidget {
                     ),
                   ?freeChat,
                   const SizedBox(height: 18),
-                  _title('Your conversation'),
+                  _title(context, 'Your conversation'),
                   if (messages.isEmpty)
                     _panel(
-                      child: const Text(
+                      context,
+                      child: Text(
                         'Choose a question or write below. Astrology offers perspective, not certainty.',
-                        style: TextStyle(color: _ink, height: 1.6),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          height: 1.6,
+                        ),
                       ),
                     ),
                   for (final message in messages)
@@ -169,9 +178,12 @@ class PremiumKundliAiPresentation extends StatelessWidget {
                       child: Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _panel(
+                          context,
                           color: message.fromUser
-                              ? const Color(0xFFF0E8F4)
-                              : Colors.white,
+                              ? Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerHighest
+                              : Theme.of(context).colorScheme.surface,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -185,8 +197,10 @@ class PremiumKundliAiPresentation extends StatelessWidget {
                               const SizedBox(height: 8),
                               SelectableText(
                                 message.text,
-                                style: const TextStyle(
-                                  color: _ink,
+                                style: TextStyle(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                   height: 1.6,
                                 ),
                               ),
@@ -197,6 +211,7 @@ class PremiumKundliAiPresentation extends StatelessWidget {
                     ),
                   if (sending)
                     _panel(
+                      context,
                       child: Semantics(
                         liveRegion: true,
                         child: Row(
@@ -213,10 +228,14 @@ class PremiumKundliAiPresentation extends StatelessWidget {
                             else
                               const Icon(Icons.more_horiz, color: _gold),
                             const SizedBox(width: 12),
-                            const Expanded(
+                            Expanded(
                               child: Text(
                                 'Preparing your guidance…',
-                                style: TextStyle(color: _ink),
+                                style: TextStyle(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
+                                ),
                               ),
                             ),
                           ],
@@ -225,9 +244,15 @@ class PremiumKundliAiPresentation extends StatelessWidget {
                     ),
                   if (error != null)
                     _panel(
+                      context,
                       child: Column(
                         children: [
-                          Text(error!, style: const TextStyle(color: _ink)),
+                          Text(
+                            error!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
                           TextButton.icon(
                             onPressed: sending ? null : onRetry,
                             icon: const Icon(Icons.refresh),
@@ -257,12 +282,14 @@ class PremiumKundliAiPresentation extends StatelessWidget {
                           onSend();
                         }
                       },
-                      style: const TextStyle(color: _ink),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                       decoration: InputDecoration(
                         counterText: '',
                         hintText: 'Ask about ${design.title}…',
                         filled: true,
-                        fillColor: Colors.white,
+                        fillColor: Theme.of(context).colorScheme.surface,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
                         ),
@@ -275,8 +302,10 @@ class PremiumKundliAiPresentation extends StatelessWidget {
                     builder: (_, value, _) => IconButton.filled(
                       tooltip: 'Send question',
                       style: IconButton.styleFrom(
-                        backgroundColor: _ink,
-                        foregroundColor: Colors.white,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onPrimary,
                         minimumSize: const Size(48, 48),
                       ),
                       onPressed: sending || value.text.trim().isEmpty
@@ -295,29 +324,36 @@ class PremiumKundliAiPresentation extends StatelessWidget {
   );
 }
 
-Widget _title(String value) => Padding(
+Widget _title(BuildContext context, String value) => Padding(
   padding: const EdgeInsets.only(bottom: 12),
   child: Text(
     value,
-    style: const TextStyle(
-      color: _ink,
+    style: TextStyle(
+      color: Theme.of(context).colorScheme.onSurface,
       fontSize: 21,
       fontWeight: FontWeight.w700,
     ),
   ),
 );
-Widget _panel({required Widget child, Color color = Colors.white}) => Container(
-  padding: const EdgeInsets.all(16),
-  decoration: BoxDecoration(
-    color: color.withValues(alpha: .92),
-    borderRadius: BorderRadius.circular(22),
-    border: Border.all(color: const Color(0xFFE8DCC7)),
-    boxShadow: const [
-      BoxShadow(color: Color(0x0A997124), blurRadius: 18, offset: Offset(0, 6)),
-    ],
-  ),
-  child: child,
-);
+Widget _panel(BuildContext context, {required Widget child, Color? color}) =>
+    Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: (color ?? Theme.of(context).colorScheme.surface).withValues(
+          alpha: .92,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE8DCC7)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A997124),
+            blurRadius: 18,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: child,
+    );
 
 class PremiumCelestialHero extends StatefulWidget {
   const PremiumCelestialHero({super.key, this.design = marriageAssistant});
@@ -380,6 +416,7 @@ class _PremiumCelestialHeroState extends State<PremiumCelestialHero>
 
   @override
   Widget build(BuildContext context) => _panel(
+    context,
     child: Column(
       children: [
         RepaintBoundary(
@@ -404,7 +441,7 @@ class _PremiumCelestialHeroState extends State<PremiumCelestialHero>
           widget.design.heroTitle,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: _ink,
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 27,
             height: 1.2,
             fontWeight: FontWeight.w700,
@@ -420,9 +457,12 @@ class _PremiumCelestialHeroState extends State<PremiumCelestialHero>
                 final painter = TextPainter(
                   text: TextSpan(
                     text: message,
-                    style: DefaultTextStyle.of(
-                      context,
-                    ).style.merge(const TextStyle(color: _ink, height: 1.5)),
+                    style: DefaultTextStyle.of(context).style.merge(
+                      TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                        height: 1.5,
+                      ),
+                    ),
                   ),
                   textDirection: Directionality.of(context),
                   textScaler: MediaQuery.textScalerOf(context),
@@ -453,7 +493,10 @@ class _PremiumCelestialHeroState extends State<PremiumCelestialHero>
             messages[_index],
             key: ValueKey(_index),
             textAlign: TextAlign.center,
-            style: const TextStyle(color: _ink, height: 1.5),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+              height: 1.5,
+            ),
           ),
         ),
         Wrap(

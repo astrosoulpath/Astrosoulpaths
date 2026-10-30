@@ -14,11 +14,6 @@ class PredictionsScreen extends StatefulWidget {
 }
 
 class _PredictionsScreenState extends State<PredictionsScreen> {
-  static const Color _background = Color(0xFFFFF8EE);
-  static const Color _navy = Color(0xFF17233C);
-  static const Color _purple = Color(0xFF6F4A8E);
-  static const Color _border = Color(0xFFE8DCEC);
-
   final ProfileApi _profileApi = ProfileApi();
   final KundliApi _kundliApi = KundliApi();
 
@@ -473,8 +468,8 @@ class _PredictionsScreenState extends State<PredictionsScreen> {
           expand: false,
           builder: (context, scrollController) {
             return Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFFBF5),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
               ),
               child: Column(
@@ -499,14 +494,18 @@ class _PredictionsScreenState extends State<PredictionsScreen> {
                             color: Color(0xFFF1E8F7),
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(icon, color: _purple, size: 23),
+                          child: Icon(
+                            icon,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 23,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             title,
-                            style: const TextStyle(
-                              color: _navy,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
                             ),
@@ -549,11 +548,11 @@ class _PredictionsScreenState extends State<PredictionsScreen> {
     final report = _report;
 
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: _background,
-        foregroundColor: _navy,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         centerTitle: true,
         title: const Text(
           'Predictions',
@@ -570,10 +569,10 @@ class _PredictionsScreenState extends State<PredictionsScreen> {
               const _PredictionHero(),
               const SizedBox(height: 20),
 
-              const Text(
+              Text(
                 'Birth details',
                 style: TextStyle(
-                  color: _navy,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
@@ -588,9 +587,11 @@ class _PredictionsScreenState extends State<PredictionsScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: _border),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -634,8 +635,12 @@ class _PredictionsScreenState extends State<PredictionsScreen> {
                               ),
                               label: const Text('Fill City Manually'),
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: _purple,
-                                side: const BorderSide(color: _border),
+                                foregroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
+                                side: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline,
+                                ),
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
                                   vertical: 12,
@@ -665,7 +670,7 @@ class _PredictionsScreenState extends State<PredictionsScreen> {
                                   _makeDefaultCity
                                       ? Icons.check_circle_rounded
                                       : Icons.check_circle_outline_rounded,
-                                  color: _purple,
+                                  color: Theme.of(context).colorScheme.primary,
                                   size: 21,
                                 ),
                               ),
@@ -689,10 +694,10 @@ class _PredictionsScreenState extends State<PredictionsScreen> {
 
               const SizedBox(height: 20),
 
-              const Text(
+              Text(
                 'Your predictions',
                 style: TextStyle(
-                  color: _navy,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
@@ -807,9 +812,11 @@ class _PredictionsScreenState extends State<PredictionsScreen> {
                       ? null
                       : _loadPredictions,
                   style: FilledButton.styleFrom(
-                    backgroundColor: _purple,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor: _purple.withValues(alpha: 0.45),
+                    disabledBackgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.45),
                     disabledForegroundColor: Colors.white.withValues(
                       alpha: 0.75,
                     ),
@@ -1511,7 +1518,7 @@ class _PredictionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(17),
       child: InkWell(
         onTap: onTap,
@@ -1564,7 +1571,7 @@ class _LoadingCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFE8DCEC)),
       ),
@@ -1604,7 +1611,7 @@ class _EmptyProfileCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFE8DCEC)),
       ),
@@ -1783,7 +1790,7 @@ class _PredictionLockedCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFE8DCEC)),
       ),

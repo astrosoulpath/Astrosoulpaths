@@ -313,14 +313,17 @@ class _CustomerAstrologerKundliReportDetailScreenState
                   margin: const EdgeInsets.only(bottom: 14),
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(18),
                   ),
-                  child: const Text(
+                  child: Text(
                     'The astrologer finalized this report without '
                     'additional written sections.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.muted, height: 1.5),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      height: 1.5,
+                    ),
                   ),
                 ),
 
@@ -337,7 +340,7 @@ class _CustomerAstrologerKundliReportDetailScreenState
       margin: const EdgeInsets.only(top: 4),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.12)),
       ),
@@ -362,9 +365,12 @@ class _CustomerAstrologerKundliReportDetailScreenState
             ],
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Files attached to this finalized professional report.',
-            style: TextStyle(color: AppColors.muted, fontSize: 11),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 11,
+            ),
           ),
           const SizedBox(height: 12),
 
@@ -392,9 +398,11 @@ class _CustomerAstrologerKundliReportDetailScreenState
               ],
             )
           else if (_attachments.isEmpty)
-            const Text(
+            Text(
               'No attachments were added to this report.',
-              style: TextStyle(color: AppColors.muted),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             )
           else
             ..._attachments.map(
@@ -415,11 +423,13 @@ class _CustomerAstrologerKundliReportDetailScreenState
                   ),
                   subtitle: Text(
                     _attachmentSize(attachment.sizeBytes),
-                    style: const TextStyle(color: AppColors.muted),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                  trailing: const Icon(
+                  trailing: Icon(
                     Icons.open_in_new_rounded,
-                    color: AppColors.muted,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     size: 18,
                   ),
                   onTap: () {
@@ -439,7 +449,7 @@ class _CustomerAstrologerKundliReportDetailScreenState
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.16)),
       ),
@@ -473,9 +483,12 @@ class _CustomerAstrologerKundliReportDetailScreenState
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   'Prepared by your astrologer',
-                  style: TextStyle(color: AppColors.muted, fontSize: 12),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Container(
@@ -513,7 +526,7 @@ class _CustomerAstrologerKundliReportDetailScreenState
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.10)),
       ),

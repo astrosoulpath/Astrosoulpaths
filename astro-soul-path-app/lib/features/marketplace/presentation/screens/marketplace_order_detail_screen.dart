@@ -17,7 +17,6 @@ class MarketplaceOrderDetailScreen extends StatefulWidget {
 
 class _MarketplaceOrderDetailScreenState
     extends MarketplacePrivateState<MarketplaceOrderDetailScreen> {
-  static const Color _background = MarketplacePalette.canvas;
   static const Color _surface = MarketplacePalette.surface;
   static const Color _gold = MarketplacePalette.gold;
   static const Color _muted = MarketplacePalette.muted;
@@ -131,10 +130,10 @@ class _MarketplaceOrderDetailScreenState
   @override
   Widget buildMarketplace(BuildContext context) {
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: _background,
-        foregroundColor: MarketplacePalette.ink,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         title: const Text(
           'Order Details',
           style: TextStyle(fontWeight: FontWeight.w800),

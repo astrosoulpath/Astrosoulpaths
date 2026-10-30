@@ -1,485 +1,253 @@
 import 'package:flutter/material.dart';
-
-import '../../../../core/theme/app_theme.dart';
+import '../../../../core/localization/app_strings.dart';
 import '../../../../core/theme/app_theme_controller.dart';
 import '../../data/preferences_api.dart';
 
 class SetPreferenceScreen extends StatefulWidget {
-  const SetPreferenceScreen({super.key});
-
+  const SetPreferenceScreen({super.key, this.api});
+  final PreferencesApi? api;
   @override
   State<SetPreferenceScreen> createState() => _SetPreferenceScreenState();
 }
 
 class _SetPreferenceScreenState extends State<SetPreferenceScreen> {
-  final PreferencesApi _preferencesApi = PreferencesApi();
-
-  bool _loading = true;
-  bool _saving = false;
-  String _error = '';
-  String _chartStyle = 'northIndian';
-  String _monthType = 'amant';
-  bool _darkMode = false;
-  bool _hideOuterPlanets = false;
-  bool _customCalendar = false;
-
+  late final PreferencesApi _api = widget.api ?? PreferencesApi();
+  bool _loading = true,
+      _saving = false,
+      _hideOuterPlanets = false,
+      _customCalendar = false;
+  String _chartStyle = 'NORTH_INDIAN', _monthType = 'AMANT', _error = '';
+  String t(String value) => AppStrings.text(context, en: value);
   @override
   void initState() {
     super.initState();
-    _loadPreferences();
+    _load();
   }
 
   @override
   void dispose() {
-    _preferencesApi.close();
+    _api.close();
     super.dispose();
   }
 
-  Future<void> _loadPreferences() async {
+  Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = '';
     });
-
     try {
-      final preferences = await _preferencesApi.getPreferences();
-
-      await AppThemeController.setDarkMode(preferences.darkMode);
-
-      if (!mounted) {
-        return;
-      }
-
+      final p = await _api.getPreferences();
+      await AppThemeController.adoptServerDefault(p.darkMode);
+      if (!mounted) return;
       setState(() {
-        _chartStyle = preferences.chartStyle == 'SOUTH_INDIAN'
-            ? 'southIndian'
-            : 'northIndian';
-
-        _monthType = preferences.monthType == 'PURNIMANT'
-            ? 'purnimant'
-            : 'amant';
-
-        _darkMode = preferences.darkMode;
-        _hideOuterPlanets = preferences.hideOuterPlanets;
-        _customCalendar = preferences.customCalendar;
+        _chartStyle = p.chartStyle;
+        _monthType = p.monthType;
+        _hideOuterPlanets = p.hideOuterPlanets;
+        _customCalendar = p.customCalendar;
       });
-    } on PreferencesApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _error = error.message;
-      });
-    } finally {
+    } catch (_) {
       if (mounted) {
-        setState(() {
-          _loading = false;
-        });
+        setState(() => _error = t('Preferences could not be loaded.'));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _appearance(ThemeMode mode) async {
+    try {
+      await AppThemeController.setThemeMode(mode);
+      if (mounted) setState(() {});
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t('Preferences could not be saved.'))),
+        );
       }
     }
   }
 
-  Future<void> _restoreDefaults() async {
+  Future<void> _reset() async {
     setState(() {
-      _chartStyle = 'northIndian';
-      _monthType = 'amant';
-      _darkMode = false;
+      _chartStyle = 'NORTH_INDIAN';
+      _monthType = 'AMANT';
       _hideOuterPlanets = false;
       _customCalendar = false;
     });
-
-    // Preview the default theme immediately across the whole app.
-    await AppThemeController.setDarkMode(false);
+    await _appearance(ThemeMode.light);
   }
 
-  Future<void> _savePreferences() async {
-    if (_saving) {
-      return;
-    }
-
-    setState(() {
-      _saving = true;
-      _error = '';
-    });
-
+  Future<void> _save() async {
+    if (_saving || _loading || _error.isNotEmpty) return;
+    setState(() => _saving = true);
     try {
-      final saved = await _preferencesApi.updatePreferences(
-        chartStyle: _chartStyle == 'southIndian'
-            ? 'SOUTH_INDIAN'
-            : 'NORTH_INDIAN',
-        monthType: _monthType == 'purnimant' ? 'PURNIMANT' : 'AMANT',
-        darkMode: _darkMode,
+      await _api.updatePreferences(
+        chartStyle: _chartStyle,
+        monthType: _monthType,
+        darkMode: AppThemeController.isDarkMode,
         hideOuterPlanets: _hideOuterPlanets,
         customCalendar: _customCalendar,
       );
-
-      await AppThemeController.setDarkMode(saved.darkMode);
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _chartStyle = saved.chartStyle == 'SOUTH_INDIAN'
-            ? 'southIndian'
-            : 'northIndian';
-
-        _monthType = saved.monthType == 'PURNIMANT' ? 'purnimant' : 'amant';
-
-        _darkMode = saved.darkMode;
-        _hideOuterPlanets = saved.hideOuterPlanets;
-        _customCalendar = saved.customCalendar;
-      });
-
-      Navigator.of(context).pop();
-    } on PreferencesApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _error = error.message;
-      });
-
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
-    } finally {
+      ).showSnackBar(SnackBar(content: Text(t('Preferences saved.'))));
+    } catch (_) {
       if (mounted) {
-        setState(() {
-          _saving = false;
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t('Preferences could not be saved.'))),
+        );
       }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
-        title: const Text(
-          'Set Preference',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
+  Widget _section(String title, List<Widget> children) => Card(
+    margin: const EdgeInsets.only(bottom: 16),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            t(title),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
       ),
-      body: SafeArea(
+    ),
+  );
+  Widget _choice<T>(
+    String title,
+    String? subtitle,
+    T value,
+    T selected,
+    ValueChanged<T> change,
+  ) => RadioGroup<T>(
+    groupValue: selected,
+    onChanged: (v) {
+      if (v != null && !_saving && !_loading) change(v);
+    },
+    child: RadioListTile<T>(
+      value: value,
+      title: Text(t(title)),
+      subtitle: subtitle == null ? null : Text(t(subtitle)),
+      contentPadding: EdgeInsets.zero,
+    ),
+  );
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(t('Set Preference'))),
+    body: SafeArea(
+      child: RefreshIndicator(
+        onRefresh: _load,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20),
           children: [
-            if (_loading) ...[
-              const LinearProgressIndicator(),
-              const SizedBox(height: 16),
-            ],
-            if (_error.isNotEmpty) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.35)),
-                ),
-                child: Text(
-                  _error,
-                  style: const TextStyle(
-                    color: Colors.redAccent,
-                    fontWeight: FontWeight.w700,
+            if (_loading) const LinearProgressIndicator(),
+            if (_error.isNotEmpty)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Text(_error),
+                      TextButton(onPressed: _load, child: Text(t('Try again'))),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-            ],
-            const _SectionTitle('Chart Style'),
-            const SizedBox(height: 8),
-
-            _PreferenceRadio<String>(
-              title: 'North Indian',
-              value: 'northIndian',
-              groupValue: _chartStyle,
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _chartStyle = value);
-                }
-              },
-            ),
-            _PreferenceRadio<String>(
-              title: 'South Indian',
-              value: 'southIndian',
-              groupValue: _chartStyle,
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _chartStyle = value);
-                }
-              },
-            ),
-
-            const SizedBox(height: 22),
-
-            Row(
-              children: [
-                if (_loading) ...[
-                  const LinearProgressIndicator(),
-                  const SizedBox(height: 16),
-                ],
-                if (_error.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.red.withValues(alpha: 0.35),
-                      ),
-                    ),
-                    child: Text(
-                      _error,
-                      style: const TextStyle(
-                        color: Colors.redAccent,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                const Expanded(child: _SectionTitle('Month Type')),
-                IconButton(
-                  tooltip: 'Month Type information',
-                  onPressed: () {
-                    showDialog<void>(
-                      context: context,
-                      builder: (context) {
-                        return AlertDialog(
-                          title: const Text('Month Type'),
-                          content: const Text(
-                            'Choose Amant or Purnimant based on the lunar month system you want to use.',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('OK'),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                  icon: const Icon(
-                    Icons.info_outline_rounded,
-                    color: AppColors.gold,
-                  ),
+            _section('Chart Style', [
+              _choice(
+                'Diamond Chart',
+                'Traditional North Indian Vedic layout',
+                'NORTH_INDIAN',
+                _chartStyle,
+                (v) => setState(() => _chartStyle = v),
+              ),
+              _choice(
+                'Square Chart',
+                'Traditional South Indian Vedic layout',
+                'SOUTH_INDIAN',
+                _chartStyle,
+                (v) => setState(() => _chartStyle = v),
+              ),
+            ]),
+            _section('Month Type', [
+              _choice(
+                'Amanta',
+                'Lunar month ends at the new moon.',
+                'AMANT',
+                _monthType,
+                (v) => setState(() => _monthType = v),
+              ),
+              _choice(
+                'Purnimanta',
+                'Lunar month ends at the full moon.',
+                'PURNIMANT',
+                _monthType,
+                (v) => setState(() => _monthType = v),
+              ),
+            ]),
+            ValueListenableBuilder<ThemeMode>(
+              valueListenable: AppThemeController.themeMode,
+              builder: (context, mode, _) => _section('Appearance', [
+                _choice('Light', null, ThemeMode.light, mode, _appearance),
+                _choice('Dark', null, ThemeMode.dark, mode, _appearance),
+                _choice(
+                  'System Default',
+                  null,
+                  ThemeMode.system,
+                  mode,
+                  _appearance,
                 ),
-              ],
+              ]),
             ),
-
-            _PreferenceRadio<String>(
-              title: 'Amant',
-              value: 'amant',
-              groupValue: _monthType,
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _monthType = value);
-                }
-              },
+            _section('Chart options', [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(t('Hide Uranus, Neptune and Pluto')),
+                value: _hideOuterPlanets,
+                onChanged: _loading || _saving
+                    ? null
+                    : (v) => setState(() => _hideOuterPlanets = v),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(t('Custom Calendar')),
+                subtitle: const Text('1600–2400'),
+                value: _customCalendar,
+                onChanged: _loading || _saving
+                    ? null
+                    : (v) => setState(() => _customCalendar = v),
+              ),
+            ]),
+            OutlinedButton(
+              onPressed: _loading || _saving ? null : _reset,
+              child: Text(t('Reset to Defaults')),
             ),
-            _PreferenceRadio<String>(
-              title: 'Purnimant',
-              value: 'purnimant',
-              groupValue: _monthType,
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _monthType = value);
-                }
-              },
-            ),
-
-            const SizedBox(height: 22),
-            const _SectionTitle('Dark Mode'),
-            const SizedBox(height: 8),
-
-            _PreferenceRadio<bool>(
-              title: 'On',
-              value: true,
-              groupValue: _darkMode,
-              onChanged: (value) async {
-                if (value != null) {
-                  setState(() => _darkMode = value);
-
-                  // Apply the selected theme immediately to the whole app.
-                  await AppThemeController.setDarkMode(value);
-                }
-              },
-            ),
-            _PreferenceRadio<bool>(
-              title: 'Off',
-              value: false,
-              groupValue: _darkMode,
-              onChanged: (value) async {
-                if (value != null) {
-                  setState(() => _darkMode = value);
-                  await AppThemeController.setDarkMode(value);
-                }
-              },
-            ),
-
             const SizedBox(height: 12),
-
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              activeColor: AppColors.gold,
-              checkColor: Colors.black,
-              value: _hideOuterPlanets,
-              onChanged: (value) {
-                setState(() => _hideOuterPlanets = value ?? false);
-              },
-              title: Text(
-                "Don't Show Ur, Ne and Pl in chart",
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              activeColor: AppColors.gold,
-              checkColor: Colors.black,
-              value: _customCalendar,
-              onChanged: (value) {
-                setState(() => _customCalendar = value ?? false);
-              },
-              title: Text(
-                'Custom Calendar (Year 1600 to 2400)',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            Row(
-              children: [
-                if (_loading) ...[
-                  const LinearProgressIndicator(),
-                  const SizedBox(height: 16),
-                ],
-                if (_error.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.red.withValues(alpha: 0.35),
-                      ),
-                    ),
-                    child: Text(
-                      _error,
-                      style: const TextStyle(
-                        color: Colors.redAccent,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _restoreDefaults,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.gold,
-                      side: const BorderSide(color: AppColors.gold),
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                    ),
-                    child: const Text(
-                      'DEFAULT',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: _loading || _saving ? null : _savePreferences,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.gold,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                    ),
-                    child: _saving
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text(
-                            'SAVE',
-                            style: TextStyle(fontWeight: FontWeight.w900),
-                          ),
-                  ),
-                ),
-              ],
+            FilledButton(
+              onPressed: _loading || _saving || _error.isNotEmpty
+                  ? null
+                  : _save,
+              child: _saving
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(t('Save Preferences')),
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: TextStyle(
-        color: Theme.of(context).colorScheme.onSurface,
-        fontSize: 20,
-        fontWeight: FontWeight.w900,
-      ),
-    );
-  }
-}
-
-class _PreferenceRadio<T> extends StatelessWidget {
-  const _PreferenceRadio({
-    required this.title,
-    required this.value,
-    required this.groupValue,
-    required this.onChanged,
-  });
-
-  final String title;
-  final T value;
-  final T groupValue;
-  final ValueChanged<T?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return RadioGroup<T>(
-      groupValue: groupValue,
-      onChanged: onChanged,
-      child: RadioListTile<T>(
-        contentPadding: EdgeInsets.zero,
-        activeColor: AppColors.gold,
-        value: value,
-        title: Text(
-          title,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface,
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-    );
-  }
+    ),
+  );
 }

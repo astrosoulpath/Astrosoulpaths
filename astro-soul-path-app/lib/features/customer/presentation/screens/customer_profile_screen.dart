@@ -1,4 +1,3 @@
-import '../../../../core/theme/cosmic_ivory.dart';
 import 'delete_account_screen.dart';
 import '../../../auth/data/secure_logout.dart';
 import 'package:flutter/material.dart';
@@ -293,19 +292,19 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     return
     // CUSTOMER_SHARED_PREMIUM_BACKGROUND
     Scaffold(
-      backgroundColor: CosmicIvory.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        backgroundColor: CosmicIvory.background,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'My Profile',
               style: TextStyle(
-                color: Color(0xFF14213D),
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 25,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -0.5,
@@ -397,7 +396,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: AppColors.gold.withValues(alpha: 0.18),
@@ -420,10 +419,10 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         'Profile unavailable',
                         style: TextStyle(
-                          color: AppColors.white,
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                         ),
@@ -432,8 +431,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                       Text(
                         _error,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.muted,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           height: 1.4,
                         ),
                       ),
@@ -525,10 +524,12 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                 : null,
                             child: profile?.avatarUrl?.trim().isNotEmpty == true
                                 ? null
-                                : const Icon(
+                                : Icon(
                                     Icons.person_rounded,
                                     size: 48,
-                                    color: AppColors.background,
+                                    color: Theme.of(
+                                      context,
+                                    ).scaffoldBackgroundColor,
                                   ),
                           ),
                         ),
@@ -538,8 +539,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                           textAlign: TextAlign.center,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.white,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 23,
                             fontWeight: FontWeight.w900,
                           ),
@@ -558,8 +559,10 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                               child: Text(
                                 email,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppColors.muted,
+                                style: TextStyle(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                   fontSize: 14,
                                 ),
                               ),
@@ -573,7 +576,9 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF8F3FF),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerLowest,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: const Color(0xFFE8BD43)),
                           ),
@@ -605,13 +610,13 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                     Container(
                       padding: const EdgeInsets.all(22),
                       decoration: BoxDecoration(
-                        color: AppColors.surface,
+                        color: Theme.of(context).colorScheme.surface,
                         borderRadius: BorderRadius.circular(22),
                         border: Border.all(
                           color: AppColors.gold.withValues(alpha: 0.14),
                         ),
                       ),
-                      child: const Column(
+                      child: Column(
                         children: [
                           Icon(
                             Icons.person_off_rounded,
@@ -622,7 +627,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                           Text(
                             'Complete your profile',
                             style: TextStyle(
-                              color: AppColors.white,
+                              color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 17,
                               fontWeight: FontWeight.w800,
                             ),
@@ -632,7 +637,9 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                             'Your birth details will be used for personalized astrology experiences.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: AppColors.muted,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                               height: 1.4,
                             ),
                           ),
@@ -1032,8 +1039,8 @@ class _ProfileInfoRow extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1043,8 +1050,8 @@ class _ProfileInfoRow extends StatelessWidget {
                       value,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.white,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         height: 1.25,

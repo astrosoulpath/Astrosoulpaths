@@ -39,6 +39,11 @@ class FeedbackApi {
     _check();
     final session = await _sessionStore.read();
     _check();
+    if (session?.portal != 'customer') {
+      throw const FeedbackApiException(
+        'Sign in with your Customer account to send feedback.',
+      );
+    }
     final token = session?.accessToken.trim() ?? '';
 
     if (token.isEmpty) {

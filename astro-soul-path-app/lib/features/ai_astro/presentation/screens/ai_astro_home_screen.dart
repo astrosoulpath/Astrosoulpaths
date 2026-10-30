@@ -159,7 +159,9 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
     Scaffold(
       appBar: widget.showBackButton
           ? AppBar(
-              backgroundColor: const Color(0xFFFFF9F1),
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerLowest,
               surfaceTintColor: Colors.transparent,
               elevation: 0,
               scrolledUnderElevation: 0,
@@ -186,17 +188,17 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
                   ),
                 ),
               ),
-              title: const Text(
+              title: Text(
                 'AI Astro',
                 style: TextStyle(
-                  color: Color(0xFF14213D),
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
                 ),
               ),
             )
           : null,
-      backgroundColor: const Color(0xFFFFF9F1),
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
       body: GoldenSparkleLoading(
         loading: _loading,
         child: SafeArea(
@@ -224,10 +226,10 @@ class _AiAstroHomeScreenState extends State<AiAstroHomeScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Choose your AI Specialist',
                               style: TextStyle(
-                                color: Color(0xFF14213D),
+                                color: Theme.of(context).colorScheme.onSurface,
                                 fontSize: 20,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -489,15 +491,20 @@ class _HeaderCard extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          const Positioned.fill(
+          Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    Color(0xFFFFF1C7),
-                    Color(0xFFEFE5FF),
-                    Color(0xFFF8F3FF),
-                  ],
+                  colors: (Theme.of(context).brightness == Brightness.dark
+                      ? [
+                          Theme.of(context).colorScheme.surface,
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                        ]
+                      : [
+                          Color(0xFFFFF1C7),
+                          Color(0xFFEFE5FF),
+                          Color(0xFFF8F3FF),
+                        ]),
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -603,11 +610,11 @@ class _HeaderCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 13),
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'AI Astro',
                         style: TextStyle(
-                          color: Color(0xFF14213D),
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 27,
                           letterSpacing: -0.4,
                           fontWeight: FontWeight.w900,
@@ -656,7 +663,7 @@ class _HeaderCard extends StatelessWidget {
                   child: Text(
                     _heroDescription,
                     style: TextStyle(
-                      color: Color(0xFF14213D),
+                      color: Theme.of(context).colorScheme.onSurface,
                       height: 1.48,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -805,8 +812,8 @@ class _PersonaCard extends StatelessWidget {
                         persona.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF14213D),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
                         ),
@@ -839,8 +846,10 @@ class _PersonaCard extends StatelessWidget {
                               const SizedBox(width: 3),
                               Text(
                                 persona.rating.toStringAsFixed(1),
-                                style: const TextStyle(
-                                  color: Color(0xFF14213D),
+                                style: TextStyle(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -949,9 +958,14 @@ class _PremiumAvatarFallback extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       alignment: Alignment.center,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: RadialGradient(
-          colors: [Color(0xFFE9DEFF), Color(0xFFF8F3FF)],
+          colors: (Theme.of(context).brightness == Brightness.dark
+              ? [
+                  Theme.of(context).colorScheme.surface,
+                  Theme.of(context).colorScheme.surfaceContainerHighest,
+                ]
+              : [Color(0xFFE9DEFF), Color(0xFFF8F3FF)]),
         ),
       ),
       child: Stack(
@@ -964,8 +978,8 @@ class _PremiumAvatarFallback extends StatelessWidget {
           ),
           Text(
             initials,
-            style: const TextStyle(
-              color: Color(0xFF14213D),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 18,
               fontWeight: FontWeight.w900,
             ),
@@ -1074,11 +1088,11 @@ class _AiAstroGuidanceFooter extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Guidance for a brighter you',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Color(0xFF14213D),
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 18,
               height: 1.2,
               fontWeight: FontWeight.w600,

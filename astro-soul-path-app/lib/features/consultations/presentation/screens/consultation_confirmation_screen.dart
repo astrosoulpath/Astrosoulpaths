@@ -172,8 +172,8 @@ class _ConsultationConfirmationScreenState
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         title: Text(
           _modeLabel,
           style: const TextStyle(fontWeight: FontWeight.w900),
@@ -186,7 +186,7 @@ class _ConsultationConfirmationScreenState
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(color: const Color(0x44F4C45E)),
               ),
@@ -219,8 +219,8 @@ class _ConsultationConfirmationScreenState
                       children: [
                         Text(
                           _astrologer.name,
-                          style: const TextStyle(
-                            color: AppColors.white,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 18,
                             fontWeight: FontWeight.w900,
                           ),
@@ -228,7 +228,11 @@ class _ConsultationConfirmationScreenState
                         const SizedBox(height: 5),
                         Text(
                           _astrologer.primaryExpertise,
-                          style: const TextStyle(color: AppColors.muted),
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -247,10 +251,10 @@ class _ConsultationConfirmationScreenState
 
             const SizedBox(height: 24),
 
-            const Text(
+            Text(
               'Select consultation duration',
               style: TextStyle(
-                color: AppColors.white,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 19,
                 fontWeight: FontWeight.w900,
               ),
@@ -258,9 +262,11 @@ class _ConsultationConfirmationScreenState
 
             const SizedBox(height: 7),
 
-            const Text(
+            Text(
               'You can extend an active consultation later if needed.',
-              style: TextStyle(color: AppColors.muted),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
 
             const SizedBox(height: 16),
@@ -307,8 +313,8 @@ class _ConsultationConfirmationScreenState
                           const SizedBox(height: 4),
                           Text(
                             '$_effectiveMinutes min consultation at no charge',
-                            style: const TextStyle(
-                              color: AppColors.white,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -342,7 +348,7 @@ class _ConsultationConfirmationScreenState
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Column(
@@ -377,7 +383,7 @@ class _ConsultationConfirmationScreenState
                 color: const Color(0x14F4C45E),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Row(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(
@@ -390,7 +396,10 @@ class _ConsultationConfirmationScreenState
                     child: Text(
                       'Your request is first sent to the astrologer. '
                       'The paid consultation starts after the astrologer accepts.',
-                      style: TextStyle(color: AppColors.muted, height: 1.4),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        height: 1.4,
+                      ),
                     ),
                   ),
                 ],
@@ -446,12 +455,19 @@ class _PriceRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(label, style: const TextStyle(color: AppColors.muted)),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
         ),
         Text(
           value,
           style: TextStyle(
-            color: highlight ? AppColors.gold : AppColors.white,
+            color: highlight
+                ? AppColors.gold
+                : Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.w900,
             fontSize: highlight ? 17 : 14,
           ),

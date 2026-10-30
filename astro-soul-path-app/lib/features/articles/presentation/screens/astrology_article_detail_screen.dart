@@ -32,9 +32,9 @@ class AstrologyArticleDetailScreen extends StatelessWidget {
     final hasCover = article.coverImageUrl?.trim().isNotEmpty == true;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFBF3),
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFFBF3),
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
         foregroundColor: const Color(0xFF17213A),
         elevation: 0,
         title: const Text(
@@ -70,8 +70,8 @@ class AstrologyArticleDetailScreen extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             article.title,
-            style: const TextStyle(
-              color: Color(0xFF17213A),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 29,
               height: 1.13,
               fontWeight: FontWeight.w900,
@@ -106,8 +106,8 @@ class AstrologyArticleDetailScreen extends StatelessWidget {
           const SizedBox(height: 24),
           Text(
             article.contentMarkdown,
-            style: const TextStyle(
-              color: Color(0xFF303848),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 17,
               height: 1.72,
             ),

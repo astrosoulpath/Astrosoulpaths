@@ -246,11 +246,11 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
                 'Ratings & Reviews',
                 style: TextStyle(
-                  color: premiumInk,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 20,
                   fontWeight: FontWeight.w900,
                 ),
@@ -281,9 +281,12 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
         else if (_reviewError)
           Column(
             children: [
-              const Text(
+              Text(
                 'Reviews could not be loaded.',
-                style: TextStyle(color: premiumInk, fontSize: 16),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 16,
+                ),
               ),
               TextButton(
                 onPressed: _loadReviews,
@@ -295,11 +298,11 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: premiumBorder),
+              border: Border.all(color: Theme.of(context).colorScheme.outline),
             ),
-            child: const Row(
+            child: Row(
               children: [
                 Icon(Icons.star_border_rounded, color: premiumGold),
                 SizedBox(width: 12),
@@ -307,7 +310,7 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
                   child: Text(
                     'No customer reviews yet.',
                     style: TextStyle(
-                      color: premiumMuted,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -335,10 +338,10 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Similar Astrologers',
           style: TextStyle(
-            color: premiumInk,
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 20,
             fontWeight: FontWeight.w900,
           ),
@@ -356,9 +359,11 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Similar astrologers could not be loaded.',
-                style: TextStyle(color: premiumMuted),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               TextButton(
                 onPressed: _loadSimilarAstrologers,
@@ -367,9 +372,11 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
             ],
           )
         else if (_similar.isEmpty)
-          const Text(
+          Text(
             'No similar astrologers available right now.',
-            style: TextStyle(color: premiumMuted),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           )
         else
           SizedBox(
@@ -398,7 +405,7 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
   Future<void> _showAllReviews(AstrologerReviewSummary summary) async {
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: premiumIvory,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       isScrollControlled: true,
       builder: (context) {
         return SafeArea(
@@ -410,11 +417,11 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
                   padding: const EdgeInsets.fromLTRB(20, 18, 12, 12),
                   child: Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Customer Reviews',
                           style: TextStyle(
-                            color: premiumInk,
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 21,
                             fontWeight: FontWeight.w900,
                           ),
@@ -422,9 +429,9 @@ class _AstrologerDetailExtrasState extends State<AstrologerDetailExtras> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.close_rounded,
-                          color: premiumInk,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                     ],
@@ -458,7 +465,7 @@ class _RatingSummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: premiumGold.withValues(alpha: 0.32)),
       ),
@@ -466,8 +473,8 @@ class _RatingSummaryCard extends StatelessWidget {
         children: [
           Text(
             summary.averageRating.toStringAsFixed(1),
-            style: const TextStyle(
-              color: premiumInk,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 34,
               fontWeight: FontWeight.w900,
             ),
@@ -479,8 +486,8 @@ class _RatingSummaryCard extends StatelessWidget {
             child: Text(
               '${summary.totalReviews} customer '
               '${summary.totalReviews == 1 ? 'review' : 'reviews'}',
-              style: const TextStyle(
-                color: premiumMuted,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -554,9 +561,9 @@ class _ReviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: premiumBorder),
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -588,8 +595,8 @@ class _ReviewCard extends StatelessWidget {
                             name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: premiumInk,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 15,
                               fontWeight: FontWeight.w800,
                             ),
@@ -625,7 +632,10 @@ class _ReviewCard extends StatelessWidget {
               if (_dateLabel.isNotEmpty)
                 Text(
                   _dateLabel,
-                  style: const TextStyle(color: premiumMuted, fontSize: 11),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
                 ),
             ],
           ),
@@ -635,9 +645,9 @@ class _ReviewCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: premiumBorder),
+              border: Border.all(color: Theme.of(context).colorScheme.outline),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -646,8 +656,8 @@ class _ReviewCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   _consultationLabel,
-                  style: const TextStyle(
-                    color: premiumInk,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -660,8 +670,8 @@ class _ReviewCard extends StatelessWidget {
             const SizedBox(height: 13),
             Text(
               review.review,
-              style: const TextStyle(
-                color: premiumMuted,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 14,
                 height: 1.55,
               ),

@@ -16,11 +16,39 @@ class PremiumCategoryTile extends StatelessWidget {
   });
   final String assetPath, label;
   final VoidCallback onTap;
+
+  static const _labelStyle = TextStyle(
+    color: premiumInk,
+    fontSize: 14,
+    height: 1.3,
+    fontWeight: FontWeight.w600,
+  );
+
+  static double diameter(BuildContext context) =>
+      (MediaQuery.sizeOf(context).width * .18).clamp(64.0, 72.0);
+
+  static double itemWidth(BuildContext context) =>
+      104 + (MediaQuery.textScalerOf(context).scale(14) - 14).clamp(0, 140) * 3;
+
+  /// Measure localized labels with the actual scaler, rather than truncating
+  /// accessible text or guessing a fixed carousel height.
+  static double carouselHeight(BuildContext context, List<String> labels) {
+    var labelHeight = 0.0;
+    for (final label in labels) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: _labelStyle),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout(maxWidth: itemWidth(context) - 24);
+      if (painter.height > labelHeight) labelHeight = painter.height;
+      painter.dispose();
+    }
+    return (diameter(context) + 6 + 8 + 8 + labelHeight).ceilToDouble();
+  }
+
   @override
   Widget build(BuildContext context) => SizedBox(
-    width:
-        104 +
-        (MediaQuery.textScalerOf(context).scale(14) - 14).clamp(0, 56) * 6,
+    width: itemWidth(context),
     child: Material(
       type: MaterialType.transparency,
       child: InkWell(
@@ -31,27 +59,48 @@ class PremiumCategoryTile extends StatelessWidget {
           label: label,
           excludeSemantics: true,
           child: Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(4),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset(
-                  assetPath,
-                  width: 88,
-                  height: 88,
-                  cacheWidth: 256,
-                  fit: BoxFit.contain,
-                  excludeFromSemantics: true,
+                Container(
+                  width: diameter(context),
+                  height: diameter(context),
+                  foregroundDecoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFFD6AC50),
+                      width: 1,
+                    ),
+                  ),
+                  child: ClipOval(
+                    child: Image.asset(
+                      assetPath,
+                      cacheWidth: 288,
+                      fit: BoxFit.contain,
+                      excludeFromSemantics: true,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: premiumInk,
-                    fontSize: 14,
-                    height: 1.3,
-                    fontWeight: FontWeight.w700,
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Theme.of(context).colorScheme.surfaceContainerHighest
+                        : const Color(0xFFFFF0D4),
+                    borderRadius: BorderRadius.circular(40),
+                  ),
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: _labelStyle.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                 ),
               ],
@@ -82,7 +131,7 @@ class PremiumSectionBanner extends StatelessWidget {
     clipBehavior: Clip.antiAlias,
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: premiumBorder),
+      border: Border.all(color: Theme.of(context).colorScheme.outline),
       image: DecorationImage(
         image: AssetImage(assetPath),
         fit: BoxFit.cover,
@@ -90,9 +139,14 @@ class PremiumSectionBanner extends StatelessWidget {
       ),
     ),
     child: DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xF5FFFAF2), Color(0xDEFFFAF2)],
+          colors: (Theme.of(context).brightness == Brightness.dark
+              ? [
+                  Theme.of(context).colorScheme.surface,
+                  Theme.of(context).colorScheme.surfaceContainerHighest,
+                ]
+              : [Color(0xF5FFFAF2), Color(0xDEFFFAF2)]),
         ),
       ),
       child: Padding(
@@ -104,8 +158,8 @@ class PremiumSectionBanner extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               title,
-              style: const TextStyle(
-                color: premiumInk,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 23,
                 fontWeight: FontWeight.w800,
                 height: 1.2,
@@ -114,8 +168,8 @@ class PremiumSectionBanner extends StatelessWidget {
             const SizedBox(height: 7),
             Text(
               subtitle,
-              style: const TextStyle(
-                color: Color(0xFF50586A),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 14,
                 height: 1.5,
               ),
@@ -123,7 +177,7 @@ class PremiumSectionBanner extends StatelessWidget {
             const SizedBox(height: 12),
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: premiumInk,
+                backgroundColor: Theme.of(context).colorScheme.onSurface,
                 foregroundColor: Colors.white,
                 minimumSize: const Size(48, 48),
                 padding: const EdgeInsets.symmetric(
@@ -141,3 +195,5 @@ class PremiumSectionBanner extends StatelessWidget {
     ),
   );
 }
+
+// Circular category presentation keeps labels in localized Flutter widgets.

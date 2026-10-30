@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../core/notifications/notification_service.dart';
+import '../features/notifications/presentation/screens/subscription_notifications_screen.dart';
+import '../features/subscription/presentation/screens/subscription_plans_screen.dart';
 import '../features/notifications/presentation/screens/notification_reading_screen.dart';
 import '../core/localization/app_locale_controller.dart';
 import '../core/localization/app_strings.dart';
@@ -94,6 +96,19 @@ class _AstroSoulPathAppState extends State<AstroSoulPathApp> {
     }
 
     switch (type) {
+      case 'subscription_expiry':
+        final role = payload['roleContext'];
+        if (role != 'CUSTOMER' && role != 'ASTROLOGER') return;
+        navigator.push(
+          MaterialPageRoute<void>(
+            builder: (_) => SubscriptionNotificationsScreen(
+              audience: role == 'CUSTOMER'
+                  ? SubscriptionAudience.customer
+                  : SubscriptionAudience.astrologer,
+            ),
+          ),
+        );
+        return;
       case 'support_ticket':
         final ticketId = payload['ticketId']?.toString() ?? '';
         if (supportOperationsUiEnabled &&

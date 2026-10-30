@@ -202,8 +202,8 @@ class _ConsultationWaitingScreenState extends State<ConsultationWaitingScreen> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           automaticallyImplyLeading: !_pending,
-          backgroundColor: AppColors.background,
-          foregroundColor: AppColors.white,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          foregroundColor: Theme.of(context).colorScheme.onSurface,
           title: const Text(
             'Consultation Request',
             style: TextStyle(fontWeight: FontWeight.w900),
@@ -230,8 +230,8 @@ class _ConsultationWaitingScreenState extends State<ConsultationWaitingScreen> {
               Text(
                 _title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.white,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 26,
                   fontWeight: FontWeight.w900,
                 ),
@@ -240,7 +240,10 @@ class _ConsultationWaitingScreenState extends State<ConsultationWaitingScreen> {
               Text(
                 _description,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.muted, height: 1.5),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  height: 1.5,
+                ),
               ),
               if (_pending) ...[
                 const SizedBox(height: 25),
@@ -258,7 +261,7 @@ class _ConsultationWaitingScreenState extends State<ConsultationWaitingScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(color: const Color(0x667A8BB8)),
                 ),
@@ -338,7 +341,7 @@ class _ConsultationWaitingScreenState extends State<ConsultationWaitingScreen> {
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(54),
                     backgroundColor: AppColors.gold,
-                    foregroundColor: AppColors.background,
+                    foregroundColor: Theme.of(context).scaffoldBackgroundColor,
                   ),
                   child: Text(
                     _active ? 'Continue' : 'Back to Profile',
@@ -411,12 +414,17 @@ class _StatusRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(label, style: const TextStyle(color: AppColors.muted)),
+          Text(
+            label,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
           const Spacer(),
           Text(
             value,
-            style: const TextStyle(
-              color: AppColors.white,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontWeight: FontWeight.w800,
             ),
           ),

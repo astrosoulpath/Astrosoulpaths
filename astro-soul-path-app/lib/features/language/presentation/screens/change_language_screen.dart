@@ -137,7 +137,7 @@ class _ChangeLanguageScreenState extends State<ChangeLanguageScreen> {
       backgroundColor: const Color(0xFFF7F7F7),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         foregroundColor: Color(0xFF171717),
         centerTitle: true,
         title: Text(
@@ -259,8 +259,8 @@ class _ChangeLanguageScreenState extends State<ChangeLanguageScreen> {
   Widget _buildBottomBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
         boxShadow: [
           BoxShadow(
             blurRadius: 14,
@@ -320,7 +320,9 @@ class _LanguageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? const Color(0xFFFFF0EA) : Colors.white,
+      color: selected
+          ? const Color(0xFFFFF0EA)
+          : Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,

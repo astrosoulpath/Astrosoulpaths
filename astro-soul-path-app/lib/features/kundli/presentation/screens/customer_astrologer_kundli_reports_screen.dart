@@ -127,7 +127,7 @@ class _CustomerAstrologerKundliReportsScreenState
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.14)),
       ),
@@ -193,12 +193,14 @@ class _CustomerAstrologerKundliReportsScreenState
                           ),
                         ),
                         const SizedBox(width: 8),
-                        const Expanded(
+                        Expanded(
                           child: Text(
                             'Prepared by astrologer',
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: AppColors.muted,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                               fontSize: 11,
                             ),
                           ),
@@ -208,7 +210,10 @@ class _CustomerAstrologerKundliReportsScreenState
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ],
           ),
         ),
@@ -230,11 +235,14 @@ class _CustomerAstrologerKundliReportsScreenState
           style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
         ),
         const SizedBox(height: 9),
-        const Text(
+        Text(
           'A finalized professional Kundli report prepared by your '
           'astrologer will appear here.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.muted, height: 1.5),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            height: 1.5,
+          ),
         ),
       ],
     );

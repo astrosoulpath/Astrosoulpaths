@@ -6,6 +6,7 @@ import 'dart:async';
 import '../widgets/partner_dashboard_widgets.dart';
 
 import 'package:flutter/material.dart';
+import '../../../notifications/presentation/screens/subscription_notifications_screen.dart';
 
 import '../../../subscription/presentation/screens/subscription_plans_screen.dart';
 
@@ -978,18 +979,19 @@ class _AstrologerDashboardScreenState extends State<AstrologerDashboardScreen>
           }
         },
       ),
-      if(supportOperationsUiEnabled)PartnerToolCard(
-        icon: Icons.support_agent_rounded,
-        title: 'Help & Support',
-        subtitle: 'Manage your private support requests',
-        onTap: isApproved
-            ? () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const SupportHomeScreen(),
-                ),
-              )
-            : null,
-      ),
+      if (supportOperationsUiEnabled)
+        PartnerToolCard(
+          icon: Icons.support_agent_rounded,
+          title: 'Help & Support',
+          subtitle: 'Manage your private support requests',
+          onTap: isApproved
+              ? () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SupportHomeScreen(),
+                  ),
+                )
+              : null,
+        ),
       PartnerToolCard(
         icon: Icons.person_outline_rounded,
         title: 'Profile',
@@ -1168,6 +1170,9 @@ class _AstrologerDashboardScreenState extends State<AstrologerDashboardScreen>
             tooltip: 'Refresh',
             onPressed: _loadDashboard,
             icon: const Icon(Icons.refresh_rounded),
+          ),
+          const SubscriptionNotificationsBell(
+            audience: SubscriptionAudience.astrologer,
           ),
           IconButton(
             tooltip: 'Logout',

@@ -95,10 +95,10 @@ class _AstrologyQuestionsScreenState extends State<AstrologyQuestionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         title: const Text(
           'Ask Astrology Question',
@@ -133,7 +133,10 @@ class _AstrologyQuestionsScreenState extends State<AstrologyQuestionsScreen> {
           Text(
             _error,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.white, fontSize: 16),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontSize: 16,
+            ),
           ),
           const SizedBox(height: 18),
           FilledButton(onPressed: _loadCategories, child: const Text('Retry')),
@@ -144,11 +147,11 @@ class _AstrologyQuestionsScreenState extends State<AstrologyQuestionsScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 22, 18, 32),
       children: [
-        const Text(
+        Text(
           'What would you like guidance about?',
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: AppColors.white,
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 24,
             fontWeight: FontWeight.w900,
           ),
@@ -186,7 +189,7 @@ class _AstrologyQuestionsScreenState extends State<AstrologyQuestionsScreen> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: const Color(0x33D7B15B)),
                 ),
@@ -210,8 +213,8 @@ class _AstrologyQuestionsScreenState extends State<AstrologyQuestionsScreen> {
                       category.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.white,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                       ),
@@ -293,10 +296,10 @@ class _AstrologyQuestionListScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         title: Text(
           widget.category.name,
           style: const TextStyle(fontWeight: FontWeight.w800),
@@ -313,7 +316,9 @@ class _AstrologyQuestionListScreenState
                 child: Text(
                   _error,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.white),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                 ),
               ),
             )
@@ -346,7 +351,7 @@ class _AstrologyQuestionListScreenState
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppColors.surface,
+                          color: Theme.of(context).colorScheme.surface,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: const Color(0x22D7B15B)),
                         ),
@@ -360,8 +365,10 @@ class _AstrologyQuestionListScreenState
                             Expanded(
                               child: Text(
                                 question.text,
-                                style: const TextStyle(
-                                  color: AppColors.white,
+                                style: TextStyle(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -466,10 +473,10 @@ class _AstrologyAiAnswerScreenState extends State<AstrologyAiAnswerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         title: const Text(
           'Your Astrology Guidance',
           style: TextStyle(fontWeight: FontWeight.w800),
@@ -493,8 +500,8 @@ class _AstrologyAiAnswerScreenState extends State<AstrologyAiAnswerScreen> {
                 const SizedBox(height: 10),
                 Text(
                   widget.question.text,
-                  style: const TextStyle(
-                    color: AppColors.white,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
                   ),
@@ -503,15 +510,15 @@ class _AstrologyAiAnswerScreenState extends State<AstrologyAiAnswerScreen> {
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(color: const Color(0x33D7B15B)),
                   ),
                   child: _error.isNotEmpty
                       ? Text(
                           _error,
-                          style: const TextStyle(
-                            color: AppColors.white,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 15,
                           ),
                         )
@@ -521,8 +528,8 @@ class _AstrologyAiAnswerScreenState extends State<AstrologyAiAnswerScreen> {
                               : (_message.isNotEmpty
                                     ? _message
                                     : 'AI astrology guidance is not configured yet.'),
-                          style: const TextStyle(
-                            color: AppColors.white,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 16,
                             height: 1.5,
                           ),

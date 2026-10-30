@@ -16,12 +16,7 @@ class MarketplaceHomeScreen extends StatefulWidget {
 }
 
 class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
-  static const Color _background = Color(0xFFFFF8F1);
-  static const Color _surface = Color(0xFFFFFFFF);
-  static const Color _surfaceSoft = Color(0xFFFFFAF5);
   static const Color _gold = Color(0xFFF4BF37);
-  static const Color _marketInk = Color(0xFF14213D);
-  static const Color _muted = Color(0xFF8C817A);
 
   late final MarketplacePublicApi _api = widget.api ?? MarketplacePublicApi();
   late final ProfileApi _profileApi = widget.profileApi ?? ProfileApi();
@@ -167,11 +162,11 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: RefreshIndicator(
           color: _gold,
-          backgroundColor: _surface,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           onRefresh: _loadMarketplace,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(
@@ -222,7 +217,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
             width: 46,
             height: 46,
             decoration: BoxDecoration(
-              color: _surfaceSoft,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(15),
               border: Border.all(color: _gold.withValues(alpha: 0.25)),
             ),
@@ -233,7 +228,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -242,7 +237,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: _marketInk,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.4,
@@ -254,7 +249,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: _muted,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 12.5,
                     fontWeight: FontWeight.w500,
                   ),
@@ -305,7 +300,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: _surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -315,9 +310,17 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
             height: 44,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _marketInk.withValues(alpha: 0.07)),
+              border: Border.all(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.07),
+              ),
             ),
-            child: Icon(icon, color: _marketInk, size: 21),
+            child: Icon(
+              icon,
+              color: Theme.of(context).colorScheme.onSurface,
+              size: 21,
+            ),
           ),
         ),
       ),
@@ -329,19 +332,32 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
       child: Container(
         decoration: BoxDecoration(
-          color: _surface,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(17),
-          border: Border.all(color: _marketInk.withValues(alpha: 0.07)),
+          border: Border.all(
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.07),
+          ),
         ),
         child: TextField(
           controller: _searchController,
           cursorColor: _gold,
-          style: const TextStyle(color: _marketInk, fontSize: 15),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontSize: 15,
+          ),
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
             hintText: 'Search products...',
-            hintStyle: const TextStyle(color: _muted, fontSize: 14),
-            prefixIcon: const Icon(Icons.search_rounded, color: _muted),
+            hintStyle: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 14,
+            ),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
             suffixIcon: _searchController.text.trim().isEmpty
                 ? const Icon(Icons.tune_rounded, color: _gold)
                 : IconButton(
@@ -374,7 +390,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
         child: Container(
           height: 160,
           decoration: BoxDecoration(
-            color: _surface,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: _gold.withValues(alpha: 0.15)),
           ),
@@ -510,8 +526,8 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: _marketInk,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 19,
                     fontWeight: FontWeight.w800,
                   ),
@@ -520,7 +536,10 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                   const SizedBox(height: 3),
                   Text(
                     subtitle,
-                    style: const TextStyle(color: _muted, fontSize: 12),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ],
@@ -594,10 +613,16 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                 height: 58,
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
-                  color: active ? _gold : _surfaceSoft,
+                  color: active
+                      ? _gold
+                      : Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(19),
                   border: Border.all(
-                    color: active ? _gold : _marketInk.withValues(alpha: 0.07),
+                    color: active
+                        ? _gold
+                        : Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.07),
                   ),
                 ),
                 child: iconUrl.isNotEmpty
@@ -607,7 +632,9 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                         errorBuilder: (_, _, _) {
                           return Icon(
                             Icons.category_outlined,
-                            color: active ? _marketInk : _gold,
+                            color: active
+                                ? Theme.of(context).colorScheme.onSurface
+                                : _gold,
                           );
                         },
                       )
@@ -615,7 +642,9 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                         id == null
                             ? Icons.grid_view_rounded
                             : Icons.category_outlined,
-                        color: active ? _marketInk : _gold,
+                        color: active
+                            ? Theme.of(context).colorScheme.onSurface
+                            : _gold,
                         size: 24,
                       ),
               ),
@@ -626,7 +655,9 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: active ? _marketInk : _muted,
+                  color: active
+                      ? Theme.of(context).colorScheme.onSurface
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 11.5,
                   fontWeight: FontWeight.w600,
                 ),
@@ -643,14 +674,14 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Recommended for you',
                   style: TextStyle(
-                    color: _marketInk,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 19,
                     fontWeight: FontWeight.w800,
                   ),
@@ -658,7 +689,10 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                 SizedBox(height: 3),
                 Text(
                   'Only approved and available products',
-                  style: TextStyle(color: _muted, fontSize: 12),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -676,16 +710,26 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
             avatar: Icon(
               _featuredOnly ? Icons.star_rounded : Icons.star_border_rounded,
               size: 17,
-              color: _featuredOnly ? _marketInk : _gold,
+              color: _featuredOnly
+                  ? Theme.of(context).colorScheme.onSurface
+                  : _gold,
             ),
             label: const Text('Featured'),
             selectedColor: _gold,
-            backgroundColor: _surfaceSoft,
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest,
             side: BorderSide(
-              color: _featuredOnly ? _gold : _marketInk.withValues(alpha: 0.08),
+              color: _featuredOnly
+                  ? _gold
+                  : Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.08),
             ),
             labelStyle: TextStyle(
-              color: _featuredOnly ? _marketInk : _marketInk,
+              color: _featuredOnly
+                  ? Theme.of(context).colorScheme.onSurface
+                  : Theme.of(context).colorScheme.onSurface,
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
@@ -794,7 +838,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Material(
-        color: _surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
         child: InkWell(
           borderRadius: BorderRadius.circular(22),
@@ -816,7 +860,9 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
               border: Border.all(
                 color: featured
                     ? _gold.withValues(alpha: 0.30)
-                    : _marketInk.withValues(alpha: 0.07),
+                    : Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.07),
               ),
             ),
             child: Row(
@@ -827,7 +873,9 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                   height: 92,
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
-                    color: _surfaceSoft,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: imageUrl.isNotEmpty
@@ -877,8 +925,8 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                         name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _marketInk,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                         ),
@@ -900,8 +948,10 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                           description,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: _muted,
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: 12,
                             height: 1.35,
                           ),
@@ -915,8 +965,8 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                         children: [
                           Text(
                             '${_currencySymbol(currency)}$sellingPrice',
-                            style: const TextStyle(
-                              color: _marketInk,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 16,
                               fontWeight: FontWeight.w900,
                             ),
@@ -925,8 +975,10 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                             const SizedBox(width: 8),
                             Text(
                               '${_currencySymbol(currency)}$mrp',
-                              style: const TextStyle(
-                                color: _muted,
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                                 fontSize: 12,
                                 decoration: TextDecoration.lineThrough,
                               ),
@@ -971,8 +1023,8 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: _marketInk,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 17,
               fontWeight: FontWeight.w800,
             ),
@@ -981,7 +1033,11 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
           Text(
             description,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: _muted, fontSize: 13, height: 1.5),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 13,
+              height: 1.5,
+            ),
           ),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 18),
@@ -1002,9 +1058,11 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
 
   BoxDecoration _panelDecoration() {
     return BoxDecoration(
-      color: _surface,
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: _marketInk.withValues(alpha: 0.07)),
+      border: Border.all(
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.07),
+      ),
     );
   }
 
@@ -1014,9 +1072,13 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: _surface,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: _marketInk.withValues(alpha: 0.07)),
+          border: Border.all(
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.07),
+          ),
         ),
         child: const Row(
           children: [
@@ -1137,8 +1199,8 @@ class _TrustItem extends StatelessWidget {
         Text(
           title,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Color(0xFF14213D),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 11.5,
             fontWeight: FontWeight.w700,
           ),

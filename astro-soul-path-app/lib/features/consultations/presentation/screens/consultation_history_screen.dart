@@ -134,20 +134,20 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
     return
     // CUSTOMER_SHARED_PREMIUM_BACKGROUND
     Scaffold(
-      backgroundColor: const Color(0xFFFFF9F1),
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFF9F1),
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         toolbarHeight: 82,
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'My Consultations',
               style: TextStyle(
-                color: Color(0xFF14213D),
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 26,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -0.6,
@@ -173,11 +173,16 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
         ],
       ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: RadialGradient(
             center: Alignment(0.65, -0.55),
             radius: 1.25,
-            colors: [Color(0xFFF5EEFF), Color(0xFFFFF9F1), Color(0xFFFFF9F1)],
+            colors: (Theme.of(context).brightness == Brightness.dark
+                ? [
+                    Theme.of(context).colorScheme.surface,
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
+                  ]
+                : [Color(0xFFF5EEFF), Color(0xFFFFF9F1), Color(0xFFFFF9F1)]),
             stops: [0.0, 0.45, 1.0],
           ),
         ),
@@ -310,14 +315,18 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
                         _loadHistory();
                       },
                       selectedColor: AppColors.gold,
-                      backgroundColor: AppColors.surfaceLight,
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
                       side: BorderSide(
-                        color: selected ? AppColors.gold : AppColors.border,
+                        color: selected
+                            ? AppColors.gold
+                            : Theme.of(context).colorScheme.outline,
                       ),
                       labelStyle: TextStyle(
                         color: selected
-                            ? AppColors.background
-                            : AppColors.white,
+                            ? Theme.of(context).scaffoldBackgroundColor
+                            : Theme.of(context).colorScheme.onSurface,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -455,13 +464,15 @@ class _HistoryCard extends StatelessWidget {
                 ),
                 child: Container(
                   padding: const EdgeInsets.all(2),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
                     shape: BoxShape.circle,
                   ),
                   child: CircleAvatar(
                     radius: 27,
-                    backgroundColor: const Color(0xFFF8F3FF),
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerLowest,
                     backgroundImage: item.astrologerAvatarUrl.isNotEmpty
                         ? NetworkImage(item.astrologerAvatarUrl)
                         : null,
@@ -859,8 +870,8 @@ class _SummaryItem extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           value,
-          style: const TextStyle(
-            color: Color(0xFF14213D),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 22,
             fontWeight: FontWeight.w900,
           ),

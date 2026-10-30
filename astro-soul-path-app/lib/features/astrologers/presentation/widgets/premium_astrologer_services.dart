@@ -32,26 +32,30 @@ class PremiumAstrologerServices extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: premiumIvory,
-        border: Border.all(color: premiumBorder),
+        color: Theme.of(context).scaffoldBackgroundColor,
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Consultation Services',
             style: TextStyle(
-              color: premiumInk,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 22,
               fontWeight: FontWeight.w800,
               height: 1.3,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Choose how you would like to connect.',
-            style: TextStyle(color: premiumMuted, fontSize: 15, height: 1.5),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 15,
+              height: 1.5,
+            ),
           ),
           for (var index = 0; index < items.length; index++) ...[
             const SizedBox(height: 16),
@@ -66,8 +70,8 @@ class PremiumAstrologerServices extends StatelessWidget {
                     children: [
                       Text(
                         items[index].$2,
-                        style: const TextStyle(
-                          color: premiumInk,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
@@ -75,8 +79,8 @@ class PremiumAstrologerServices extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         items[index].$3,
-                        style: const TextStyle(
-                          color: premiumMuted,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 15,
                           height: 1.4,
                         ),
@@ -87,9 +91,12 @@ class PremiumAstrologerServices extends StatelessWidget {
               ],
             ),
             if (index < items.length - 1)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 16),
-                child: Divider(height: 1, color: premiumBorder),
+                child: Divider(
+                  height: 1,
+                  color: Theme.of(context).colorScheme.outline,
+                ),
               ),
           ],
         ],

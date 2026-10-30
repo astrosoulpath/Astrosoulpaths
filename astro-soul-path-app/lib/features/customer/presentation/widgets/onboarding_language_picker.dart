@@ -99,14 +99,16 @@ class _PickerState extends State<OnboardingLanguagePicker> {
           selected: selected,
           onSelected: widget.enabled ? (_) => widget.onChanged(code) : null,
           selectedColor: AppColors.gold,
-          backgroundColor: AppColors.surface,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           side: BorderSide(
-            color: selected ? AppColors.goldDark : AppColors.border,
+            color: selected
+                ? AppColors.goldDark
+                : Theme.of(context).colorScheme.outline,
           ),
           label: Text(
             language.englishName,
-            style: const TextStyle(
-              color: AppColors.navy,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontWeight: FontWeight.w800,
             ),
           ),

@@ -153,7 +153,7 @@ class _KundliPdfPreviewScreenState extends State<KundliPdfPreviewScreen> {
     const gold = Color(0xFFFFC857);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F8),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         bottom: _pageCount == null
             ? null
@@ -234,8 +234,8 @@ class _KundliPdfPreviewScreenState extends State<KundliPdfPreviewScreen> {
         top: false,
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
             boxShadow: [
               BoxShadow(
                 blurRadius: 12,

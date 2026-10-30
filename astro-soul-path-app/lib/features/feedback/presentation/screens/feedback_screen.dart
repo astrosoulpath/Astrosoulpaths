@@ -1,6 +1,5 @@
 import '../../../support/presentation/widgets/support_account_boundary.dart';
 import 'package:flutter/material.dart';
-import '../../../../core/theme/cosmic_ivory.dart';
 
 import '../../data/feedback_api.dart';
 
@@ -25,6 +24,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   String _category = 'GENERAL';
 
   String? _error;
+  String? _historyError;
   List<Map<String, dynamic>> _history = [];
   int _page = 1, _loadVersion = 0;
   bool _hasMore = true;
@@ -56,7 +56,10 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   Future<void> _loadHistory() async {
     final version = ++_loadVersion;
     final page = _page;
-    setState(() => _loadingHistory = true);
+    setState(() {
+      _loadingHistory = true;
+      _historyError = null;
+    });
     try {
       final items = await _api.getMine(page: _page);
 
@@ -70,13 +73,13 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 for (final item in [..._history, ...items]) item['id']: item,
               }.values.toList();
         _loadingHistory = false;
-        _error = null;
+        _historyError = null;
       });
     } on FeedbackApiException catch (error) {
       if (!mounted || version != _loadVersion) return;
 
       setState(() {
-        _error = error.message;
+        _historyError = error.message;
         _loadingHistory = false;
         if (page > 1) _page = page - 1;
       });
@@ -84,7 +87,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       if (!mounted || version != _loadVersion) return;
 
       setState(() {
-        _error = 'Unable to load feedback history.';
+        _historyError = 'Unable to load feedback history.';
         _loadingHistory = false;
         if (page > 1) _page = page - 1;
       });
@@ -167,9 +170,9 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: CosmicIvory.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: CosmicIvory.background,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         title: const Text('Feedback'),
         actions: [
           if (_hasMore && _history.isNotEmpty)
@@ -219,6 +222,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                     const SizedBox(height: 8),
 
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      itemHeight: null,
                       initialValue: _category,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
@@ -269,6 +274,9 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                                 ? Icons.star_rounded
                                 : Icons.star_border_rounded,
                             size: 34,
+                            color: value <= _rating
+                                ? theme.colorScheme.secondary
+                                : theme.colorScheme.onSurfaceVariant,
                           ),
                           tooltip: '$value star',
                         );
@@ -358,6 +366,21 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   child: Padding(
                     padding: EdgeInsets.all(24),
                     child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (_historyError != null)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Text(_historyError!),
+                        TextButton(
+                          onPressed: _loadHistory,
+                          child: const Text('Try again'),
+                        ),
+                      ],
+                    ),
                   ),
                 )
               else if (_history.isEmpty)

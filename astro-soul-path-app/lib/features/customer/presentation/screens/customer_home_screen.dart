@@ -1,5 +1,4 @@
 import '../widgets/curved_cosmic_home_header.dart';
-import '../../../../core/theme/cosmic_ivory.dart';
 import '../../../app_config/data/app_config_api.dart';
 import '../widgets/compact_astrology_sticker.dart';
 import '../../../../core/branding/premium_customer_surfaces.dart'
@@ -463,23 +462,29 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: AppColors.surfaceLight,
+          backgroundColor: Theme.of(
+            context,
+          ).colorScheme.surfaceContainerHighest,
           title: const Text(
             'Logout?',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
           ),
-          content: const Text(
+          content: Text(
             'Are you sure you want to logout from Astro Soul Path?',
-            style: TextStyle(color: AppColors.muted),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: const Text(
+              child: Text(
                 'Cancel',
-                style: TextStyle(color: AppColors.muted),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
             FilledButton(
@@ -587,7 +592,13 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
 
   Future<void> _loadNotificationCount() async {
     try {
-      final count = await _notificationsApi.getUnreadCount();
+      var count = await _notificationsApi.getUnreadCount();
+      try {
+        final reminders = await _notificationsApi.subscriptionReminders();
+        count += reminders['unreadCount'] as int;
+      } catch (_) {
+        /* Keep the verified legacy inbox count if expiry storage is unavailable. */
+      }
 
       if (!mounted) {
         return;
@@ -989,18 +1000,21 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
         },
         drawer: Drawer(
           width: MediaQuery.sizeOf(context).width * 0.84,
-          backgroundColor: CosmicIvory.background,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           child: SafeArea(
             child: Column(
               children: [
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [CosmicIvory.purple, Color(0xFF38224E)],
+                      colors: [
+                        Theme.of(context).colorScheme.onSurface,
+                        Color(0xFF38224E),
+                      ],
                     ),
                   ),
                   child: Row(
@@ -1358,7 +1372,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
                           Expanded(
                             child: Container(
                               height: 1,
-                              color: AppColors.muted.withValues(alpha: 0.28),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant
+                                  .withValues(alpha: 0.28),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -1381,7 +1398,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
                           Expanded(
                             child: Container(
                               height: 1,
-                              color: AppColors.muted.withValues(alpha: 0.28),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant
+                                  .withValues(alpha: 0.28),
                             ),
                           ),
                         ],
@@ -1391,7 +1411,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
                         'Your Guide to a Brighter Tomorrow',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: AppColors.muted.withValues(alpha: 0.72),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.72),
                           fontSize: 10.5,
                           fontWeight: FontWeight.w500,
                           letterSpacing: 0.15,
@@ -1544,14 +1565,14 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
               SliverToBoxAdapter(
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        AppColors.background,
-                        AppColors.surfaceLight,
-                        AppColors.surfaceLight,
+                        Theme.of(context).scaffoldBackgroundColor,
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                       ],
                     ),
                     borderRadius: BorderRadius.only(
@@ -1834,8 +1855,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
                           });
                         },
                         textInputAction: TextInputAction.search,
-                        style: const TextStyle(
-                          color: CelestialHomeStyle.ink,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1901,13 +1922,13 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 5),
                   child: SizedBox(
-                    height:
-                        148 +
-                        (MediaQuery.textScalerOf(context).scale(14) - 14).clamp(
-                              0,
-                              56,
-                            ) *
-                            3,
+                    height: PremiumCategoryTile.carouselHeight(context, [
+                      AppStrings.text(context, en: 'Career'),
+                      AppStrings.text(context, en: 'Marriage'),
+                      AppStrings.text(context, en: 'Stock Market'),
+                      AppStrings.text(context, en: 'Today'),
+                      AppStrings.text(context, en: 'Business'),
+                    ]),
                     child: ListView(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
@@ -2306,8 +2327,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Color(0xFF14213D),
+                                  style: TextStyle(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -2393,7 +2416,7 @@ class _HomeAstrologyTopic extends StatelessWidget {
         ? 'today'
         : 'business';
     return PremiumCategoryTile(
-      assetPath: 'assets/stickers/home_astrology/$asset-premium.webp',
+      assetPath: 'assets/stickers/home_astrology/$asset-circular-v1.png',
       label: label,
       onTap: onTap,
     );
@@ -2525,7 +2548,7 @@ class _AiAstrologersHomeSectionState extends State<_AiAstrologersHomeSection> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.surfaceLight,
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: const Color(0x334D6682)),
           ),
@@ -2603,7 +2626,7 @@ class _TicketStickerShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: padding,
-    decoration: CelestialHomeStyle.surface(radius: 22),
+    decoration: CelestialHomeStyle.surface(radius: 22, context: context),
     child: child,
   );
 }
@@ -2961,7 +2984,7 @@ class _ErrorState extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.white),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
           ),
           const SizedBox(height: 18),
           FilledButton(onPressed: onRetry, child: const Text('Try Again')),
@@ -3004,7 +3027,7 @@ class _LiveAvatarFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.surfaceLight,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       alignment: Alignment.center,
       child: const Icon(Icons.person_rounded, color: AppColors.gold, size: 46),
     );
@@ -3031,22 +3054,26 @@ class _DrawerMenuTile extends StatelessWidget {
         width: 38,
         height: 38,
         decoration: BoxDecoration(
-          color: CosmicIvory.lavender,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: CosmicIvory.amethyst, size: 21),
+        child: Icon(
+          icon,
+          color: Theme.of(context).colorScheme.primary,
+          size: 21,
+        ),
       ),
       title: Text(
         title,
-        style: const TextStyle(
-          color: CosmicIvory.ink,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface,
           fontSize: 15,
           fontWeight: FontWeight.w700,
         ),
       ),
-      trailing: const Icon(
+      trailing: Icon(
         Icons.chevron_right_rounded,
-        color: CosmicIvory.muted,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
         size: 20,
       ),
     );
@@ -3059,9 +3086,11 @@ class _DrawerAvatarFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.surfaceLight,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       alignment: Alignment.center,
       child: const Icon(Icons.person_rounded, color: AppColors.gold, size: 38),
     );
   }
 }
+
+// Circular category presentation keeps labels in localized Flutter widgets.

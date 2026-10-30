@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:http/http.dart' as http;
 
@@ -14,6 +16,23 @@ class NotificationDeviceApiException implements Exception {
 }
 
 class NotificationDeviceApi {
+  static Future<String>? _installation;
+  static Future<String> _installationId() => _installation ??=
+      () async {
+        const storage = FlutterSecureStorage();
+        const key = 'asp_notification_installation';
+        final existing = await storage.read(key: key);
+        if (existing != null && existing.isNotEmpty) return existing;
+        final random = Random.secure();
+        final value = base64UrlEncode(
+          List<int>.generate(24, (_) => random.nextInt(256)),
+        );
+        await storage.write(key: key, value: value);
+        return value;
+      }().catchError((Object error) {
+        _installation = null;
+        throw error;
+      });
   NotificationDeviceApi({http.Client? client, AuthSessionStore? sessionStore})
     : _client = client ?? http.Client(),
       _sessionStore = sessionStore ?? AuthSessionStore();
@@ -36,6 +55,7 @@ class NotificationDeviceApi {
     }
 
     final platform = Platform.isIOS ? 'IOS' : 'ANDROID';
+    final installation = await _installationId();
     if (NotificationSessionFence.suspended ||
         generation != NotificationSessionFence.generation) {
       return;
@@ -49,7 +69,11 @@ class NotificationDeviceApi {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer ${session.accessToken}',
           },
-          body: jsonEncode({'fcmToken': token, 'platform': platform}),
+          body: jsonEncode({
+            'fcmToken': token,
+            'platform': platform,
+            'deviceId': installation,
+          }),
         )
         .timeout(ApiConfig.requestTimeout);
 

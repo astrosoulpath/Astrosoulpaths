@@ -8,9 +8,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/astro_soul_path_app.dart';
 import 'core/config/supabase_config.dart';
+import 'core/theme/app_theme_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppThemeController.loadCached();
 
   runApp(const _BootstrapApp());
 }

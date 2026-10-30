@@ -95,7 +95,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     final isFinal = _currentPage == _pages.length - 1;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           const Positioned.fill(child: _PremiumBackground()),
@@ -128,10 +128,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           ignoring: isFinal,
                           child: TextButton(
                             onPressed: _goToFinalPage,
-                            child: const Text(
+                            child: Text(
                               'Skip',
                               style: TextStyle(
-                                color: AppColors.muted,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -171,7 +173,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                             decoration: BoxDecoration(
                               color: index == _currentPage
                                   ? AppColors.gold
-                                  : AppColors.border,
+                                  : Theme.of(context).colorScheme.outline,
                               borderRadius: BorderRadius.circular(99),
                             ),
                           ),
@@ -185,7 +187,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           onPressed: _next,
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.gold,
-                            foregroundColor: AppColors.background,
+                            foregroundColor: Theme.of(
+                              context,
+                            ).scaffoldBackgroundColor,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(18),
@@ -222,7 +226,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                               margin: const EdgeInsets.symmetric(
                                 horizontal: 14,
                               ),
-                              color: AppColors.border,
+                              color: Theme.of(context).colorScheme.outline,
                             ),
                             _PortalTextButton(
                               label: 'Join as Astrologer',
@@ -363,7 +367,7 @@ class _OnboardingPage extends StatelessWidget {
                   data.title,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: AppColors.white,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: titleSize,
                     height: 1.06,
                     fontWeight: FontWeight.w900,
@@ -379,7 +383,7 @@ class _OnboardingPage extends StatelessWidget {
                     data.description,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: AppColors.muted,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: descriptionSize,
                       height: descriptionHeight,
                     ),
@@ -440,7 +444,9 @@ class _WelcomeBenefitCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceLight.withValues(alpha: 0.92),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.45)),
         boxShadow: const [
@@ -451,7 +457,7 @@ class _WelcomeBenefitCard extends StatelessWidget {
           ),
         ],
       ),
-      child: const Row(
+      child: Row(
         children: [
           _BenefitIcon(),
           SizedBox(width: 14),
@@ -462,7 +468,7 @@ class _WelcomeBenefitCard extends StatelessWidget {
                 Text(
                   'Welcome Benefit',
                   style: TextStyle(
-                    color: AppColors.white,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 15,
                     fontWeight: FontWeight.w900,
                   ),
@@ -471,7 +477,7 @@ class _WelcomeBenefitCard extends StatelessWidget {
                 Text(
                   'New customers can check eligible consultation benefits after sign-in.',
                   style: TextStyle(
-                    color: AppColors.muted,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 11.5,
                     height: 1.45,
                   ),
@@ -514,7 +520,7 @@ class _MiniBrand extends StatelessWidget {
           height: 34,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: AppColors.surface,
+            color: Theme.of(context).colorScheme.surface,
             border: Border.all(color: AppColors.gold.withValues(alpha: 0.8)),
           ),
           child: const Icon(
@@ -524,10 +530,10 @@ class _MiniBrand extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        const Text(
+        Text(
           'Astro Soul Path',
           style: TextStyle(
-            color: AppColors.white,
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 14,
             fontWeight: FontWeight.w900,
           ),
@@ -719,7 +725,7 @@ class _OrbitingCelestialHeroState extends State<_OrbitingCelestialHero>
             height: centerSize,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               border: Border.all(
                 color: AppColors.gold.withValues(alpha: 0.85),
                 width: 1.5,
@@ -797,14 +803,14 @@ class _PremiumBackgroundState extends State<_PremiumBackground>
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            AppColors.surfaceLight,
-            AppColors.surface,
-            AppColors.background,
+            Theme.of(context).colorScheme.surfaceContainerHighest,
+            Theme.of(context).colorScheme.surface,
+            Theme.of(context).scaffoldBackgroundColor,
           ],
           stops: [0, 0.46, 1],
         ),
