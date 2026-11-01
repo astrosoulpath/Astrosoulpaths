@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { AstrologerEarningStatus } from '@prisma/client';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { maintenanceJobEnabled } from '../../config/background-job-gates';
 
 @Injectable()
 export class EarningReleaseProcessor {
@@ -13,6 +14,7 @@ export class EarningReleaseProcessor {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async releaseEligibleEarnings(): Promise<void> {
+    if (!maintenanceJobEnabled('EARNINGS_RELEASE')) return;
     if (this.isRunning) {
       return;
     }

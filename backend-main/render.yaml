@@ -45,15 +45,18 @@ services:
       # --------------------------------------------------------
       # DATABASE
       # --------------------------------------------------------
+      # Operator supplies the verified restricted-role URL, never owner binding.
       - key: DATABASE_URL
-        fromDatabase:
-          name: astrosoulpath-postgres
-          property: connectionString
-
-      - key: DIRECT_URL
-        fromDatabase:
-          name: astrosoulpath-postgres
-          property: connectionString
+        sync: false
+      # DIRECT_URL belongs only to a separate migration-operator process.
+      - key: BACKGROUND_JOBS_ENABLED
+        value: 'false'
+      - key: MAINTENANCE_AI_EXPIRY_ENABLED
+        value: 'false'
+      - key: MAINTENANCE_CONSULTATION_EXPIRY_ENABLED
+        value: 'false'
+      - key: MAINTENANCE_EARNINGS_RELEASE_ENABLED
+        value: 'false'
 
       # --------------------------------------------------------
       # REDIS

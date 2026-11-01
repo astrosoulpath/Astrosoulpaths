@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { ConsultationService } from './consultation.service';
+import { maintenanceJobEnabled } from '../../config/background-job-gates';
 
 @Injectable()
 export class ConsultationExpiryProcessor {
@@ -17,6 +18,7 @@ export class ConsultationExpiryProcessor {
 
   @Cron(CronExpression.EVERY_10_SECONDS)
   async completeExpiredConsultations(): Promise<void> {
+    if (!maintenanceJobEnabled('CONSULTATION_EXPIRY')) return;
     if (this.isRunning) {
       return;
     }

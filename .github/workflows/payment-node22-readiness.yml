@@ -5,6 +5,8 @@ on:
     paths:
       - 'backend-main/**'
       - 'website/**'
+      - 'deploy/security/**'
+      - 'deploy/render/staging-gates.env.example'
       - '.github/workflows/payment-node22-readiness.yml'
 permissions:
   contents: read
@@ -39,6 +41,9 @@ jobs:
           src/common/finance/consultation-financial-policy.spec.ts
           src/common/finance/financial-integrity.spec.ts
           src/module/subscription/subscription-catalogue-policy.spec.ts
+          src/config/runtime-database-isolation.spec.ts
+          src/config/background-job-gates.spec.ts
+      - run: python3 -B ../deploy/security/stage-b/test-stage-b-readiness.py
   website:
     runs-on: ubuntu-latest
     defaults:

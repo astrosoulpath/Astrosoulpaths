@@ -436,6 +436,15 @@ describe('captured payment currency proof', () => {
 });
 
 describe('earning release eligibility', () => {
+  const originalEnv = process.env;
+  beforeEach(() => {
+    process.env = {
+      ...originalEnv,
+      BACKGROUND_JOBS_ENABLED: 'true',
+      MAINTENANCE_EARNINGS_RELEASE_ENABLED: 'true',
+    };
+  });
+  afterEach(() => { process.env = originalEnv; });
   it('does not release paid, reversed or withdrawal-reserved earnings', async () => {
     const updateMany = jest.fn().mockResolvedValue({ count: 0 });
     await new EarningReleaseProcessor({

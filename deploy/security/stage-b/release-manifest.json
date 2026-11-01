@@ -1,0 +1,116 @@
+{
+  "baseCommit": "ab20e50393cc5ab2b7575408b100d0de80bf233c",
+  "branch": "security/stage-b-runtime-isolation-20261101",
+  "newReleaseCommit": null,
+  "state": "UNCOMMITTED_LOCAL_PREPARATION_ONLY",
+  "node": "22.23.4",
+  "pnpm": "11.25.0",
+  "securityTests": 95,
+  "ciBackendTests": 237,
+  "uniqueBackendCases": 305,
+  "offlinePolicyTests": 12,
+  "files": [
+    {
+      "path": ".github/workflows/payment-node22-readiness.yml",
+      "sha256": "2ac60d87dea58f39f83119c80d9156aed281e8d9720ef75d1ae7de7f3a420021"
+    },
+    {
+      "path": "backend-main/.dockerignore",
+      "sha256": "4a70c15f35bd3cc94f4603b57378440428c31de731c6e86e155719bddd61afe3"
+    },
+    {
+      "path": "backend-main/.env.example",
+      "sha256": "455881d9f9131782542c995bf69be6d56cbb542dc597555e540b21154148c0dc"
+    },
+    {
+      "path": "backend-main/prisma/schema.prisma",
+      "sha256": "15a247bb0ee470ff7c0310cd96c2fba9c3c8a2112bc0c13bc06cc413ca4e99b1"
+    },
+    {
+      "path": "backend-main/render.yaml",
+      "sha256": "aea9381976f873c6137014f9699e943f1e16be736e7fe6aedd5cc74ae18852b8"
+    },
+    {
+      "path": "backend-main/src/app.module.ts",
+      "sha256": "3261279aa5711668deee25949e78464e5c7fe56f48d68fa3f74f1787af175d54"
+    },
+    {
+      "path": "backend-main/src/common/finance/financial-integrity.spec.ts",
+      "sha256": "e9bb4db9565ce15c3666fa75a674afdfd0b03ac14e4262d7da467e4f9cf6abeb"
+    },
+    {
+      "path": "backend-main/src/config/background-job-gates.spec.ts",
+      "sha256": "60c1829fc07529735d97b1009c498dae176a4a125010c2128e5a208df6f1011e"
+    },
+    {
+      "path": "backend-main/src/config/background-job-gates.ts",
+      "sha256": "d023377e25a8a0a0eea7ec72276635d17b2e3c637ce9359d8727727e2bb994d5"
+    },
+    {
+      "path": "backend-main/src/config/env.validation.ts",
+      "sha256": "c568cb4a7486f88730fedba44f31bae1ba2d615d9df9011a0ea4521bbb7a04a0"
+    },
+    {
+      "path": "backend-main/src/config/runtime-database-isolation.spec.ts",
+      "sha256": "f152a928bbca6b4723b9968f914a24b19696b22fc609786aa763b7be14f57b98"
+    },
+    {
+      "path": "backend-main/src/config/runtime-database-isolation.ts",
+      "sha256": "03173bd6be9373f640c27fcd43d1fe87720e5ed404df77d815c90890c0ee2d57"
+    },
+    {
+      "path": "backend-main/src/infrastructure/prisma/prisma.service.ts",
+      "sha256": "c70a0e830101927f6101af562d78ba76d806c96fa308a6e583718bdabb12a30f"
+    },
+    {
+      "path": "backend-main/src/main.ts",
+      "sha256": "ac40b9ef59f8ca4891e6e81367f06753be1dcc2b3052e607e202141dace5579f"
+    },
+    {
+      "path": "backend-main/src/module/ai-astro/ai-astro-expiry.processor.ts",
+      "sha256": "064a21b1b16587f3b997c9e7d024bc8e0eee5a68034f9f47033fa355ed8a62c2"
+    },
+    {
+      "path": "backend-main/src/module/consultation/consultation-expiry.processor.ts",
+      "sha256": "df4867b5792e1edef2996e6bb4beb0b6630a841fc49fe7cfc6c244c07d339b25"
+    },
+    {
+      "path": "backend-main/src/module/consultation/earning-release.processor.ts",
+      "sha256": "8305299b9d18f209978be35a9749a36834e412de91f058266058a8285143dbc6"
+    },
+    {
+      "path": "deploy/render/staging-gates.env.example",
+      "sha256": "f768539262ec3c870f4092865ee1bb7993142da8b298d6960a07ee5f53f259fc"
+    },
+    {
+      "path": "deploy/security/STAGE-B-RELEASE-HANDOFF.md",
+      "sha256": "92e29e824d6004cc572866d228d7f2881d30af8114be74069e15379bcaa91a3d"
+    },
+    {
+      "path": "deploy/security/stage-b/operator-approval-boundaries.json",
+      "sha256": "874f1eff4c3592a357e359ccd80146d539168f5af3f37d7cfc9e4f24b19bd2e1"
+    },
+    {
+      "path": "deploy/security/stage-b/redacted-evidence.template.json",
+      "sha256": "bd82a7ac9676a67e6af6922c1a2f9cb251af9ece3a27f80e2be3b0200479877e"
+    },
+    {
+      "path": "deploy/security/stage-b/required-disabled-gates.json",
+      "sha256": "29948700d2331098ede1066e6980f186fc230e51d8d572d48160815577f1cb91"
+    },
+    {
+      "path": "deploy/security/stage-b/runtime-connection-readonly.sql",
+      "sha256": "81f3f0ddde8cb342d9fd5c408a5773d3523d7b64ce46f1e53118e0927feaf662"
+    },
+    {
+      "path": "deploy/security/stage-b/stage-b-readiness.py",
+      "sha256": "86b06a363bcc1f96f5b9f094b9512a8caefa0da9de4e8a19788e8cbde48366b9"
+    },
+    {
+      "path": "deploy/security/stage-b/test-stage-b-readiness.py",
+      "sha256": "0c4c892f6f1ba098c6a0cf3d903e2ca8d64221513bac2aa2c7b34704750dc1bf"
+    }
+  ],
+  "selfExcludedFromHashes": "deploy/security/stage-b/release-manifest.json",
+  "productionActionsAuthorized": false
+}

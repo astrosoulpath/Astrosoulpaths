@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AiAstroService } from './ai-astro.service';
+import { maintenanceJobEnabled } from '../../config/background-job-gates';
 
 @Injectable()
 export class AiAstroExpiryProcessor {
@@ -83,6 +84,7 @@ export class AiAstroExpiryProcessor {
   }
   @Cron(CronExpression.EVERY_10_SECONDS)
   async settleExpiredSessions(): Promise<void> {
+    if (!maintenanceJobEnabled('AI_EXPIRY')) return;
     if (this.isRunning) {
       return;
     }

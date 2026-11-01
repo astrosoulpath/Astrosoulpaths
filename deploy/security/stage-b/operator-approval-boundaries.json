@@ -1,0 +1,22 @@
+{
+  "resource": "dpg-dbicfj8n74is73b23i90-a",
+  "database": "astro_soul_path",
+  "runtimeRole": "asp_sg_runtime_v1",
+  "preparationOnly": true,
+  "credentialSetupApproved": false,
+  "loginActivationApproved": false,
+  "renderConfigurationApproved": false,
+  "securityReleaseDeploymentApproved": false,
+  "resumeApproved": false,
+  "migrationsApproved": false,
+  "runtimeEnvironment": {
+    "DATABASE_URL": "restricted role only; value not stored here",
+    "DIRECT_URL": "ABSENT, including linked groups/secret files",
+    "BACKGROUND_JOBS_ENABLED": "false",
+    "MAINTENANCE_AI_EXPIRY_ENABLED": "false",
+    "MAINTENANCE_CONSULTATION_EXPIRY_ENABLED": "false",
+    "MAINTENANCE_EARNINGS_RELEASE_ENABLED": "false"
+  },
+  "migrationEnvironment": "Separate approved operator process only, owner URL supplied privately as DATABASE_URL; never used to launch NestJS",
+  "rollback": "Keep backend suspended. Separately approve NOLOGIN after identity/session checks. Never restore owner credentials to runtime or auto-run Stage A rollback."
+}

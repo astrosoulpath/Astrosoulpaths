@@ -8,6 +8,10 @@ type RedisValidationEnv = {
 
 export const envValidationSchema = Joi.object({
   PORT: Joi.number().default(3000),
+  BACKGROUND_JOBS_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
+  MAINTENANCE_AI_EXPIRY_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
+  MAINTENANCE_CONSULTATION_EXPIRY_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
+  MAINTENANCE_EARNINGS_RELEASE_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
   REDIS_URL: Joi.string()
     .pattern(/^rediss?:\/\//)
     .optional(),

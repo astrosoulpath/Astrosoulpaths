@@ -4,6 +4,7 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { backgroundScheduleOptions } from './config/background-job-gates';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -57,7 +58,7 @@ import { ArticlesModule } from './module/articles/articles.module';
     AppConfigModule,
     AiAstroModule,
     AiReceptionistModule,
-    ScheduleModule.forRoot(),
+    ScheduleModule.forRoot(backgroundScheduleOptions()),
     ConfigModule.forRoot({
       envFilePath: '.env',
       ignoreEnvFile: process.env.NODE_ENV === 'production',

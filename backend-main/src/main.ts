@@ -7,8 +7,10 @@ import { setupBullBoard } from './infrastructure/bullmq/bull-board';
 import { UserService } from './module/user/user.service';
 import { createAdminHttpMiddleware } from './common/auth/admin-identity-policy';
 import { createHttpCorsOptions } from './config/http-cors.config';
+import { runtimePrismaOptions } from './config/runtime-database-isolation';
 
 async function bootstrap() {
+  runtimePrismaOptions();
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
   });
