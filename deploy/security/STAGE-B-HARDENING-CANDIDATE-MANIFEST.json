@@ -1,0 +1,59 @@
+{
+  "baseCommit": "f2ca03e2237acefc1293a10b6e5f47349bd23bbc",
+  "state": "UNCOMMITTED_LOCAL_REVIEW_ONLY",
+  "includesPreservedEarlierFixes": true,
+  "files": [
+    {
+      "path": ".github/workflows/payment-node22-readiness.yml",
+      "sha256": "ea53b9cb743a88c5961d54a346d6062f0c9cb54079022f750a0ccc84869ae24e"
+    },
+    {
+      "path": "backend-main/Dockerfile",
+      "sha256": "e45d5c24a35ce60be19e27b24317b63f352a8a750118c7e6fe661c570377ab33"
+    },
+    {
+      "path": "backend-main/package-lock.json",
+      "sha256": "1fbb35b5f1ff6fc13131fe7171ec7a99ee77823e6e85dbfde53abef56e32403a"
+    },
+    {
+      "path": "backend-main/package.json",
+      "sha256": "39f6733332536b68534931697a37cc5a4cb8d4c4054bc6e6db80cce58968175c"
+    },
+    {
+      "path": "backend-main/pnpm-lock.yaml",
+      "sha256": "37112d3e291fd7ac4f21db5416daa03ce65aef00bb5fce4af1932ec10ebc3b9d"
+    },
+    {
+      "path": "backend-main/pnpm-workspace.yaml",
+      "sha256": "03a24db1d80a0a1cde657237c95dcf83f833c114908a2c1bd198c41ddcc70b34"
+    },
+    {
+      "path": "backend-main/src/config/proxy-trust-security.spec.ts",
+      "sha256": "f612b39a0f2196b274ca146acc8bbb32977089b079d9caa1d47c494b9fb593b6"
+    },
+    {
+      "path": "backend-main/src/module/admin/admin.service.spec.ts",
+      "sha256": "d7ee5828b3c375a0e0db644163141657d9e20389461677c1df8cdce18a1840ec"
+    },
+    {
+      "path": "backend-main/src/module/astro/modules/geo/geo.service.spec.ts",
+      "sha256": "55921967f6e7f1ca5752491b128d1971cf09e443bbd47106b4fae989e5c7fb00"
+    },
+    {
+      "path": "deploy/render/staging-gates.env.example",
+      "sha256": "a250573427ab98206bdf05148e8c230f704342559ab95d5dbbffadc54af9e290"
+    },
+    {
+      "path": "deploy/security/STAGE-B-DEPENDENCY-TRIAGE.md",
+      "sha256": "340a8c45e165dcf2acce59b8d5400135e165eaa1f92a3a6da4c10fe4276fde56"
+    },
+    {
+      "path": "deploy/security/STAGE-B-PRODUCTION-HARDENING.md",
+      "sha256": "30932635e15c5b7b832ff6ee32a618424e04c0e41b0353f6362c3a5dd289eaa5"
+    },
+    {
+      "path": "deploy/security/stage-b/test-offline-deployment.py",
+      "sha256": "9a4302019dd481d6bae1f62c921a5091cef7ea052e8ad4750ebd6f85a309a9d0"
+    }
+  ]
+}

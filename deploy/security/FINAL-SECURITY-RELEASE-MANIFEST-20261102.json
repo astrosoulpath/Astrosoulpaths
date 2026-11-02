@@ -1,0 +1,80 @@
+{
+  "baseCommit": "f2ca03e2237acefc1293a10b6e5f47349bd23bbc",
+  "branch": "security/stage-b-runtime-isolation-20261101",
+  "state": "UNCOMMITTED_REVIEW_CANDIDATE_NOT_APPROVED_FOR_EXECUTION",
+  "runtimeResidualRisk": "10 moderate package findings, explicitly documented",
+  "files": [
+    {
+      "path": ".github/workflows/payment-node22-readiness.yml",
+      "sha256": "b77ea52c8f12f04e2690393815941c973051a438a23153ddd9afa8588d4e215a"
+    },
+    {
+      "path": "backend-main/Dockerfile",
+      "sha256": "e45d5c24a35ce60be19e27b24317b63f352a8a750118c7e6fe661c570377ab33"
+    },
+    {
+      "path": "backend-main/package-lock.json",
+      "sha256": "6396d3e1fba8e4401700e842ad884d43ac4341ddc6cc2166815d0c421c9584ba"
+    },
+    {
+      "path": "backend-main/package.json",
+      "sha256": "798b605115c52775fc49a27ccbbcab20d2b37d56ae7f968df43906167875d266"
+    },
+    {
+      "path": "backend-main/pnpm-lock.yaml",
+      "sha256": "1829d0e1d7efd41b390133bf34740d726ac0a76342164c43b85aad5c76b24648"
+    },
+    {
+      "path": "backend-main/pnpm-workspace.yaml",
+      "sha256": "abba12904e3d1312804e22ce21492dffeb0ea4ac0a492cf7f1d46d724f03d686"
+    },
+    {
+      "path": "backend-main/src/config/handlebars-security.spec.ts",
+      "sha256": "01770efda76b41d2112439948c357497d9796a5c1dd2e310e04c26bfcae96659"
+    },
+    {
+      "path": "backend-main/src/config/proxy-trust-security.spec.ts",
+      "sha256": "f612b39a0f2196b274ca146acc8bbb32977089b079d9caa1d47c494b9fb593b6"
+    },
+    {
+      "path": "backend-main/src/module/admin/admin.service.spec.ts",
+      "sha256": "d7ee5828b3c375a0e0db644163141657d9e20389461677c1df8cdce18a1840ec"
+    },
+    {
+      "path": "backend-main/src/module/astro/modules/geo/geo.service.spec.ts",
+      "sha256": "55921967f6e7f1ca5752491b128d1971cf09e443bbd47106b4fae989e5c7fb00"
+    },
+    {
+      "path": "backend-main/src/module/mail/mail-compatibility.spec.ts",
+      "sha256": "3560d796dfebc64538bdb198d313024f3f4add0655a5dea189e240bd60f29a8d"
+    },
+    {
+      "path": "deploy/render/staging-gates.env.example",
+      "sha256": "a250573427ab98206bdf05148e8c230f704342559ab95d5dbbffadc54af9e290"
+    },
+    {
+      "path": "deploy/security/FINAL-SECURITY-ADVISORY-INVENTORY.md",
+      "sha256": "bbfffc8c6449fc075bf96163c4ec3c6364da3074bacc176035c74286a1b894bb"
+    },
+    {
+      "path": "deploy/security/FINAL-SECURITY-RELEASE-READINESS-20261102.md",
+      "sha256": "26fa14a48a4af6668e31a75bf13fe24d8f5fd2353cd1a8c1f42e5ca6b28746b3"
+    },
+    {
+      "path": "deploy/security/STAGE-B-DEPENDENCY-TRIAGE.md",
+      "sha256": "340a8c45e165dcf2acce59b8d5400135e165eaa1f92a3a6da4c10fe4276fde56"
+    },
+    {
+      "path": "deploy/security/STAGE-B-HARDENING-CANDIDATE-MANIFEST.json",
+      "sha256": "dce0fb52ee8f66f24cbd00a6553807de9f6a7c56ad314504d190690ead66247b"
+    },
+    {
+      "path": "deploy/security/STAGE-B-PRODUCTION-HARDENING.md",
+      "sha256": "30932635e15c5b7b832ff6ee32a618424e04c0e41b0353f6362c3a5dd289eaa5"
+    },
+    {
+      "path": "deploy/security/stage-b/test-offline-deployment.py",
+      "sha256": "9a4302019dd481d6bae1f62c921a5091cef7ea052e8ad4750ebd6f85a309a9d0"
+    }
+  ]
+}

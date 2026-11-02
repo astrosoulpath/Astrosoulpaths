@@ -43,7 +43,11 @@ jobs:
           src/module/subscription/subscription-catalogue-policy.spec.ts
           src/config/runtime-database-isolation.spec.ts
           src/config/background-job-gates.spec.ts
+          src/config/proxy-trust-security.spec.ts
+          src/config/handlebars-security.spec.ts
+          src/module/mail/mail-compatibility.spec.ts
       - run: python3 -B ../deploy/security/stage-b/test-stage-b-readiness.py
+      - run: python3 -B ../deploy/security/stage-b/test-offline-deployment.py
   website:
     runs-on: ubuntu-latest
     defaults:

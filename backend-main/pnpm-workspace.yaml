@@ -9,3 +9,8 @@ allowBuilds:
   protobufjs: false
   unrs-resolver: false
 
+
+overrides:
+  multer: 2.5.0
+  'brace-expansion@^2.0.1': 2.1.7
+  handlebars: 4.7.10

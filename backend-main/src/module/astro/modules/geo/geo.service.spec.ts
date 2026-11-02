@@ -3,7 +3,6 @@ import {
   BadRequestException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import axios from 'axios';
 
 import { GeoService } from './geo.service';
