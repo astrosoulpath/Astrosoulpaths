@@ -1,8 +1,9 @@
+import { adminRequestOriginAllowed } from '@/features/admin/auth/admin-request-origin';
 import { NextRequest, NextResponse } from 'next/server';
 import { ADMIN_COOKIE_OPTIONS, ADMIN_SESSION_COOKIE, verifyAdminSessionToken, exchangeAdminFirebaseToken } from '@/features/admin/auth/admin-contract';
 
 export async function POST(request: NextRequest) {
-  if (request.headers.get('origin') !== request.nextUrl.origin) return NextResponse.json({ message: 'Invalid request origin.' }, { status: 403 });
+  if (!adminRequestOriginAllowed({origin:request.headers.get('origin'),internalOrigin:request.nextUrl.origin,host:request.headers.get('host'),mode:process.env.NODE_ENV})) return NextResponse.json({ message: 'Invalid request origin.' }, { status: 403 });
   try {
     const body = await request.json();
     const token = body?.idToken;
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
   }
 }
 export async function DELETE(request: NextRequest) {
-  if (request.headers.get('origin') !== request.nextUrl.origin) return NextResponse.json({ message: 'Invalid request origin.' }, { status: 403 });
+  if (!adminRequestOriginAllowed({origin:request.headers.get('origin'),internalOrigin:request.nextUrl.origin,host:request.headers.get('host'),mode:process.env.NODE_ENV})) return NextResponse.json({ message: 'Invalid request origin.' }, { status: 403 });
   const response = NextResponse.json({ success: true });
   response.headers.set('Cache-Control', 'no-store');
   response.cookies.set(ADMIN_SESSION_COOKIE, '', { ...ADMIN_COOKIE_OPTIONS, maxAge: 0 });

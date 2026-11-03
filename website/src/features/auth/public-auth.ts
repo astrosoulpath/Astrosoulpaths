@@ -14,6 +14,7 @@ export function beginPublicAuthAttempt() {
 }
 export type Portal = "customer" | "astrologer";
 export type SessionResult = {
+  authContext?: 'customer' | 'astrologer' | 'admin';
   success?: boolean;
   portal?: string;
   role?: string;

@@ -499,7 +499,7 @@ export class ConsultationRepository {
         take: limit,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         select: {
-          id: true, userId: true, mode: true, status: true,
+          id: true, userId: true, astrologerId: true, mode: true, status: true,
           createdAt: true, startedAt: true, endedAt: true, expiresAt: true,
           amountCharged: true, ratePerMinute: true, purchasedMinutes: true,
           extendedMinutes: true, isFreeChat: true,

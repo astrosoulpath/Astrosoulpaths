@@ -1,5 +1,6 @@
 "use client";
 import Link from 'next/link';
+import {beginApplicationForCurrentCustomer} from './begin-application';
 import {useCallback,useEffect,useRef,useState,type FormEvent} from 'react';
 import {useRouter} from 'next/navigation';
 import {applicationRequest,readApplication,uploadApplicationDocument,type ApplicationStatus} from './application-api';
@@ -22,11 +23,12 @@ export function AstrologerRegistrationForm(){
   catch(e){if(request===version.current){setUncertain(true);setError(e instanceof Error?e.message:'Submission was not confirmed. Read server status before trying again.');}}
   finally{lock.current=false;setBusy(false);}
  }
+ async function begin(){if(lock.current)return;lock.current=true;setBusy(true);setError('');try{await beginApplicationForCurrentCustomer();await reload();}catch(e){setError(e instanceof Error?e.message:'Application access could not be verified.');}finally{lock.current=false;setBusy(false);}}
  const input='mt-2 min-h-12 w-full rounded-xl border border-[#E8E2F0] bg-white p-3 text-[#17213B]';
  return <main className="min-h-screen bg-[#FFF9F1] px-5 py-12 text-[#17213B]"><section className="mx-auto max-w-3xl rounded-3xl border border-[#E8E2F0] bg-white p-6 shadow-sm sm:p-9"><p className="font-semibold text-[#7548CF]">Join Astro Soul Path</p><h1 className="my-3 text-3xl font-bold">Your astrologer application</h1><p>Identity sign-in, professional profile, private document review and authorized Admin approval are separate steps. No automatic government verification is claimed.</p>
  <ol aria-label="Application progress" className="my-6 flex flex-wrap gap-3 text-sm">{['Account','Personal details','Professional profile','KYC documents','Review'].map((title,index)=><li key={title} aria-current={index===step?'step':undefined} className="rounded-full border px-3 py-2">{index+1}. {title}</li>)}</ol>
  {error&&<p role="alert" className="my-4 rounded-xl bg-red-50 p-4 text-red-800">{error}</p>}
- {!owner?<div><p>Checking your authorized applicant account…</p><div className="mt-4 flex flex-wrap gap-4"><Link href="/astrologer/login" className="underline">Google or Email Astrologer Login</Link><Link href="/astrologer/signup" className="underline">Create an email identity</Link><button onClick={()=>void reload()} className="underline">Retry account check</button></div></div>:
+ {!owner?<div><p>Checking your authorized applicant account…</p><div className="mt-4 flex flex-wrap gap-4"><button type="button" disabled={busy} onClick={()=>void begin()} className="underline">Continue application with this Customer account</button><Link href="/astrologer/login" className="underline">Google or Email Astrologer Login</Link><Link href="/astrologer/signup" className="underline">Create an email identity</Link><button onClick={()=>void reload()} className="underline">Retry account check</button></div></div>:
  <form onSubmit={submit}><fieldset disabled={busy||owner.status==='SUSPENDED'} className="space-y-5">
  {owner.status==='SUSPENDED'&&<p role="alert">Professional access is unavailable. Contact support instead of creating another account.</p>}
  {!owner.user.phoneVerified&&<p className="rounded-xl bg-amber-50 p-4">A verified contact phone is required by the existing KYC policy. Phone login remains hidden; complete the supported contact verification in your existing account or <Link href="/contact" className="underline">contact support</Link>. This requirement is not bypassed.</p>}

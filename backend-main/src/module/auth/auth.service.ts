@@ -1400,7 +1400,7 @@ export class AuthService {
     if(portal==='customer')return {success:true,message:'Customer login successful',portal:'customer',role:'CUSTOMER',
       ...session,session,user:{...this.buildCustomerUserPayload(user,isNewUser),authContext,firebaseUid:identity.uid,isEmailVerified:true},
       nextStep:this.getCustomerNextStep(user),firebaseVerified:true};
-    const state=await this.userService.getSessionState(user.supabaseId,portal);
+    const state=await this.userService.getSessionState(user.supabaseId,authContext);
     return {...state,message:'Astrologer access verified',...session,session,firebaseVerified:true,
       user:{...state.user,authContext,firebaseUid:identity.uid,isEmailVerified:true}};
   }
