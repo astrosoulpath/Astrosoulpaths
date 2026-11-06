@@ -109,8 +109,9 @@ for (const value of [
     h.context.process.env.NEXT_PUBLIC_API_BASE_URL = value;
     assert.throws(() => h.load(contract).getAdminApiBase());
   });
-test("explicit localhost config supported", () => {
+test("explicit localhost config supported only in development", () => {
   const h = harness();
+  h.context.process.env.NODE_ENV = "development";
   h.context.process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/";
   assert.equal(h.load(contract).getAdminApiBase(), "http://localhost:4000");
 });
@@ -431,7 +432,7 @@ test("dashboard errors cannot render fake zero preview", () => {
   assert.match(s, /Dashboard unavailable/);
   assert.doesNotMatch(s, /temporary values|asp_access_token|localhost:4000/);
 });
-test("login preserves Email and Phone with secure Google action", () => {
+test("login exposes strict Google Admin action", () => {
   const s = fs.readFileSync(
     path.join(root, "src/app/admin/login/page.tsx"),
     "utf8",
@@ -439,8 +440,6 @@ test("login preserves Email and Phone with secure Google action", () => {
   for (const r of [
     /Continue with Google/,
     /signInWithPopup/,
-    /signInWithEmailAndPassword/,
-    /signInWithPhoneNumber/,
     /establishAdminSession/,
   ])
     assert.match(s, r);
@@ -519,7 +518,7 @@ test("new Google session cannot be established without a Firebase user", async (
   );
 });
 
-test("Admin login exposes approved Google and Email methods while Phone stays hidden", () => {
+test("Admin login renders Google only without Email or Phone controls", () => {
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
   const h = harness({
@@ -538,15 +537,7 @@ test("Admin login exposes approved Google and Email methods while Phone stays hi
     React.createElement(h.load("src/app/admin/login/page.tsx").default),
   );
   assert.match(html, /Continue with Google/);
-  assert.match(html, /<div[^>]*hidden=""[^>]*data-admin-legacy-auth/);
-  const visiblePrefix = html.slice(0, html.indexOf("<div hidden="));
-  assert.doesNotMatch(
-    visiblePrefix,
-    /Phone number|Continue with OTP/,
-  );
-  assert.match(html, /Admin Email/);
-  assert.match(html, /Login as Admin/);
-  assert.match(html, /Phone number/);
+  assert.doesNotMatch(html, /Admin Email|Login as Admin|Phone number|Continue with OTP|type="password"/);
 });
 
 for (const state of ["loading", "error"])
@@ -597,7 +588,7 @@ for (const state of ["loading", "error"])
 function renderLoginState(loading, message) {
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
-  const values = [undefined, loading, message, "", ""];
+  const values = [loading, message];
   const h = harness({
     react: {
       useState: () => [values.shift(), () => {}],
@@ -816,4 +807,45 @@ for (const page of ['src/app/admin/payments/page.tsx','src/app/admin/wallet/page
 
 for(const page of ['src/app/admin/marketplace/page.tsx','src/app/admin/marketplace/products/page.tsx','src/app/admin/marketplace/categories/page.tsx'])test('direct marketplace Admin routes use the same authorized session: '+page,()=>{
  const source=fs.readFileSync(path.join(root,page),'utf8');assert.match(source,/return refreshAdminSession\(\)/);assert.doesNotMatch(source,/localStorage|sessionStorage/);
+});
+
+for (const host of ['localhost','127.0.0.1','[::1]']) test('production Admin API rejects loopback '+host,()=>{
+ const h=harness();h.context.process.env.NEXT_PUBLIC_API_BASE_URL='http://'+host+':4000';
+ assert.throws(()=>h.load(contract).getAdminApiBase());
+});
+test('password Admin exchange never calls backend',async()=>{
+ const h=harness();assert.equal(await h.load(contract).exchangeAdminFirebaseToken('synthetic','password'),null);
+});
+test('password Admin bridge cannot set a session cookie',async()=>{
+ const response=await harness().load(bridge).POST(req('POST',{idToken:'synthetic',method:'password'}));
+ assert.equal(response.status,400);assert.equal(response.headers.get('set-cookie'),null);
+});
+test('Admin login offers only Google without retired credential handlers',()=>{
+ const source=fs.readFileSync(path.join(root,'src/app/admin/login/page.tsx'),'utf8');
+ assert.match(source,/Continue with Google/);assert.doesNotMatch(source,/signInWithEmailAndPassword|signInWithPhoneNumber|type="password"|data-admin-email-auth/);
+});
+
+for(const host of ['localhost','127.0.0.1','[::1]','10.0.2.2']) test('production Admin API rejects HTTPS local host '+host,()=>{
+ const h=harness();h.context.process.env.NEXT_PUBLIC_API_BASE_URL='https://'+host;
+ assert.throws(()=>h.load(contract).getAdminApiBase());
+});
+test('client rejects password and legacy non-Firebase Admin session before request',async()=>{
+ const h=browser(async()=>{throw Error('Unexpected request');});
+ await assert.rejects(h.api.establishAdminSession('synthetic','password'),/Google/);
+ await assert.rejects(h.api.establishAdminSession('synthetic','existing',undefined,'email'),/Google/);
+});
+test('stored password Admin session cannot renew',async()=>{
+ const h=browser(async()=>{throw Error('Unexpected request');});
+ h.map.set('asp_admin_access_token','aspctx.synthetic');h.map.set('asp_admin_auth_method','firebase');
+ h.map.set('asp_admin_login_method','password');
+ await assert.rejects(h.api.refreshAdminSession(),/Google/);
+});
+
+for(const host of ['127.0.0.2','10.23.4.5','172.16.0.1','192.168.1.5','169.254.1.2','100.64.0.1','[::ffff:127.0.0.1]','[fd12::1]','[fe80::1]','localhost.','api.local','api.internal','backend','foo.localhost']) test('production rejects private/internal Admin API '+host,()=>{
+ const h=harness();h.context.process.env.NEXT_PUBLIC_API_BASE_URL='https://'+host;
+ assert.throws(()=>h.load(contract).getAdminApiBase());
+});
+for(const host of ['astro-soul-path-backend-sg.onrender.com','api.example.com','[2606:4700:4700::1111]']) test('production accepts public HTTPS Admin API '+host,()=>{
+ const h=harness();h.context.process.env.NEXT_PUBLIC_API_BASE_URL='https://'+host;
+ assert.equal(h.load(contract).getAdminApiBase(),'https://'+host);
 });

@@ -39,6 +39,8 @@ export function establishAdminSession(
   authMethod: "firebase" | "email" = "firebase",
   refreshToken?: string,
 ) {
+  if (method === "password" || authMethod !== "firebase")
+    return Promise.reject(new Error("Admin access requires Google sign-in."));
   const generation = epoch;
   const firebaseUid =
     authMethod === "firebase" ? firebaseAuth.currentUser?.uid : undefined;
@@ -112,6 +114,8 @@ export function refreshAdminSession(): Promise<string> {
     const storedToken = localStorage.getItem("asp_admin_access_token");
     if (!storedToken) throw new Error("Please sign in as Admin.");
     const authMethod = localStorage.getItem("asp_admin_auth_method");
+    if (localStorage.getItem("asp_admin_login_method") === "password")
+      throw new Error("Please sign in again with Google as Admin.");
     let token = storedToken;
     const refreshToken: string | undefined = undefined;
     if (authMethod === "firebase") {
@@ -134,7 +138,7 @@ export function refreshAdminSession(): Promise<string> {
       throw new Error("Admin session ended.");
     return establishAdminSession(
       token,
-      localStorage.getItem('asp_admin_login_method') === 'password' ? 'password' : 'google',
+      'google',
       undefined,
       authMethod,
       refreshToken,

@@ -80,12 +80,18 @@ describe('prepared server-verified multi-context sessions (no live accounts)', (
     expect(proof.effectiveRole).toBe('ASTROLOGER_APPLICANT');
     expect(()=>assertContextRole(proof,['ASTROLOGER'])).toThrow();
   });
-  it('verified password identity supports customer and linked same-UID admin contexts',async()=>{
+  it('verified password remains valid for Customer but is rejected for Admin',async()=>{
     identity.signInProvider='password';identity.hasEmailPasswordProvider=true;identity.passwordEmail=identity.email;
     await expect(session()).resolves.toMatchObject({authContext:'customer'});
-    await expect(session('admin')).resolves.toMatchObject({authContext:'admin'});
+    await expect(session('admin')).rejects.toThrow();
     identity.googleSubject='';
     await expect(session('admin')).rejects.toThrow();
+    await expect(session()).resolves.toMatchObject({authContext:'customer'});
+  });
+  it('revalidates provider on an existing Admin session', async () => {
+    const issued=await session('admin');
+    identity.signInProvider='password';identity.hasEmailPasswordProvider=true;identity.passwordEmail=identity.email;
+    await expect(verifyContextSession(issued.accessToken,'admin',users)).rejects.toThrow();
     await expect(session()).resolves.toMatchObject({authContext:'customer'});
   });
   it('rejects password ownership mismatch and expired verified source claims',async()=>{

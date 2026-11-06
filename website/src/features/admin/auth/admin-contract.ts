@@ -3,14 +3,19 @@ export function getAdminApiBase(): string {
   const value = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
   if (!value) throw new Error("Admin API URL is not configured.");
   const url = new URL(value);
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+  const privateHost = /^(localhost$|0\.|127\.|10\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|::|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i.test(host);
   if (
     url.username ||
     url.password ||
     url.search ||
     url.hash ||
+    (process.env.NODE_ENV === "production" &&
+      (privateHost || (!host.includes(".") && !host.includes(":")) || [".localhost", ".local", ".internal"].some(suffix => host.endsWith(suffix)))) ||
     (url.protocol !== "https:" &&
       !(
         url.protocol === "http:" &&
+        process.env.NODE_ENV !== "production" &&
         ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
       ))
   ) {
@@ -35,8 +40,8 @@ export async function verifyAdminSessionToken(token: string | undefined) {
   return requestAdminSession('/auth/admin/context/verify', {accessToken:token});
 }
 export async function exchangeAdminFirebaseToken(token: string, method: 'google' | 'password') {
-  if (!token || token.length > 8192 || /\s/.test(token)) return null;
-  return requestAdminSession(`/auth/admin/firebase/${method === 'password' ? 'email' : 'google'}`, {idToken:token});
+  if (method !== 'google' || !token || token.length > 8192 || /\s/.test(token)) return null;
+  return requestAdminSession('/auth/admin/firebase/google', {idToken:token});
 }
 async function requestAdminSession(path: string, payload: object) {
   const response = await fetch(`${getAdminApiBase()}${path}`, {

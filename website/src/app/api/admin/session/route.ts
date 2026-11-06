@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const token = body?.idToken;
-    if (typeof token !== 'string' || !token || token.length > 8192 || /\s/.test(token) || !['google', 'password', 'existing'].includes(body.method)) {
+    if (typeof token !== 'string' || !token || token.length > 8192 || /\s/.test(token) || !['google', 'existing'].includes(body.method)) {
       return NextResponse.json({ message: 'Invalid Admin session request.' }, { status: 400 });
     }
     // Cookie verification never promotes a raw Customer/Firebase credential.

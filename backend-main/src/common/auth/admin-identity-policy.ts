@@ -31,7 +31,7 @@ export function readAllowedAdminUid(
 
 export function rejectLegacyAdminAuthentication(): void {
   throw new ForbiddenException(
-    'Admin access requires the authorized Firebase Google or linked Email identity',
+    'Admin access requires the authorized Firebase Google identity',
   );
 }
 
@@ -43,9 +43,10 @@ export async function authorizeAdminIdentity(
   if (
     identity.uid !== allowed ||
     identity.firebaseUserDisabled ||
-    (identity.signInProvider === 'password'
-      ? !identity.hasEmailPasswordProvider || identity.passwordEmail !== identity.email || !identity.googleSubject
-      : identity.googleEmail !== identity.email || !identity.tokenGoogleSubjects?.includes(identity.googleSubject))
+    identity.signInProvider !== 'google.com' ||
+    !identity.googleSubject ||
+    identity.googleEmail !== identity.email ||
+    !identity.tokenGoogleSubjects?.includes(identity.googleSubject)
   ) {
     throw new ForbiddenException('Admin identity is not authorized');
   }

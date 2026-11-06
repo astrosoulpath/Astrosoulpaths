@@ -129,12 +129,10 @@ describe('Firebase Google Admin login (no provisioning)', () => {
       ).rejects.toThrow();
     },
   );
-  it('linked Firebase password authenticates the same allowlisted UID into Admin context',async()=>{
+  it('linked Firebase password cannot authenticate the allowlisted UID into Admin context',async()=>{
     token.firebase.sign_in_provider='password';
     provider.providerData.push({providerId:'password',email:admin.email,uid:admin.email});
-    await expect(service.loginAdminWithFirebaseEmail('fixture-password-source')).resolves.toMatchObject({
-      role:'ADMIN',authContext:'admin',accessToken:expect.stringMatching(/^aspctx\./),user:{id:admin.id},
-    });
+    await expect(service.loginAdminWithFirebaseEmail('fixture-password-source')).rejects.toThrow('Admin access requires Google sign-in');
   });
   it('Admin password cannot be invented from an unlinked provider',async()=>{
     token.firebase.sign_in_provider='password';

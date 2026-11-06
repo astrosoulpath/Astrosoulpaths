@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -15,17 +15,10 @@ import {
 } from "lucide-react";
 import styles from "./admin-login.module.css";
 
-import PhoneInput, {
-  isValidPhoneNumber,
-  type Value,
-} from "react-phone-number-input";
 
 import {
   GoogleAuthProvider,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
   signInWithPopup,
-  signInWithEmailAndPassword,
 } from "firebase/auth";
 
 import { firebaseAuth } from "@/lib/firebaseClient";
@@ -38,12 +31,8 @@ import {
 export default function AdminLoginPage() {
   const router = useRouter();
 
-  const [phone, setPhone] = useState<Value>();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
-  const [adminEmail, setAdminEmail] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
 
   const handleGoogleLogin = async () => {
     if (loading) return;
@@ -73,97 +62,6 @@ export default function AdminLoginPage() {
               ? error.message
               : "Google Admin sign-in failed.",
       );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEmailLogin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (loading) return;
-    setLoading(true);
-    setMessage("");
-
-    try {
-      await beginAdminLogin();
-      const credential = await signInWithEmailAndPassword(firebaseAuth, adminEmail.trim(), adminPassword);
-      await establishAdminSession(await credential.user.getIdToken(true), "password");
-      setAdminPassword("");
-
-      router.replace("/admin");
-      router.refresh();
-    } catch (error: unknown) {
-      try { await logoutAdmin(); } catch { /* Preserve the login failure below. */ }
-      setMessage(
-        error instanceof Error ? error.message : "Admin login failed.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (loading) return;
-
-    const normalizedPhone = phone?.trim() ?? "";
-
-    if (!normalizedPhone) {
-      setMessage("Please enter your mobile number.");
-      return;
-    }
-
-    if (!isValidPhoneNumber(normalizedPhone)) {
-      setMessage(
-        "Please enter a valid mobile number for the selected country.",
-      );
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setMessage("");
-      await beginAdminLogin();
-
-      /*
-       * react-phone-number-input returns E.164:
-       * India  -> +918651540070
-       * USA    -> +12025550123
-       * UK     -> +447911123456
-       *
-       * Same backend-compatible format as Flutter.
-       */
-      if (recaptchaRef.current) {
-        recaptchaRef.current.clear();
-        recaptchaRef.current = null;
-      }
-
-      const verifier = new RecaptchaVerifier(
-        firebaseAuth,
-        "admin-recaptcha-container",
-        {
-          size: "normal",
-        },
-      );
-
-      recaptchaRef.current = verifier;
-
-      const confirmationResult = await signInWithPhoneNumber(
-        firebaseAuth,
-        normalizedPhone,
-        verifier,
-      );
-
-      window.sessionStorage.setItem("admin_phone", normalizedPhone);
-
-      window.sessionStorage.setItem(
-        "admin_firebase_verification_id",
-        confirmationResult.verificationId,
-      );
-
-      router.push("/admin/verify-otp");
-    } catch (error: unknown) {
-      setMessage(error instanceof Error ? error.message : "OTP send failed.");
     } finally {
       setLoading(false);
     }
@@ -322,116 +220,6 @@ export default function AdminLoginPage() {
               </li>
             ))}
           </ul>
-          <div data-admin-email-auth>
-            <form onSubmit={handleEmailLogin}>
-              <div className="mt-6">
-                <label
-                  htmlFor="admin-email"
-                  className="text-sm font-medium text-[#0b1026]"
-                >
-                  Admin Email
-                </label>
-                <input
-                  id="admin-email"
-                  type="email"
-                  required
-                  autoComplete="username"
-                  value={adminEmail}
-                  onChange={(event) => setAdminEmail(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-black"
-                  placeholder="Enter admin email"
-                />
-              </div>
-
-              <div className="mt-4">
-                <label
-                  htmlFor="admin-password"
-                  className="text-sm font-medium text-[#0b1026]"
-                >
-                  Password
-                </label>
-                <input
-                  id="admin-password"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  value={adminPassword}
-                  onChange={(event) => setAdminPassword(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-black"
-                  placeholder="Enter password"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="mt-6 w-full rounded-xl bg-[#D4AF37] py-4 font-semibold text-black disabled:opacity-60"
-              >
-                {loading ? "Signing in..." : "Login as Admin"}
-              </button>
-            </form>
-
-          </div>
-          {/* Preserve the retired Phone flow source without exposing it. */}
-          <div hidden className="hidden" aria-hidden="true" data-admin-legacy-auth>
-            <p className="mt-6 text-center text-sm text-gray-500">
-              Or continue with phone OTP
-            </p>
-            <form onSubmit={handleLogin} noValidate>
-              <div className="mt-6">
-                <label
-                  htmlFor="admin-phone"
-                  className="text-sm font-medium text-[#0b1026]"
-                >
-                  Mobile Number
-                </label>
-
-                <div className="asp-phone-field mt-2">
-                  <PhoneInput
-                    id="admin-phone"
-                    /*
-                     * Flutter default:
-                     * _selectedPhoneCode = '91'
-                     * _selectedCountryCode = 'IN'
-                     * _selectedCountryFlag = India
-                     */
-                    defaultCountry="IN"
-                    /*
-                     * Shows:
-                     * flag + international calling code.
-                     *
-                     * User cannot manually corrupt +91/+1/+44 etc.
-                     */
-                    international
-                    countryCallingCodeEditable={false}
-                    value={phone}
-                    onChange={(value) => {
-                      setPhone(value);
-                      setMessage("");
-                    }}
-                    disabled={loading}
-                    autoComplete="tel"
-                    placeholder="Enter mobile number"
-                    className="asp-phone-input"
-                  />
-                </div>
-
-                <p className="mt-2 text-xs text-gray-400">
-                  Select your country code and enter your mobile number.
-                </p>
-              </div>
-
-              <div id="admin-recaptcha-container" className="mt-4" />
-              <button
-                id="admin-send-otp-button"
-                type="submit"
-                disabled={loading || !phone}
-                className="mt-6 w-full rounded-xl bg-[#D4AF37] py-4 font-semibold text-black transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading ? "Sending OTP..." : "Continue with OTP"}
-              </button>
-            </form>
-          </div>
         </section>
       </div>
     </main>

@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <application
         android:label="Astro Soul Path"
+        android:usesCleartextTraffic="false"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <meta-data

@@ -32,6 +32,7 @@ describe('single Google Admin policy and guards', () => {
   const priorFile=process.env.AUTH_CONTEXT_SESSION_KEY_FILE;
   const identity: any = {
     uid: 'fixture-admin',
+    signInProvider: 'google.com',
     email: 'fixture@example.invalid',
     googleEmail: 'fixture@example.invalid',
     googleSubject: 'subject',
@@ -44,6 +45,7 @@ describe('single Google Admin policy and guards', () => {
     prior = process.env.ADMIN_ALLOWED_FIREBASE_UID;
     process.env.ADMIN_ALLOWED_FIREBASE_UID = 'fixture-admin';
     process.env.AUTH_CONTEXT_SESSION_KEY='12'.repeat(32);
+    identity.signInProvider='google.com';
     identity.expiresAt=Math.floor(Date.now()/1000)+3600;
     user = {
       id: 'canonical',
@@ -61,6 +63,14 @@ describe('single Google Admin policy and guards', () => {
     (verifyFirebaseGoogleIdentity as jest.Mock)
       .mockReset()
       .mockResolvedValue(identity);
+  });
+  it.each(['password', 'phone', 'custom', undefined])('rejects non-Google Admin provider %s before lookup', async provider => {
+    await expect(authorizeAdminIdentity({ ...identity, signInProvider: provider }, users)).rejects.toThrow();
+    expect(users.getAdminByFirebaseUid).not.toHaveBeenCalled();
+  });
+  it('rejects an empty Google subject even if token subjects contain an empty value', async () => {
+    await expect(authorizeAdminIdentity({ ...identity, googleSubject: '', tokenGoogleSubjects: [''] }, users)).rejects.toThrow();
+    expect(users.getAdminByFirebaseUid).not.toHaveBeenCalled();
   });
   async function credential(){return (await establishContextSession('synthetic-source','admin',{...users,getUserByFirebaseUid:()=>Promise.resolve(user)})).accessToken;}
   afterEach(() => {

@@ -1358,13 +1358,8 @@ export class AuthService {
     };
   }
 
-  async loginAdminWithFirebaseEmail(idToken:string){
-    const identity=await verifyFirebaseGoogleIdentity(idToken,false,true);
-    if(identity.signInProvider!=='password')throw new UnauthorizedException('Email authentication required');
-    const user=await authorizeAdminIdentity(identity,this.userService);
-    const session=await establishContextSession(idToken,'admin',this.userService);
-    return {success:true,adminPolicy:'single-google-v1',portal:'admin',role:'ADMIN',firebaseVerified:true,
-      nextStep:'OPEN_ADMIN_DASHBOARD',...session,session,user:{id:user.id,email:user.email,role:'ADMIN',portal:'admin'}};
+  async loginAdminWithFirebaseEmail(_idToken: string): Promise<never> {
+    throw new UnauthorizedException('Admin access requires Google sign-in');
   }
 
   async verifyAdminContext(accessToken:string){
